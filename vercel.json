@@ -1,0 +1,19 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": null,
+  "rewrites": [
+    { "source": "/boss", "destination": "/boss.html" },
+    { "source": "/boss.html", "destination": "/boss.html" },
+    { "source": "/branch-KM", "destination": "/branch-KM.html" },
+    { "source": "/branch-T1", "destination": "/branch-T1.html" },
+    { "source": "/branch-TW2", "destination": "/branch-TW2.html" },
+    { "source": "/branch-TW1", "destination": "/branch-TW1.html" },
+    { "source": "/branch-LD", "destination": "/branch-LD.html" },
+    { "source": "/branch-KB", "destination": "/branch-KB.html" },
+    { "source": "/branch-T5", "destination": "/branch-T5.html" },
+    { "source": "/branch-ITCC", "destination": "/branch-ITCC.html" },
+    { "source": "/branch-TENOM", "destination": "/branch-TENOM.html" },
+    { "source": "/branch-HQ", "destination": "/branch-HQ.html" }
+  ]
+}
