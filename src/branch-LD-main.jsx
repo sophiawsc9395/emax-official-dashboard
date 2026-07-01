@@ -1,9 +1,15 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import BranchApp from './pages/viewers/BranchLDViewer.jsx'
+import AuthGate from './auth/AuthGate.jsx'
+
+// LD branch
+const ALLOWED = ["shahruliz0209@gmail.com", "sophiawsc9395@gmail.com"]
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BranchApp />
+    <AuthGate allowedEmails={ALLOWED}>
+      <BranchApp />
+    </AuthGate>
   </React.StrictMode>
 )

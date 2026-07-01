@@ -3,7 +3,7 @@
 // Enterprise Analytics Platform
 // ============================================================
 import { useState, useEffect, useMemo, useRef } from "react";
-import { loadData, saveData } from "./storage/index.js";
+import { loadData, saveData, supabase } from "./storage/index.js";
 
 const T = {
   navy:"#0A1628", navyMid:"#0F2040", navyLight:"#162B52",
@@ -1978,6 +1978,11 @@ export default function App(){
               ))}
             </select>
           </div>
+          <button onClick={()=>supabase.auth.signOut()} title="Sign out"
+            style={{display:"flex",alignItems:"center",justifyContent:"center",height:30,padding:"0 10px",border:"1px solid rgba(255,255,255,.15)",borderRadius:7,background:"rgba(255,255,255,.06)",cursor:"pointer",flexShrink:0,fontFamily:"Inter,sans-serif",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.5)",gap:4,whiteSpace:"nowrap"}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign Out
+          </button>
           <button onClick={()=>setSidebarOpen(o=>!o)} title={sidebarOpen?"Collapse menu":"Expand menu"}
             style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,border:"1px solid rgba(255,255,255,.15)",borderRadius:7,background:"rgba(255,255,255,.06)",cursor:"pointer",flexShrink:0}}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
