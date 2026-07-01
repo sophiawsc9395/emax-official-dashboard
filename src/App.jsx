@@ -1722,7 +1722,11 @@ export default function App(){
       setRecords(r||{});
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
       // Overlay historical status snapshot if viewing a past month
-      if(snap&&Object.keys(snap).length>0){
+      // Only apply status snapshot for PAST months — for the current month,
+      // the sr_list itself is the source of truth (the snapshot could be stale)
+      const now=new Date();
+      const isCurrentMonth=(selMonth===now.getMonth()+1&&selYear===now.getFullYear());
+      if(!isCurrentMonth&&snap&&Object.keys(snap).length>0){
         const merged=baseSR.map(sr=>snap[sr.id]?{...sr,status:snap[sr.id].status,active:snap[sr.id].active!==false}:{...sr});
         setSrList(merged.filter(sr=>sr.active!==false));
       } else {

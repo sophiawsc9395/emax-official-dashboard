@@ -380,7 +380,10 @@ export default function App(){
       if(srData&&Array.isArray(srData)&&srData.length>0){
         let filtered=srData.filter(s=>s.branch===BRANCH_ID);
         // Apply post-lock status snapshot if available (so we show status as-of this month)
-        if(snap&&Object.keys(snap).length>0){
+        // Only apply snapshot for past months
+        const nowB=new Date();
+        const isCurMonthB=(selMonth===nowB.getMonth()+1&&selYear===nowB.getFullYear());
+        if(!isCurMonthB&&snap&&Object.keys(snap).length>0){
           filtered=filtered.map(sr=>snap[sr.id]?{...sr,status:snap[sr.id].status}:{...sr});
         }
         setSrList(filtered);

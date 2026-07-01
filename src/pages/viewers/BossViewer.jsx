@@ -760,7 +760,10 @@ export default function App(){
     ]).then(([r,t,tPrev,srData,bmData,snap,rep,rb,rh,sh])=>{
       setRecords(r||{});
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
-      if(snap&&Object.keys(snap).length>0){
+      // Only apply snapshot for PAST months — current month uses live sr_list
+      const nowD=new Date();
+      const isCurrentMonthV=(selMonth===nowD.getMonth()+1&&selYear===nowD.getFullYear());
+      if(!isCurrentMonthV&&snap&&Object.keys(snap).length>0){
         const merged=baseSR.map(sr=>snap[sr.id]?{...sr,status:snap[sr.id].status,active:snap[sr.id].active!==false}:{...sr});
         setSrList(merged.filter(sr=>sr.active!==false));
       } else setSrList(baseSR);
