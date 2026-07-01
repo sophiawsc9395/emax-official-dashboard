@@ -1783,13 +1783,17 @@ export default function App(){
         updates[sr.id]={...cur,balance:(cur.balance||0)+earned};
         historyUpdates[sr.id]=[...hist,{date:new Date().toISOString(),type:"credit",amount:earned,note:`${noteMonth} performance (${srPct.toFixed(1)}%)`}];
       }
-      // Employment status: target hit -> P+1, not hit -> F+1 (skip Director/Resigned)
+      // Employment status: target hit -> P+1, not hit -> F+1 (skip Director/Resigned only)
       const ps=parseStatus(sr.status);
-      if(ps.base==="Director"||ps.base==="Resigned"||srTarget<=0)return sr;
-      const hit=srTotal>=srTarget;
+      if(ps.base==="Director"||ps.base==="Resigned")return sr;
+      // If no target set, count as missed (F+1)
+      const hit=srTarget>0&&srTotal>=srTarget;
       const newStatus=buildStatus(ps.base,hit?ps.p+1:ps.p,hit?ps.f:ps.f+1);
       const sHist=statusUpdates[sr.id]||[];
-      statusUpdates[sr.id]=[...sHist,{date:new Date().toISOString(),status:newStatus,note:`Auto-updated on lock: ${noteMonth} personal target ${hit?"hit":"missed"} (${srPct.toFixed(1)}%)`}];
+      const noteStr=srTarget>0
+        ?`Auto-updated on lock: ${noteMonth} personal target ${hit?"hit":"missed"} (${srPct.toFixed(1)}%)`
+        :`Auto-updated on lock: ${noteMonth} (no target set — counted as missed)`;
+      statusUpdates[sr.id]=[...sHist,{date:new Date().toISOString(),status:newStatus,note:noteStr}];
       return{...sr,status:newStatus};
     });
     setSrList(updatedSRList);
@@ -1815,19 +1819,21 @@ export default function App(){
       historyUpdates[bmKey]=[...bmHist,{date:new Date().toISOString(),type:"credit",amount:bmEarned,note:`${noteMonth} branch performance (${branchPct.toFixed(1)}%)`}];
     }
 
-    if(bTarget>0){
+    {
       const bmMeta=branchMeta[branchId]||{};
       const bps=parseStatus(bmMeta.mStatus);
       if(bps.base!=="Director"&&bps.base!=="Resigned"){
-        const bmHit=bTotal>=bTarget;
+        const bmHit=bTarget>0&&bTotal>=bTarget;
         const newBMStatus=buildStatus(bps.base,bmHit?bps.p+1:bps.p,bmHit?bps.f:bps.f+1);
         const newBranchMeta={...branchMeta,[branchId]:{...bmMeta,mStatus:newBMStatus}};
         setBranchMeta(newBranchMeta);
         await saveData(BM_KEY,newBranchMeta);
         const bmStatusKey=`BM_${branchId}`;
         const bmSHist=statusUpdates[bmStatusKey]||[];
-        statusUpdates[bmStatusKey]=[...bmSHist,{date:new Date().toISOString(),status:newBMStatus,note:`Auto-updated on lock: ${noteMonth} branch target ${bmHit?"hit":"missed"} (${branchPct.toFixed(1)}%)`}];
-        // Also save BM post-lock status into next month's opening snapshot
+        const bmNoteStr=bTarget>0
+          ?`Auto-updated on lock: ${noteMonth} branch target ${bmHit?"hit":"missed"} (${branchPct.toFixed(1)}%)`
+          :`Auto-updated on lock: ${noteMonth} (no branch target set — counted as missed)`;
+        statusUpdates[bmStatusKey]=[...bmSHist,{date:new Date().toISOString(),status:newBMStatus,note:bmNoteStr}];
         postLockSnap[`BM_${branchId}`]={status:newBMStatus};
         await saveData(`emax_v5_status_${nextYear}_${nextMonth}`,postLockSnap);
       }
