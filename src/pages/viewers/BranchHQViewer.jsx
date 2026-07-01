@@ -193,6 +193,52 @@ function RankingTable({title,rows,showBonus,showPoints,branchMeta,period}){
 }
 
 
+function StatusHistoryModal({srList,bMeta,statusHistory,onClose,initialPerson}){
+  const people=[
+    ...BRANCH_ORDER.map(b=>({id:`BM_${b}`,name:bMeta[b]?.manager||b,role:`${b} — Branch Manager`})),
+    ...srList.map(sr=>({id:sr.id,name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}))
+  ];
+  const [selPerson,setSelPerson]=useState(initialPerson||people[0]?.id);
+  const person=people.find(p=>p.id===selPerson);
+  const currentStatus=(selPerson&&selPerson.startsWith("BM_"))?bMeta[selPerson.replace("BM_","")]?.mStatus:srList.find(s=>s.id===selPerson)?.status;
+  const history=(statusHistory[selPerson]||[]).slice().reverse();
+
+  return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:600,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px",borderBottom:"1px solid #E4EAF2"}}>
+        <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>📋 Employment Status History</h2>
+        <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
+      </div>
+      <div style={{padding:"16px 24px",borderBottom:"1px solid #E4EAF2"}}>
+        <select className="input select" value={selPerson} onChange={e=>setSelPerson(e.target.value)} style={{fontSize:13,padding:"8px 28px 8px 12px"}}>
+          {people.map(p=><option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}
+        </select>
+      </div>
+      <div style={{padding:"16px 24px",background:"linear-gradient(135deg,#0A1628,#162B52)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div>
+          <div style={{fontSize:10,color:"rgba(255,255,255,.5)",textTransform:"uppercase",letterSpacing:"0.08em"}}>{person?.name}</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.35)",marginTop:2}}>Current Status</div>
+        </div>
+        <div style={{fontSize:18,fontWeight:800,color:"#fff"}}>{currentStatus||"—"}</div>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"12px 24px"}}>
+        {history.length===0
+          ? <div style={{padding:"32px 0",textAlign:"center",color:"#8A96A8",fontSize:12}}>No status change history yet.</div>
+          : history.map((h,i)=>(
+            <div key={i} style={{padding:"10px 0",borderBottom:i<history.length-1?"1px solid #F0F2F5":"none"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:13,fontWeight:800,color:"#0A1628"}}>{h.status}</span>
+                <span style={{fontSize:10,color:"#8A96A8"}}>{new Date(h.date).toLocaleString("en-MY",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
+              </div>
+              <div style={{fontSize:12,color:"#5A6472",marginTop:3}}>{h.note}</div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </div>;
+}
+
 function PointsHistoryModal({srList,bMeta,rewardBalances,rewardHistory,onClose,initialPerson}){
   const people=[
     ...BRANCH_ORDER.map(b=>({id:`BM_${b}`,name:bMeta[b]?.manager||b,role:"Branch Manager"})),
@@ -318,6 +364,9 @@ export default function App(){
   const [rewardHistory,setRewardHistory]=useState({});
   const [showPointsModal,setShowPointsModal]=useState(false);
   const [pointsModalPerson,setPointsModalPerson]=useState(null);
+  const [showStatusHistoryModal,setShowStatusHistoryModal]=useState(false);
+  const [statusModalPerson,setStatusModalPerson]=useState(null);
+  const [statusHistory,setStatusHistory]=useState({});
   const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const pointsAsOf=(()=>{
     const prevDate=new Date(selYear,selMonth-1,0);
@@ -326,13 +375,14 @@ export default function App(){
 
   useEffect(()=>{
     setLoading(true);setRecords({});
-    Promise.all([loadData(recordsKey),loadData(TARGET_KEY),loadData(SR_KEY),loadData(BM_KEY),loadData("emax_v5_reward_balance"),loadData("emax_v5_reward_history")]).then(([r,t,srData,bmData,rb,rh])=>{
+    Promise.all([loadData(recordsKey),loadData(TARGET_KEY),loadData(SR_KEY),loadData(BM_KEY),loadData("emax_v5_reward_balance"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history")]).then(([r,t,srData,bmData,rb,rh,sh])=>{
       setRecords(r||{});
       if(t?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...t.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(t.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...t.sr}});
       if(srData&&Array.isArray(srData)&&srData.length>0)setSrList(srData.filter(s=>s.branch===BRANCH_ID));
       if(bmData&&Object.keys(bmData).length>0)setBMeta(p=>({...p,...bmData}));
       setRewardBalances(rb||{});
       setRewardHistory(rh||{});
+      setStatusHistory(sh||{});
       setLoading(false);
     });
   },[selMonth,selYear]);
@@ -649,7 +699,7 @@ export default function App(){
       {/* Personal Achievement Bonus */}
       {bonus>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:4,gap:6,flexWrap:"nowrap"}}>
         <span style={{color:"#5A6472",fontSize:10}}>Personal Achievement Bonus</span>
-        <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>
+        <span style={{fontSize:10,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>
           {bonusEarned?fRM(bonus):`${fRM(bonus)} (Pending)`}
         </span>
       </div>}
@@ -658,7 +708,7 @@ export default function App(){
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2,gap:6,flexWrap:"nowrap"}}>
         <span style={{color:"#5A6472",fontSize:10}}>Branch Achievement Bonus</span>
         {(branchPct>=120&&p>=100)
-          ? <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{fRM(calcAchievementBonus(branchPct,"sr"))}</span>
+          ? <span style={{fontSize:10,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{fRM(calcAchievementBonus(branchPct,"sr"))}</span>
           : <span style={{color:"#5A6472",flexShrink:0}}>—</span>
         }
       </div>
@@ -667,13 +717,13 @@ export default function App(){
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2,marginTop:2,gap:6,flexWrap:"nowrap"}}>
         <span style={{color:"#5A6472",fontSize:10}}>Reward Points (This Month)</span>
         {(branchPct>=100&&p>=110)
-          ? <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{calcRewardPoints(p,branchPct).toLocaleString()} pts</span>
+          ? <span style={{fontSize:10,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{calcRewardPoints(p,branchPct).toLocaleString()} pts</span>
           : <span style={{color:"#5A6472",flexShrink:0}}>—</span>
         }
       </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:6,gap:6,flexWrap:"nowrap"}}>
         <span style={{color:"#5A6472",fontSize:10,flex:1,minWidth:0,overflow:"visible"}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
-        <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{(rewardBalances[sr.id]?.balance||0).toLocaleString()} pts</span>
+        <span style={{fontSize:10,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{(rewardBalances[sr.id]?.balance||0).toLocaleString()} pts</span>
       </div>
 
       {/* Compact tier progress — only shown when at least one tier is active */}
@@ -724,6 +774,13 @@ export default function App(){
             </button>
           ))}
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
+          <button onClick={()=>{setShowStatusHistoryModal(true);setSidebarOpen(false);}} style={{
+            display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+            border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+            background:"transparent",color:"rgba(255,255,255,.45)",transition:"background .15s",
+          }}>
+            📋 Status History
+          </button>
           <button onClick={()=>supabase.auth.signOut()} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
@@ -736,5 +793,6 @@ export default function App(){
       </div>
     </div>{/* end flex layout */}
     {showPointsModal&&<PointsHistoryModal srList={srList} bMeta={bMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
+    {showStatusHistoryModal&&<StatusHistoryModal srList={srList} bMeta={bMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}
   </div>;
 }
