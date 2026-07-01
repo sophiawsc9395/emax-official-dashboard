@@ -1868,14 +1868,15 @@ export default function App(){
     const revertedSRList=srList.map(sr=>{
       if(sr.branch!==branchId)return sr;
 
-      // Reverse reward points
+      // Reverse reward points — remove the credit entry entirely so re-lock can credit cleanly
       const hist=(historyUpdates[sr.id]||[]);
-      const lockCredit=hist.filter(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
-      if(lockCredit.length>0){
-        const amt=lockCredit[lockCredit.length-1].amount||0;
+      const lockCreditIdx=hist.findLastIndex(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
+      if(lockCreditIdx>=0){
+        const amt=hist[lockCreditIdx].amount||0;
         const cur=updates[sr.id]||{balance:0};
         updates[sr.id]={...cur,balance:Math.max(0,(cur.balance||0)-amt)};
-        historyUpdates[sr.id]=[...hist,{date:new Date().toISOString(),type:"debit",amount:amt,note:`Unlock: ${noteMonth} lock reversed`}];
+        // Remove the credit entry (don't add a debit — clean slate for re-lock)
+        historyUpdates[sr.id]=hist.filter((_,i)=>i!==lockCreditIdx);
       }
 
       // Reverse employment status — find the auto-lock entry and revert to status before it
@@ -1905,12 +1906,13 @@ export default function App(){
     // ── Reverse BM points and employment status ────────────────────────────
     const bmKey=`BM_${branchId}`;
     const bmHist=(historyUpdates[bmKey]||[]);
-    const bmLockCredit=bmHist.filter(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
-    if(bmLockCredit.length>0){
-      const amt=bmLockCredit[bmLockCredit.length-1].amount||0;
+    const bmLockCreditIdx=bmHist.findLastIndex(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
+    if(bmLockCreditIdx>=0){
+      const amt=bmHist[bmLockCreditIdx].amount||0;
       const curBM=updates[bmKey]||{balance:0};
       updates[bmKey]={...curBM,balance:Math.max(0,(curBM.balance||0)-amt)};
-      historyUpdates[bmKey]=[...bmHist,{date:new Date().toISOString(),type:"debit",amount:amt,note:`Unlock: ${noteMonth} lock reversed`}];
+      // Remove the credit entry so re-lock credits cleanly
+      historyUpdates[bmKey]=bmHist.filter((_,i)=>i!==bmLockCreditIdx);
     }
 
     const bmSHist=statusUpdates[bmKey]||[];
