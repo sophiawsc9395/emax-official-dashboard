@@ -35,6 +35,8 @@ const CSS = `
   .fade-in{animation:fadeIn .25s ease forwards;}
   .progress-bar-fill{transition:width .8s cubic-bezier(.4,0,.2,1);}
   .modal-overlay{position:fixed;inset:0;background:rgba(10,22,40,.65);backdrop-filter:blur(4px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
+  tfoot td{white-space:nowrap!important;}
+  thead th{white-space:nowrap!important;}
 `;
 
 
@@ -509,7 +511,7 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
       </div>
     </div>
     <div style={{overflowX:"auto"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",minWidth:650}}>
+      <table style={{width:"100%",borderCollapse:"collapse",minWidth:920}}>
         <thead><tr>
           <th style={TH({textAlign:"left"})}>Branch</th>
           <th style={TH()}>Monthly Target</th>
