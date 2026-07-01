@@ -73,7 +73,7 @@ const DEFAULT_TARGETS = {
 };
 const SR_KEY="emax_v5_sr_list",BM_KEY="emax_v5_branch_meta";
 
-const fRM=(n=0)=>"RM "+Number(n||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
 const f2=(n=0)=>Number(n||0).toFixed(2);
 const pctN=(p,t)=>t>0?(p/t)*100:0;
 function achColor(p,t){const r=pctN(p,t);return r>=100?"#00C896":r>=80?"#F5A623":r>=50?"#F0794B":"#F0354B";}
@@ -358,6 +358,7 @@ export default function App(){
   const [pointsModalPerson,setPointsModalPerson]=useState(null);
   const [showStatusHistoryModal,setShowStatusHistoryModal]=useState(false);
   const [statusModalPerson,setStatusModalPerson]=useState(null);
+  const [publishedUntil,setPublishedUntil]=useState(null);
   const [statusHistory,setStatusHistory]=useState({});
   const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const pointsAsOf=(()=>{
@@ -384,6 +385,7 @@ export default function App(){
         }
       });
       setRecords(filteredR);
+      setPublishedUntil(pub||null);
       const tUse=t||(tPrev)||null;
       if(tUse?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr}});
       if(srData&&Array.isArray(srData)&&srData.length>0){
@@ -541,8 +543,8 @@ export default function App(){
           <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
           {" "}<span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year} (no data yet)`}</span>
         </div>
-        {!pub&&<span style={{fontSize:11,color:"#92400E",fontWeight:600}}>⚠️ Awaiting publish from admin</span>}
-        {pub&&<span style={{fontSize:11,color:"#15803D",fontWeight:600}}>✅ Data up to {pub.replace(/(\d{4})-(\d{2})-(\d{2})/,(m,y,mo,d)=>`${d}/${mo}/${y}`)}</span>}
+        {!publishedUntil&&<span style={{fontSize:11,color:"#92400E",fontWeight:600}}>⚠️ Awaiting publish from admin</span>}
+        {publishedUntil&&<span style={{fontSize:11,color:"#15803D",fontWeight:600}}>✅ Data up to {(p=>{const[y,mo,d]=p.split("-");return `${d}/${mo}/${y}`;})(publishedUntil)}</span>}
       </div>
 
       {tab==="rankings"&&<div className="fade-in" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:20}}>

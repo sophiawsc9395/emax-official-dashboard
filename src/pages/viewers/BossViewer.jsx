@@ -107,7 +107,7 @@ const DEFAULT_TARGETS={
 };
 const SR_KEY="emax_v5_sr_list",BM_KEY="emax_v5_branch_meta";
 
-const fRM=(n=0)=>"RM "+Number(n||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
 const f2=(n=0)=>Number(n||0).toFixed(2);
 const nc=(n)=>Number(n||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});
 const pctN=(p,t)=>t>0?(p/t)*100:0;
@@ -733,6 +733,7 @@ export default function App(){
   const [statusHistory,setStatusHistory]=useState({});
   const [showStatusHistoryModal,setShowStatusHistoryModal]=useState(false);
   const [statusModalPerson,setStatusModalPerson]=useState(null);
+  const [publishedUntil,setPublishedUntil]=useState(null);
   const [showPointsModal,setShowPointsModal]=useState(false);
   const [pointsModalPerson,setPointsModalPerson]=useState(null);
 
@@ -769,6 +770,7 @@ export default function App(){
         }
       });
       setRecords(filteredR);
+      setPublishedUntil(pub||null);
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
       // Only apply snapshot for PAST months — current month uses live sr_list
       const nowD=new Date();
@@ -940,8 +942,8 @@ export default function App(){
           <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
           {" "}<span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${MONTHS[month-1]} ${year} (no data yet)`}</span>
         </div>
-        {!pub&&<span style={{fontSize:11,color:"#92400E",fontWeight:600}}>⚠️ Awaiting publish from admin</span>}
-        {pub&&<span style={{fontSize:11,color:"#15803D",fontWeight:600}}>✅ Data up to {pub.replace(/(\d{4})-(\d{2})-(\d{2})/,(m,y,mo,d)=>`${d}/${mo}/${y}`)}</span>}
+        {!publishedUntil&&<span style={{fontSize:11,color:"#92400E",fontWeight:600}}>⚠️ Awaiting publish from admin</span>}
+        {publishedUntil&&<span style={{fontSize:11,color:"#15803D",fontWeight:600}}>✅ Data up to {(p=>{const[y,mo,d]=p.split("-");return `${d}/${mo}/${y}`;})(publishedUntil)}</span>}
       </div>
 
       {/* OVERVIEW */}
@@ -1086,7 +1088,7 @@ export default function App(){
             <div style={{fontSize:11,color:"rgba(255,255,255,.55)"}}>{MONTHS[month-1]} {year}</div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.06em"}}>Total</span>
-              <span style={{fontWeight:700,fontSize:13,color:"#fff"}}>{Object.values(repairData).reduce((s,v)=>s+(v||0),0)>0?fRM(Object.values(repairData).reduce((s,v)=>s+(v||0),0)):"—"}</span>
+              <span style={{fontWeight:700,fontSize:13,color:"#fff"}}>{Object.values(repairData).reduce((s,v)=>s+(parseFloat(v)||0),0)>0?fRM(Object.values(repairData).reduce((s,v)=>s+(parseFloat(v)||0),0)):"—"}</span>
             </div>
           </div>
           <table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -1105,7 +1107,7 @@ export default function App(){
             </tbody>
             <tfoot><tr style={{background:"#0A1628"}}>
               <td style={{padding:"9px 16px",fontWeight:700,color:"rgba(255,255,255,.7)",fontSize:12}}>Total</td>
-              <td style={{padding:"9px 16px",textAlign:"right",fontWeight:700,color:"rgba(255,255,255,.9)",fontSize:12}}>{Object.values(repairData).reduce((s,v)=>s+(v||0),0)>0?fRM(Object.values(repairData).reduce((s,v)=>s+(v||0),0)):"—"}</td>
+              <td style={{padding:"9px 16px",textAlign:"right",fontWeight:700,color:"rgba(255,255,255,.9)",fontSize:12}}>{Object.values(repairData).reduce((s,v)=>s+(parseFloat(v)||0),0)>0?fRM(Object.values(repairData).reduce((s,v)=>s+(parseFloat(v)||0),0)):"—"}</td>
             </tr></tfoot>
           </table>
         </div>

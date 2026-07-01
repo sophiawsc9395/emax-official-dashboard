@@ -146,7 +146,7 @@ function buildStatus(base,p,f){
 }
 
 // ─── HELPERS ───────────────────────────────────────────────
-const fRM=(n=0)=>"RM "+Number(n||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});
+const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
 const f2=(n=0)=>Number(n||0).toFixed(2);
 const pctN=(p,t)=>t>0?(p/t)*100:0;
 const pctS=(p,t)=>t>0?((p/t)*100).toFixed(2)+"%":"—";
@@ -793,7 +793,7 @@ function RepairTab({month,year,endDay,refreshKey=0}){
     await saveData(`emax_v5_repair_${year}_${month}`,updated);
   };
 
-  const total=Object.values(repairData).reduce((s,v)=>s+(v||0),0);
+  const total=Object.values(repairData).reduce((s,v)=>s+(parseFloat(v)||0),0);
   const activeDays=Object.keys(repairData).filter(d=>repairData[d]!==0).length;
 
   if(loading)return <div style={{padding:32,textAlign:"center",color:"#8A96A8",fontSize:12}}>Loading...</div>;
