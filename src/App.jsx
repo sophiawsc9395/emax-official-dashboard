@@ -1489,22 +1489,21 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
 
 // ─── MAIN APP ──────────────────────────────────────────────
 // ─── PDF DOWNLOADS ───────────────────────────────────────────
-function PdfDownloads({month,year,branch,allowDelete=false}){
+function PdfDownloads({month,year,allowDelete=false}){
   const [pdfList,setPdfList]=useState([]);
   const refresh=()=>{
     loadData("emax_v5_pdf_index").then(idx=>{
       const list=Array.isArray(idx)?idx:[];
       Promise.all(list.map(k=>loadData(k).then(p=>({key:k,pdf:p})))).then(entries=>{
         const valid=entries.filter(e=>e.pdf&&e.pdf.date&&e.pdf.b64);
-        let filtered=valid.filter(e=>{const parts=e.pdf.date.split("/");return parseInt(parts[1])===month&&parseInt(parts[2])===year;});
-        if(branch)filtered=filtered.filter(e=>e.pdf.branch===branch);
+        const filtered=valid.filter(e=>{const parts=e.pdf.date.split("/");return parseInt(parts[1])===month&&parseInt(parts[2])===year;});
         const seen=new Set();
         const deduped=filtered.filter(e=>{const k=e.pdf.name||e.pdf.date;if(seen.has(k))return false;seen.add(k);return true;});
         setPdfList(deduped);
       });
     });
   };
-  useEffect(refresh,[month,year,branch]);
+  useEffect(refresh,[month,year]);
   const handleDelete=async(key)=>{
     if(!confirm("Delete this uploaded PDF? This cannot be undone."))return;
     await saveData(key,null);
@@ -1515,7 +1514,7 @@ function PdfDownloads({month,year,branch,allowDelete=false}){
   };
   if(!pdfList.length)return null;
   return <div style={{marginTop:16,padding:"14px 16px",background:"#fff",border:"1px solid #E4EAF2",borderRadius:10}}>
-    <div style={{fontSize:11,fontWeight:700,color:"#0A1628",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>AEON Profit Reports{branch?` — ${branch}`:""} — Click to Download</div>
+    <div style={{fontSize:11,fontWeight:700,color:"#0A1628",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>AEON Profit Reports — Click to Download</div>
     <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
       {pdfList.map((entry,idx)=>(
         <div key={idx} style={{display:"inline-flex",alignItems:"center",gap:0,borderRadius:7,overflow:"hidden"}}>
@@ -2090,7 +2089,7 @@ export default function App(){
             <div style={{marginTop:22}}>
               <div style={{fontWeight:800,fontSize:12,color:"#0A1628",marginBottom:10,paddingBottom:7,borderBottom:"1px solid #E4EAF2",textTransform:"uppercase",letterSpacing:"0.06em"}}>Daily AEON Profit Report</div>
               <UploadPanel records={records} setRecords={setRecords} srList={srList} defaultBranch={selBranch} recordsKey={recordsKey}/>
-            <PdfDownloads month={month} year={year} branch={selBranch} allowDelete/>
+            <PdfDownloads month={month} year={year} allowDelete/>
             </div>
           </div>;
         })()}

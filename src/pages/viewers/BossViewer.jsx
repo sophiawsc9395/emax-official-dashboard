@@ -580,24 +580,23 @@ function KpiCard({label,value,sub,accent="#1E6FDB"}){
   </div>;
 }
 
-function PdfDownloads({month,year,branch}){
+function PdfDownloads({month,year}){
   const [pdfList,setPdfList]=useState([]);
   useEffect(()=>{
     loadData("emax_v5_pdf_index").then(idx=>{
       const list=Array.isArray(idx)?idx:[];
       Promise.all(list.map(k=>loadData(k))).then(pdfs=>{
         const valid=pdfs.filter(p=>p&&p.date&&p.b64);
-        let filtered=valid.filter(p=>{const parts=p.date.split("/");return parseInt(parts[1])===month&&parseInt(parts[2])===year;});
-        if(branch)filtered=filtered.filter(p=>p.branch===branch);
+        const filtered=valid.filter(p=>{const parts=p.date.split("/");return parseInt(parts[1])===month&&parseInt(parts[2])===year;});
         const seen=new Set();
         const deduped=filtered.filter(p=>{if(seen.has(p.name||p.date))return false;seen.add(p.name||p.date);return true;});
         setPdfList(deduped);
       });
     });
-  },[month,year,branch]);
+  },[month,year]);
   if(!pdfList.length)return null;
   return <div style={{marginTop:20}}>
-    <h3 style={{fontSize:12,fontWeight:800,color:"#0A1628",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>AEON Profit Reports{branch?` — ${branch}`:""}</h3>
+    <h3 style={{fontSize:12,fontWeight:800,color:"#0A1628",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>AEON Profit Reports</h3>
     <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
       {pdfList.map((pdf,i)=>(
         <a key={i} href={`data:application/pdf;base64,${pdf.b64}`} download={pdf.name||`AEON_${pdf.date}.pdf`}
@@ -937,7 +936,7 @@ export default function App(){
             <BMCard branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={bMeta} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${selBranch}`]?.balance||0} pointsAsOf={pointsAsOf}/>
           </div>;
         })()}
-        <PdfDownloads month={month} year={year} branch={selBranch}/>
+        <PdfDownloads month={month} year={year}/>
       </div>}
 
       {/* REPAIR */}
