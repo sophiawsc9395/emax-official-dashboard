@@ -834,7 +834,7 @@ function RepairTab({month,year,endDay,refreshKey=0}){
 // ─── PRINT BRANCH REPORT ───────────────────────────────────
 function PrintBranchReport({branchId,records,targets,srList,branchMeta,onClose,month,year,days}){
   const ref=useRef();
-  const bSRs=srList.filter(s=>s.branch===branchId);
+  const bSRs=srList.filter(s=>s.branch===branchId&&!(s.status||'').toLowerCase().includes('resigned'));
   const bTarget=targets?.bm?.[branchId]||0;
   const bTotal=days.reduce((s,d)=>{
     const k=`${d}/${month}/${year}`,day=records[k]||{};
@@ -959,7 +959,7 @@ function TargetModal({targets,setTargets,srList,branchMeta,onClose}){
         <h3 style={{fontSize:12,fontWeight:800,color:"#0A1628",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>SR Targets</h3>
         <p style={{fontSize:11,color:"#8A96A8",marginBottom:16}}>Achievement bonus calculated automatically. Set personal bonus and target here.</p>
         {BRANCH_ORDER.map(b=>{
-          const bSRs=srList.filter(s=>s.branch===b);
+          const bSRs=srList.filter(s=>s.branch===b&&!(s.status||'').toLowerCase().includes('resigned'));
           if(!bSRs.length)return null;
           return <div key={b} style={{marginBottom:20}}>
             <div style={{fontWeight:700,fontSize:10,color:"#1E6FDB",marginBottom:8,paddingBottom:4,borderBottom:"1px solid #E4EAF2",textTransform:"uppercase",letterSpacing:"0.08em"}}>{branchMeta[b]?.name}</div>
@@ -1266,7 +1266,7 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
   const [localInputs,setLocalInputs] = useState({});
 
   const dateKey = `${selDay}/${month}/${year}`;
-  const bSRs = srList.filter(s=>s.branch===selBranch);
+  const bSRs = srList.filter(s=>s.branch===selBranch&&!(s.status||'').toLowerCase().includes('resigned'));
 
   // Load data whenever day or branch changes
   useEffect(()=>{
@@ -1489,21 +1489,22 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
 
 // ─── MAIN APP ──────────────────────────────────────────────
 // ─── PDF DOWNLOADS ───────────────────────────────────────────
-function PdfDownloads({month,year,allowDelete=false}){
+function PdfDownloads({month,year,branch,allowDelete=false}){
   const [pdfList,setPdfList]=useState([]);
   const refresh=()=>{
     loadData("emax_v5_pdf_index").then(idx=>{
       const list=Array.isArray(idx)?idx:[];
       Promise.all(list.map(k=>loadData(k).then(p=>({key:k,pdf:p})))).then(entries=>{
         const valid=entries.filter(e=>e.pdf&&e.pdf.date&&e.pdf.b64);
-        const filtered=valid.filter(e=>{const parts=e.pdf.date.split("/");return parseInt(parts[1])===month&&parseInt(parts[2])===year;});
+        let filtered=valid.filter(e=>{const parts=e.pdf.date.split("/");return parseInt(parts[1])===month&&parseInt(parts[2])===year;});
+        if(branch)filtered=filtered.filter(e=>e.pdf.branch===branch);
         const seen=new Set();
         const deduped=filtered.filter(e=>{const k=e.pdf.name||e.pdf.date;if(seen.has(k))return false;seen.add(k);return true;});
         setPdfList(deduped);
       });
     });
   };
-  useEffect(refresh,[month,year]);
+  useEffect(refresh,[month,year,branch]);
   const handleDelete=async(key)=>{
     if(!confirm("Delete this uploaded PDF? This cannot be undone."))return;
     await saveData(key,null);
@@ -1514,7 +1515,7 @@ function PdfDownloads({month,year,allowDelete=false}){
   };
   if(!pdfList.length)return null;
   return <div style={{marginTop:16,padding:"14px 16px",background:"#fff",border:"1px solid #E4EAF2",borderRadius:10}}>
-    <div style={{fontSize:11,fontWeight:700,color:"#0A1628",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>AEON Profit Reports — Click to Download</div>
+    <div style={{fontSize:11,fontWeight:700,color:"#0A1628",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.06em"}}>AEON Profit Reports{branch?` — ${branch}`:""} — Click to Download</div>
     <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
       {pdfList.map((entry,idx)=>(
         <div key={idx} style={{display:"inline-flex",alignItems:"center",gap:0,borderRadius:7,overflow:"hidden"}}>
@@ -1745,7 +1746,7 @@ export default function App(){
   };
   const lockBranchMonth=async(branchId)=>{
     if(isBranchLocked(branchId)){alert("This branch's "+selMonth+"/"+selYear+" report is already locked.");return;}
-    const bSRs=srList.filter(s=>s.branch===branchId);
+    const bSRs=srList.filter(s=>s.branch===branchId&&!(s.status||'').toLowerCase().includes('resigned'));
     const bTarget=targets?.bm?.[branchId]||0,bTotal=fullMonthBranchTotals[branchId]?.total||0;
     const branchPct=pctN(bTotal,bTarget);
     const updates={...rewardBalances};
@@ -1812,6 +1813,57 @@ export default function App(){
     await saveData("emax_v5_locked_months",newLocked);
     alert(`${branchId} — ${selMonth}/${selYear} locked. Reward points credited and employment status updated.`);
   };
+  const unlockBranchMonth=async(branchId)=>{
+    if(!isBranchLocked(branchId)){alert("This branch's "+selMonth+"/"+selYear+" report is not locked.");return;}
+    if(!confirm(`Unlock ${branchId} for ${selMonth}/${selYear}? Points credited during this lock will be debited back.`))return;
+    const MONTHS_FULL=["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const noteMonth=`${MONTHS_FULL[selMonth-1]} ${selYear}`;
+    const updates={...rewardBalances};
+    const historyUpdates={...rewardHistory};
+
+    // Debit SR points that were credited for this lock
+    const bSRs=srList.filter(s=>s.branch===branchId&&!(s.status||'').toLowerCase().includes('resigned'));
+    bSRs.forEach(sr=>{
+      const hist=(historyUpdates[sr.id]||[]);
+      // Find the credit entry for this month's lock
+      const lockCredit=hist.filter(h=>h.type==="credit"&&h.note&&h.note.includes(noteMonth));
+      if(lockCredit.length>0){
+        const lastCredit=lockCredit[lockCredit.length-1];
+        const amt=lastCredit.amount||0;
+        const cur=updates[sr.id]||{balance:0};
+        updates[sr.id]={...cur,balance:Math.max(0,(cur.balance||0)-amt)};
+        historyUpdates[sr.id]=[...hist,{date:new Date().toISOString(),type:"debit",amount:amt,note:`Unlock: ${noteMonth} lock reversed`}];
+      }
+    });
+
+    // Debit BM points
+    const bmKey=`BM_${branchId}`;
+    const bmHist=(historyUpdates[bmKey]||[]);
+    const bmLockCredit=bmHist.filter(h=>h.type==="credit"&&h.note&&h.note.includes(noteMonth));
+    if(bmLockCredit.length>0){
+      const lastCredit=bmLockCredit[bmLockCredit.length-1];
+      const amt=lastCredit.amount||0;
+      const curBM=updates[bmKey]||{balance:0};
+      updates[bmKey]={...curBM,balance:Math.max(0,(curBM.balance||0)-amt)};
+      historyUpdates[bmKey]=[...bmHist,{date:new Date().toISOString(),type:"debit",amount:amt,note:`Unlock: ${noteMonth} lock reversed`}];
+    }
+
+    setRewardBalances(updates);
+    await saveData("emax_v5_reward_balance",updates);
+    setRewardHistory(historyUpdates);
+    await saveData("emax_v5_reward_history",historyUpdates);
+
+    // Remove the lock
+    const newLocked={...lockedMonths};
+    if(newLocked[monthKeyStr]){
+      delete newLocked[monthKeyStr][branchId];
+      if(Object.keys(newLocked[monthKeyStr]).length===0)delete newLocked[monthKeyStr];
+    }
+    setLockedMonths(newLocked);
+    await saveData("emax_v5_locked_months",newLocked);
+    alert(`${branchId} — ${selMonth}/${selYear} unlocked. Points have been debited back.`);
+  };
+
   // Manually adjust a person's points balance by +/- delta, with a required description.
   // This appends a history entry instead of overwriting the balance.
   const adjustBalance=async(personId,delta,note)=>{
@@ -1832,7 +1884,7 @@ export default function App(){
   const branchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
-      const bSRs=srList.filter(s=>s.branch===b);let wi=0,ae=0;
+      const bSRs=srList.filter(s=>s.branch===b&&!(s.status||'').toLowerCase().includes('resigned'));let wi=0,ae=0;
       for(let d=selStartDay;d<=selEndDay;d++){
         const k=`${d}/${month}/${year}`,day=records[k]||{};
         bSRs.forEach(sr=>{wi+=(day[sr.id]?.walkin||0);ae+=(day[sr.id]?.aeon||0);});
@@ -1847,7 +1899,7 @@ export default function App(){
   const fullMonthBranchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
-      const bSRs=srList.filter(s=>s.branch===b);let wi=0,ae=0;
+      const bSRs=srList.filter(s=>s.branch===b&&!(s.status||'').toLowerCase().includes('resigned'));let wi=0,ae=0;
       days.forEach(d=>{
         const k=`${d}/${month}/${year}`,day=records[k]||{};
         bSRs.forEach(sr=>{wi+=(day[sr.id]?.walkin||0);ae+=(day[sr.id]?.aeon||0);});
@@ -1869,7 +1921,7 @@ export default function App(){
   const rankBranchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
-      const bSRs=srList.filter(s=>s.branch===b);let wi=0,ae=0;
+      const bSRs=srList.filter(s=>s.branch===b&&!(s.status||'').toLowerCase().includes('resigned'));let wi=0,ae=0;
       for(let d=1;d<=rankEndDay;d++){
         const k=`${d}/${month}/${year}`,day=records[k]||{};
         bSRs.forEach(sr=>{wi+=(day[sr.id]?.walkin||0);ae+=(day[sr.id]?.aeon||0);});
@@ -1898,7 +1950,7 @@ export default function App(){
     return{name:branchMeta[b]?.manager,status:branchMeta[b]?.mStatus,branch:b,sub:null,wi:rankBranchTotals[b]?.wi||0,ae:rankBranchTotals[b]?.ae||0,profit,target,bonus,bonusEarned,branchPct:p,role:"bm",points:calcRewardPoints(p,p)};
   }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target)),[rankBranchTotals,targets,branchMeta]);
 
-  const mkSRRank=type=>srList.filter(s=>s.type===type).map(s=>{
+  const mkSRRank=type=>srList.filter(s=>s.type===type&&!(s.status||'').toLowerCase().includes('resigned')).map(s=>{
     const profit=rankSRTotals[s.id]?.total||0,target=targets?.sr?.[s.id]?.target||0,bonus=targets?.sr?.[s.id]?.bonus||0;
     const bTarget=targets?.bm?.[s.branch]||0,bTotal=rankBranchTotals[s.branch]?.total||0;
     const branchHit=bTarget>0&&bTotal>=bTarget,p=pctN(profit,target),branchPct=pctN(bTotal,bTarget);
@@ -2061,6 +2113,11 @@ export default function App(){
         <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12,alignItems:"center",justifyContent:"space-between"}}>
           <div style={{display:"flex",gap:4,flexWrap:"wrap",alignItems:"center"}}>
             <span style={{fontSize:11,fontWeight:700,color:"#8A96A8",marginRight:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Branch</span>
+            <button onClick={()=>setSelBranch("ALL")} style={{padding:"4px 12px",cursor:"pointer",borderRadius:6,fontWeight:700,fontSize:11,fontFamily:"Inter,sans-serif",
+              background:selBranch==="ALL"?"#1E6FDB":"#fff",color:selBranch==="ALL"?"#fff":"#4A5568",
+              border:selBranch==="ALL"?"none":"1px solid #E4EAF2",transition:"all .15s"}}>
+              All
+            </button>
             {BRANCH_ORDER.map(b=>(
               <button key={b} onClick={()=>setSelBranch(b)} style={{padding:"4px 12px",cursor:"pointer",borderRadius:6,fontWeight:700,fontSize:11,fontFamily:"Inter,sans-serif",
                 background:selBranch===b?"#0A1628":"#fff",color:selBranch===b?"#fff":"#4A5568",
@@ -2069,30 +2126,75 @@ export default function App(){
               </button>
             ))}
           </div>
-          <div style={{display:"flex",gap:8}}>
+          {selBranch!=="ALL"&&<div style={{display:"flex",gap:8}}>
             {isBranchLocked(selBranch)
-              ? <span style={{padding:"6px 14px",background:"#F0FDF4",color:"#15803D",borderRadius:7,fontSize:11,fontWeight:700,display:"flex",alignItems:"center",gap:5}}>🔒 Locked — Points Credited</span>
-              : <button className="btn btn-ghost" onClick={()=>{if(confirm(`Lock ${selBranch} for ${selMonth}/${selYear}? This credits all SR + BM reward points earned this month to their running balance. This cannot be undone.`))lockBranchMonth(selBranch);}} style={{fontSize:11}}>🔒 Lock Month & Credit Points</button>}
+              ? <button className="btn btn-ghost" onClick={()=>unlockBranchMonth(selBranch)} style={{fontSize:11,color:"#F0354B",borderColor:"#F0354B22",background:"#FFF5F5"}}>🔓 Locked — Click to Unlock</button>
+              : <button className="btn btn-ghost" onClick={()=>{if(confirm(`Lock ${selBranch} for ${selMonth}/${selYear}? This credits all SR + BM reward points and updates employment status.`))lockBranchMonth(selBranch);}} style={{fontSize:11}}>🔒 Lock Month & Credit Points</button>}
             <button className="btn btn-primary" onClick={()=>setPrintBranch(selBranch)} style={{fontSize:11}}>Download {selBranch} Report</button>
-          </div>
+          </div>}
         </div>
-        {(()=>{
-          const bSRs=srList.filter(s=>s.branch===selBranch);
-          const bTarget=targets?.bm?.[selBranch]||0,bTotal=fullMonthBranchTotals[selBranch]?.total||0;
-          const branchPct=pctN(bTotal,bTarget);
-          return <div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
-              {bSRs.map(sr=><SRTable key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)}/>)}
-              <BMTable branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${selBranch}`]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)}/>
+        {selBranch==="ALL"
+          ? <div>
+              <div style={{marginBottom:14,padding:"12px 16px",background:"#F7F9FC",borderRadius:10,border:"1px solid #E4EAF2"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#0A1628",marginBottom:4}}>All Branches — {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][month-1]} {year} Total Daily Performance</div>
+                <div style={{fontSize:11,color:"#5A6472"}}>Showing combined totals for all branches</div>
+              </div>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",minWidth:700}}>
+                  <thead><tr style={{background:"#0A1628"}}>
+                    <th style={{padding:"9px 12px",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left"}}>Day</th>
+                    {BRANCH_ORDER.map(b=><th key={b} style={{padding:"9px 12px",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right"}}>{b}</th>)}
+                    <th style={{padding:"9px 12px",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.9)",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right"}}>Total</th>
+                  </tr></thead>
+                  <tbody>
+                    {days.map((d,i)=>{
+                      const k=`${d}/${month}/${year}`,day=records[k]||{};
+                      const branchTotals=BRANCH_ORDER.map(b=>{
+                        const bSRs=srList.filter(s=>s.branch===b&&!(s.status||'').toLowerCase().includes('resigned'));
+                        let t=bSRs.reduce((s,sr)=>(s+(day[sr.id]?.walkin||0)+(day[sr.id]?.aeon||0)),0);
+                        t+=(day[`BM_${b}`]?.walkin||0)+(day[`BM_${b}`]?.aeon||0)+(day[`BM_${b}`]?.unalloc||0);
+                        return t;
+                      });
+                      const dayTotal=branchTotals.reduce((s,t)=>s+t,0);
+                      if(dayTotal===0)return null;
+                      return <tr key={d} style={{borderBottom:"1px solid #E4EAF2",background:i%2===0?"#fff":"#F7F9FC"}}>
+                        <td style={{padding:"8px 12px",fontSize:12,fontWeight:600,color:"#0A1628"}}>{d}/{month}</td>
+                        {branchTotals.map((t,bi)=><td key={bi} style={{padding:"8px 12px",fontSize:12,textAlign:"right",color:t>0?"#4A5568":"#CDD5E0",whiteSpace:"nowrap"}}>{t>0?fRM(t):"—"}</td>)}
+                        <td style={{padding:"8px 12px",fontSize:12,fontWeight:700,textAlign:"right",color:"#0A1628",whiteSpace:"nowrap"}}>{fRM(dayTotal)}</td>
+                      </tr>;
+                    })}
+                  </tbody>
+                  <tfoot><tr style={{background:"#0A1628"}}>
+                    <td style={{padding:"9px 12px",fontSize:11,fontWeight:700,color:"rgba(255,255,255,.7)",whiteSpace:"nowrap"}}>Total</td>
+                    {BRANCH_ORDER.map(b=>{
+                      const t=fullMonthBranchTotals[b]?.total||0;
+                      return <td key={b} style={{padding:"9px 12px",fontSize:11,textAlign:"right",color:"rgba(255,255,255,.7)",whiteSpace:"nowrap"}}>{t>0?fRM(t):"—"}</td>;
+                    })}
+                    <td style={{padding:"9px 12px",fontSize:11,fontWeight:700,textAlign:"right",color:"#fff",whiteSpace:"nowrap"}}>{fRM(Object.values(fullMonthBranchTotals).reduce((s,b)=>s+(b?.total||0),0))}</td>
+                  </tr></tfoot>
+                </table>
+              </div>
+              <div style={{marginTop:22}}>
+                <PdfDownloads month={month} year={year} allowDelete/>
+              </div>
             </div>
-            {/* PDF Upload for all SR invoice */}
-            <div style={{marginTop:22}}>
-              <div style={{fontWeight:800,fontSize:12,color:"#0A1628",marginBottom:10,paddingBottom:7,borderBottom:"1px solid #E4EAF2",textTransform:"uppercase",letterSpacing:"0.06em"}}>Daily AEON Profit Report</div>
-              <UploadPanel records={records} setRecords={setRecords} srList={srList} defaultBranch={selBranch} recordsKey={recordsKey}/>
-            <PdfDownloads month={month} year={year} allowDelete/>
-            </div>
-          </div>;
-        })()}
+          : (()=>{
+              const bSRs=srList.filter(s=>s.branch===selBranch&&!(s.status||'').toLowerCase().includes('resigned'));
+              const bTarget=targets?.bm?.[selBranch]||0,bTotal=fullMonthBranchTotals[selBranch]?.total||0;
+              const branchPct=pctN(bTotal,bTarget);
+              return <div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
+                  {bSRs.map(sr=><SRTable key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)}/>)}
+                  <BMTable branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${selBranch}`]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)}/>
+                </div>
+                <div style={{marginTop:22}}>
+                  <div style={{fontWeight:800,fontSize:12,color:"#0A1628",marginBottom:10,paddingBottom:7,borderBottom:"1px solid #E4EAF2",textTransform:"uppercase",letterSpacing:"0.06em"}}>Daily AEON Profit Report</div>
+                  <UploadPanel records={records} setRecords={setRecords} srList={srList} defaultBranch={selBranch} recordsKey={recordsKey}/>
+                  <PdfDownloads month={month} year={year} branch={selBranch} allowDelete/>
+                </div>
+              </div>;
+            })()
+        }
       </div>}
 
 

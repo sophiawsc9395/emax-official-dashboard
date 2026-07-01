@@ -580,23 +580,24 @@ function KpiCard({label,value,sub,accent="#1E6FDB"}){
   </div>;
 }
 
-function PdfDownloads({month,year}){
+function PdfDownloads({month,year,branch}){
   const [pdfList,setPdfList]=useState([]);
   useEffect(()=>{
     loadData("emax_v5_pdf_index").then(idx=>{
       const list=Array.isArray(idx)?idx:[];
       Promise.all(list.map(k=>loadData(k))).then(pdfs=>{
         const valid=pdfs.filter(p=>p&&p.date&&p.b64);
-        const filtered=valid.filter(p=>{const parts=p.date.split("/");return parseInt(parts[1])===month&&parseInt(parts[2])===year;});
+        let filtered=valid.filter(p=>{const parts=p.date.split("/");return parseInt(parts[1])===month&&parseInt(parts[2])===year;});
+        if(branch)filtered=filtered.filter(p=>p.branch===branch);
         const seen=new Set();
         const deduped=filtered.filter(p=>{if(seen.has(p.name||p.date))return false;seen.add(p.name||p.date);return true;});
         setPdfList(deduped);
       });
     });
-  },[month,year]);
+  },[month,year,branch]);
   if(!pdfList.length)return null;
   return <div style={{marginTop:20}}>
-    <h3 style={{fontSize:12,fontWeight:800,color:"#0A1628",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>AEON Profit Reports</h3>
+    <h3 style={{fontSize:12,fontWeight:800,color:"#0A1628",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>AEON Profit Reports{branch?` — ${branch}`:""}</h3>
     <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
       {pdfList.map((pdf,i)=>(
         <a key={i} href={`data:application/pdf;base64,${pdf.b64}`} download={pdf.name||`AEON_${pdf.date}.pdf`}
@@ -654,7 +655,6 @@ function PointsHistoryModal({srList,bMeta,rewardBalances,rewardHistory,onClose,i
         }
       </div>
     </div>
-    {showPointsModal&&<PointsHistoryModal srList={srList} bMeta={bMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
   </div>;
 }
 
@@ -918,6 +918,11 @@ export default function App(){
       {tab==="report"&&<div className="fade-in">
         <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:14,alignItems:"center"}}>
           <span style={{fontSize:11,fontWeight:700,color:"#8A96A8",marginRight:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Branch</span>
+          <button onClick={()=>setSelBranch("ALL")} style={{padding:"4px 12px",cursor:"pointer",borderRadius:6,fontWeight:700,fontSize:11,fontFamily:"Inter,sans-serif",
+            background:selBranch==="ALL"?"#1E6FDB":"#fff",color:selBranch==="ALL"?"#fff":"#4A5568",
+            border:selBranch==="ALL"?"none":"1px solid #E4EAF2",transition:"all .15s"}}>
+            All
+          </button>
           {BRANCH_ORDER.map(b=>(
             <button key={b} onClick={()=>setSelBranch(b)} style={{padding:"4px 12px",cursor:"pointer",borderRadius:6,fontWeight:700,fontSize:11,fontFamily:"Inter,sans-serif",
               background:selBranch===b?"#0A1628":"#fff",color:selBranch===b?"#fff":"#4A5568",
@@ -926,17 +931,58 @@ export default function App(){
             </button>
           ))}
         </div>
-        {(()=>{
-          const bSRs=srList.filter(s=>s.branch===selBranch);
+        {selBranch==="ALL"
+          ? <div>
+              <div style={{marginBottom:14,padding:"12px 16px",background:"#F7F9FC",borderRadius:10,border:"1px solid #E4EAF2"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#0A1628"}}>All Branches — {MONTHS[month-1]} {year} Total Daily Performance</div>
+              </div>
+              <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",minWidth:700}}>
+                  <thead><tr style={{background:"#0A1628"}}>
+                    <th style={{padding:"9px 12px",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",textAlign:"left"}}>Day</th>
+                    {BRANCH_ORDER.map(b=><th key={b} style={{padding:"9px 12px",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",textAlign:"right"}}>{b}</th>)}
+                    <th style={{padding:"9px 12px",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.9)",textTransform:"uppercase",textAlign:"right"}}>Total</th>
+                  </tr></thead>
+                  <tbody>
+                    {days.map((d,i)=>{
+                      const k=`${d}/${month}/${year}`,day=records[k]||{};
+                      const bTotals=BRANCH_ORDER.map(b=>{
+                        const bSRs=srList.filter(s=>s.branch===b&&!(s.status||'').toLowerCase().includes('resigned'));
+                        let t=bSRs.reduce((s,sr)=>(s+(day[sr.id]?.walkin||0)+(day[sr.id]?.aeon||0)),0);
+                        t+=(day[`BM_${b}`]?.walkin||0)+(day[`BM_${b}`]?.aeon||0)+(day[`BM_${b}`]?.unalloc||0);
+                        return t;
+                      });
+                      const dayTotal=bTotals.reduce((s,t)=>s+t,0);
+                      if(dayTotal===0)return null;
+                      return <tr key={d} style={{borderBottom:"1px solid #E4EAF2",background:i%2===0?"#fff":"#F7F9FC"}}>
+                        <td style={{padding:"8px 12px",fontSize:12,fontWeight:600,color:"#0A1628"}}>{d}/{month}</td>
+                        {bTotals.map((t,bi)=><td key={bi} style={{padding:"8px 12px",fontSize:12,textAlign:"right",color:t>0?"#4A5568":"#CDD5E0",whiteSpace:"nowrap"}}>{t>0?fRM(t):"—"}</td>)}
+                        <td style={{padding:"8px 12px",fontSize:12,fontWeight:700,textAlign:"right",color:"#0A1628",whiteSpace:"nowrap"}}>{fRM(dayTotal)}</td>
+                      </tr>;
+                    })}
+                  </tbody>
+                  <tfoot><tr style={{background:"#0A1628"}}>
+                    <td style={{padding:"9px 12px",fontSize:11,fontWeight:700,color:"rgba(255,255,255,.7)",whiteSpace:"nowrap"}}>Total</td>
+                    {BRANCH_ORDER.map(b=>{const t=fullMonthBranchTotals[b]?.total||0;return <td key={b} style={{padding:"9px 12px",fontSize:11,textAlign:"right",color:"rgba(255,255,255,.7)",whiteSpace:"nowrap"}}>{t>0?fRM(t):"—"}</td>;})}
+                    <td style={{padding:"9px 12px",fontSize:11,fontWeight:700,textAlign:"right",color:"#fff",whiteSpace:"nowrap"}}>{fRM(Object.values(fullMonthBranchTotals).reduce((s,b)=>s+(b?.total||0),0))}</td>
+                  </tr></tfoot>
+                </table>
+              </div>
+              <div style={{marginTop:16}}><PdfDownloads month={month} year={year}/></div>
+            </div>
+          : (()=>{
+          const bSRs=srList.filter(s=>s.branch===selBranch&&!(s.status||'').toLowerCase().includes('resigned'));
           const bTarget=targets?.bm?.[selBranch]||0;
           const bTot=BRANCH_ORDER.includes(selBranch)?fullMonthBranchTotals[selBranch]?.total||0:0;
           const branchPct=pctN(bTot,bTarget);
-          return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
-            {bSRs.map(sr=><SRCard key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} month={month} year={year} days={days} bMeta={bMeta} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOf}/>)}
-            <BMCard branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={bMeta} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${selBranch}`]?.balance||0} pointsAsOf={pointsAsOf}/>
+          return <div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
+              {bSRs.map(sr=><SRCard key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} month={month} year={year} days={days} bMeta={bMeta} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOf}/>)}
+              <BMCard branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={bMeta} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${selBranch}`]?.balance||0} pointsAsOf={pointsAsOf}/>
+            </div>
+            <div style={{marginTop:16}}><PdfDownloads month={month} year={year} branch={selBranch}/></div>
           </div>;
         })()}
-        <PdfDownloads month={month} year={year}/>
       </div>}
 
       {/* REPAIR */}
@@ -1005,5 +1051,6 @@ export default function App(){
         </div>
       </div>
     </div>{/* end flex layout */}
+    {showPointsModal&&<PointsHistoryModal srList={srList} bMeta={bMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
   </div>;
 }

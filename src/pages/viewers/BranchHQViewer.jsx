@@ -267,28 +267,32 @@ function PdfDownloads({month,year}){
   useEffect(()=>{
     loadData("emax_v5_pdf_index").then(idx=>{
       const list=Array.isArray(idx)?idx:[];
-      Promise.all(list.map(k=>loadData(k))).then(pdfs=>{
-        const valid=pdfs.filter(p=>p&&p.date&&p.b64);
-        const filtered=valid.filter(p=>{
-          const parts=p.date.split("/");
-          return parseInt(parts[1])===month&&parseInt(parts[2])===year&&p.branch===BRANCH_ID;
+      // Load each PDF as {key, pdf} so we have the full object after JSON.parse
+      Promise.all(list.map(k=>loadData(k).then(pdf=>({key:k,pdf})))).then(entries=>{
+        const valid=entries.filter(e=>e.pdf&&e.pdf.date&&e.pdf.b64);
+        const filtered=valid.filter(e=>{
+          const parts=e.pdf.date.split("/");
+          const monthOk=parseInt(parts[1])===month&&parseInt(parts[2])===year;
+          // Match branch — accept files tagged with BRANCH_ID, or files where
+          // the storage key starts with the branch prefix (older uploads)
+          const branchOk=e.pdf.branch===BRANCH_ID||e.key.includes(`_${BRANCH_ID}_`);
+          return monthOk&&branchOk;
         });
-        // Deduplicate by filename
         const seen=new Set();
-        const deduped=filtered.filter(p=>{if(seen.has(p.name||p.date))return false;seen.add(p.name||p.date);return true;});
+        const deduped=filtered.filter(e=>{const k=e.pdf.name||e.pdf.date;if(seen.has(k))return false;seen.add(k);return true;});
         setPdfList(deduped);
       });
     });
   },[month,year]);
   if(!pdfList.length)return null;
   return <div style={{marginTop:20}}>
-    <h3 style={{fontSize:12,fontWeight:800,color:"#0A1628",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>AEON Profit Reports</h3>
+    <h3 style={{fontSize:12,fontWeight:800,color:"#0A1628",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.08em"}}>AEON Profit Reports — {BRANCH_ID}</h3>
     <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-      {pdfList.map((pdf,i)=>(
-        <a key={i} href={`data:application/pdf;base64,${pdf.b64}`} download={pdf.name||`AEON_${pdf.date}.pdf`}
+      {pdfList.map((entry,i)=>(
+        <a key={i} href={`data:application/pdf;base64,${entry.pdf.b64}`} download={entry.pdf.name||`AEON_${entry.pdf.date}.pdf`}
           style={{display:"inline-flex",alignItems:"center",gap:6,padding:"7px 14px",background:"#7C5CFC",color:"#fff",borderRadius:8,fontSize:12,fontWeight:600,textDecoration:"none"}}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          {pdf.name||`AEON ${pdf.date}`}
+          {entry.pdf.name||`AEON ${entry.pdf.date}`}
         </a>
       ))}
     </div>
@@ -523,7 +527,7 @@ export default function App(){
           const pts=calcRewardPoints(branchPct,branchPct);
           return <div style={{marginTop:14,display:"flex",flexDirection:"column",gap:8}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,gap:6,flexWrap:"nowrap"}}>
-              <span style={{color:"#5A6472",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>🏆 Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
+              <span style={{color:"#5A6472",fontSize:10,flex:1,minWidth:0,overflow:"visible"}}>🏆 Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
               <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{(rewardBalances[`BM_${BRANCH_ID}`]?.balance||0).toLocaleString()} pts</span>
             </div>
             {/* Branch Achievement Bonus tier */}
@@ -644,7 +648,7 @@ export default function App(){
 
       {/* Personal Achievement Bonus */}
       {bonus>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:4,gap:6,flexWrap:"nowrap"}}>
-        <span style={{color:"#5A6472",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>Personal Achievement Bonus</span>
+        <span style={{color:"#5A6472",fontSize:10}}>Personal Achievement Bonus</span>
         <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>
           {bonusEarned?fRM(bonus):`${fRM(bonus)} (Pending)`}
         </span>
@@ -652,7 +656,7 @@ export default function App(){
 
       {/* Branch Achievement Bonus */}
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2,gap:6,flexWrap:"nowrap"}}>
-        <span style={{color:"#5A6472",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>Branch Achievement Bonus</span>
+        <span style={{color:"#5A6472",fontSize:10}}>Branch Achievement Bonus</span>
         {(branchPct>=120&&p>=100)
           ? <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{fRM(calcAchievementBonus(branchPct,"sr"))}</span>
           : <span style={{color:"#5A6472",flexShrink:0}}>—</span>
@@ -661,14 +665,14 @@ export default function App(){
 
       {/* Reward Points */}
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2,marginTop:2,gap:6,flexWrap:"nowrap"}}>
-        <span style={{color:"#5A6472",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>Reward Points (This Month)</span>
+        <span style={{color:"#5A6472",fontSize:10}}>Reward Points (This Month)</span>
         {(branchPct>=100&&p>=110)
           ? <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{calcRewardPoints(p,branchPct).toLocaleString()} pts</span>
           : <span style={{color:"#5A6472",flexShrink:0}}>—</span>
         }
       </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:6,gap:6,flexWrap:"nowrap"}}>
-        <span style={{color:"#5A6472",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
+        <span style={{color:"#5A6472",fontSize:10,flex:1,minWidth:0,overflow:"visible"}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
         <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{(rewardBalances[sr.id]?.balance||0).toLocaleString()} pts</span>
       </div>
 
