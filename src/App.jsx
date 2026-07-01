@@ -1752,14 +1752,9 @@ export default function App(){
   // ─── REWARD POINTS: lock a branch's month, crediting all SR + BM earned points to balance ───
   const monthKeyStr=`${selYear}_${selMonth}`;
   const isBranchLocked=(branchId)=>!!lockedMonths[monthKeyStr]?.[branchId];
-  const pointsAsOfFor=(branchId)=>{
-    if(isBranchLocked(branchId)){
-      const lastDay=daysInMonth(selMonth,selYear);
-      return `${String(lastDay).padStart(2,"0")}/${String(selMonth).padStart(2,"0")}/${selYear}`;
-    }
-    // Not locked: show as at last day of previous month
-    const prevDate=new Date(selYear,selMonth-1,0); // day 0 of selMonth = last day of previous month
-    return `${String(prevDate.getDate()).padStart(2,"0")}/${String(prevDate.getMonth()+1).padStart(2,"0")}/${prevDate.getFullYear()}`;
+  const pointsAsOfFor=(_branchId)=>{
+    const today=new Date();
+    return `${String(today.getDate()).padStart(2,"0")}/${String(today.getMonth()+1).padStart(2,"0")}/${today.getFullYear()}`;
   };
   const lockBranchMonth=async(branchId)=>{
     if(isBranchLocked(branchId)){alert("This branch's "+selMonth+"/"+selYear+" report is already locked.");return;}
@@ -1780,10 +1775,14 @@ export default function App(){
       days.forEach(d=>{const k=`${d}/${selMonth}/${selYear}`;wi+=(records[k]?.[sr.id]?.walkin||0);ae+=(records[k]?.[sr.id]?.aeon||0);});
       const srTotal=wi+ae,srPct=pctN(srTotal,srTarget);
       const earned=calcRewardPoints(srPct,branchPct);
-      const cur=updates[sr.id]||{balance:0,asOf:""};
-      updates[sr.id]={...cur,balance:(cur.balance||0)+earned};
       const hist=historyUpdates[sr.id]||[];
-      historyUpdates[sr.id]=[...hist,{date:new Date().toISOString(),type:"credit",amount:earned,note:`${noteMonth} performance (${srPct.toFixed(1)}%)`}];
+      // Guard: don't double-credit if this month already has a credit entry
+      const alreadyCredited=hist.some(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
+      if(!alreadyCredited){
+        const cur=updates[sr.id]||{balance:0,asOf:""};
+        updates[sr.id]={...cur,balance:(cur.balance||0)+earned};
+        historyUpdates[sr.id]=[...hist,{date:new Date().toISOString(),type:"credit",amount:earned,note:`${noteMonth} performance (${srPct.toFixed(1)}%)`}];
+      }
       // Employment status: target hit -> P+1, not hit -> F+1 (skip Director/Resigned)
       const ps=parseStatus(sr.status);
       if(ps.base==="Director"||ps.base==="Resigned"||srTarget<=0)return sr;
@@ -1807,10 +1806,14 @@ export default function App(){
     // BM points + employment status P/F update
     const bmEarned=calcRewardPoints(branchPct,branchPct);
     const bmKey=`BM_${branchId}`;
-    const curBM=updates[bmKey]||{balance:0,asOf:""};
-    updates[bmKey]={...curBM,balance:(curBM.balance||0)+bmEarned};
     const bmHist=historyUpdates[bmKey]||[];
-    historyUpdates[bmKey]=[...bmHist,{date:new Date().toISOString(),type:"credit",amount:bmEarned,note:`${noteMonth} branch performance (${branchPct.toFixed(1)}%)`}];
+    // Guard: don't double-credit BM if already credited this month
+    const bmAlreadyCredited=bmHist.some(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
+    if(!bmAlreadyCredited){
+      const curBM=updates[bmKey]||{balance:0,asOf:""};
+      updates[bmKey]={...curBM,balance:(curBM.balance||0)+bmEarned};
+      historyUpdates[bmKey]=[...bmHist,{date:new Date().toISOString(),type:"credit",amount:bmEarned,note:`${noteMonth} branch performance (${branchPct.toFixed(1)}%)`}];
+    }
 
     if(bTarget>0){
       const bmMeta=branchMeta[branchId]||{};
@@ -2084,6 +2087,20 @@ export default function App(){
       <div style={{flex:1,minWidth:0,padding:"20px",maxWidth:1180}}>
       {/* OVERVIEW */}
       {tab==="overview"&&<div className="fade-in">
+        {(()=>{
+          const today=new Date();
+          const todayStr=`${String(today.getDate()).padStart(2,"0")}/${String(today.getMonth()+1).padStart(2,"0")}/${today.getFullYear()}`;
+          const todayKey=`${today.getDate()}/${today.getMonth()+1}/${today.getFullYear()}`;
+          const isCurrentMonth=today.getMonth()+1===month&&today.getFullYear()===year;
+          const hasDataToday=isCurrentMonth&&records[todayKey]&&Object.values(records[todayKey]).some(e=>(e?.walkin||0)!==0||(e?.aeon||0)!==0||(e?.unalloc||0)!==0);
+          if(!isCurrentMonth)return null;
+          return <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",background:hasDataToday?"#F0FDF4":"#FFF9EB",border:`1px solid ${hasDataToday?"#BBF7D0":"#FDE68A"}`,borderRadius:10,marginBottom:16,flexWrap:"wrap"}}>
+            <span style={{fontSize:12,fontWeight:600,color:hasDataToday?"#15803D":"#92400E",flex:1}}>
+              {hasDataToday?`✅ Data confirmed for today (${todayStr})`:`⚠️ Have you entered today's data? (${todayStr})`}
+            </span>
+            {lastDataDay&&<span style={{fontSize:11,color:"#8A96A8"}}>Latest data: {lastDataDay}/{month}/{year}</span>}
+          </div>;
+        })()}
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginBottom:20}}>
           <KpiCard label="Total Profit" value={fRM(grandTotal)} accent="#1E6FDB"/>
           <KpiCard label="Monthly Target" value={grandTarget>0?fRM(grandTarget):"Not Set"} accent="#162B52"/>

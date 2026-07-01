@@ -363,8 +363,8 @@ export default function App(){
   const [statusHistory,setStatusHistory]=useState({});
   const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const pointsAsOf=(()=>{
-    const prevDate=new Date(selYear,selMonth-1,0);
-    return `${String(prevDate.getDate()).padStart(2,"0")}/${String(prevDate.getMonth()+1).padStart(2,"0")}/${prevDate.getFullYear()}`;
+    const today=new Date();
+    return `${String(today.getDate()).padStart(2,"0")}/${String(today.getMonth()+1).padStart(2,"0")}/${today.getFullYear()}`;
   })();
 
   useEffect(()=>{
@@ -494,6 +494,7 @@ export default function App(){
         <div style={{flexShrink:0}}>
           <div style={{fontWeight:900,fontSize:13,color:"#fff",letterSpacing:"0.06em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{meta.name||DEFAULT_BRANCH_META[BRANCH_ID]?.name}</div>
           <div style={{fontSize:9,color:"rgba(255,255,255,.3)",letterSpacing:"0.12em",textTransform:"uppercase",whiteSpace:"nowrap"}}>Branch Performance</div>
+          {lastDataDay&&<div style={{fontSize:9,color:"rgba(255,255,255,.25)",marginTop:2,whiteSpace:"nowrap"}}>Data as at {lastDataDay}/{month}/{year}</div>}
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))}

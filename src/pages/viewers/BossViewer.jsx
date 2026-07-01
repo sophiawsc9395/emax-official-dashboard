@@ -713,8 +713,8 @@ export default function App(){
   const days=Array.from({length:daysInMonth(month,year)},(_,i)=>i+1);
   const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const pointsAsOf=(()=>{
-    const prevDate=new Date(selYear,selMonth-1,0);
-    return `${String(prevDate.getDate()).padStart(2,"0")}/${String(prevDate.getMonth()+1).padStart(2,"0")}/${prevDate.getFullYear()}`;
+    const today=new Date();
+    return `${String(today.getDate()).padStart(2,"0")}/${String(today.getMonth()+1).padStart(2,"0")}/${today.getFullYear()}`;
   })();
 
   const [selStartDay,setSelStartDay]=useState(1);
@@ -891,6 +891,7 @@ export default function App(){
             <div>
               <div style={{fontWeight:900,fontSize:12,color:"#fff",letterSpacing:"0.06em",lineHeight:1}}>EMAX NETWORK</div>
               <div style={{fontSize:9,color:"rgba(255,255,255,.3)",letterSpacing:"0.14em",textTransform:"uppercase",marginTop:1}}>Boss View · All Branches</div>
+              {lastDataDay&&<div style={{fontSize:9,color:"rgba(255,255,255,.2)",marginTop:1,whiteSpace:"nowrap"}}>Data as at {lastDataDay}/{month}/{year}</div>}
             </div>
           </div>
           <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
