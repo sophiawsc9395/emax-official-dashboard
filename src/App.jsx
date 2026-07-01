@@ -107,7 +107,8 @@ const DEFAULT_SR=[
   {id:"EM0290",canon:"ABD FERHAN",branch:"TENOM",type:"Online",status:"Probation (P0 F0)"},
 ];
 
-const STORE_KEY="emax_v5_records",TARGET_KEY="emax_v5_targets",SR_KEY="emax_v5_sr_list",BM_KEY="emax_v5_branch_meta",REPAIR_KEY="emax_v5_repair";
+const STORE_KEY="emax_v5_records",SR_KEY="emax_v5_sr_list",BM_KEY="emax_v5_branch_meta",REPAIR_KEY="emax_v5_repair";
+// Targets are stored per-month so each month keeps its own targets independently
 // Status snapshot key pattern: emax_v5_status_{year}_{month}
 
 // ─── BONUS CALCULATORS ─────────────────────────────────────
@@ -1714,7 +1715,10 @@ export default function App(){
     setSelEndDay(daysInMonth(selMonth,selYear));
     const snapKey=`emax_v5_status_${selYear}_${selMonth}`;
     const monthKey=`${selYear}_${selMonth}`;
-    Promise.all([loadData(recordsKey),loadData(TARGET_KEY),loadData(SR_KEY),loadData(BM_KEY),loadData(snapKey),loadData("emax_v5_reward_balance"),loadData("emax_v5_locked_months"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history")]).then(([r,t,srData,bmData,snap,rb,lm,rh,sh])=>{
+    const targetKey=`emax_v5_targets_${selYear}_${selMonth}`;
+    const prevM=selMonth===1?12:selMonth-1,prevY=selMonth===1?selYear-1:selYear;
+    const prevTargetKey=`emax_v5_targets_${prevY}_${prevM}`;
+    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData(snapKey),loadData("emax_v5_reward_balance"),loadData("emax_v5_locked_months"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history")]).then(([r,t,tPrev,srData,bmData,snap,rb,lm,rh,sh])=>{
       setRecords(r||{});
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
       // Overlay historical status snapshot if viewing a past month
@@ -1725,7 +1729,9 @@ export default function App(){
         setSrList(baseSR);
       }
       if(bmData&&Object.keys(bmData).length>0)setBranchMeta({...DEFAULT_BRANCH_META,...bmData});
-      if(t&&t.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...t.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(t.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...t.sr}});
+      // Use this month's saved targets; if none yet, fall back to previous month as starting point
+      const tUse=t||(tPrev)||null;
+      if(tUse&&tUse.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr}});
       else setTargets(DEFAULT_TARGETS);
       setRewardBalances(rb||{});
       setLockedMonths(lm||{});
@@ -1907,7 +1913,7 @@ export default function App(){
     setRewardHistory(newHist);
     await saveData("emax_v5_reward_history",newHist);
   };
-  const handleSaveTargets=async(t)=>{setTargets(t);await saveData(TARGET_KEY,t);};
+  const handleSaveTargets=async(t)=>{setTargets(t);await saveData(`emax_v5_targets_${selYear}_${selMonth}`,t);};
 
   const branchTotals=useMemo(()=>{
     const t={};

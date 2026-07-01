@@ -71,7 +71,7 @@ const DEFAULT_TARGETS = {
     EM0240:{target:18000,bonus:700},EM0263:{target:18000,bonus:700},EM0270:{target:7000,bonus:300},EM0290:{target:7000,bonus:300},
   }
 };
-const TARGET_KEY="emax_v5_targets",SR_KEY="emax_v5_sr_list",BM_KEY="emax_v5_branch_meta";
+const SR_KEY="emax_v5_sr_list",BM_KEY="emax_v5_branch_meta";
 
 const fRM=(n=0)=>"RM "+Number(n||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});
 const f2=(n=0)=>Number(n||0).toFixed(2);
@@ -370,9 +370,13 @@ export default function App(){
   useEffect(()=>{
     setLoading(true);setRecords({});
     const snapKey=`emax_v5_status_${selYear}_${selMonth}`;
-    Promise.all([loadData(recordsKey),loadData(TARGET_KEY),loadData(SR_KEY),loadData(BM_KEY),loadData("emax_v5_reward_balance"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history"),loadData(snapKey)]).then(([r,t,srData,bmData,rb,rh,sh,snap])=>{
+    const targetKey=`emax_v5_targets_${selYear}_${selMonth}`;
+    const prevM=selMonth===1?12:selMonth-1,prevY=selMonth===1?selYear-1:selYear;
+    const prevTargetKey=`emax_v5_targets_${prevY}_${prevM}`;
+    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData("emax_v5_reward_balance"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history"),loadData(snapKey)]).then(([r,t,tPrev,srData,bmData,rb,rh,sh,snap])=>{
       setRecords(r||{});
-      if(t?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...t.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(t.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...t.sr}});
+      const tUse=t||(tPrev)||null;
+      if(tUse?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr}});
       if(srData&&Array.isArray(srData)&&srData.length>0){
         let filtered=srData.filter(s=>s.branch===BRANCH_ID);
         // Apply post-lock status snapshot if available (so we show status as-of this month)

@@ -105,7 +105,7 @@ const DEFAULT_TARGETS={
     EM0240:{target:18000,bonus:700},EM0263:{target:18000,bonus:700},EM0270:{target:7000,bonus:300},EM0290:{target:7000,bonus:300},
   }
 };
-const TARGET_KEY="emax_v5_targets",SR_KEY="emax_v5_sr_list",BM_KEY="emax_v5_branch_meta";
+const SR_KEY="emax_v5_sr_list",BM_KEY="emax_v5_branch_meta";
 
 const fRM=(n=0)=>"RM "+Number(n||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});
 const f2=(n=0)=>Number(n||0).toFixed(2);
@@ -743,9 +743,13 @@ export default function App(){
     setSelStartDay(1);setSelEndDay(daysInMonth(selMonth,selYear));
     const snapKey=`emax_v5_status_${selYear}_${selMonth}`;
     const repKey=`emax_v5_repair_${selYear}_${selMonth}`;
+    const targetKey=`emax_v5_targets_${selYear}_${selMonth}`;
+    const prevM=selMonth===1?12:selMonth-1,prevY=selMonth===1?selYear-1:selYear;
+    const prevTargetKey=`emax_v5_targets_${prevY}_${prevM}`;
     Promise.all([
       loadData(`emax_v5_records_${selYear}_${selMonth}`),
-      loadData("emax_v5_targets"),
+      loadData(targetKey),
+      loadData(prevTargetKey),
       loadData("emax_v5_sr_list"),
       loadData("emax_v5_branch_meta"),
       loadData(snapKey),
@@ -753,7 +757,7 @@ export default function App(){
       loadData("emax_v5_reward_balance"),
       loadData("emax_v5_reward_history"),
       loadData("emax_v5_status_history"),
-    ]).then(([r,t,srData,bmData,snap,rep,rb,rh,sh])=>{
+    ]).then(([r,t,tPrev,srData,bmData,snap,rep,rb,rh,sh])=>{
       setRecords(r||{});
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
       if(snap&&Object.keys(snap).length>0){
@@ -764,7 +768,8 @@ export default function App(){
       setRewardBalances(rb||{});
       setRewardHistory(rh||{});
       setStatusHistory(sh||{});
-      if(t?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...t.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(t.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...t.sr}});
+      const tUse=t||(tPrev)||null;
+      if(tUse?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr}});
       else setTargets(DEFAULT_TARGETS);
       setRepairData(rep||{});
       setLoading(false);
