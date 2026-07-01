@@ -4,7 +4,7 @@ import BranchApp from './pages/viewers/BranchTW1Viewer.jsx'
 import AuthGate from './auth/AuthGate.jsx'
 
 // TW1 branch
-const ALLOWED = ["wingfeii@gmail.com", "sophiawsc9395@gmail.com"]
+const ALLOWED = ["wingfeii@gmail.com", "sophiawsc9395@gmail.com", "boontheng2004@gmail.com"]
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

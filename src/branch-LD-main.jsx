@@ -4,7 +4,7 @@ import BranchApp from './pages/viewers/BranchLDViewer.jsx'
 import AuthGate from './auth/AuthGate.jsx'
 
 // LD branch
-const ALLOWED = ["shahruliz0209@gmail.com", "sophiawsc9395@gmail.com"]
+const ALLOWED = ["shahruliz0209@gmail.com", "sophiawsc9395@gmail.com", "wingfeii@gmail.com", "boontheng2004@gmail.com"]
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
