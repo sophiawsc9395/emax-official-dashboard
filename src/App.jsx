@@ -316,13 +316,13 @@ function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,
       {[["Walk In",fRM(tWI),"#4A5568"],["Invoice",fRM(tAE),"#4A5568"],["Total Profit",fRM(total),"#0A1628"]].map(([l,v,c])=>(
         <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",fontSize:11}}>
           <span style={{color:"#5A6472"}}>{l}</span>
-          <span style={{fontWeight:700,color:c,fontSize:11}}>{v}</span>
+          <span style={{color:c,fontSize:11}}>{v}</span>
         </div>
       ))}
       <div style={{height:1,background:"#E4EAF2",margin:"7px 0"}}/>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
         <span style={{color:"#5A6472"}}>Target</span>
-        <span style={{fontWeight:700,fontSize:11}}>{target>0?fRM(target):"Not set"}</span>
+        <span style={{fontSize:11,color:"#4A5568"}}>{target>0?fRM(target):"Not set"}</span>
       </div>
       {target>0&&<>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
@@ -332,7 +332,7 @@ function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,
         <ProgressBar pct={p} color={color}/>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:5}}>
           <span style={{color:"#5A6472"}}>Balance to Hit</span>
-          <span style={{fontWeight:700,color:Math.max(target-total,0)>0?"#F0354B":"#00C896",fontSize:11}}>
+          <span style={{color:Math.max(target-total,0)>0?"#F0354B":"#00C896",fontSize:11}}>
             {Math.max(target-total,0)>0?fRM(Math.max(target-total,0)):"Target Met"}
           </span>
         </div>
@@ -344,7 +344,7 @@ function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,
       {/* Personal Achievement Bonus */}
       {bonus>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:4}}>
         <span style={{color:"#5A6472"}}>Personal Achievement Bonus</span>
-        <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>
+        <span style={{fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>
           {bonusEarned?fRM(bonus):`${fRM(bonus)} (Pending)`}
         </span>
       </div>}
@@ -353,7 +353,7 @@ function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
         <span style={{color:"#5A6472"}}>Branch Achievement Bonus</span>
         {(branchPct>=120&&p>=100)
-          ? <span style={{fontWeight:700,fontSize:11,color:"#0A1628"}}>{fRM(calcAchievementBonus(branchPct,"sr"))}</span>
+          ? <span style={{fontSize:11,color:"#0A1628"}}>{fRM(calcAchievementBonus(branchPct,"sr"))}</span>
           : <span style={{color:"#5A6472"}}>—</span>
         }
       </div>
@@ -362,13 +362,13 @@ function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2,marginTop:2}}>
         <span style={{color:"#5A6472"}}>Reward Points (This Month)</span>
         {(branchPct>=100&&p>=110)
-          ? <span style={{fontWeight:700,fontSize:11,color:"#0A1628"}}>{calcRewardPoints(p,branchPct).toLocaleString()} pts</span>
+          ? <span style={{fontSize:11,color:"#0A1628"}}>{calcRewardPoints(p,branchPct).toLocaleString()} pts</span>
           : <span style={{color:"#5A6472"}}>—</span>
         }
       </div>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:6}}>
         <span style={{color:"#5A6472"}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
-        <span style={{fontWeight:700,fontSize:11,color:"#0A1628"}}>{rewardBalance.toLocaleString()} pts</span>
+        <span style={{fontSize:11,color:"#0A1628"}}>{rewardBalance.toLocaleString()} pts</span>
       </div>
 
       {/* Compact tier progress — only shown when at least one tier is active */}
@@ -451,12 +451,12 @@ function BMTable({branchId,records,targets,srList,branchMeta,onEdit,printMode,mo
     <div style={{padding:"10px 14px",background:"#F7F9FC",borderTop:"2px solid #E4EAF2"}}>
       {[["Unallocated",fRM(tUA),"#4A5568"],["Walk In",fRM(tWI),"#4A5568"],["Invoice",fRM(tAE),"#4A5568"],["Total Profit",fRM(total),"#0A1628"]].map(([l,v,c])=>(
         <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",fontSize:11}}>
-          <span style={{color:"#5A6472"}}>{l}</span><span style={{fontWeight:700,color:c,fontSize:11}}>{v}</span>
+          <span style={{color:"#5A6472"}}>{l}</span><span style={{color:c,fontSize:11}}>{v}</span>
         </div>
       ))}
       <div style={{height:1,background:"#E4EAF2",margin:"7px 0"}}/>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
-        <span style={{color:"#5A6472"}}>Target</span><span style={{fontWeight:700,fontSize:11}}>{target>0?fRM(target):"Not set"}</span>
+        <span style={{color:"#5A6472"}}>Target</span><span style={{fontSize:11,color:"#4A5568"}}>{target>0?fRM(target):"Not set"}</span>
       </div>
       {target>0&&<>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
@@ -465,7 +465,7 @@ function BMTable({branchId,records,targets,srList,branchMeta,onEdit,printMode,mo
         <ProgressBar pct={p} color={color}/>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:5}}>
           <span style={{color:"#5A6472"}}>Balance to Hit</span>
-          <span style={{fontWeight:700,color:Math.max(target-total,0)>0?"#F0354B":"#00C896",fontSize:11}}>
+          <span style={{color:Math.max(target-total,0)>0?"#F0354B":"#00C896",fontSize:11}}>
             {Math.max(target-total,0)>0?fRM(Math.max(target-total,0)):"Target Met"}
           </span>
         </div>
@@ -502,7 +502,7 @@ function BMTable({branchId,records,targets,srList,branchMeta,onEdit,printMode,mo
       </div>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:6}}>
         <span style={{color:"#5A6472"}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
-        <span style={{fontWeight:700,fontSize:11,color:"#0A1628"}}>{rewardBalance.toLocaleString()} pts</span>
+        <span style={{fontSize:11,color:"#0A1628"}}>{rewardBalance.toLocaleString()} pts</span>
       </div>
 
       {/* Compact tier progress — only shown when at least one tier is active */}
@@ -799,15 +799,16 @@ function RepairTab({month,year,endDay,refreshKey=0}){
   if(loading)return <div style={{padding:32,textAlign:"center",color:"#8A96A8",fontSize:12}}>Loading...</div>;
 
   return <div className="fade-in" style={{maxWidth:520}}>
-    <div className="card" style={{overflow:"hidden"}}>
-      <div style={{padding:"14px 18px",borderBottom:"1px solid #E4EAF2",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{fontWeight:700,fontSize:13,color:"#0A1628"}}>Repair & Service</div>
-          <div style={{fontSize:11,color:"#8A96A8",marginTop:2}}>{MONTHS[month-1]} {year} · {activeDays} {activeDays===1?"entry":"entries"}</div>
-        </div>
-        <div style={{textAlign:"right"}}>
-          <div style={{fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Monthly Total</div>
-          <div style={{fontWeight:700,fontSize:15,color:"#0A1628"}}>{total!==0?fRM(total):"—"}</div>
+    <div className="card" style={{overflow:"hidden",padding:0}}>
+      <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"12px 16px"}}>
+        <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:4}}>EMAX NETWORK SDN BHD</div>
+        <div style={{fontWeight:800,fontSize:16,color:"#fff",letterSpacing:"0.01em"}}>Repair & Service</div>
+      </div>
+      <div style={{padding:"5px 14px",background:"#0F2040",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{fontSize:11,color:"rgba(255,255,255,.55)"}}>{MONTHS[month-1]} {year} · {activeDays} {activeDays===1?"entry":"entries"}</div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.06em"}}>Total</span>
+          <span style={{fontWeight:700,fontSize:13,color:"#fff"}}>{total!==0?fRM(total):"—"}</span>
         </div>
       </div>
       <table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -948,19 +949,55 @@ function UploadPanel({records,setRecords,srList,defaultBranch,recordsKey:rKey}){
 }
 
 // ─── TARGET MODAL ──────────────────────────────────────────
-function TargetModal({targets,setTargets,srList,branchMeta,onClose}){
+function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,currentYear,onSaveForMonth}){
+  const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const [tgtMonth,setTgtMonth]=useState(currentMonth);
+  const [tgtYear,setTgtYear]=useState(currentYear);
   const [local,setLocal]=useState(JSON.parse(JSON.stringify(targets)));
-  const save=()=>{setTargets(local);onClose();};
+  const [loading,setLoading]=useState(false);
+
+  // When month/year changes, load that month's targets
+  const loadMonthTargets=async(m,y)=>{
+    setLoading(true);
+    setTgtMonth(m);setTgtYear(y);
+    // Dynamically import loadData
+    const {loadData:ld}=await import("./storage/index.js");
+    const t=await ld(`emax_v5_targets_${y}_${m}`);
+    const tPrev=await ld(`emax_v5_targets_${m===1?y-1:y}_${m===1?12:m-1}`);
+    const tUse=t||tPrev||targets;
+    if(tUse?.bm)setLocal({bm:{...targets.bm,...tUse.bm},bmBonus:{...targets.bmBonus,...(tUse.bmBonus||{})},sr:{...targets.sr,...tUse.sr}});
+    else setLocal(JSON.parse(JSON.stringify(targets)));
+    setLoading(false);
+  };
+
+  const save=async()=>{
+    if(onSaveForMonth)await onSaveForMonth(local,tgtMonth,tgtYear);
+    else setTargets(local);
+    onClose();
+  };
   const setBM=(b,v)=>setLocal(p=>({...p,bm:{...p.bm,[b]:parseFloat(v)||0}}));
   const setBMB=(b,v)=>setLocal(p=>({...p,bmBonus:{...p.bmBonus,[b]:parseFloat(v)||0}}));
   const setSR=(id,field,v)=>setLocal(p=>({...p,sr:{...p.sr,[id]:{...p.sr?.[id],[field]:parseFloat(v)||0}}}));
   return <div className="modal-overlay">
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:820,maxHeight:"90vh",overflow:"auto"}}>
       <div style={{padding:"18px 24px",borderBottom:"1px solid #E4EAF2",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:1}}>
-        <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Target & Bonus Settings</h2>
-        <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
+        <div>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Target & Bonus Settings</h2>
+          <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>Setting targets for: {MONTHS_LABEL[tgtMonth-1]} {tgtYear}</div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <select className="input select" value={tgtMonth} onChange={e=>loadMonthTargets(parseInt(e.target.value),tgtYear)} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
+            {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
+          </select>
+          <select className="input select" value={tgtYear} onChange={e=>loadMonthTargets(tgtMonth,parseInt(e.target.value))} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
+            {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+          <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
+        </div>
       </div>
       <div style={{padding:24}}>
+        {loading&&<div style={{textAlign:"center",padding:"20px 0",color:"#8A96A8",fontSize:13}}>Loading targets for {MONTHS_LABEL[tgtMonth-1]} {tgtYear}…</div>}
+        {!loading&&<>
         <h3 style={{fontSize:12,fontWeight:800,color:"#0A1628",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.06em"}}>Branch Manager Targets</h3>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12,marginBottom:24}}>
           {BRANCH_ORDER.map(b=>(
@@ -997,8 +1034,9 @@ function TargetModal({targets,setTargets,srList,branchMeta,onClose}){
         })}
         <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:8,paddingTop:16,borderTop:"1px solid #E4EAF2"}}>
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={save}>Save Settings</button>
+          <button className="btn btn-primary" onClick={save}>Save Targets for {MONTHS_LABEL[tgtMonth-1]} {tgtYear}</button>
         </div>
+      </>}
       </div>
     </div>
   </div>;
@@ -1017,13 +1055,6 @@ function StatusEditWidget({status,onSave,onViewHistory}){
   // or when the editor is closed without saving.
   const startEdit=()=>{const cur=parseStatus(status);setBase(cur.base);setP(cur.p);setF(cur.f);setDesc("");setEditing(true);};
 
-  const save=()=>{
-    if(!desc.trim()){return;}
-    const newStatus=buildStatus(base,p,f);
-    onSave(newStatus,desc.trim());
-    setEditing(false);
-  };
-
   if(!editing){
     return <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
       <span style={{fontSize:11,fontWeight:600,color:"#0A1628"}}>{status||"—"}</span>
@@ -1036,8 +1067,20 @@ function StatusEditWidget({status,onSave,onViewHistory}){
     </div>;
   }
 
+  const today=new Date();
+  const todayStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+  const [resignDate,setResignDate]=useState(todayStr);
+
+  const save=()=>{
+    if(!desc.trim()){return;}
+    const newStatus=buildStatus(base,p,f);
+    // Pass resignDate along when saving Resigned status
+    onSave(newStatus,desc.trim(),base==="Resigned"?resignDate:null);
+    setEditing(false);
+  };
+
   return <div style={{padding:10,background:"#F7F9FC",border:"1px solid #E4EAF2",borderRadius:8}}>
-    <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6}}>
+    <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:6,flexWrap:"wrap"}}>
       <select className="input select" value={base} onChange={e=>setBase(e.target.value)} style={{width:"auto",minWidth:96,padding:"4px 22px 4px 8px",fontSize:11}}>
         {statusBaseOptions.map(s=><option key={s} value={s}>{s}</option>)}
       </select>
@@ -1048,6 +1091,10 @@ function StatusEditWidget({status,onSave,onViewHistory}){
         <input type="number" min="0" className="input" value={f} onChange={e=>setF(Math.max(0,parseInt(e.target.value)||0))} style={{width:42,padding:"4px 4px",fontSize:11,textAlign:"center"}}/>
       </>}
     </div>
+    {base==="Resigned"&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+      <label style={{fontSize:11,color:"#4A5568",whiteSpace:"nowrap"}}>Resignation Date:</label>
+      <input type="date" className="input" value={resignDate} onChange={e=>setResignDate(e.target.value)} style={{fontSize:11,flex:1}}/>
+    </div>}
     <input type="text" className="input" placeholder="Reason for change (required)" value={desc} onChange={e=>setDesc(e.target.value)} style={{fontSize:11,marginBottom:8}}/>
     <div style={{display:"flex",gap:6}}>
       <button onClick={()=>setEditing(false)} style={{flex:1,padding:"6px 0",fontSize:11,fontWeight:700,border:"1px solid #E4EAF2",borderRadius:6,background:"#fff",color:"#8A96A8",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Cancel</button>
@@ -1108,10 +1155,18 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
     setNewSR({id:"",canon:"",branch:"KM",type:"Online",status:"Probation In Progress"});await saveSR(updated);
   };
   const updateSR=async(id,field,val)=>{const updated=localSR.map(s=>s.id===id?{...s,[field]:val}:s);setLocalSR(updated);await saveSR(updated);};
-  const saveSRStatus=async(id,newStatus,desc)=>{
-    await updateSR(id,"status",newStatus);
+  const saveSRStatus=async(id,newStatus,desc,resignDate=null)=>{
+    // If resigned, store resignDate on the SR object so monthly report can filter by it
+    if(resignDate){
+      const updated=srList.map(s=>s.id===id?{...s,status:newStatus,resignDate}:s);
+      setSrList(updated);
+      await saveData(SR_KEY,updated);
+    } else {
+      await updateSR(id,"status",newStatus);
+    }
     const hist=statusHistory[id]||[];
-    const newHist={...statusHistory,[id]:[...hist,{date:new Date().toISOString(),status:newStatus,note:desc}]};
+    const noteStr=resignDate?`${desc} (Resignation date: ${resignDate})`:desc;
+    const newHist={...statusHistory,[id]:[...hist,{date:new Date().toISOString(),status:newStatus,note:noteStr}]};
     setStatusHistory(newHist);
     await saveData("emax_v5_status_history",newHist);
   };
@@ -1284,7 +1339,7 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
   const [localInputs,setLocalInputs] = useState({});
 
   const dateKey = `${selDay}/${month}/${year}`;
-  const bSRs = srList.filter(s=>s.branch===selBranch&&!(s.status||'').toLowerCase().includes('resigned'));
+  const bSRs = srList.filter(s=>s.branch===selBranch&&srVisibleInMonth(s,month,year));
 
   // Load data whenever day or branch changes
   useEffect(()=>{
@@ -1659,6 +1714,7 @@ export default function App(){
   const [sidebarOpen,setSidebarOpen] = useState(false);
   const [showPointsModal,setShowPointsModal] = useState(false);
   const [showStatusHistoryModal,setShowStatusHistoryModal] = useState(false);
+  const [publishedUntil,setPublishedUntil] = useState(null);
   const [statusModalPerson,setStatusModalPerson] = useState(null);
   const [pointsModalPerson,setPointsModalPerson] = useState(null);
   const [selBranch,setSelBranch]   = useState("KM");
@@ -1717,7 +1773,8 @@ export default function App(){
     const targetKey=`emax_v5_targets_${selYear}_${selMonth}`;
     const prevM=selMonth===1?12:selMonth-1,prevY=selMonth===1?selYear-1:selYear;
     const prevTargetKey=`emax_v5_targets_${prevY}_${prevM}`;
-    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData(snapKey),loadData("emax_v5_reward_balance"),loadData("emax_v5_locked_months"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history")]).then(([r,t,tPrev,srData,bmData,snap,rb,lm,rh,sh])=>{
+    const publishKey=`emax_v5_published_${selYear}_${selMonth}`;
+    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData(snapKey),loadData("emax_v5_reward_balance"),loadData("emax_v5_locked_months"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history"),loadData(publishKey)]).then(([r,t,tPrev,srData,bmData,snap,rb,lm,rh,sh,pub])=>{
       setRecords(r||{});
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
       // Overlay historical status snapshot if viewing a past month
@@ -1740,6 +1797,7 @@ export default function App(){
       setLockedMonths(lm||{});
       setRewardHistory(rh||{});
       setStatusHistory(sh||{});
+      setPublishedUntil(pub||null);
       setLoading(false);
     });
   },[selMonth,selYear]);
@@ -1758,6 +1816,16 @@ export default function App(){
   const pointsAsOfFor=(_branchId)=>{
     const today=new Date();
     return `${String(today.getDate()).padStart(2,"0")}/${String(today.getMonth()+1).padStart(2,"0")}/${today.getFullYear()}`;
+  };
+
+  // Returns true if this SR should appear in the monthly report for the given month/year
+  // Resigned SRs only appear in the month they resigned (and all months before)
+  const srVisibleInMonth=(sr,m,y)=>{
+    if(!(sr.status||'').toLowerCase().includes('resigned'))return true;
+    if(!sr.resignDate)return false; // resigned but no date = hide everywhere
+    const rd=new Date(sr.resignDate);
+    // Visible if resignation date is in this month or later
+    return rd.getFullYear()>y||(rd.getFullYear()===y&&rd.getMonth()+1>=m);
   };
   const lockBranchMonth=async(branchId)=>{
     if(isBranchLocked(branchId)){alert("This branch's "+selMonth+"/"+selYear+" report is already locked.");return;}
@@ -1978,7 +2046,7 @@ export default function App(){
   const branchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
-      const bSRs=srList.filter(s=>s.branch===b&&!(s.status||'').toLowerCase().includes('resigned'));let wi=0,ae=0;
+      const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,selMonth,selYear));let wi=0,ae=0;
       for(let d=selStartDay;d<=selEndDay;d++){
         const k=`${d}/${month}/${year}`,day=records[k]||{};
         bSRs.forEach(sr=>{wi+=(day[sr.id]?.walkin||0);ae+=(day[sr.id]?.aeon||0);});
@@ -1993,7 +2061,7 @@ export default function App(){
   const fullMonthBranchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
-      const bSRs=srList.filter(s=>s.branch===b&&!(s.status||'').toLowerCase().includes('resigned'));let wi=0,ae=0;
+      const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,selMonth,selYear));let wi=0,ae=0;
       days.forEach(d=>{
         const k=`${d}/${month}/${year}`,day=records[k]||{};
         bSRs.forEach(sr=>{wi+=(day[sr.id]?.walkin||0);ae+=(day[sr.id]?.aeon||0);});
@@ -2015,7 +2083,7 @@ export default function App(){
   const rankBranchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
-      const bSRs=srList.filter(s=>s.branch===b&&!(s.status||'').toLowerCase().includes('resigned'));let wi=0,ae=0;
+      const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,selMonth,selYear));let wi=0,ae=0;
       for(let d=1;d<=rankEndDay;d++){
         const k=`${d}/${month}/${year}`,day=records[k]||{};
         bSRs.forEach(sr=>{wi+=(day[sr.id]?.walkin||0);ae+=(day[sr.id]?.aeon||0);});
@@ -2044,7 +2112,7 @@ export default function App(){
     return{name:branchMeta[b]?.manager,status:branchMeta[b]?.mStatus,branch:b,sub:null,wi:rankBranchTotals[b]?.wi||0,ae:rankBranchTotals[b]?.ae||0,profit,target,bonus,bonusEarned,branchPct:p,role:"bm",points:calcRewardPoints(p,p)};
   }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target)),[rankBranchTotals,targets,branchMeta]);
 
-  const mkSRRank=type=>srList.filter(s=>s.type===type&&!(s.status||'').toLowerCase().includes('resigned')).map(s=>{
+  const mkSRRank=type=>srList.filter(s=>s.type===type&&srVisibleInMonth(s,selMonth,selYear)).map(s=>{
     const profit=rankSRTotals[s.id]?.total||0,target=targets?.sr?.[s.id]?.target||0,bonus=targets?.sr?.[s.id]?.bonus||0;
     const bTarget=targets?.bm?.[s.branch]||0,bTotal=rankBranchTotals[s.branch]?.total||0;
     const branchHit=bTarget>0&&bTotal>=bTarget,p=pctN(profit,target),branchPct=pctN(bTotal,bTarget);
@@ -2125,11 +2193,7 @@ export default function App(){
               ))}
             </select>
           </div>
-          <button onClick={()=>supabase.auth.signOut()} title="Sign out"
-            style={{display:"flex",alignItems:"center",justifyContent:"center",height:30,padding:"0 10px",border:"1px solid rgba(255,255,255,.15)",borderRadius:7,background:"rgba(255,255,255,.06)",cursor:"pointer",flexShrink:0,fontFamily:"Inter,sans-serif",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.5)",gap:4,whiteSpace:"nowrap"}}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Sign Out
-          </button>
+
           <button onClick={()=>setSidebarOpen(o=>!o)} title={sidebarOpen?"Collapse menu":"Expand menu"}
             style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,border:"1px solid rgba(255,255,255,.15)",borderRadius:7,background:"rgba(255,255,255,.06)",cursor:"pointer",flexShrink:0}}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -2143,9 +2207,28 @@ export default function App(){
       {/* MAIN CONTENT */}
       <div style={{flex:1,minWidth:0,padding:"20px",maxWidth:1180}}>
       {/* Period bar — shows actual data period, consistent across all tabs */}
-      <div style={{padding:"7px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-        <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
-        <span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year} (no data yet)`}</span>
+      {/* Period bar + Publish button */}
+      <div style={{padding:"10px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:0}}>
+          <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
+          {" "}<span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year} (no data yet)`}</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0,flexWrap:"wrap"}}>
+          {publishedUntil
+            ?<span style={{fontSize:11,color:"#15803D",fontWeight:600}}>✅ Published up to {publishedUntil.replace(/(\d{4})-(\d{2})-(\d{2})/,"$3/$2/$1")}</span>
+            :<span style={{fontSize:11,color:"#92400E"}}>⚠️ Not published yet</span>
+          }
+          {lastDataDay&&<button
+            onClick={async()=>{
+              const d=`${year}-${String(month).padStart(2,"0")}-${String(lastDataDay).padStart(2,"0")}`;
+              setPublishedUntil(d);
+              await saveData(`emax_v5_published_${year}_${month}`,d);
+              alert(`✅ Data up to ${lastDataDay}/${month}/${year} is now visible to boss and branch viewers.`);
+            }}
+            style={{padding:"6px 14px",background:"#0A1628",color:"#fff",border:"none",borderRadius:7,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>
+            📤 Publish to Viewers ({lastDataDay}/{month}/{year})
+          </button>}
+        </div>
       </div>
       {/* OVERVIEW */}
       {tab==="overview"&&<div className="fade-in">
@@ -2179,7 +2262,7 @@ export default function App(){
           {(()=>{
             const allPeople=[
               ...BRANCH_ORDER.map(b=>({id:`BM_${b}`,name:branchMeta[b]?.manager||b,role:"Branch Manager",branch:b})),
-              ...srList.map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
+              ...srList.filter(sr=>srVisibleInMonth(sr,selMonth,selYear)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
             ];
             const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0,asOf:pointsAsOfFor(p.branch)})).sort((a,b)=>b.balance-a.balance);
             const medals=["🥇","🥈","🥉"];
@@ -2249,7 +2332,7 @@ export default function App(){
                     {days.map((d,i)=>{
                       const k=`${d}/${month}/${year}`,day=records[k]||{};
                       const branchTotals=BRANCH_ORDER.map(b=>{
-                        const bSRs=srList.filter(s=>s.branch===b&&!(s.status||'').toLowerCase().includes('resigned'));
+                        const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,month,year));
                         let t=bSRs.reduce((s,sr)=>(s+(day[sr.id]?.walkin||0)+(day[sr.id]?.aeon||0)),0);
                         t+=(day[`BM_${b}`]?.walkin||0)+(day[`BM_${b}`]?.aeon||0)+(day[`BM_${b}`]?.unalloc||0);
                         return t;
@@ -2338,12 +2421,21 @@ export default function App(){
           }}>
             Manage SR
           </button>
+          <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
+          <button onClick={()=>supabase.auth.signOut()} style={{
+            display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",
+            border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+            background:"transparent",color:"rgba(255,255,255,.35)",transition:"background .15s",
+          }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign Out
+          </button>
 
         </div>
       </div>
     </div>{/* end flex layout */}
 
-    {showTargetModal&&<TargetModal targets={targets} setTargets={handleSaveTargets} srList={srList} branchMeta={branchMeta} onClose={()=>setShowTargetModal(false)}/>}
+    {showTargetModal&&<TargetModal targets={targets} setTargets={setTargets} srList={srList} branchMeta={branchMeta} onClose={()=>setShowTargetModal(false)} currentMonth={selMonth} currentYear={selYear} onSaveForMonth={async(t,m,y)=>{if(m===selMonth&&y===selYear){setTargets(t);handleSaveTargets(t);}else await saveData(`emax_v5_targets_${y}_${m}`,t);}}/>}
     {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson}/>}
     {printBranch&&<PrintBranchReport branchId={printBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onClose={()=>setPrintBranch(null)} month={month} year={year} days={days}/>}
     {showPointsModal&&<PointsHistoryModal srList={srList} branchMeta={branchMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}

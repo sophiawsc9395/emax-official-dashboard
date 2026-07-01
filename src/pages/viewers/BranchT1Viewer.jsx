@@ -371,8 +371,19 @@ export default function App(){
     const targetKey=`emax_v5_targets_${selYear}_${selMonth}`;
     const prevM=selMonth===1?12:selMonth-1,prevY=selMonth===1?selYear-1:selYear;
     const prevTargetKey=`emax_v5_targets_${prevY}_${prevM}`;
-    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData("emax_v5_reward_balance"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history"),loadData(snapKey)]).then(([r,t,tPrev,srData,bmData,rb,rh,sh,snap])=>{
-      setRecords(r||{});
+    const publishKey=`emax_v5_published_${selYear}_${selMonth}`;
+    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData("emax_v5_reward_balance"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history"),loadData(snapKey),loadData(publishKey)]).then(([r,t,tPrev,srData,bmData,rb,rh,sh,snap,pub])=>{
+      // Only show records up to the published date
+      const pubDate=pub?new Date(pub):null;
+      const filteredR={};
+      Object.entries(r||{}).forEach(([k,v])=>{
+        const parts=k.split("/");
+        if(parts.length===3){
+          const d=new Date(`${parts[2]}-${String(parts[1]).padStart(2,"0")}-${String(parts[0]).padStart(2,"0")}`);
+          if(!pubDate||d<=pubDate)filteredR[k]=v;
+        }
+      });
+      setRecords(filteredR);
       const tUse=t||(tPrev)||null;
       if(tUse?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr}});
       if(srData&&Array.isArray(srData)&&srData.length>0){
@@ -439,6 +450,13 @@ export default function App(){
   const pad2=(n)=>String(n).padStart(2,"0");
   const rankingPeriod=lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year}`;
   const rankEndDay=lastDataDay||daysInMonth(month,year);
+
+  const srVisibleInMonth=(sr,m,y)=>{
+    if(!(sr.status||'').toLowerCase().includes('resigned'))return true;
+    if(!sr.resignDate)return false;
+    const rd=new Date(sr.resignDate);
+    return rd.getFullYear()>y||(rd.getFullYear()===y&&rd.getMonth()+1>=m);
+  };
 
   // For company-wide ranking, compute all SRs from all branches — always 1 → lastDataDay
   const allSRTotals=useMemo(()=>{
@@ -518,9 +536,13 @@ export default function App(){
 
     <div style={{display:"flex",maxWidth:1400,margin:"0 auto"}}>
     <div style={{flex:1,minWidth:0,padding:20,maxWidth:1180}}>
-      <div style={{padding:"7px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-        <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
-        <span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year} (no data yet)`}</span>
+      <div style={{padding:"10px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <div style={{flex:1}}>
+          <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
+          {" "}<span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year} (no data yet)`}</span>
+        </div>
+        {!pub&&<span style={{fontSize:11,color:"#92400E",fontWeight:600}}>⚠️ Awaiting publish from admin</span>}
+        {pub&&<span style={{fontSize:11,color:"#15803D",fontWeight:600}}>✅ Data up to {pub.replace(/(\d{4})-(\d{2})-(\d{2})/,(m,y,mo,d)=>`${d}/${mo}/${y}`)}</span>}
       </div>
 
       {tab==="rankings"&&<div className="fade-in" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:20}}>
@@ -538,7 +560,7 @@ export default function App(){
           {(()=>{
             const allPeople=[
               ...BRANCH_ORDER.map(b=>({id:`BM_${b}`,name:bMeta[b]?.manager||b,role:"Branch Manager",branch:b})),
-              ...DEFAULT_SR.map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
+              ...srList.filter(sr=>srVisibleInMonth(sr,month,year)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
             ];
             const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0})).sort((a,b)=>b.balance-a.balance);
             const medals=["🥇","🥈","🥉"];

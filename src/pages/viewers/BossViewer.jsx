@@ -200,13 +200,13 @@ function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalanc
       {[["Walk In",fRM(tWI),"#4A5568"],["Invoice",fRM(tAE),"#4A5568"],["Total Profit",fRM(total),"#0A1628"]].map(([l,v,c])=>(
         <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",fontSize:11}}>
           <span style={{color:"#5A6472"}}>{l}</span>
-          <span style={{fontWeight:700,color:c,fontSize:11}}>{v}</span>
+          <span style={{color:c,fontSize:11}}>{v}</span>
         </div>
       ))}
       <div style={{height:1,background:"#E4EAF2",margin:"7px 0"}}/>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
         <span style={{color:"#5A6472"}}>Target</span>
-        <span style={{fontWeight:700,fontSize:11}}>{target>0?fRM(target):"Not set"}</span>
+        <span style={{fontSize:11,color:"#4A5568"}}>{target>0?fRM(target):"Not set"}</span>
       </div>
       {target>0&&<>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
@@ -216,7 +216,7 @@ function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalanc
         <ProgressBar pct={p} color={color}/>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:5}}>
           <span style={{color:"#5A6472"}}>Balance to Hit</span>
-          <span style={{fontWeight:700,color:Math.max(target-total,0)>0?"#F0354B":"#00C896",fontSize:11}}>
+          <span style={{color:Math.max(target-total,0)>0?"#F0354B":"#00C896",fontSize:11}}>
             {Math.max(target-total,0)>0?fRM(Math.max(target-total,0)):"Target Met"}
           </span>
         </div>
@@ -228,7 +228,7 @@ function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalanc
       {/* Personal Achievement Bonus */}
       {bonus>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:4}}>
         <span style={{color:"#5A6472"}}>Personal Achievement Bonus</span>
-        <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>
+        <span style={{fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>
           {bonusEarned?fRM(bonus):`${fRM(bonus)} (Pending)`}
         </span>
       </div>}
@@ -237,7 +237,7 @@ function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalanc
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
         <span style={{color:"#5A6472"}}>Branch Achievement Bonus</span>
         {(branchPct>=120&&p>=100)
-          ? <span style={{fontWeight:700,fontSize:11,color:"#0A1628"}}>{fRM(calcAchievementBonus(branchPct,"sr"))}</span>
+          ? <span style={{fontSize:11,color:"#0A1628"}}>{fRM(calcAchievementBonus(branchPct,"sr"))}</span>
           : <span style={{color:"#5A6472"}}>—</span>
         }
       </div>
@@ -246,13 +246,13 @@ function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalanc
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2,marginTop:2}}>
         <span style={{color:"#5A6472"}}>Reward Points (This Month)</span>
         {(branchPct>=100&&p>=110)
-          ? <span style={{fontWeight:700,fontSize:11,color:"#0A1628"}}>{calcRewardPoints(p,branchPct).toLocaleString()} pts</span>
+          ? <span style={{fontSize:11,color:"#0A1628"}}>{calcRewardPoints(p,branchPct).toLocaleString()} pts</span>
           : <span style={{color:"#5A6472"}}>—</span>
         }
       </div>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:6}}>
         <span style={{color:"#5A6472"}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
-        <span style={{fontWeight:700,fontSize:11,color:"#0A1628"}}>{rewardBalance.toLocaleString()} pts</span>
+        <span style={{fontSize:11,color:"#0A1628"}}>{rewardBalance.toLocaleString()} pts</span>
       </div>
 
       {/* Compact tier progress — only shown when at least one tier is active */}
@@ -331,12 +331,12 @@ function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewa
     <div style={{padding:"10px 14px",background:"#F7F9FC",borderTop:"2px solid #E4EAF2"}}>
       {[["Unallocated",fRM(tUA),"#4A5568"],["Walk In",fRM(tWI),"#4A5568"],["Invoice",fRM(tAE),"#4A5568"],["Total Profit",fRM(total),"#0A1628"]].map(([l,v,c])=>(
         <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",fontSize:11}}>
-          <span style={{color:"#5A6472"}}>{l}</span><span style={{fontWeight:700,color:c,fontSize:11}}>{v}</span>
+          <span style={{color:"#5A6472"}}>{l}</span><span style={{color:c,fontSize:11}}>{v}</span>
         </div>
       ))}
       <div style={{height:1,background:"#E4EAF2",margin:"7px 0"}}/>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
-        <span style={{color:"#5A6472"}}>Target</span><span style={{fontWeight:700,fontSize:11}}>{target>0?fRM(target):"Not set"}</span>
+        <span style={{color:"#5A6472"}}>Target</span><span style={{fontSize:11,color:"#4A5568"}}>{target>0?fRM(target):"Not set"}</span>
       </div>
       {target>0&&<>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
@@ -345,7 +345,7 @@ function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewa
         <ProgressBar pct={p} color={color}/>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:5}}>
           <span style={{color:"#5A6472"}}>Balance to Hit</span>
-          <span style={{fontWeight:700,color:Math.max(target-total,0)>0?"#F0354B":"#00C896",fontSize:11}}>
+          <span style={{color:Math.max(target-total,0)>0?"#F0354B":"#00C896",fontSize:11}}>
             {Math.max(target-total,0)>0?fRM(Math.max(target-total,0)):"Target Met"}
           </span>
         </div>
@@ -382,7 +382,7 @@ function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewa
       </div>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:6}}>
         <span style={{color:"#5A6472"}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
-        <span style={{fontWeight:700,fontSize:11,color:"#0A1628"}}>{rewardBalance.toLocaleString()} pts</span>
+        <span style={{fontSize:11,color:"#0A1628"}}>{rewardBalance.toLocaleString()} pts</span>
       </div>
 
       {/* Compact tier progress — only shown when at least one tier is active */}
@@ -744,6 +744,7 @@ export default function App(){
     const targetKey=`emax_v5_targets_${selYear}_${selMonth}`;
     const prevM=selMonth===1?12:selMonth-1,prevY=selMonth===1?selYear-1:selYear;
     const prevTargetKey=`emax_v5_targets_${prevY}_${prevM}`;
+    const publishKey=`emax_v5_published_${selYear}_${selMonth}`;
     Promise.all([
       loadData(`emax_v5_records_${selYear}_${selMonth}`),
       loadData(targetKey),
@@ -755,8 +756,19 @@ export default function App(){
       loadData("emax_v5_reward_balance"),
       loadData("emax_v5_reward_history"),
       loadData("emax_v5_status_history"),
-    ]).then(([r,t,tPrev,srData,bmData,snap,rep,rb,rh,sh])=>{
-      setRecords(r||{});
+      loadData(publishKey),
+    ]).then(([r,t,tPrev,srData,bmData,snap,rep,rb,rh,sh,pub])=>{
+      // Only show records up to the published date
+      const pubDate=pub?new Date(pub):null;
+      const filteredR={};
+      Object.entries(r||{}).forEach(([k,v])=>{
+        const parts=k.split("/");
+        if(parts.length===3){
+          const d=new Date(`${parts[2]}-${String(parts[1]).padStart(2,"0")}-${String(parts[0]).padStart(2,"0")}`);
+          if(!pubDate||d<=pubDate)filteredR[k]=v;
+        }
+      });
+      setRecords(filteredR);
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
       // Only apply snapshot for PAST months — current month uses live sr_list
       const nowD=new Date();
@@ -867,7 +879,14 @@ export default function App(){
     return{name:bMeta[b]?.manager,status:bMeta[b]?.mStatus,branch:b,sub:(bMeta[b]?.name||b).toUpperCase(),profit,target,p,branchPct:p,role:"bm"};
   }).sort((a,b)=>b.p-a.p);
 
-  const mkSRRank=type=>srList.filter(s=>s.type===type).map(s=>{
+
+  const srVisibleInMonth=(sr,m,y)=>{
+    if(!(sr.status||'').toLowerCase().includes('resigned'))return true;
+    if(!sr.resignDate)return false;
+    const rd=new Date(sr.resignDate);
+    return rd.getFullYear()>y||(rd.getFullYear()===y&&rd.getMonth()+1>=m);
+  };
+  const mkSRRank=type=>srList.filter(s=>s.type===type&&srVisibleInMonth(s,selMonth,selYear)).map(s=>{
     const profit=rankSRTotals[s.id]?.total||0,target=targets?.sr?.[s.id]?.target||0;
     const bTotal=rankBranchTotals[s.branch]?.total||0,bTarget=targets?.bm?.[s.branch]||0;
     const branchPct=pctN(bTotal,bTarget),p=pctN(profit,target);
@@ -916,9 +935,13 @@ export default function App(){
 
     <div style={{display:"flex",maxWidth:1400,margin:"0 auto"}}>
     <div style={{flex:1,minWidth:0,padding:"20px 12px",maxWidth:1180}}>
-      <div style={{padding:"7px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-        <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
-        <span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${MONTHS[month-1]} ${year} (no data yet)`}</span>
+      <div style={{padding:"10px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <div style={{flex:1}}>
+          <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
+          {" "}<span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${MONTHS[month-1]} ${year} (no data yet)`}</span>
+        </div>
+        {!pub&&<span style={{fontSize:11,color:"#92400E",fontWeight:600}}>⚠️ Awaiting publish from admin</span>}
+        {pub&&<span style={{fontSize:11,color:"#15803D",fontWeight:600}}>✅ Data up to {pub.replace(/(\d{4})-(\d{2})-(\d{2})/,(m,y,mo,d)=>`${d}/${mo}/${y}`)}</span>}
       </div>
 
       {/* OVERVIEW */}
@@ -949,7 +972,7 @@ export default function App(){
           {(()=>{
             const allPeople=[
               ...BRANCH_ORDER.map(b=>({id:`BM_${b}`,name:bMeta[b]?.manager||b,role:"Branch Manager",branch:b})),
-              ...srList.map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
+              ...srList.filter(sr=>srVisibleInMonth(sr,selMonth,selYear)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
             ];
             const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0})).sort((a,b)=>b.balance-a.balance);
             const medals=["🥇","🥈","🥉"];
@@ -1053,15 +1076,17 @@ export default function App(){
 
       {/* REPAIR */}
       {tab==="repair"&&<div className="fade-in" style={{maxWidth:520}}>
-        <div className="card" style={{overflow:"hidden"}}>
-          <div style={{padding:"14px 18px",borderBottom:"1px solid #E4EAF2",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={{fontWeight:700,fontSize:13,color:"#0A1628"}}>Repair & Service</div>
-              <div style={{fontSize:11,color:"#8A96A8",marginTop:2}}>{MONTHS[month-1]} {year}</div>
-            </div>
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Total</div>
-              <div style={{fontWeight:700,fontSize:15,color:"#0A1628"}}>{Object.values(repairData).reduce((s,v)=>s+(v||0),0)>0?fRM(Object.values(repairData).reduce((s,v)=>s+(v||0),0)):"—"}</div>
+        <div className="card" style={{overflow:"hidden",padding:0}}>
+          {/* Dark blue header — matches SR card design */}
+          <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"12px 16px"}}>
+            <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:4}}>EMAX NETWORK SDN BHD</div>
+            <div style={{fontWeight:800,fontSize:16,color:"#fff",letterSpacing:"0.01em"}}>Repair & Service</div>
+          </div>
+          <div style={{padding:"5px 14px",background:"#0F2040",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontSize:11,color:"rgba(255,255,255,.55)"}}>{MONTHS[month-1]} {year}</div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.06em"}}>Total</span>
+              <span style={{fontWeight:700,fontSize:13,color:"#fff"}}>{Object.values(repairData).reduce((s,v)=>s+(v||0),0)>0?fRM(Object.values(repairData).reduce((s,v)=>s+(v||0),0)):"—"}</span>
             </div>
           </div>
           <table style={{width:"100%",borderCollapse:"collapse"}}>
