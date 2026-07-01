@@ -546,8 +546,8 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
   const grandAE=BRANCH_ORDER.reduce((s,b)=>s+(bt[b]?.ae||0),0);
   const grandT=grandWI+grandAE;
   const grandTgt=BRANCH_ORDER.reduce((s,b)=>s+(targets?.bm?.[b]||0),0);
-  const TH=(e={})=>({padding:"10px 16px",fontWeight:700,fontSize:10,background:"#0A1628",color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right",whiteSpace:"nowrap",...e});
-  const TD=(e={})=>({padding:"9px 16px",fontSize:12,whiteSpace:"nowrap",borderBottom:"1px solid rgba(228,234,242,.7)",...e});
+  const TH=(e={})=>({padding:"10px 10px",fontWeight:700,fontSize:10,background:"#0A1628",color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right",whiteSpace:"nowrap",...e});
+  const TD=(e={})=>({padding:"9px 10px",fontSize:12,whiteSpace:"nowrap",borderBottom:"1px solid rgba(228,234,242,.7)",...e});
   return <div ref={printRef} style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1px solid #E4EAF2",boxShadow:"0 2px 8px rgba(10,22,40,.06)"}}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 20px",borderBottom:"1px solid #E4EAF2"}}>
       <div>
@@ -623,18 +623,18 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
             </td>
           </tr>;
         })}</tbody>
-        <tfoot><tr style={{background:"#0A1628",fontSize:12}}>
-          <td style={{padding:"10px 16px",fontWeight:600,color:"rgba(255,255,255,.6)"}}>Total</td>
-          <td style={{padding:"10px 16px",textAlign:"right"}}><span style={{color:"rgba(255,255,255,.6)"}}>{grandTgt>0?`RM ${nc(grandTgt)}`:"—"}</span></td>
-          <td style={{padding:"10px 16px",textAlign:"right"}}><span style={{color:"rgba(255,255,255,.6)"}}>{grandT>0?`RM ${nc(grandT)}`:"—"}</span></td>
-          <td style={{padding:"10px 16px",textAlign:"right"}}><span style={{color:"rgba(255,255,255,.6)"}}>{grandWI!==0?`RM ${nc(grandWI)}`:"—"}</span></td>
-          <td style={{padding:"10px 16px",textAlign:"right"}}><span style={{color:"rgba(255,255,255,.6)"}}>{grandAE>0?`RM ${nc(grandAE)}`:"—"}</span></td>
-          <td style={{padding:"10px 16px",textAlign:"right"}}>
-            <span style={{color:"rgba(255,255,255,.6)"}}>
+        <tfoot><tr style={{background:"#0A1628",fontSize:11}}>
+          <td style={{padding:"9px 10px",fontWeight:600,color:"rgba(255,255,255,.6)",whiteSpace:"nowrap"}}>Total</td>
+          <td style={{padding:"9px 10px",textAlign:"right"}}><span style={{color:"rgba(255,255,255,.6)",whiteSpace:"nowrap"}}>{grandTgt>0?`RM ${nc(grandTgt)}`:"—"}</span></td>
+          <td style={{padding:"9px 10px",textAlign:"right"}}><span style={{color:"rgba(255,255,255,.6)",whiteSpace:"nowrap"}}>{grandT>0?`RM ${nc(grandT)}`:"—"}</span></td>
+          <td style={{padding:"9px 10px",textAlign:"right"}}><span style={{color:"rgba(255,255,255,.6)",whiteSpace:"nowrap"}}>{grandWI!==0?`RM ${nc(grandWI)}`:"—"}</span></td>
+          <td style={{padding:"9px 10px",textAlign:"right"}}><span style={{color:"rgba(255,255,255,.6)",whiteSpace:"nowrap"}}>{grandAE>0?`RM ${nc(grandAE)}`:"—"}</span></td>
+          <td style={{padding:"9px 10px",textAlign:"right"}}>
+            <span style={{color:"rgba(255,255,255,.6)",whiteSpace:"nowrap"}}>
               {grandTgt>0?(grandT-grandTgt>=0?"+RM "+nc(grandT-grandTgt):"RM "+nc(Math.abs(grandT-grandTgt))):"—"}
             </span>
           </td>
-          <td style={{padding:"10px 16px",textAlign:"right"}}><AchBadge profit={grandT} target={grandTgt} size="md"/></td>
+          <td style={{padding:"9px 10px",textAlign:"right"}}><AchBadge profit={grandT} target={grandTgt} size="md"/></td>
         </tr></tfoot>
       </table>
     </div>

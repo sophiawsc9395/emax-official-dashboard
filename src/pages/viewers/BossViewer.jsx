@@ -828,14 +828,14 @@ export default function App(){
     <style>{CSS}</style>
     <div style={{background:"#0A1628",borderBottom:"1px solid #162B52",position:"sticky",top:0,zIndex:100}}>
       <div style={{maxWidth:1400,margin:"0 auto",padding:"0 12px"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",minHeight:48,gap:8,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",minHeight:48,gap:8,overflow:"hidden"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
             <div>
               <div style={{fontWeight:900,fontSize:12,color:"#fff",letterSpacing:"0.06em",lineHeight:1}}>EMAX NETWORK</div>
               <div style={{fontSize:9,color:"rgba(255,255,255,.3)",letterSpacing:"0.14em",textTransform:"uppercase",marginTop:1}}>Boss View · All Branches</div>
             </div>
           </div>
-          <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",rowGap:6}}>
+          <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
             <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))}
               style={{padding:"4px 8px",border:"1px solid rgba(255,255,255,.2)",borderRadius:6,fontSize:11,background:"rgba(255,255,255,.1)",color:"#fff",outline:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600}}>
               {MONTHS.map((m,i)=><option key={i+1} value={i+1} style={{background:"#0A1628",color:"#fff"}}>{m}</option>)}
@@ -844,11 +844,7 @@ export default function App(){
               style={{padding:"4px 8px",border:"1px solid rgba(255,255,255,.2)",borderRadius:6,fontSize:11,background:"rgba(255,255,255,.1)",color:"#fff",outline:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600}}>
               {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y} style={{background:"#0A1628",color:"#fff"}}>{y}</option>)}
             </select>
-            <button onClick={()=>supabase.auth.signOut()} title="Sign out"
-            style={{display:"flex",alignItems:"center",justifyContent:"center",height:30,padding:"0 10px",border:"1px solid rgba(255,255,255,.15)",borderRadius:7,background:"rgba(255,255,255,.06)",cursor:"pointer",flexShrink:0,fontFamily:"Inter,sans-serif",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.5)",gap:4,whiteSpace:"nowrap"}}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Sign Out
-          </button>
+
           <button onClick={()=>setSidebarOpen(o=>!o)} title={sidebarOpen?"Collapse menu":"Expand menu"}
               style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,border:"1px solid rgba(255,255,255,.15)",borderRadius:7,background:"rgba(255,255,255,.06)",cursor:"pointer",flexShrink:0}}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -947,7 +943,7 @@ export default function App(){
         <div className="card" style={{overflow:"hidden"}}>
           <div style={{padding:"14px 18px",borderBottom:"1px solid #E4EAF2",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div>
-              <div style={{fontWeight:700,fontSize:13,color:"#0A1628"}}>Network Repair & Service</div>
+              <div style={{fontWeight:700,fontSize:13,color:"#0A1628"}}>Repair & Service</div>
               <div style={{fontSize:11,color:"#8A96A8",marginTop:2}}>{MONTHS[month-1]} {year}</div>
             </div>
             <div style={{textAlign:"right"}}>
@@ -996,6 +992,15 @@ export default function App(){
               {t.label}
             </button>
           ))}
+          <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
+          <button onClick={()=>supabase.auth.signOut()} style={{
+            display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",
+            border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+            background:"transparent",color:"rgba(255,255,255,.35)",transition:"background .15s",
+          }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign Out
+          </button>
         </div>
       </div>
     </div>{/* end flex layout */}
