@@ -617,6 +617,46 @@ function PdfDownloads({month,year,branch}){
   </div>;
 }
 
+function StatusHistoryModal({srList,bMeta,statusHistory,onClose,initialPerson}){
+  const isBM=initialPerson&&initialPerson.startsWith("BM_");
+  const branchId=isBM?initialPerson.replace("BM_",""):null;
+  const person=isBM
+    ?{name:bMeta[branchId]?.manager||branchId,role:`${branchId} — Branch Manager`}
+    :(()=>{const sr=srList.find(s=>s.id===initialPerson);return sr?{name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}:null;})();
+  const currentStatus=isBM?bMeta[branchId]?.mStatus:srList.find(s=>s.id===initialPerson)?.status;
+  const history=(statusHistory[initialPerson]||[]).slice().reverse();
+
+  return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:600,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px",borderBottom:"1px solid #E4EAF2"}}>
+        <div>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>📋 Employment Status History</h2>
+          <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>{person?.name} · {person?.role}</div>
+        </div>
+        <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
+      </div>
+      <div style={{padding:"16px 24px",background:"linear-gradient(135deg,#0A1628,#162B52)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{fontSize:11,color:"rgba(255,255,255,.35)"}}>Current Status</div>
+        <div style={{fontSize:16,fontWeight:800,color:"#fff"}}>{currentStatus||"—"}</div>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:"12px 24px"}}>
+        {history.length===0
+          ? <div style={{padding:"32px 0",textAlign:"center",color:"#8A96A8",fontSize:12}}>No status change history yet.</div>
+          : history.map((h,i)=>(
+            <div key={i} style={{padding:"10px 0",borderBottom:i<history.length-1?"1px solid #F0F2F5":"none"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:13,fontWeight:800,color:"#0A1628"}}>{h.status}</span>
+                <span style={{fontSize:10,color:"#8A96A8"}}>{new Date(h.date).toLocaleString("en-MY",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
+              </div>
+              <div style={{fontSize:12,color:"#5A6472",marginTop:3}}>{h.note}</div>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </div>;
+}
+
 function PointsHistoryModal({srList,bMeta,rewardBalances,rewardHistory,onClose,initialPerson}){
   const people=[
     ...BRANCH_ORDER.map(b=>({id:`BM_${b}`,name:bMeta[b]?.manager||b,role:`${b} — Branch Manager`})),

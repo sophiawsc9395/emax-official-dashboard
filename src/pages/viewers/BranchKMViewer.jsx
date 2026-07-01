@@ -194,32 +194,26 @@ function RankingTable({title,rows,showBonus,showPoints,branchMeta,period}){
 
 
 function StatusHistoryModal({srList,bMeta,statusHistory,onClose,initialPerson}){
-  const people=[
-    ...BRANCH_ORDER.map(b=>({id:`BM_${b}`,name:bMeta[b]?.manager||b,role:`${b} — Branch Manager`})),
-    ...srList.map(sr=>({id:sr.id,name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}))
-  ];
-  const [selPerson,setSelPerson]=useState(initialPerson||people[0]?.id);
-  const person=people.find(p=>p.id===selPerson);
-  const currentStatus=(selPerson&&selPerson.startsWith("BM_"))?bMeta[selPerson.replace("BM_","")]?.mStatus:srList.find(s=>s.id===selPerson)?.status;
-  const history=(statusHistory[selPerson]||[]).slice().reverse();
+  const isBM=initialPerson&&initialPerson.startsWith("BM_");
+  const branchId=isBM?initialPerson.replace("BM_",""):null;
+  const person=isBM
+    ?{name:bMeta[branchId]?.manager||branchId,role:`${branchId} — Branch Manager`}
+    :(()=>{const sr=srList.find(s=>s.id===initialPerson);return sr?{name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}:null;})();
+  const currentStatus=isBM?bMeta[branchId]?.mStatus:srList.find(s=>s.id===initialPerson)?.status;
+  const history=(statusHistory[initialPerson]||[]).slice().reverse();
 
   return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:600,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px",borderBottom:"1px solid #E4EAF2"}}>
-        <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>📋 Employment Status History</h2>
+        <div>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>📋 Employment Status History</h2>
+          <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>{person?.name} · {person?.role}</div>
+        </div>
         <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
       </div>
-      <div style={{padding:"16px 24px",borderBottom:"1px solid #E4EAF2"}}>
-        <select className="input select" value={selPerson} onChange={e=>setSelPerson(e.target.value)} style={{fontSize:13,padding:"8px 28px 8px 12px"}}>
-          {people.map(p=><option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}
-        </select>
-      </div>
       <div style={{padding:"16px 24px",background:"linear-gradient(135deg,#0A1628,#162B52)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{fontSize:10,color:"rgba(255,255,255,.5)",textTransform:"uppercase",letterSpacing:"0.08em"}}>{person?.name}</div>
-          <div style={{fontSize:11,color:"rgba(255,255,255,.35)",marginTop:2}}>Current Status</div>
-        </div>
-        <div style={{fontSize:18,fontWeight:800,color:"#fff"}}>{currentStatus||"—"}</div>
+        <div style={{fontSize:11,color:"rgba(255,255,255,.35)"}}>Current Status</div>
+        <div style={{fontSize:16,fontWeight:800,color:"#fff"}}>{currentStatus||"—"}</div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"12px 24px"}}>
         {history.length===0
