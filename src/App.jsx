@@ -257,7 +257,7 @@ function EC({value,onSave,color="#4A5568"}){
 }
 
 // ─── SR TABLE ──────────────────────────────────────────────
-function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,rewardBalance=0,pointsAsOf=""}){
+function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,rewardBalance=0,pointsAsOf="",onStatusHistory}){
   const target=targets?.sr?.[sr.id]?.target||0,bonus=targets?.sr?.[sr.id]?.bonus||0;
   const rows=days.map(d=>{const k=`${d}/${month}/${year}`,v=records[k]?.[sr.id]||{};return{day:d,wi:v.walkin||0,ae:v.aeon||0};});
   const tWI=rows.reduce((s,r)=>s+r.wi,0),tAE=rows.reduce((s,r)=>s+r.ae,0),total=tWI+tAE;
@@ -274,7 +274,10 @@ function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,
       </div>
     </div>
     <div style={{padding:"5px 14px",background:"#0F2040",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-      <StatusTag status={sr.status}/>
+      <div style={{display:"flex",alignItems:"center",gap:6}}>
+        <StatusTag status={sr.status}/>
+        {onStatusHistory&&<button onClick={()=>onStatusHistory(sr.id)} style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:4,border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:"rgba(255,255,255,.45)",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>History</button>}
+      </div>
       <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em"}}>{DEFAULT_BRANCH_META[sr.branch]?.name}</span>
     </div>
     <table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -383,7 +386,7 @@ function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,
 }
 
 // ─── BM TABLE ──────────────────────────────────────────────
-function BMTable({branchId,records,targets,srList,branchMeta,onEdit,printMode,month,year,days,rewardBalance=0,pointsAsOf=""}){
+function BMTable({branchId,records,targets,srList,branchMeta,onEdit,printMode,month,year,days,rewardBalance=0,pointsAsOf="",onStatusHistory}){
   const meta=branchMeta[branchId]||{},bSRs=srList.filter(s=>s.branch===branchId);
   const target=targets?.bm?.[branchId]||0,bmBonus=targets?.bmBonus?.[branchId]||0;
   const rows=days.map(d=>{
@@ -406,7 +409,11 @@ function BMTable({branchId,records,targets,srList,branchMeta,onEdit,printMode,mo
       </div>
     </div>
     <div style={{padding:"5px 14px",background:"#0F2040",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-      <StatusTag status={meta.mStatus}/><span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em"}}>{meta.name}</span>
+      <div style={{display:"flex",alignItems:"center",gap:6}}>
+        <StatusTag status={meta.mStatus}/>
+        {onStatusHistory&&<button onClick={()=>onStatusHistory(`BM_${branchId}`)} style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:4,border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:"rgba(255,255,255,.45)",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>History</button>}
+      </div>
+      <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em"}}>{meta.name}</span>
     </div>
     <table style={{width:"100%",borderCollapse:"collapse"}}>
       <thead><tr>
@@ -2184,8 +2191,8 @@ export default function App(){
               const branchPct=pctN(bTotal,bTarget);
               return <div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
-                  {bSRs.map(sr=><SRTable key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)}/>)}
-                  <BMTable branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${selBranch}`]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)}/>
+                  {bSRs.map(sr=><SRTable key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>)}
+                  <BMTable branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${selBranch}`]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>
                 </div>
                 <div style={{marginTop:22}}>
                   <div style={{fontWeight:800,fontSize:12,color:"#0A1628",marginBottom:10,paddingBottom:7,borderBottom:"1px solid #E4EAF2",textTransform:"uppercase",letterSpacing:"0.06em"}}>Daily AEON Profit Report</div>
@@ -2239,13 +2246,7 @@ export default function App(){
           }}>
             Manage SR
           </button>
-          <button onClick={()=>{setShowStatusHistoryModal(true);setSidebarOpen(false);}} style={{
-            display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
-            border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
-            background:"transparent",color:"rgba(255,255,255,.45)",transition:"background .15s",
-          }}>
-            Status History
-          </button>
+
         </div>
       </div>
     </div>{/* end flex layout */}

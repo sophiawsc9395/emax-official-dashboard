@@ -549,7 +549,7 @@ export default function App(){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12,marginBottom:14}}>
           <div>
             <h2 style={{fontWeight:800,fontSize:15,color:"#0A1628",margin:0,textTransform:"uppercase"}}>{meta.name||DEFAULT_BRANCH_META[BRANCH_ID]?.name}</h2>
-            <div style={{fontSize:11,color:"#5A6472",marginTop:3}}>BM: {meta.manager} · {meta.mStatus}</div>
+            <div style={{fontSize:11,color:"#5A6472",marginTop:3,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>BM: {meta.manager} · {meta.mStatus}<button onClick={()=>{setStatusModalPerson(`BM_${BRANCH_ID}`);setShowStatusHistoryModal(true);}} style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:4,border:"1px solid #E4EAF2",background:"transparent",color:"#1E6FDB",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>History</button></div>
           </div>
           <div style={{textAlign:"right"}}>
             <div style={{fontWeight:900,fontSize:22,color:achColor(bTotal.total,bTarget),letterSpacing:"-0.02em"}}>
@@ -647,7 +647,10 @@ export default function App(){
       </div>
     </div>
     <div style={{padding:"5px 14px",background:"#0F2040",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-      <StatusTag status={sr.status}/>
+      <div style={{display:"flex",alignItems:"center",gap:6}}>
+        <StatusTag status={sr.status}/>
+        <button onClick={()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}} style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:4,border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:"rgba(255,255,255,.45)",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>History</button>
+      </div>
       <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em"}}>{(bMeta[sr.branch]?.name||sr.branch).toUpperCase()}</span>
     </div>
     <table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -774,13 +777,7 @@ export default function App(){
             </button>
           ))}
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
-          <button onClick={()=>{setShowStatusHistoryModal(true);setSidebarOpen(false);}} style={{
-            display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
-            border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
-            background:"transparent",color:"rgba(255,255,255,.45)",transition:"background .15s",
-          }}>
-            📋 Status History
-          </button>
+
           <button onClick={()=>supabase.auth.signOut()} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,

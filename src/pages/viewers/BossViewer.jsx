@@ -156,7 +156,7 @@ function RankMedal({rank}){
   return <span style={{fontWeight:700,color:"#8A96A8"}}>#{rank}</span>;
 }
 
-function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalance=0,pointsAsOf=""}){
+function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalance=0,pointsAsOf="",onStatusHistory}){
   const target=targets?.sr?.[sr.id]?.target||0,bonus=targets?.sr?.[sr.id]?.bonus||0;
   const rows=days.map(d=>{const k=`${d}/${month}/${year}`,v=records[k]?.[sr.id]||{};return{day:d,wi:v.walkin||0,ae:v.aeon||0};});
   const tWI=rows.reduce((s,r)=>s+r.wi,0),tAE=rows.reduce((s,r)=>s+r.ae,0),total=tWI+tAE;
@@ -173,7 +173,10 @@ function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalanc
       </div>
     </div>
     <div style={{padding:"5px 14px",background:"#0F2040",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-      <StatusTag status={sr.status}/>
+      <div style={{display:"flex",alignItems:"center",gap:6}}>
+        <StatusTag status={sr.status}/>
+        {onStatusHistory&&<button onClick={()=>onStatusHistory(sr.id)} style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:4,border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:"rgba(255,255,255,.45)",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>History</button>}
+      </div>
       <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em"}}>{(bMeta[sr.branch]?.name||sr.branch).toUpperCase()}</span>
     </div>
     <table style={{width:"100%",borderCollapse:"collapse"}}>
@@ -277,7 +280,7 @@ function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalanc
   </div>;
 }
 
-function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewardBalance=0,pointsAsOf=""}){
+function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewardBalance=0,pointsAsOf="",onStatusHistory}){
   const meta=branchMeta[branchId]||{},bSRs=srList.filter(s=>s.branch===branchId);
   const target=targets?.bm?.[branchId]||0,bmBonus=targets?.bmBonus?.[branchId]||0;
   const rows=days.map(d=>{
@@ -300,7 +303,11 @@ function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewa
       </div>
     </div>
     <div style={{padding:"5px 14px",background:"#0F2040",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-      <StatusTag status={meta.mStatus}/><span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em"}}>{meta.name}</span>
+      <div style={{display:"flex",alignItems:"center",gap:6}}>
+        <StatusTag status={meta.mStatus}/>
+        {onStatusHistory&&<button onClick={()=>onStatusHistory(`BM_${branchId}`)} style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:4,border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:"rgba(255,255,255,.45)",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>History</button>}
+      </div>
+      <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em"}}>{meta.name}</span>
     </div>
     <table style={{width:"100%",borderCollapse:"collapse"}}>
       <thead><tr>
@@ -685,6 +692,9 @@ export default function App(){
   const [repairData,setRepairData]=useState({});
   const [rewardBalances,setRewardBalances]=useState({});
   const [rewardHistory,setRewardHistory]=useState({});
+  const [statusHistory,setStatusHistory]=useState({});
+  const [showStatusHistoryModal,setShowStatusHistoryModal]=useState(false);
+  const [statusModalPerson,setStatusModalPerson]=useState(null);
   const [showPointsModal,setShowPointsModal]=useState(false);
   const [pointsModalPerson,setPointsModalPerson]=useState(null);
 
@@ -702,7 +712,8 @@ export default function App(){
       loadData(repKey),
       loadData("emax_v5_reward_balance"),
       loadData("emax_v5_reward_history"),
-    ]).then(([r,t,srData,bmData,snap,rep,rb,rh])=>{
+      loadData("emax_v5_status_history"),
+    ]).then(([r,t,srData,bmData,snap,rep,rb,rh,sh])=>{
       setRecords(r||{});
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
       if(snap&&Object.keys(snap).length>0){
@@ -712,6 +723,7 @@ export default function App(){
       if(bmData&&Object.keys(bmData).length>0)setBMeta({...DEFAULT_BRANCH_META,...bmData});
       setRewardBalances(rb||{});
       setRewardHistory(rh||{});
+      setStatusHistory(sh||{});
       if(t?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...t.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(t.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...t.sr}});
       else setTargets(DEFAULT_TARGETS);
       setRepairData(rep||{});
@@ -907,7 +919,10 @@ export default function App(){
                   <div style={{fontWeight:700,fontSize:13,color:isTop?"#fff":"#0A1628",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</div>
                   <div style={{fontSize:10,color:isTop?"rgba(255,255,255,.4)":"#8A96A8",marginTop:2}}>{p.role} · {p.branch} · As at {pointsAsOf}</div>
                 </div>
-                <div style={{fontWeight:800,fontSize:15,color:isTop?"#fff":"#0A1628",flexShrink:0,whiteSpace:"nowrap"}}>{p.balance.toLocaleString()} pts</div>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
+                  <div style={{fontWeight:800,fontSize:15,color:isTop?"#fff":"#0A1628",whiteSpace:"nowrap"}}>{p.balance.toLocaleString()} pts</div>
+                  <button onClick={e=>{e.stopPropagation();setStatusModalPerson(p.id);setShowStatusHistoryModal(true);}} style={{fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:4,border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:isTop?"rgba(255,255,255,.5)":"#8A96A8",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>Status History</button>
+                </div>
               </div>;
             });
           })()}
@@ -977,8 +992,8 @@ export default function App(){
           const branchPct=pctN(bTot,bTarget);
           return <div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
-              {bSRs.map(sr=><SRCard key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} month={month} year={year} days={days} bMeta={bMeta} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOf}/>)}
-              <BMCard branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={bMeta} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${selBranch}`]?.balance||0} pointsAsOf={pointsAsOf}/>
+              {bSRs.map(sr=><SRCard key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} month={month} year={year} days={days} bMeta={bMeta} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOf} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>)}
+              <BMCard branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={bMeta} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${selBranch}`]?.balance||0} pointsAsOf={pointsAsOf} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>
             </div>
             <div style={{marginTop:16}}><PdfDownloads month={month} year={year} branch={selBranch}/></div>
           </div>;
@@ -1040,6 +1055,7 @@ export default function App(){
             </button>
           ))}
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
+
           <button onClick={()=>supabase.auth.signOut()} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
@@ -1052,5 +1068,6 @@ export default function App(){
       </div>
     </div>{/* end flex layout */}
     {showPointsModal&&<PointsHistoryModal srList={srList} bMeta={bMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
+    {showStatusHistoryModal&&<StatusHistoryModal srList={srList} bMeta={bMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}
   </div>;
 }
