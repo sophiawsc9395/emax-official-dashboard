@@ -126,9 +126,19 @@ function calcRewardPoints(pct, branchPct) {
 // ─── EMPLOYMENT STATUS HELPERS (module-level, shared) ────────
 const statusBaseOptions=["Probation","Confirmed","Director","Resigned"];
 function parseStatus(s){
-  const m=(s||"").match(/^(Probation|Confirmed|Director|Resigned)\s*(?:\(P(\d+)\s*F(\d+)\))?/i);
-  if(!m)return{base:"Probation",p:0,f:0};
-  return{base:m[1],p:parseInt(m[2]||0),f:parseInt(m[3]||0)};
+  if(!s)return{base:"Probation",p:0,f:0};
+  // Match base status
+  const baseM=s.match(/^(Probation|Confirmed|Director|Resigned)/i);
+  if(!baseM)return{base:"Probation",p:0,f:0};
+  const base=baseM[1].charAt(0).toUpperCase()+baseM[1].slice(1).toLowerCase();
+  if(base==="Director"||base==="Resigned")return{base,p:0,f:0};
+  // Try new format: P5 F0
+  const newFmt=s.match(/P(\d+)\s*F(\d+)/i);
+  if(newFmt)return{base,p:parseInt(newFmt[1]),f:parseInt(newFmt[2])};
+  // Try old format: Passed 5, Failed 1  OR  Passed 5
+  const passedM=s.match(/Passed\s+(\d+)/i);
+  const failedM=s.match(/Failed\s+(\d+)/i);
+  return{base,p:passedM?parseInt(passedM[1]):0,f:failedM?parseInt(failedM[1]):0};
 }
 function buildStatus(base,p,f){
   return(base==="Director"||base==="Resigned")?base:`${base} (P${p} F${f})`;

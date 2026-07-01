@@ -674,13 +674,13 @@ export default function App(){
       {[["Walk In",fRM(tWI),"#4A5568"],["Invoice",fRM(tAE),"#4A5568"],["Total Profit",fRM(total),"#0A1628"]].map(([l,v,c])=>(
         <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",fontSize:11}}>
           <span style={{color:"#5A6472"}}>{l}</span>
-          <span style={{fontWeight:700,color:c,fontSize:11}}>{v}</span>
+          <span style={{color:c,fontSize:11}}>{v}</span>
         </div>
       ))}
       <div style={{height:1,background:"#E4EAF2",margin:"7px 0"}}/>
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
         <span style={{color:"#5A6472"}}>Target</span>
-        <span style={{fontWeight:700,fontSize:11}}>{target>0?fRM(target):"Not set"}</span>
+        <span style={{fontSize:11,color:"#4A5568"}}>{target>0?fRM(target):"Not set"}</span>
       </div>
       {target>0&&<>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
@@ -690,7 +690,7 @@ export default function App(){
         <ProgressBar pct={p} color={color}/>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:5}}>
           <span style={{color:"#5A6472"}}>Balance to Hit</span>
-          <span style={{fontWeight:700,color:Math.max(target-total,0)>0?"#F0354B":"#00C896",fontSize:11}}>
+          <span style={{color:Math.max(target-total,0)>0?"#F0354B":"#00C896",fontSize:11}}>
             {Math.max(target-total,0)>0?fRM(Math.max(target-total,0)):"Target Met"}
           </span>
         </div>
@@ -726,7 +726,7 @@ export default function App(){
       </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:6,gap:6,flexWrap:"nowrap"}}>
         <span style={{color:"#5A6472",fontSize:10,flex:1,minWidth:0,overflow:"visible"}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
-        <span style={{fontSize:10,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{(rewardBalances[sr.id]?.balance||0).toLocaleString()} pts</span>
+        <span style={{fontSize:11,color:"#4A5568",whiteSpace:"nowrap",flexShrink:0}}>{(rewardBalances[sr.id]?.balance||0).toLocaleString()} pts</span>
       </div>
 
       {/* Compact tier progress — only shown when at least one tier is active */}
