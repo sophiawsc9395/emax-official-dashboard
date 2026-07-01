@@ -1856,47 +1856,93 @@ export default function App(){
   };
   const unlockBranchMonth=async(branchId)=>{
     if(!isBranchLocked(branchId)){alert("This branch's "+selMonth+"/"+selYear+" report is not locked.");return;}
-    if(!confirm(`Unlock ${branchId} for ${selMonth}/${selYear}? Points credited during this lock will be debited back.`))return;
+    if(!confirm(`Unlock ${branchId} for ${selMonth}/${selYear}? Points and employment status changes from this lock will be reversed.`))return;
     const MONTHS_FULL=["January","February","March","April","May","June","July","August","September","October","November","December"];
     const noteMonth=`${MONTHS_FULL[selMonth-1]} ${selYear}`;
     const updates={...rewardBalances};
     const historyUpdates={...rewardHistory};
+    const statusUpdates={...statusHistory};
 
-    // Debit SR points that were credited for this lock
+    // ── Reverse SR points and employment status ────────────────────────────
     const bSRs=srList.filter(s=>s.branch===branchId&&!(s.status||'').toLowerCase().includes('resigned'));
-    bSRs.forEach(sr=>{
+    const revertedSRList=srList.map(sr=>{
+      if(sr.branch!==branchId)return sr;
+
+      // Reverse reward points
       const hist=(historyUpdates[sr.id]||[]);
-      // Find the credit entry for this month's lock
-      const lockCredit=hist.filter(h=>h.type==="credit"&&h.note&&h.note.includes(noteMonth));
+      const lockCredit=hist.filter(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
       if(lockCredit.length>0){
-        const lastCredit=lockCredit[lockCredit.length-1];
-        const amt=lastCredit.amount||0;
+        const amt=lockCredit[lockCredit.length-1].amount||0;
         const cur=updates[sr.id]||{balance:0};
         updates[sr.id]={...cur,balance:Math.max(0,(cur.balance||0)-amt)};
         historyUpdates[sr.id]=[...hist,{date:new Date().toISOString(),type:"debit",amount:amt,note:`Unlock: ${noteMonth} lock reversed`}];
       }
+
+      // Reverse employment status — find the auto-lock entry and revert to status before it
+      const sHist=statusUpdates[sr.id]||[];
+      const lockEntryIdx=sHist.findLastIndex(h=>h.note&&h.note.includes(`Auto-updated on lock: ${noteMonth}`));
+      if(lockEntryIdx>0){
+        // Revert to the status recorded in the entry BEFORE the lock entry
+        const prevStatus=sHist[lockEntryIdx-1].status;
+        // Remove the lock entry from history
+        const cleanedHist=sHist.filter((_,i)=>i!==lockEntryIdx);
+        statusUpdates[sr.id]=cleanedHist;
+        return{...sr,status:prevStatus};
+      } else if(lockEntryIdx===0){
+        // Lock was the very first entry — remove it and revert to status from sr's pre-lock state
+        // We reverse the +1 that was applied
+        const lockedStatus=sHist[0].status;
+        const ps=parseStatus(lockedStatus);
+        // Determine if it was a hit or miss from the note
+        const wasHit=sHist[0].note&&sHist[0].note.includes("target hit");
+        const prevStatus=buildStatus(ps.base,wasHit?ps.p-1:ps.p,wasHit?ps.f:ps.f-1);
+        statusUpdates[sr.id]=sHist.filter((_,i)=>i!==0);
+        return{...sr,status:prevStatus};
+      }
+      return sr;
     });
 
-    // Debit BM points
+    // ── Reverse BM points and employment status ────────────────────────────
     const bmKey=`BM_${branchId}`;
     const bmHist=(historyUpdates[bmKey]||[]);
-    const bmLockCredit=bmHist.filter(h=>h.type==="credit"&&h.note&&h.note.includes(noteMonth));
+    const bmLockCredit=bmHist.filter(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
     if(bmLockCredit.length>0){
-      const lastCredit=bmLockCredit[bmLockCredit.length-1];
-      const amt=lastCredit.amount||0;
+      const amt=bmLockCredit[bmLockCredit.length-1].amount||0;
       const curBM=updates[bmKey]||{balance:0};
       updates[bmKey]={...curBM,balance:Math.max(0,(curBM.balance||0)-amt)};
       historyUpdates[bmKey]=[...bmHist,{date:new Date().toISOString(),type:"debit",amount:amt,note:`Unlock: ${noteMonth} lock reversed`}];
     }
 
+    const bmSHist=statusUpdates[bmKey]||[];
+    const bmLockIdx=bmSHist.findLastIndex(h=>h.note&&h.note.includes(`Auto-updated on lock: ${noteMonth}`));
+    let revertedBMeta={...branchMeta};
+    if(bmLockIdx>=0){
+      let prevBMStatus;
+      if(bmLockIdx>0){
+        prevBMStatus=bmSHist[bmLockIdx-1].status;
+      } else {
+        const lockedBMStatus=bmSHist[0].status;
+        const bps=parseStatus(lockedBMStatus);
+        const wasHit=bmSHist[0].note&&bmSHist[0].note.includes("target hit");
+        prevBMStatus=buildStatus(bps.base,wasHit?bps.p-1:bps.p,wasHit?bps.f:bps.f-1);
+      }
+      statusUpdates[bmKey]=bmSHist.filter((_,i)=>i!==bmLockIdx);
+      revertedBMeta={...branchMeta,[branchId]:{...branchMeta[branchId],mStatus:prevBMStatus}};
+      setBranchMeta(revertedBMeta);
+      await saveData(BM_KEY,revertedBMeta);
+    }
+
+    // Save all reversals
+    setSrList(revertedSRList);
+    await saveData(SR_KEY,revertedSRList);
     setRewardBalances(updates);
     await saveData("emax_v5_reward_balance",updates);
     setRewardHistory(historyUpdates);
     await saveData("emax_v5_reward_history",historyUpdates);
+    setStatusHistory(statusUpdates);
+    await saveData("emax_v5_status_history",statusUpdates);
 
-    // Remove the lock
-    // Remove the next month's opening snapshot that was created by this lock.
-    // e.g. unlocking June removes the July snapshot so July reverts to live status.
+    // Remove next month's opening snapshot created by this lock
     const nextMonthU=selMonth===12?1:selMonth+1;
     const nextYearU=selMonth===12?selYear+1:selYear;
     await saveData(`emax_v5_status_${nextYearU}_${nextMonthU}`,null);
@@ -1908,7 +1954,7 @@ export default function App(){
     }
     setLockedMonths(newLocked);
     await saveData("emax_v5_locked_months",newLocked);
-    alert(`${branchId} — ${selMonth}/${selYear} unlocked. Points have been debited back.`);
+    alert(`${branchId} — ${selMonth}/${selYear} unlocked. Points and status changes have been fully reversed.`);
   };
 
   // Manually adjust a person's points balance by +/- delta, with a required description.
