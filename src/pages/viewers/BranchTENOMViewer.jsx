@@ -234,31 +234,29 @@ function StatusHistoryModal({srList,bMeta,statusHistory,onClose,initialPerson}){
 }
 
 function PointsHistoryModal({srList,bMeta,rewardBalances,rewardHistory,onClose,initialPerson}){
-  const people=[
-    ...BRANCH_ORDER.map(b=>({id:`BM_${b}`,name:bMeta[b]?.manager||b,role:"Branch Manager"})),
-    ...DEFAULT_SR.map(sr=>({id:sr.id,name:sr.canon,role:sr.type+" SR"}))
-  ];
-  const [selPerson,setSelPerson]=useState(initialPerson||people[0]?.id);
-  const person=people.find(p=>p.id===selPerson);
-  const balance=rewardBalances[selPerson]?.balance||0;
-  const history=(rewardHistory[selPerson]||[]).slice().reverse();
+  const isBM=initialPerson&&initialPerson.startsWith("BM_");
+  const branchId=isBM?initialPerson.replace("BM_",""):null;
+  const person=isBM
+    ?{name:bMeta[branchId]?.manager||branchId,role:`${branchId} — Branch Manager`}
+    :(()=>{const sr=srList.find(s=>s.id===initialPerson);return sr?{name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}:null;})();
+  const balance=rewardBalances[initialPerson]?.balance||0;
+  const rawHistory=rewardHistory[initialPerson]||[];
+  const history=rawHistory.map(h=>({
+    ...h,
+    note:h.type==="adjustment"&&h.note==="Manual balance adjustment"?"Opening balance as at 31/05/2026":h.note
+  })).slice().reverse();
 
   return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:560,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px",borderBottom:"1px solid #E4EAF2"}}>
-        <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>🏆 Reward Points Balance</h2>
+        <div>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>🏆 Reward Points Balance</h2>
+          <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>{person?.name} · {person?.role}</div>
+        </div>
         <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
       </div>
-      <div style={{padding:"16px 24px",borderBottom:"1px solid #E4EAF2"}}>
-        <select className="input select" value={selPerson} onChange={e=>setSelPerson(e.target.value)} style={{fontSize:13,padding:"8px 28px 8px 12px"}}>
-          {people.map(p=><option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}
-        </select>
-      </div>
       <div style={{padding:"16px 24px",background:"linear-gradient(135deg,#0A1628,#162B52)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{fontSize:10,color:"rgba(255,255,255,.5)",textTransform:"uppercase",letterSpacing:"0.08em"}}>{person?.name}</div>
-          <div style={{fontSize:11,color:"rgba(255,255,255,.35)",marginTop:2}}>Current Balance</div>
-        </div>
+        <div style={{fontSize:11,color:"rgba(255,255,255,.35)"}}>Current Balance</div>
         <div style={{fontSize:24,fontWeight:800,color:"#F5A623"}}>{balance.toLocaleString()} pts</div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"12px 24px"}}>
@@ -439,7 +437,7 @@ export default function App(){
     }return null;
   },[records,days,month,year]);
   const pad2=(n)=>String(n).padStart(2,"0");
-  const rankingPeriod=lastDataDay?`${pad2(1)}/${pad2(month)}/${year}-${pad2(lastDataDay)}/${pad2(month)}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year}`;
+  const rankingPeriod=lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year}`;
   const rankEndDay=lastDataDay||daysInMonth(month,year);
 
   // For company-wide ranking, compute all SRs from all branches — always 1 → lastDataDay
@@ -497,7 +495,7 @@ export default function App(){
         <div style={{flexShrink:0}}>
           <div style={{fontWeight:900,fontSize:13,color:"#fff",letterSpacing:"0.06em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{meta.name||DEFAULT_BRANCH_META[BRANCH_ID]?.name}</div>
           <div style={{fontSize:9,color:"rgba(255,255,255,.3)",letterSpacing:"0.12em",textTransform:"uppercase",whiteSpace:"nowrap"}}>Branch Performance</div>
-          {lastDataDay&&<div style={{fontSize:9,color:"rgba(255,255,255,.25)",marginTop:2,whiteSpace:"nowrap"}}>Data as at {lastDataDay}/{month}/{year}</div>}
+
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
           <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))}
@@ -520,6 +518,10 @@ export default function App(){
 
     <div style={{display:"flex",maxWidth:1400,margin:"0 auto"}}>
     <div style={{flex:1,minWidth:0,padding:20,maxWidth:1180}}>
+      <div style={{padding:"7px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+        <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
+        <span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year} (no data yet)`}</span>
+      </div>
 
       {tab==="rankings"&&<div className="fade-in" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:20}}>
         <RankingTable title="Branch Manager Ranking" rows={bmRankRows} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>

@@ -1593,31 +1593,30 @@ function StatusHistoryModal({srList,branchMeta,statusHistory,onClose,initialPers
 }
 
 function PointsHistoryModal({srList,branchMeta,rewardBalances,rewardHistory,onClose,initialPerson}){
-  const people=[
-    ...BRANCH_ORDER.map(b=>({id:`BM_${b}`,name:branchMeta[b]?.manager||b,role:`${b} — Branch Manager`})),
-    ...srList.map(sr=>({id:sr.id,name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}))
-  ];
-  const [selPerson,setSelPerson]=useState(initialPerson||people[0]?.id);
-  const person=people.find(p=>p.id===selPerson);
-  const balance=rewardBalances[selPerson]?.balance||0;
-  const history=(rewardHistory[selPerson]||[]).slice().reverse();
+  const isBM=initialPerson&&initialPerson.startsWith("BM_");
+  const branchId=isBM?initialPerson.replace("BM_",""):null;
+  const person=isBM
+    ?{name:branchMeta[branchId]?.manager||branchId,role:`${branchId} — Branch Manager`}
+    :(()=>{const sr=srList.find(s=>s.id===initialPerson);return sr?{name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}:null;})();
+  const balance=rewardBalances[initialPerson]?.balance||0;
+  const rawHistory=rewardHistory[initialPerson]||[];
+  // Rename "Manual balance adjustment" entries to "Opening balance as at 31/05/2026"
+  const history=rawHistory.map(h=>({
+    ...h,
+    note:h.type==="adjustment"&&h.note==="Manual balance adjustment"?"Opening balance as at 31/05/2026":h.note
+  })).slice().reverse();
 
   return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:600,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px",borderBottom:"1px solid #E4EAF2"}}>
-        <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>🏆 Reward Points Balance</h2>
+        <div>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>🏆 Reward Points Balance</h2>
+          <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>{person?.name} · {person?.role}</div>
+        </div>
         <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
       </div>
-      <div style={{padding:"16px 24px",borderBottom:"1px solid #E4EAF2"}}>
-        <select className="input select" value={selPerson} onChange={e=>setSelPerson(e.target.value)} style={{fontSize:13,padding:"8px 28px 8px 12px"}}>
-          {people.map(p=><option key={p.id} value={p.id}>{p.name} — {p.role}</option>)}
-        </select>
-      </div>
       <div style={{padding:"16px 24px",background:"linear-gradient(135deg,#0A1628,#162B52)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div>
-          <div style={{fontSize:10,color:"rgba(255,255,255,.5)",textTransform:"uppercase",letterSpacing:"0.08em"}}>{person?.name}</div>
-          <div style={{fontSize:11,color:"rgba(255,255,255,.35)",marginTop:2}}>Current Balance</div>
-        </div>
+        <div style={{fontSize:11,color:"rgba(255,255,255,.35)"}}>Current Balance</div>
         <div style={{fontSize:24,fontWeight:800,color:"#F5A623"}}>{balance.toLocaleString()} pts</div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"12px 24px"}}>
@@ -1681,7 +1680,7 @@ export default function App(){
     return null;
   },[records,days,month,year]);
   const pad2=(n)=>String(n).padStart(2,"0");
-  const rankingPeriod = lastDataDay ? `${pad2(1)}/${pad2(month)}/${year}-${pad2(lastDataDay)}/${pad2(month)}/${year}` : `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year}`;
+  const rankingPeriod = lastDataDay ? `1/${month}/${year} — ${lastDataDay}/${month}/${year}` : `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year}`;
   const [repairRefresh,setRepairRefresh] = useState(0);
   const [rewardBalances,setRewardBalances] = useState({});
   const [rewardHistory,setRewardHistory] = useState({});
@@ -2143,22 +2142,13 @@ export default function App(){
     <div style={{display:"flex",maxWidth:1400,margin:"0 auto"}}>
       {/* MAIN CONTENT */}
       <div style={{flex:1,minWidth:0,padding:"20px",maxWidth:1180}}>
+      {/* Period bar — shows actual data period, consistent across all tabs */}
+      <div style={{padding:"7px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+        <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
+        <span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year} (no data yet)`}</span>
+      </div>
       {/* OVERVIEW */}
       {tab==="overview"&&<div className="fade-in">
-        {(()=>{
-          const today=new Date();
-          const todayStr=`${String(today.getDate()).padStart(2,"0")}/${String(today.getMonth()+1).padStart(2,"0")}/${today.getFullYear()}`;
-          const todayKey=`${today.getDate()}/${today.getMonth()+1}/${today.getFullYear()}`;
-          const isCurrentMonth=today.getMonth()+1===month&&today.getFullYear()===year;
-          const hasDataToday=isCurrentMonth&&records[todayKey]&&Object.values(records[todayKey]).some(e=>(e?.walkin||0)!==0||(e?.aeon||0)!==0||(e?.unalloc||0)!==0);
-          if(!isCurrentMonth)return null;
-          return <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",background:hasDataToday?"#F0FDF4":"#FFF9EB",border:`1px solid ${hasDataToday?"#BBF7D0":"#FDE68A"}`,borderRadius:10,marginBottom:16,flexWrap:"wrap"}}>
-            <span style={{fontSize:12,fontWeight:600,color:hasDataToday?"#15803D":"#92400E",flex:1}}>
-              {hasDataToday?`✅ Data confirmed for today (${todayStr})`:`⚠️ Have you entered today's data? (${todayStr})`}
-            </span>
-            {lastDataDay&&<span style={{fontSize:11,color:"#8A96A8"}}>Latest data: {lastDataDay}/{month}/{year}</span>}
-          </div>;
-        })()}
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginBottom:20}}>
           <KpiCard label="Total Profit" value={fRM(grandTotal)} accent="#1E6FDB"/>
           <KpiCard label="Monthly Target" value={grandTarget>0?fRM(grandTarget):"Not Set"} accent="#162B52"/>
