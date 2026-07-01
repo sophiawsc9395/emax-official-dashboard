@@ -1796,6 +1796,14 @@ export default function App(){
     setSrList(updatedSRList);
     await saveData(SR_KEY,updatedSRList);
 
+    // Save post-lock status as the NEXT month's opening snapshot.
+    // e.g. locking June saves to July, so July report shows post-June statuses.
+    const postLockSnap={};
+    updatedSRList.forEach(sr=>{postLockSnap[sr.id]={status:sr.status,active:true};});
+    const nextMonth=selMonth===12?1:selMonth+1;
+    const nextYear=selMonth===12?selYear+1:selYear;
+    await saveData(`emax_v5_status_${nextYear}_${nextMonth}`,postLockSnap);
+
     // BM points + employment status P/F update
     const bmEarned=calcRewardPoints(branchPct,branchPct);
     const bmKey=`BM_${branchId}`;
@@ -1816,6 +1824,9 @@ export default function App(){
         const bmStatusKey=`BM_${branchId}`;
         const bmSHist=statusUpdates[bmStatusKey]||[];
         statusUpdates[bmStatusKey]=[...bmSHist,{date:new Date().toISOString(),status:newBMStatus,note:`Auto-updated on lock: ${noteMonth} branch target ${bmHit?"hit":"missed"} (${branchPct.toFixed(1)}%)`}];
+        // Also save BM post-lock status into next month's opening snapshot
+        postLockSnap[`BM_${branchId}`]={status:newBMStatus};
+        await saveData(`emax_v5_status_${nextYear}_${nextMonth}`,postLockSnap);
       }
     }
 
@@ -1871,6 +1882,12 @@ export default function App(){
     await saveData("emax_v5_reward_history",historyUpdates);
 
     // Remove the lock
+    // Remove the next month's opening snapshot that was created by this lock.
+    // e.g. unlocking June removes the July snapshot so July reverts to live status.
+    const nextMonthU=selMonth===12?1:selMonth+1;
+    const nextYearU=selMonth===12?selYear+1:selYear;
+    await saveData(`emax_v5_status_${nextYearU}_${nextMonthU}`,null);
+
     const newLocked={...lockedMonths};
     if(newLocked[monthKeyStr]){
       delete newLocked[monthKeyStr][branchId];

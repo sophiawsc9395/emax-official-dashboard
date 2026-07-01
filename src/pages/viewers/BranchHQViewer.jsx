@@ -375,11 +375,30 @@ export default function App(){
 
   useEffect(()=>{
     setLoading(true);setRecords({});
-    Promise.all([loadData(recordsKey),loadData(TARGET_KEY),loadData(SR_KEY),loadData(BM_KEY),loadData("emax_v5_reward_balance"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history")]).then(([r,t,srData,bmData,rb,rh,sh])=>{
+    const snapKey=`emax_v5_status_${selYear}_${selMonth}`;
+    Promise.all([loadData(recordsKey),loadData(TARGET_KEY),loadData(SR_KEY),loadData(BM_KEY),loadData("emax_v5_reward_balance"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history"),loadData(snapKey)]).then(([r,t,srData,bmData,rb,rh,sh,snap])=>{
       setRecords(r||{});
       if(t?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...t.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(t.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...t.sr}});
-      if(srData&&Array.isArray(srData)&&srData.length>0)setSrList(srData.filter(s=>s.branch===BRANCH_ID));
-      if(bmData&&Object.keys(bmData).length>0)setBMeta(p=>({...p,...bmData}));
+      if(srData&&Array.isArray(srData)&&srData.length>0){
+        let filtered=srData.filter(s=>s.branch===BRANCH_ID);
+        // Apply post-lock status snapshot if available (so we show status as-of this month)
+        if(snap&&Object.keys(snap).length>0){
+          filtered=filtered.map(sr=>snap[sr.id]?{...sr,status:snap[sr.id].status}:{...sr});
+        }
+        setSrList(filtered);
+      }
+      if(bmData&&Object.keys(bmData).length>0){
+        // Apply BM status snapshot if available
+        if(snap&&Object.keys(snap).length>0){
+          const newMeta={...bmData};
+          if(snap[`BM_${BRANCH_ID}`]?.status){
+            newMeta[BRANCH_ID]={...(newMeta[BRANCH_ID]||{}),mStatus:snap[`BM_${BRANCH_ID}`].status};
+          }
+          setBMeta(p=>({...p,...newMeta}));
+        } else {
+          setBMeta(p=>({...p,...bmData}));
+        }
+      }
       setRewardBalances(rb||{});
       setRewardHistory(rh||{});
       setStatusHistory(sh||{});
