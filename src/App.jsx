@@ -2207,28 +2207,11 @@ export default function App(){
       {/* MAIN CONTENT */}
       <div style={{flex:1,minWidth:0,padding:"20px",maxWidth:1180}}>
       {/* Period bar — shows actual data period, consistent across all tabs */}
-      {/* Period bar + Publish button */}
-      <div style={{padding:"10px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-        <div style={{flex:1,minWidth:0}}>
-          <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
-          {" "}<span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year} (no data yet)`}</span>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0,flexWrap:"wrap"}}>
-          {publishedUntil
-            ?<span style={{fontSize:11,color:"#15803D",fontWeight:600}}>✅ Published up to {publishedUntil.replace(/(\d{4})-(\d{2})-(\d{2})/,"$3/$2/$1")}</span>
-            :<span style={{fontSize:11,color:"#92400E"}}>⚠️ Not published yet</span>
-          }
-          {lastDataDay&&<button
-            onClick={async()=>{
-              const d=`${year}-${String(month).padStart(2,"0")}-${String(lastDataDay).padStart(2,"0")}`;
-              setPublishedUntil(d);
-              await saveData(`emax_v5_published_${year}_${month}`,d);
-              alert(`✅ Data up to ${lastDataDay}/${month}/${year} is now visible to boss and branch viewers.`);
-            }}
-            style={{padding:"6px 14px",background:"#0A1628",color:"#fff",border:"none",borderRadius:7,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>
-            📤 Publish to Viewers ({lastDataDay}/{month}/{year})
-          </button>}
-        </div>
+      {/* Period bar */}
+      <div style={{padding:"7px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+        <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
+        <span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year} (no data yet)`}</span>
+        {publishedUntil&&<span style={{marginLeft:8,color:"#15803D",fontWeight:600}}>✅ Published up to {publishedUntil.replace(/(\d{4})-(\d{2})-(\d{2})/,(m,y,mo,d)=>`${d}/${mo}/${y}`)}</span>}
       </div>
       {/* OVERVIEW */}
       {tab==="overview"&&<div className="fade-in">
@@ -2406,6 +2389,22 @@ export default function App(){
               {t.label}
             </button>
           ))}
+          <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
+          <button onClick={async()=>{
+            const d=new Date();
+            const ldd=lastDataDay||d.getDate();
+            const ds=`${year}-${String(month).padStart(2,"0")}-${String(ldd).padStart(2,"0")}`;
+            setPublishedUntil(ds);
+            await saveData(`emax_v5_published_${year}_${month}`,ds);
+            setSidebarOpen(false);
+            alert(`✅ Data up to ${ldd}/${month}/${year} published to viewers.`);
+          }} style={{
+            display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+            border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+            background:"rgba(30,111,219,.25)",color:"#60A5FA",transition:"background .15s",
+          }}>
+            📤 Publish to Viewers
+          </button>
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
           <button onClick={()=>{setShowTargetModal(true);setSidebarOpen(false);}} style={{
             display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
