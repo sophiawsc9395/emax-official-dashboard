@@ -1050,9 +1050,11 @@ function StatusEditWidget({status,onSave,onViewHistory}){
   const [p,setP]=useState(ps.p);
   const [f,setF]=useState(ps.f);
   const [desc,setDesc]=useState("");
+  // resignDate must be declared before any early return (React hooks rule)
+  const today=new Date();
+  const todayStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+  const [resignDate,setResignDate]=useState(todayStr);
 
-  // Reset local edit fields whenever the underlying status changes (e.g. after a lock auto-update)
-  // or when the editor is closed without saving.
   const startEdit=()=>{const cur=parseStatus(status);setBase(cur.base);setP(cur.p);setF(cur.f);setDesc("");setEditing(true);};
 
   if(!editing){
@@ -1066,10 +1068,6 @@ function StatusEditWidget({status,onSave,onViewHistory}){
       </button>}
     </div>;
   }
-
-  const today=new Date();
-  const todayStr=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
-  const [resignDate,setResignDate]=useState(todayStr);
 
   const save=()=>{
     if(!desc.trim()){return;}
