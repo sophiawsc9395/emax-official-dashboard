@@ -1364,6 +1364,14 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
 }
 
 
+// ─── SR VISIBILITY (resigned filter) ─────────────────────
+function srVisibleInMonth(sr,m,y){
+  if(!(sr.status||'').toLowerCase().includes('resigned'))return true;
+  if(!sr.resignDate)return false;
+  const [ry,rm]=sr.resignDate.split("-").map(Number);
+  return ry>y||(ry===y&&rm>=m);
+}
+
 // ─── DAILY ENTRY ──────────────────────────────────────────
 function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,recordsKey,onRepairSave}){
   const now = new Date();
@@ -1889,14 +1897,6 @@ export default function App(){
 
   // Returns true if this SR should appear in the monthly report for the given month/year
   // Resigned SRs only appear in the month they resigned (and all months before)
-  const srVisibleInMonth=(sr,m,y)=>{
-    if(!(sr.status||'').toLowerCase().includes('resigned'))return true;
-    if(!sr.resignDate)return false;
-    // Parse date string directly (avoid timezone shift from new Date("YYYY-MM-DD"))
-    const [ry,rm]=sr.resignDate.split("-").map(Number);
-    // Visible if resignation month >= selected month (show in month they resigned)
-    return ry>y||(ry===y&&rm>=m);
-  };
   const lockBranchMonth=async(branchId)=>{
     if(isBranchLocked(branchId)){alert("This branch's "+selMonth+"/"+selYear+" report is already locked.");return;}
     const bSRs=srList.filter(s=>s.branch===branchId&&!(s.status||'').toLowerCase().includes('resigned'));
