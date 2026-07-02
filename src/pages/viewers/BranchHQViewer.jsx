@@ -348,6 +348,7 @@ export default function App(){
   const [records,setRecords]=useState({});
   const [targets,setTargets]=useState(DEFAULT_TARGETS);
   const [srList,setSrList]=useState(DEFAULT_SR.filter(s=>s.branch===BRANCH_ID));
+  const [allSRList,setAllSRList]=useState(DEFAULT_SR); // all branches, for company-wide ranking
   const [bMeta,setBMeta]=useState(DEFAULT_BRANCH_META);
   const [loading,setLoading]=useState(true);
   const [tab,setTab]=useState('overview');
@@ -401,6 +402,12 @@ export default function App(){
           filtered=filtered.map(sr=>srTypes[sr.id]?{...sr,type:srTypes[sr.id]}:{...sr});
         }
         setSrList(filtered);
+        // Keep full SR list (all branches) with type overrides for company-wide ranking
+        let allFiltered=srData;
+        if(srTypes&&Object.keys(srTypes).length>0){
+          allFiltered=allFiltered.map(sr=>srTypes[sr.id]?{...sr,type:srTypes[sr.id]}:{...sr});
+        }
+        setAllSRList(allFiltered);
       }
       // Build bMeta: start from global bmData, apply snap, then apply monthly overrides LAST
       {
@@ -503,7 +510,7 @@ export default function App(){
     return t;
   },[records,rankEndDay,month,year]);
 
-  const srRankRows=srList.filter(s=>srVisibleInMonth(s,month,year)).map(s=>{
+  const srRankRows=allSRList.filter(s=>srVisibleInMonth(s,month,year)).map(s=>{
     const profit=allSRTotals[s.id]?.total||0,target=targets?.sr?.[s.id]?.target||0;
     const bTotalPct=pctN(allBranchTotals[s.branch]?.total||0,targets?.bm?.[s.branch]||0);
     const p=pctN(profit,target);
