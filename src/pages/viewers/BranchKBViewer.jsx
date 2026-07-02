@@ -503,11 +503,11 @@ export default function App(){
     return t;
   },[records,rankEndDay,month,year]);
 
-  const srRankRows=DEFAULT_SR.map(s=>{
+  const srRankRows=srList.filter(s=>srVisibleInMonth(s,month,year)).map(s=>{
     const profit=allSRTotals[s.id]?.total||0,target=targets?.sr?.[s.id]?.target||0;
     const bTotalPct=pctN(allBranchTotals[s.branch]?.total||0,targets?.bm?.[s.branch]||0);
     const p=pctN(profit,target);
-    return{name:s.canon,status:s.status,branch:s.branch,profit,target,p,branchPct:bTotalPct,role:"sr"};
+    return{name:s.canon,type:s.type,status:s.status,branch:s.branch,profit,target,p,branchPct:bTotalPct,role:"sr"};
   }).sort((a,b)=>b.p-a.p);
 
   const bmRankRows=BRANCH_ORDER.map(b=>{
@@ -563,8 +563,8 @@ export default function App(){
 
       {tab==="rankings"&&<div className="fade-in" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:20}}>
         <RankingTable title="Branch Manager Ranking" rows={bmRankRows} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
-        <RankingTable title="Online SR Ranking — Company" rows={srRankRows.filter(r=>DEFAULT_SR.find(s=>s.canon===r.name)?.type==="Online")} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
-        <RankingTable title="Offline SR Ranking — Company" rows={srRankRows.filter(r=>DEFAULT_SR.find(s=>s.canon===r.name)?.type==="Offline")} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
+        <RankingTable title="Online SR Ranking — Company" rows={srRankRows.filter(r=>r.type==="Online")} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
+        <RankingTable title="Offline SR Ranking — Company" rows={srRankRows.filter(r=>r.type==="Offline")} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
       </div>}
 
       {/* REWARD POINT RANKING — company-wide */}
