@@ -474,13 +474,13 @@ function BMTable({branchId,records,targets,srList,branchMeta,onEdit,printMode,mo
       <div style={{height:1,background:"#E4EAF2",margin:"8px 0"}}/>
       <div style={{fontSize:9,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>Incentives</div>
 
-      {/* Personal Achievement Bonus: RM500 always, RM2200 if branch hits 100%+ */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:4}}>
-        <span style={{color:"#5A6472"}}>Personal Achievement Bonus</span>
-        <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>
-          {p>=100?"RM 2,200":"RM 500 (Pending)"}
+      {/* Personal Bonus — configured in Set Targets */}
+      {bmBonus>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:4}}>
+        <span style={{color:"#5A6472"}}>Personal Bonus</span>
+        <span style={{fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>
+          {bmBonusEarned?fRM(bmBonus):`${fRM(bmBonus)} (Pending)`}
         </span>
-      </div>
+      </div>}
 
 
 
@@ -1057,7 +1057,7 @@ function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,
                     <input className="input" type="number" value={local.bm?.[b]||""} onChange={e=>setBM(b,e.target.value)} placeholder="0" style={{fontSize:12}}/>
                   </div>
                   <div>
-                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>BM Bonus if 100%+ (RM)</label>
+                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Personal Bonus (RM)</label>
                     <input className="input" type="number" value={local.bmBonus?.[b]||""} onChange={e=>setBMB(b,e.target.value)} placeholder="0" style={{fontSize:12}}/>
                   </div>
                 </div>
