@@ -966,8 +966,8 @@ function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,
     const t=await ld(`emax_v5_targets_${y}_${m}`);
     const tPrev=await ld(`emax_v5_targets_${m===1?y-1:y}_${m===1?12:m-1}`);
     const tUse=t||tPrev||targets;
-    if(tUse?.bm)setLocal({bm:{...targets.bm,...tUse.bm},bmBonus:{...targets.bmBonus,...(tUse.bmBonus||{})},sr:{...targets.sr,...tUse.sr},bmName:{...tUse.bmName}});
-    else setLocal({...JSON.parse(JSON.stringify(targets)),bmName:{}});
+    if(tUse?.bm)setLocal({bm:{...targets.bm,...tUse.bm},bmBonus:{...targets.bmBonus,...(tUse.bmBonus||{})},sr:{...targets.sr,...tUse.sr},bmName:{...tUse.bmName},bmStatus:{...tUse.bmStatus}});
+    else setLocal({...JSON.parse(JSON.stringify(targets)),bmName:{},bmStatus:{}});
     setLoading(false);
   };
 
@@ -1018,9 +1018,28 @@ function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:12,marginBottom:28}}>
             {branches.map(b=>(
               <div key={b} style={{background:"#F7F9FC",borderRadius:10,padding:14,border:"1px solid #E4EAF2"}}>
-                <div style={{fontWeight:700,fontSize:12,color:"#0A1628",textTransform:"uppercase",marginBottom:2}}>{branchMeta[b]?.name}</div>
-                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>BM Name (this month)</label>
+                <div style={{fontWeight:700,fontSize:12,color:"#0A1628",textTransform:"uppercase",marginBottom:8}}>{branchMeta[b]?.name}</div>
+                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch Manager Name</label>
                 <input className="input" value={local.bmName?.[b]??branchMeta[b]?.manager??""} onChange={e=>setBMName(b,e.target.value)} placeholder={branchMeta[b]?.manager||"Name"} style={{marginBottom:8,fontSize:12}}/>
+                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Employment Status</label>
+                <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
+                  {(()=>{
+                    const curStatus=local.bmStatus?.[b]??branchMeta[b]?.mStatus??"Probation (P0 F0)";
+                    const ps=parseStatus(curStatus);
+                    const setBS=(v)=>setLocal(p=>({...p,bmStatus:{...(p.bmStatus||{}),[b]:v}}));
+                    return <>
+                      <select className="input select" value={ps.base} onChange={e=>setBS(buildStatus(e.target.value,ps.p,ps.f))} style={{width:"auto",minWidth:95,padding:"4px 20px 4px 6px",fontSize:11}}>
+                        {["Probation","Confirmed","Director","Resigned"].map(s=><option key={s} value={s}>{s}</option>)}
+                      </select>
+                      {ps.base!=="Director"&&ps.base!=="Resigned"&&<>
+                        <span style={{fontSize:10,color:"#8A96A8"}}>P</span>
+                        <input type="number" min="0" className="input" value={ps.p} onChange={e=>setBS(buildStatus(ps.base,Math.max(0,parseInt(e.target.value)||0),ps.f))} style={{width:40,padding:"4px",fontSize:11,textAlign:"center"}}/>
+                        <span style={{fontSize:10,color:"#8A96A8"}}>F</span>
+                        <input type="number" min="0" className="input" value={ps.f} onChange={e=>setBS(buildStatus(ps.base,ps.p,Math.max(0,parseInt(e.target.value)||0)))} style={{width:40,padding:"4px",fontSize:11,textAlign:"center"}}/>
+                      </>}
+                    </>;
+                  })()}
+                </div>
                 <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Monthly Target (RM)</label>
                 <input className="input" type="number" value={local.bm?.[b]||""} onChange={e=>setBM(b,e.target.value)} placeholder="0" style={{marginBottom:8,fontSize:12}}/>
                 <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>BM Bonus if Branch 100%+ (RM)</label>
@@ -1927,10 +1946,14 @@ export default function App(){
       if(tUse&&tUse.bm){
         setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr},bmName:tUse.bmName||{}});
         // Apply per-month BM name overrides to branchMeta for display
-        if(tUse.bmName&&Object.keys(tUse.bmName).length>0){
+        if((tUse.bmName&&Object.keys(tUse.bmName).length>0)||(tUse.bmStatus&&Object.keys(tUse.bmStatus).length>0)){
           const bmOverrideData=bmData&&Object.keys(bmData).length>0?{...DEFAULT_BRANCH_META,...bmData}:{...DEFAULT_BRANCH_META};
           const mergedMeta={};
-          BRANCH_ORDER.forEach(b=>{mergedMeta[b]={...bmOverrideData[b],manager:tUse.bmName[b]||bmOverrideData[b]?.manager};});
+          BRANCH_ORDER.forEach(b=>{mergedMeta[b]={
+            ...bmOverrideData[b],
+            manager:(tUse.bmName&&tUse.bmName[b])||bmOverrideData[b]?.manager,
+            mStatus:(tUse.bmStatus&&tUse.bmStatus[b])||bmOverrideData[b]?.mStatus,
+          };});
           setBranchMeta(mergedMeta);
         }
       } else setTargets(DEFAULT_TARGETS);
