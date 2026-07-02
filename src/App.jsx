@@ -1136,6 +1136,7 @@ function AdjustBalanceWidget({personId,balance,adjustBalance}){
 }
 
 function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson}){
+  const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [tab,setTab]=useState("bm");
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
   const [localSR,setLocalSR]=useState(JSON.parse(JSON.stringify(srList)));
@@ -1144,6 +1145,26 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
   const [filterBranch,setFilterBranch]=useState("ALL");
   const [saved,setSaved]=useState(false);
   const [srSaved,setSRSaved]=useState(false);
+  // Monthly type overrides — per month, per SR
+  const [typeMonth,setTypeMonth]=useState(month);
+  const [typeYear,setTypeYear]=useState(year);
+  const [typeOverrides,setTypeOverrides]=useState({});
+
+  // Load type overrides whenever month/year changes
+  useEffect(()=>{
+    loadData(`emax_v5_sr_types_${typeYear}_${typeMonth}`).then(d=>setTypeOverrides(d||{}));
+  },[typeMonth,typeYear]);
+
+  // Get effective type for a given SR in the selected month
+  const getType=(sr)=>typeOverrides[sr.id]||sr.type;
+
+  // Save type override for a specific SR in the selected month
+  const setTypeOverride=async(srId,newType)=>{
+    const updated={...typeOverrides,[srId]:newType};
+    setTypeOverrides(updated);
+    await saveData(`emax_v5_sr_types_${typeYear}_${typeMonth}`,updated);
+    setSRSaved(true);setTimeout(()=>setSRSaved(false),1500);
+  };
   const saveBM=async()=>{setBranchMeta(localBM);await saveData(BM_KEY,localBM);setSaved(true);setTimeout(()=>setSaved(false),1500);};
   const saveSR=async(list)=>{setSrList(list);await saveData(SR_KEY,list);setSRSaved(true);setTimeout(()=>setSRSaved(false),1500);};
   const addSR=async()=>{
@@ -1219,10 +1240,20 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
           </div>
         </div>}
         {tab==="sr"&&<div>
+          <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap",padding:"10px 14px",background:"#F0F4FA",borderRadius:8}}>
+            <span style={{fontSize:11,fontWeight:700,color:"#0A1628"}}>SR Type for:</span>
+            <select className="input select" value={typeMonth} onChange={e=>setTypeMonth(parseInt(e.target.value))} style={{width:"auto",padding:"4px 22px 4px 8px",fontSize:12}}>
+              {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
+            </select>
+            <select className="input select" value={typeYear} onChange={e=>setTypeYear(parseInt(e.target.value))} style={{width:"auto",padding:"4px 22px 4px 8px",fontSize:12}}>
+              {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
+            </select>
+            <span style={{fontSize:11,color:"#8A96A8",marginLeft:4}}>Type changes here only affect the selected month</span>
+          </div>
           <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
             <select className="input select" value={filterBranch} onChange={e=>setFilterBranch(e.target.value)} style={{width:"auto",minWidth:180,padding:"7px 28px 7px 10px",fontSize:12}}>
-              <option value="ALL">All Branches ({localSR.length})</option>
-              {BRANCH_ORDER.map(b=><option key={b} value={b}>{branchMeta[b]?.name} ({localSR.filter(s=>s.branch===b).length})</option>)}
+              <option value="ALL">All Branches ({localSR.filter(s=>!(s.status||"").toLowerCase().includes("resigned")).length})</option>
+              {BRANCH_ORDER.map(b=><option key={b} value={b}>{branchMeta[b]?.name} ({localSR.filter(s=>s.branch===b&&!(s.status||"").toLowerCase().includes("resigned")).length})</option>)}
             </select>
             <div style={{flex:1}}/>
             {srSaved&&<span style={{color:"#00C896",fontWeight:600,fontSize:12}}>Changes saved</span>}
@@ -1301,7 +1332,7 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
                     </select>
                   </td>
                   <td style={{padding:"8px 14px"}}>
-                    <select className="input select" value={sr.type} onChange={e=>updateSR(sr.id,"type",e.target.value)} style={{width:"auto",padding:"4px 24px 4px 8px",fontSize:11}}>
+                    <select className="input select" value={getType(sr)} onChange={e=>setTypeOverride(sr.id,e.target.value)} style={{width:"auto",padding:"4px 24px 4px 8px",fontSize:11,background:typeOverrides[sr.id]?"#EFF6FF":"",borderColor:typeOverrides[sr.id]?"#1E6FDB":""}}>
                       <option value="Online">Online</option><option value="Offline">Offline</option>
                     </select>
                   </td>
@@ -1768,6 +1799,7 @@ export default function App(){
   const [showPointsModal,setShowPointsModal] = useState(false);
   const [showStatusHistoryModal,setShowStatusHistoryModal] = useState(false);
   const [publishedUntil,setPublishedUntil] = useState(null);
+  const [srTypeOverrides,setSrTypeOverrides] = useState({});
   const [statusModalPerson,setStatusModalPerson] = useState(null);
   const [pointsModalPerson,setPointsModalPerson] = useState(null);
   const [selBranch,setSelBranch]   = useState("KM");
@@ -1827,7 +1859,8 @@ export default function App(){
     const prevM=selMonth===1?12:selMonth-1,prevY=selMonth===1?selYear-1:selYear;
     const prevTargetKey=`emax_v5_targets_${prevY}_${prevM}`;
     const publishKey=`emax_v5_published_${selYear}_${selMonth}`;
-    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData(snapKey),loadData("emax_v5_reward_balance"),loadData("emax_v5_locked_months"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history"),loadData(publishKey)]).then(([r,t,tPrev,srData,bmData,snap,rb,lm,rh,sh,pub])=>{
+    const typeKey=`emax_v5_sr_types_${selYear}_${selMonth}`;
+    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData(snapKey),loadData("emax_v5_reward_balance"),loadData("emax_v5_locked_months"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history"),loadData(publishKey),loadData(typeKey)]).then(([r,t,tPrev,srData,bmData,snap,rb,lm,rh,sh,pub,srTypes])=>{
       setRecords(r||{});
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
       // Overlay historical status snapshot if viewing a past month
@@ -1835,11 +1868,12 @@ export default function App(){
       // the sr_list itself is the source of truth (the snapshot could be stale)
       const now=new Date();
       const isCurrentMonth=(selMonth===now.getMonth()+1&&selYear===now.getFullYear());
+      const applyTypes=(list)=>list.map(sr=>srTypes&&srTypes[sr.id]?{...sr,type:srTypes[sr.id]}:{...sr});
       if(!isCurrentMonth&&snap&&Object.keys(snap).length>0){
         const merged=baseSR.map(sr=>snap[sr.id]?{...sr,status:snap[sr.id].status,active:snap[sr.id].active!==false}:{...sr});
-        setSrList(merged.filter(sr=>sr.active!==false));
+        setSrList(applyTypes(merged.filter(sr=>sr.active!==false)));
       } else {
-        setSrList(baseSR);
+        setSrList(applyTypes(baseSR));
       }
       if(bmData&&Object.keys(bmData).length>0)setBranchMeta({...DEFAULT_BRANCH_META,...bmData});
       // Use this month's saved targets; if none yet, fall back to previous month as starting point
@@ -1851,6 +1885,7 @@ export default function App(){
       setRewardHistory(rh||{});
       setStatusHistory(sh||{});
       setPublishedUntil(pub||null);
+      setSrTypeOverrides(srTypes||{});
       setLoading(false);
     });
   },[selMonth,selYear]);
