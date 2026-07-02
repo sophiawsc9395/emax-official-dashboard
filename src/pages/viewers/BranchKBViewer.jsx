@@ -538,13 +538,9 @@ export default function App(){
 
     <div style={{display:"flex",maxWidth:1400,margin:"0 auto"}}>
     <div style={{flex:1,minWidth:0,padding:20,maxWidth:1180}}>
-      <div style={{padding:"10px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-        <div style={{flex:1}}>
-          <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
-          {" "}<span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year} (no data yet)`}</span>
-        </div>
-        {!publishedUntil&&<span style={{fontSize:11,color:"#92400E",fontWeight:600}}>⚠️ Awaiting publish from admin</span>}
-        {publishedUntil&&<span style={{fontSize:11,color:"#15803D",fontWeight:600}}>✅ Data up to {(p=>{const[y,mo,d]=p.split("-");return `${d}/${mo}/${y}`;})(publishedUntil)}</span>}
+      <div style={{padding:"7px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16}}>
+        <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
+        {" "}<span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:"No data yet"}</span>
       </div>
 
       {tab==="rankings"&&<div className="fade-in" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:20}}>
