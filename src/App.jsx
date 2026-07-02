@@ -1921,18 +1921,21 @@ export default function App(){
       const tUse=t||(tPrev)||null;
       if(tUse&&tUse.bm){
         setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr},bmName:tUse.bmName||{}});
-        // Apply per-month BM name overrides to branchMeta for display
-        if((tUse.bmName&&Object.keys(tUse.bmName).length>0)||(tUse.bmStatus&&Object.keys(tUse.bmStatus).length>0)){
-          const bmOverrideData=bmData&&Object.keys(bmData).length>0?{...DEFAULT_BRANCH_META,...bmData}:{...DEFAULT_BRANCH_META};
-          const mergedMeta={};
-          BRANCH_ORDER.forEach(b=>{mergedMeta[b]={
-            ...bmOverrideData[b],
-            manager:(tUse.bmName&&tUse.bmName[b])||bmOverrideData[b]?.manager,
-            mStatus:(tUse.bmStatus&&tUse.bmStatus[b])||bmOverrideData[b]?.mStatus,
-          };});
-          setBranchMeta(mergedMeta);
-        }
       } else setTargets(DEFAULT_TARGETS);
+      // Always rebuild branchMeta from global base + this month's bmName/bmStatus overrides only
+      // Never let the global branchMeta get overwritten by monthly changes
+      {
+        const baseData=bmData&&Object.keys(bmData).length>0?{...DEFAULT_BRANCH_META,...bmData}:{...DEFAULT_BRANCH_META};
+        const mergedMeta={};
+        const monthBmName=(tUse&&tUse.bmName)||{};
+        const monthBmStatus=(tUse&&tUse.bmStatus)||{};
+        BRANCH_ORDER.forEach(b=>{mergedMeta[b]={
+          ...baseData[b],
+          manager:monthBmName[b]||baseData[b]?.manager,
+          mStatus:monthBmStatus[b]||baseData[b]?.mStatus,
+        };});
+        setBranchMeta(mergedMeta);
+      }
       setRewardBalances(rb||{});
       setLockedMonths(lm||{});
       setRewardHistory(rh||{});

@@ -788,6 +788,14 @@ export default function App(){
       const tUse=t||(tPrev)||null;
       if(tUse?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr}});
       else setTargets(DEFAULT_TARGETS);
+      // Apply monthly BM name/status overrides from targets
+      if(tUse&&(tUse.bmName||tUse.bmStatus)){
+        const baseBM=srData?{...DEFAULT_BRANCH_META,...(bmData||{})}:{...DEFAULT_BRANCH_META};
+        const merged={};
+        const mn=tUse.bmName||{},ms=tUse.bmStatus||{};
+        BRANCH_ORDER.forEach(b=>{merged[b]={...baseBM[b],manager:mn[b]||baseBM[b]?.manager,mStatus:ms[b]||baseBM[b]?.mStatus};});
+        setBMeta(p=>({...p,...merged}));
+      }
       setRepairData(rep||{});
       setLoading(false);
     });
