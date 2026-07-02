@@ -93,6 +93,7 @@ const DEFAULT_SR=[
 const DEFAULT_TARGETS={
   bm:{KM:50000,T1:50000,TW2:50000,TW1:55000,LD:45000,KB:50000,T5:38000,ITCC:50000,TENOM:45000,HQ:36000},
   bmBonus:{KM:0,T1:0,TW2:0,TW1:0,LD:0,KB:0,T5:0,ITCC:0,TENOM:0,HQ:0},
+  bmBasic:{KM:0,T1:0,TW2:0,TW1:0,LD:0,KB:0,T5:0,ITCC:0,TENOM:0,HQ:0},
   sr:{
     EM0285:{target:12250,bonus:500},EM0264:{target:12250,bonus:500},EM0069:{target:12250,bonus:500},EM0243:{target:12250,bonus:500},EM0187:{target:6000,bonus:0},
     EM0033:{target:27000,bonus:600},EM0045:{target:7000,bonus:400},EM0056:{target:7000,bonus:400},EM0078:{target:7000,bonus:300},EM0089:{target:7000,bonus:300},
@@ -282,7 +283,7 @@ function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalanc
 
 function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewardBalance=0,pointsAsOf="",onStatusHistory}){
   const meta=branchMeta[branchId]||{},bSRs=srList.filter(s=>s.branch===branchId);
-  const target=targets?.bm?.[branchId]||0,bmBonus=targets?.bmBonus?.[branchId]||0;
+  const target=targets?.bm?.[branchId]||0,bmBonus=targets?.bmBonus?.[branchId]||0,bmBasic=targets?.bmBasic?.[branchId]||0;
   const rows=days.map(d=>{
     const k=`${d}/${month}/${year}`,day=records[k]||{},bm=day[`BM_${branchId}`]||{};
     let wi=bm.walkin||0,ae=bm.aeon||0,ua=bm.unalloc||0;
@@ -354,15 +355,16 @@ function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewa
       <div style={{height:1,background:"#E4EAF2",margin:"8px 0"}}/>
       <div style={{fontSize:9,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>Incentives</div>
 
-      {/* Personal Achievement Bonus — full configured amount if hit 100%, else RM500 */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:4}}>
+      {bmBasic>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:4}}>
+        <span style={{color:"#5A6472"}}>Monthly Basic</span>
+        <span style={{fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>{fRM(bmBasic)}</span>
+      </div>}
+      {bmBonus>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:4}}>
         <span style={{color:"#5A6472"}}>Personal Achievement Bonus</span>
         <span style={{fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>
-          {bmBonusEarned && bmBonus>0
-            ? fRM(bmBonus)
-            : "RM 500.00 (Pending)"}
+          {bmBonusEarned?fRM(bmBonus):`${fRM(bmBonus)} (Pending)`}
         </span>
-      </div>
+      </div>}
 
 
 
@@ -791,7 +793,7 @@ export default function App(){
       setRewardHistory(rh||{});
       setStatusHistory(sh||{});
       const tUse=t||(tPrev)||null;
-      if(tUse?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr}});
+      if(tUse?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},bmBasic:{...DEFAULT_TARGETS.bmBasic,...(tUse.bmBasic||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr}});
       else setTargets(DEFAULT_TARGETS);
       // Apply monthly BM name/status overrides from targets
       if(tUse&&(tUse.bmName||tUse.bmStatus)){

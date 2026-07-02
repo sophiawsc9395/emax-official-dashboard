@@ -59,6 +59,7 @@ const DEFAULT_SR = [
 const DEFAULT_TARGETS = {
   bm:{KM:50000,T1:50000,TW2:50000,TW1:55000,LD:45000,KB:50000,T5:38000,ITCC:50000,TENOM:45000,HQ:36000},
   bmBonus:{KM:0,T1:0,TW2:0,TW1:0,LD:0,KB:0,T5:0,ITCC:0,TENOM:0,HQ:0},
+  bmBasic:{KM:0,T1:0,TW2:0,TW1:0,LD:0,KB:0,T5:0,ITCC:0,TENOM:0,HQ:0},
   sr:{
     EM0285:{target:12250,bonus:500},EM0264:{target:12250,bonus:500},EM0069:{target:12250,bonus:500},EM0243:{target:12250,bonus:500},EM0187:{target:6000,bonus:0},
     EM0033:{target:27000,bonus:600},EM0045:{target:7000,bonus:400},EM0056:{target:7000,bonus:400},EM0078:{target:7000,bonus:300},EM0089:{target:7000,bonus:300},
@@ -389,7 +390,7 @@ export default function App(){
       setRecords(filteredR);
       setPublishedUntil(pub||null);
       const tUse=t||(tPrev)||null;
-      if(tUse?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr}});
+      if(tUse?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},bmBasic:{...DEFAULT_TARGETS.bmBasic,...(tUse.bmBasic||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr}});
       if(srData&&Array.isArray(srData)&&srData.length>0){
         let filtered=srData.filter(s=>s.branch===BRANCH_ID);
         const nowB=new Date();
