@@ -1643,14 +1643,16 @@ function PdfDownloads({month,year,branch,allowDelete=false}){
   </div>;
 }
 
-function StatusHistoryModal({srList,branchMeta,statusHistory,onClose,initialPerson}){
+function StatusHistoryModal({srList,branchMeta,statusHistory,onClose,initialPerson,onDeleteStatusEntry}){
   const isBM=initialPerson&&initialPerson.startsWith("BM_");
   const branchId=isBM?initialPerson.replace("BM_",""):null;
   const person=isBM
     ?{name:branchMeta[branchId]?.manager||branchId,role:`${branchId} — Branch Manager`}
     :(()=>{const sr=srList.find(s=>s.id===initialPerson);return sr?{name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}:null;})();
   const currentStatus=isBM?branchMeta[branchId]?.mStatus:srList.find(s=>s.id===initialPerson)?.status;
-  const history=(statusHistory[initialPerson]||[]).slice().reverse();
+  const raw=statusHistory[initialPerson]||[];
+  // Keep original indices for deletion, display reversed
+  const history=raw.map((h,origIdx)=>({...h,origIdx})).reverse();
 
   return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:600,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -1669,12 +1671,15 @@ function StatusHistoryModal({srList,branchMeta,statusHistory,onClose,initialPers
         {history.length===0
           ? <div style={{padding:"32px 0",textAlign:"center",color:"#8A96A8",fontSize:12}}>No status change history yet.</div>
           : history.map((h,i)=>(
-            <div key={i} style={{padding:"10px 0",borderBottom:i<history.length-1?"1px solid #F0F2F5":"none"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <span style={{fontSize:13,fontWeight:800,color:"#0A1628"}}>{h.status}</span>
-                <span style={{fontSize:10,color:"#8A96A8"}}>{new Date(h.date).toLocaleString("en-MY",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
+            <div key={i} style={{padding:"10px 0",borderBottom:i<history.length-1?"1px solid #F0F2F5":"none",display:"flex",alignItems:"flex-start",gap:8}}>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:13,fontWeight:800,color:"#0A1628"}}>{h.status}</span>
+                  <span style={{fontSize:10,color:"#8A96A8"}}>{new Date(h.date).toLocaleString("en-MY",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
+                </div>
+                <div style={{fontSize:12,color:"#5A6472",marginTop:3}}>{h.note}</div>
               </div>
-              <div style={{fontSize:12,color:"#5A6472",marginTop:3}}>{h.note}</div>
+              {onDeleteStatusEntry&&<button onClick={()=>onDeleteStatusEntry(initialPerson,h.origIdx)} style={{flexShrink:0,padding:"3px 8px",fontSize:10,fontWeight:700,border:"1px solid #FECACA",borderRadius:5,background:"#FEF2F2",color:"#B91C1C",cursor:"pointer",fontFamily:"Inter,sans-serif",marginTop:2}}>✕</button>}
             </div>
           ))
         }
@@ -1683,7 +1688,7 @@ function StatusHistoryModal({srList,branchMeta,statusHistory,onClose,initialPers
   </div>;
 }
 
-function PointsHistoryModal({srList,branchMeta,rewardBalances,rewardHistory,onClose,initialPerson}){
+function PointsHistoryModal({srList,branchMeta,rewardBalances,rewardHistory,onClose,initialPerson,onDeletePointsEntry}){
   const isBM=initialPerson&&initialPerson.startsWith("BM_");
   const branchId=isBM?initialPerson.replace("BM_",""):null;
   const person=isBM
@@ -1691,11 +1696,12 @@ function PointsHistoryModal({srList,branchMeta,rewardBalances,rewardHistory,onCl
     :(()=>{const sr=srList.find(s=>s.id===initialPerson);return sr?{name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}:null;})();
   const balance=rewardBalances[initialPerson]?.balance||0;
   const rawHistory=rewardHistory[initialPerson]||[];
-  // Rename "Manual balance adjustment" entries to "Opening balance as at 31/05/2026"
-  const history=rawHistory.map(h=>({
+  // Rename "Manual balance adjustment" entries to "Opening balance as at 31/05/2026", track origIdx
+  const history=rawHistory.map((h,origIdx)=>({
     ...h,
+    origIdx,
     note:h.type==="adjustment"&&h.note==="Manual balance adjustment"?"Opening balance as at 31/05/2026":h.note
-  })).slice().reverse();
+  })).reverse();
 
   return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:600,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -1714,14 +1720,17 @@ function PointsHistoryModal({srList,branchMeta,rewardBalances,rewardHistory,onCl
         {history.length===0
           ? <div style={{padding:"32px 0",textAlign:"center",color:"#8A96A8",fontSize:12}}>No transaction history yet.</div>
           : history.map((h,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<history.length-1?"1px solid #F0F2F5":"none"}}>
-              <div>
-                <div style={{fontSize:12,fontWeight:600,color:"#0A1628"}}>{h.note}</div>
+            <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 0",borderBottom:i<history.length-1?"1px solid #F0F2F5":"none"}}>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                  <div style={{fontSize:12,fontWeight:600,color:"#0A1628"}}>{h.note}</div>
+                  <div style={{fontSize:13,fontWeight:800,color:h.amount>=0?"#00C896":"#F0354B",whiteSpace:"nowrap"}}>
+                    {h.amount>=0?"+":""}{h.amount.toLocaleString()} pts
+                  </div>
+                </div>
                 <div style={{fontSize:10,color:"#8A96A8",marginTop:2}}>{new Date(h.date).toLocaleString("en-MY",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</div>
               </div>
-              <div style={{fontSize:13,fontWeight:800,color:h.amount>=0?"#00C896":"#F0354B",whiteSpace:"nowrap"}}>
-                {h.amount>=0?"+":""}{h.amount.toLocaleString()} pts
-              </div>
+              {onDeletePointsEntry&&<button onClick={()=>onDeletePointsEntry(initialPerson,h.origIdx,h.amount)} style={{flexShrink:0,padding:"3px 8px",fontSize:10,fontWeight:700,border:"1px solid #FECACA",borderRadius:5,background:"#FEF2F2",color:"#B91C1C",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>✕</button>}
             </div>
           ))
         }
@@ -1849,6 +1858,30 @@ export default function App(){
   // ─── REWARD POINTS: lock a branch's month, crediting all SR + BM earned points to balance ───
   const monthKeyStr=`${selYear}_${selMonth}`;
   const isBranchLocked=(branchId)=>!!lockedMonths[monthKeyStr]?.[branchId];
+  // Delete a single employment status history entry
+  const deleteStatusEntry=async(personId,origIdx)=>{
+    const hist=[...(statusHistory[personId]||[])];
+    hist.splice(origIdx,1);
+    const newHist={...statusHistory,[personId]:hist};
+    setStatusHistory(newHist);
+    await saveData("emax_v5_status_history",newHist);
+  };
+
+  // Delete a single reward points history entry and adjust balance
+  const deletePointsEntry=async(personId,origIdx,amount)=>{
+    const hist=[...(rewardHistory[personId]||[])];
+    hist.splice(origIdx,1);
+    const newRH={...rewardHistory,[personId]:hist};
+    setRewardHistory(newRH);
+    await saveData("emax_v5_reward_history",newRH);
+    // Adjust balance
+    const cur=rewardBalances[personId]?.balance||0;
+    const newBal=Math.max(0,cur-(amount||0));
+    const newRB={...rewardBalances,[personId]:{...(rewardBalances[personId]||{}),balance:newBal}};
+    setRewardBalances(newRB);
+    await saveData("emax_v5_reward_balance",newRB);
+  };
+
   const pointsAsOfFor=(_branchId)=>{
     const today=new Date();
     return `${String(today.getDate()).padStart(2,"0")}/${String(today.getMonth()+1).padStart(2,"0")}/${today.getFullYear()}`;
@@ -2474,7 +2507,7 @@ export default function App(){
     {showTargetModal&&<TargetModal targets={targets} setTargets={setTargets} srList={srList} branchMeta={branchMeta} onClose={()=>setShowTargetModal(false)} currentMonth={selMonth} currentYear={selYear} onSaveForMonth={async(t,m,y)=>{if(m===selMonth&&y===selYear){setTargets(t);handleSaveTargets(t);}else await saveData(`emax_v5_targets_${y}_${m}`,t);}}/>}
     {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson}/>}
     {printBranch&&<PrintBranchReport branchId={printBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onClose={()=>setPrintBranch(null)} month={month} year={year} days={days}/>}
-    {showPointsModal&&<PointsHistoryModal srList={srList} branchMeta={branchMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
-    {showStatusHistoryModal&&<StatusHistoryModal srList={srList} branchMeta={branchMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}
+    {showPointsModal&&<PointsHistoryModal srList={srList} branchMeta={branchMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onDeletePointsEntry={deletePointsEntry} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
+    {showStatusHistoryModal&&<StatusHistoryModal srList={srList} branchMeta={branchMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onDeleteStatusEntry={deleteStatusEntry} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}
   </div>;
 }
