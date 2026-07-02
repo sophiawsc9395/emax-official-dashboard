@@ -1141,7 +1141,7 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
   const [localSR,setLocalSR]=useState(JSON.parse(JSON.stringify(srList)));
   const [editSR,setEditSR]=useState(null);
-  const [newSR,setNewSR]=useState({id:"",canon:"",branch:"KM",type:"Online",status:"Probation (P0 F0)"});
+  const [newSR,setNewSR]=useState({id:"",canon:"",branch:"KM",type:"Online",status:"Probation (P0 F0)",joinDate:`${year}-${String(month).padStart(2,"0")}`});
   const [filterBranch,setFilterBranch]=useState("ALL");
   const [saved,setSaved]=useState(false);
   const [srSaved,setSRSaved]=useState(false);
@@ -1170,8 +1170,11 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
   const addSR=async()=>{
     if(!newSR.id||!newSR.canon){alert("SR ID and Name are required.");return;}
     if(localSR.find(s=>s.id===newSR.id)){alert("SR ID already exists.");return;}
-    const updated=[...localSR,{...newSR}];setLocalSR(updated);setEditSR(null);
-    setNewSR({id:"",canon:"",branch:"KM",type:"Online",status:"Probation In Progress"});await saveSR(updated);
+    const srToAdd={...newSR};
+    // joinDate already set in newSR state — store as "YYYY-MM"
+    const updated=[...localSR,srToAdd];setLocalSR(updated);setEditSR(null);
+    setNewSR({id:"",canon:"",branch:"KM",type:"Online",status:"Probation (P0 F0)",joinDate:`${year}-${String(month).padStart(2,"0")}`});
+    await saveSR(updated);
   };
   const updateSR=async(id,field,val)=>{const updated=localSR.map(s=>s.id===id?{...s,[field]:val}:s);setLocalSR(updated);await saveSR(updated);};
   const saveSRStatus=async(id,newStatus,desc,resignDate=null)=>{
@@ -1201,7 +1204,7 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
     await saveData("emax_v5_status_history",newHist);
   };
   const removeSR=async(id)=>{if(!confirm("Remove this SR?"))return;const updated=localSR.filter(s=>s.id!==id);setLocalSR(updated);await saveSR(updated);};
-  const filteredSR=(filterBranch==="ALL"?localSR:localSR.filter(s=>s.branch===filterBranch)).filter(s=>!(s.status||'').toLowerCase().includes('resigned'));
+  const filteredSR=(filterBranch==="ALL"?localSR:localSR.filter(s=>s.branch===filterBranch)).filter(s=>!(s.status||'').toLowerCase().includes('resigned')&&srActiveInMonth(s,month,year));
   return <div className="modal-overlay">
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:860,maxHeight:"92vh",overflow:"auto"}}>
       <div style={{padding:"18px 24px",borderBottom:"1px solid #E4EAF2",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:1}}>
@@ -1282,6 +1285,17 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
                   <option value="Online">Online</option><option value="Offline">Offline</option>
                 </select>
               </div>
+              <div>
+                <label style={{fontSize:10,fontWeight:700,color:"#00C896",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Start Month</label>
+                <div style={{display:"flex",gap:4}}>
+                  <select className="input select" value={(newSR.joinDate||"").split("-")[1]||String(month).padStart(2,"0")} onChange={e=>setNewSR(p=>({...p,joinDate:`${(p.joinDate||`${year}-${String(month).padStart(2,"0")}`).split("-")[0]}-${e.target.value}`}))} style={{fontSize:11,flex:1,padding:"4px 20px 4px 6px"}}>
+                    {["January","February","March","April","May","June","July","August","September","October","November","December"].map((m,i)=><option key={i+1} value={String(i+1).padStart(2,"0")}>{m.slice(0,3)}</option>)}
+                  </select>
+                  <select className="input select" value={(newSR.joinDate||"").split("-")[0]||year} onChange={e=>setNewSR(p=>({...p,joinDate:`${e.target.value}-${(p.joinDate||`${year}-${String(month).padStart(2,"0")}`).split("-")[1]}`}))} style={{fontSize:11,width:68,padding:"4px 20px 4px 6px"}}>
+                    {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+              </div>
               <div style={{gridColumn:"1/-1"}}>
                 <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Employment Status{month&&year?` (${["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"][month-1]} ${year})`:""}</label>
                 {(()=>{
@@ -1310,9 +1324,9 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
             <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:900}}>
               <thead><tr style={{background:"#0A1628"}}>
-                {["ID","Name","Branch","Type",`Employment Status${month&&year?` (${["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"][month-1]} ${year})`:""}`,"Points Balance",""].map(h=>(
+                {(()=>{const MNTHS=["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];const empHeader="Employment Status"+(month&&year?" ("+MNTHS[month-1]+" "+year+")":"");const typeHeader="Type ("+MONTHS_LABEL[typeMonth-1].slice(0,3)+" "+typeYear+")";return ["ID","Name","Branch",typeHeader,"Start",empHeader,"Points Balance",""].map(h=>(
                   <th key={h} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.7)",textTransform:"uppercase",letterSpacing:"0.06em"}}>{h}</th>
-                ))}
+                ));})()}
               </tr></thead>
               <tbody>{filteredSR.map((sr,i)=>(
                 <tr key={sr.id} className="shine-row" style={{borderBottom:"1px solid #E4EAF2",background:i%2===0?"#fff":"#F7F9FC"}}>
@@ -1335,6 +1349,9 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
                     <select className="input select" value={getType(sr)} onChange={e=>setTypeOverride(sr.id,e.target.value)} style={{width:"auto",padding:"4px 24px 4px 8px",fontSize:11,background:typeOverrides[sr.id]?"#EFF6FF":"",borderColor:typeOverrides[sr.id]?"#1E6FDB":""}}>
                       <option value="Online">Online</option><option value="Offline">Offline</option>
                     </select>
+                  </td>
+                  <td style={{padding:"8px 14px",fontSize:11,color:"#4A5568"}}>
+                    {sr.joinDate?sr.joinDate.replace(/(\d{4})-(\d{2})/,(full,y,m)=>["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m-1]+" "+y):"—"}
                   </td>
                   <td style={{padding:"8px 14px"}}>
                     <StatusEditWidget status={sr.status} onSave={(newStatus,desc,rd)=>saveSRStatus(sr.id,newStatus,desc,rd)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}:null}/>
@@ -1377,7 +1394,7 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
                       <td style={{padding:"8px 14px",fontWeight:700,color:"#7F1D1D"}}>{sr.canon}</td>
                       <td style={{padding:"8px 14px",color:"#B91C1C"}}>{sr.branch}</td>
                       <td style={{padding:"8px 14px",color:"#B91C1C"}}>{sr.type}</td>
-                      <td style={{padding:"8px 14px",color:"#B91C1C"}}>{sr.resignDate?(()=>{const[y,m,d]=sr.resignDate.split("-");return`${d}/${m}/${y}`;})():"—"}</td>
+                      <td style={{padding:"8px 14px",color:"#B91C1C"}}>{sr.resignDate?sr.resignDate.split("-").reverse().join("/"):"—"}</td>
                       <td style={{padding:"8px 14px"}}><StatusEditWidget status={sr.status} onSave={(newStatus,desc,rd)=>saveSRStatus(sr.id,newStatus,desc,rd)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}:null}/></td>
                       <td style={{padding:"8px 14px",textAlign:"right"}}><button className="btn btn-danger" onClick={()=>removeSR(sr.id)}>Remove</button></td>
                     </tr>
@@ -1395,8 +1412,17 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
 }
 
 
-// ─── SR VISIBILITY (resigned filter) ─────────────────────
+// ─── SR VISIBILITY (joined + resigned filters) ────────────
+function srActiveInMonth(sr,m,y){
+  // Not yet joined: hide before joinDate month
+  if(sr.joinDate){
+    const [jy,jm]=sr.joinDate.split("-").map(Number);
+    if(y<jy||(y===jy&&m<jm))return false;
+  }
+  return true;
+}
 function srVisibleInMonth(sr,m,y){
+  if(!srActiveInMonth(sr,m,y))return false;
   if(!(sr.status||'').toLowerCase().includes('resigned'))return true;
   if(!sr.resignDate)return false;
   const [ry,rm]=sr.resignDate.split("-").map(Number);
