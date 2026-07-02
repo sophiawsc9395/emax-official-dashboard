@@ -794,7 +794,7 @@ export default function App(){
   const branchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
-      const bSRs=srList.filter(s=>s.branch===b);
+      const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,selMonth,selYear));
       let wi=0,ae=0;
       for(let d=selStartDay;d<=selEndDay;d++){
         const k=`${d}/${month}/${year}`,day=records[k]||{};
@@ -810,7 +810,7 @@ export default function App(){
   const fullMonthBranchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
-      const bSRs=srList.filter(s=>s.branch===b);
+      const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,selMonth,selYear));
       let wi=0,ae=0;
       days.forEach(d=>{
         const k=`${d}/${month}/${year}`,day=records[k]||{};
@@ -855,7 +855,7 @@ export default function App(){
   const rankBranchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
-      const bSRs=srList.filter(s=>s.branch===b);let wi=0,ae=0;
+      const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,selMonth,selYear));let wi=0,ae=0;
       for(let d=1;d<=rankEndDay;d++){
         const k=`${d}/${month}/${year}`,day=records[k]||{};
         bSRs.forEach(sr=>{wi+=(day[sr.id]?.walkin||0);ae+=(day[sr.id]?.aeon||0);});
@@ -882,11 +882,16 @@ export default function App(){
   }).sort((a,b)=>b.p-a.p);
 
 
+  const srActiveInMonth=(sr,m,y)=>{
+    if(sr.joinDate){const[jy,jm]=sr.joinDate.split("-").map(Number);if(y<jy||(y===jy&&m<jm))return false;}
+    return true;
+  };
   const srVisibleInMonth=(sr,m,y)=>{
+    if(!srActiveInMonth(sr,m,y))return false;
     if(!(sr.status||'').toLowerCase().includes('resigned'))return true;
     if(!sr.resignDate)return false;
-    const rd=new Date(sr.resignDate);
-    return rd.getFullYear()>y||(rd.getFullYear()===y&&rd.getMonth()+1>=m);
+    const[ry,rm]=sr.resignDate.split("-").map(Number);
+    return ry>y||(ry===y&&rm>=m);
   };
   const mkSRRank=type=>srList.filter(s=>s.type===type&&srVisibleInMonth(s,selMonth,selYear)).map(s=>{
     const profit=rankSRTotals[s.id]?.total||0,target=targets?.sr?.[s.id]?.target||0;
@@ -1034,7 +1039,7 @@ export default function App(){
                     {days.map((d,i)=>{
                       const k=`${d}/${month}/${year}`,day=records[k]||{};
                       const bTotals=BRANCH_ORDER.map(b=>{
-                        const bSRs=srList.filter(s=>s.branch===b&&!(s.status||'').toLowerCase().includes('resigned'));
+                        const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,selMonth,selYear));
                         let t=bSRs.reduce((s,sr)=>(s+(day[sr.id]?.walkin||0)+(day[sr.id]?.aeon||0)),0);
                         t+=(day[`BM_${b}`]?.walkin||0)+(day[`BM_${b}`]?.aeon||0)+(day[`BM_${b}`]?.unalloc||0);
                         return t;
@@ -1058,7 +1063,7 @@ export default function App(){
               <div style={{marginTop:16}}><PdfDownloads month={month} year={year}/></div>
             </div>
           : (()=>{
-          const bSRs=srList.filter(s=>s.branch===selBranch&&!(s.status||'').toLowerCase().includes('resigned'));
+          const bSRs=srList.filter(s=>s.branch===selBranch&&srVisibleInMonth(s,selMonth,selYear));
           const bTarget=targets?.bm?.[selBranch]||0;
           const bTot=BRANCH_ORDER.includes(selBranch)?fullMonthBranchTotals[selBranch]?.total||0:0;
           const branchPct=pctN(bTot,bTarget);

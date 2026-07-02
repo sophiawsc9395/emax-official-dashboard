@@ -453,11 +453,17 @@ export default function App(){
   const rankingPeriod=lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year}`;
   const rankEndDay=lastDataDay||daysInMonth(month,year);
 
+  const srActiveInMonth=(sr,m,y)=>{
+    if(sr.joinDate){const[jy,jm]=sr.joinDate.split("-").map(Number);if(y<jy||(y===jy&&m<jm))return false;}
+    return true;
+  };
   const srVisibleInMonth=(sr,m,y)=>{
+    if(!srActiveInMonth(sr,m,y))return false;
     if(!(sr.status||'').toLowerCase().includes('resigned'))return true;
     if(!sr.resignDate)return false;
-    const rd=new Date(sr.resignDate);
-    return rd.getFullYear()>y||(rd.getFullYear()===y&&rd.getMonth()+1>=m);
+    // Parse directly — avoid timezone shift from new Date("YYYY-MM-DD")
+    const[ry,rm]=sr.resignDate.split("-").map(Number);
+    return ry>y||(ry===y&&rm>=m);
   };
 
   // For company-wide ranking, compute all SRs from all branches — always 1 → lastDataDay
@@ -673,7 +679,7 @@ export default function App(){
       {/* SR Cards */}
       <h3 style={{fontSize:12,fontWeight:800,color:"#0A1628",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.08em"}}>SR Performance</h3>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14,alignItems:"start"}}>
-        {srList.sort((a,b)=>pctN(srTotals[b.id]?.total||0,targets?.sr?.[b.id]?.target||0)-pctN(srTotals[a.id]?.total||0,targets?.sr?.[a.id]?.target||0)).map(sr=>{
+        {srList.filter(sr=>srVisibleInMonth(sr,month,year)).sort((a,b)=>pctN(srTotals[b.id]?.total||0,targets?.sr?.[b.id]?.target||0)-pctN(srTotals[a.id]?.total||0,targets?.sr?.[a.id]?.target||0)).map(sr=>{
   const target=targets?.sr?.[sr.id]?.target||0,bonus=targets?.sr?.[sr.id]?.bonus||0;
   const rows=days.map(d=>{const k=`${d}/${month}/${year}`,v=records[k]?.[sr.id]||{};return{day:d,wi:v.walkin||0,ae:v.aeon||0};});
   const tWI=rows.reduce((s,r)=>s+r.wi,0),tAE=rows.reduce((s,r)=>s+r.ae,0),total=tWI+tAE;
