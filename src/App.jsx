@@ -2381,7 +2381,7 @@ export default function App(){
               </div>
             </div>
           : (()=>{
-              const bSRs=srList.filter(s=>s.branch===selBranch&&!(s.status||'').toLowerCase().includes('resigned'));
+              const bSRs=srList.filter(s=>s.branch===selBranch&&srVisibleInMonth(s,month,year));
               const bTarget=targets?.bm?.[selBranch]||0,bTotal=fullMonthBranchTotals[selBranch]?.total||0;
               const branchPct=pctN(bTotal,bTarget);
               return <div>
