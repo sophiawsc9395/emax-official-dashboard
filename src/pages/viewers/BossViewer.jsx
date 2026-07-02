@@ -354,12 +354,12 @@ function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewa
       <div style={{height:1,background:"#E4EAF2",margin:"8px 0"}}/>
       <div style={{fontSize:9,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>Incentives</div>
 
-      {/* Personal Achievement Bonus — full amount if hit branch target, RM500 if not */}
+      {/* Personal Achievement Bonus — full configured amount if hit 100%, else RM500 */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:4}}>
         <span style={{color:"#5A6472"}}>Personal Achievement Bonus</span>
         <span style={{fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>
-          {bmBonusEarned
-            ? fRM(bmBonus>0?bmBonus:500)
+          {bmBonusEarned && bmBonus>0
+            ? fRM(bmBonus)
             : "RM 500.00 (Pending)"}
         </span>
       </div>
