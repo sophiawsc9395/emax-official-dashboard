@@ -1180,7 +1180,7 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
     await saveData("emax_v5_status_history",newHist);
   };
   const removeSR=async(id)=>{if(!confirm("Remove this SR?"))return;const updated=localSR.filter(s=>s.id!==id);setLocalSR(updated);await saveSR(updated);};
-  const filteredSR=filterBranch==="ALL"?localSR:localSR.filter(s=>s.branch===filterBranch);
+  const filteredSR=(filterBranch==="ALL"?localSR:localSR.filter(s=>s.branch===filterBranch)).filter(s=>!(s.status||'').toLowerCase().includes('resigned'));
   return <div className="modal-overlay">
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:860,maxHeight:"92vh",overflow:"auto"}}>
       <div style={{padding:"18px 24px",borderBottom:"1px solid #E4EAF2",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:1}}>
@@ -1274,7 +1274,8 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
               <button className="btn btn-success" onClick={addSR}>Add SR</button>
             </div>
           </div>}
-          <div className="card" style={{overflow:"visible"}}>
+          {/* Active SR */}
+          <div className="card" style={{overflow:"visible",marginBottom:16}}>
             <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:900}}>
               <thead><tr style={{background:"#0A1628"}}>
@@ -1318,6 +1319,43 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
             </table>
             </div>
           </div>
+
+          {/* Resigned SR — separate section */}
+          {(()=>{
+            const resignedSR=(filterBranch==="ALL"?localSR:localSR.filter(s=>s.branch===filterBranch)).filter(s=>(s.status||"").toLowerCase().includes("resigned"));
+            if(!resignedSR.length)return null;
+            return <div style={{marginTop:16}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#B91C1C",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8,padding:"6px 12px",background:"#FEF2F2",borderRadius:6,border:"1px solid #FECACA",display:"inline-block"}}>
+                Resigned Staff ({resignedSR.length})
+              </div>
+              <div className="card" style={{overflow:"visible"}}>
+                <div style={{overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:900}}>
+                  <thead><tr style={{background:"#7F1D1D"}}>
+                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left"}}>ID</th>
+                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left"}}>Name</th>
+                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left"}}>Branch</th>
+                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left"}}>Type</th>
+                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left"}}>Resignation Date</th>
+                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left"}}>Status</th>
+                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em"}}></th>
+                  </tr></thead>
+                  <tbody>{resignedSR.map((sr,i)=>(
+                    <tr key={sr.id} style={{borderBottom:"1px solid #FEE2E2",background:i%2===0?"#FFF5F5":"#FEF2F2"}}>
+                      <td style={{padding:"8px 14px",color:"#B91C1C",fontSize:10}}>{sr.id}</td>
+                      <td style={{padding:"8px 14px",fontWeight:700,color:"#7F1D1D"}}>{sr.canon}</td>
+                      <td style={{padding:"8px 14px",color:"#B91C1C"}}>{sr.branch}</td>
+                      <td style={{padding:"8px 14px",color:"#B91C1C"}}>{sr.type}</td>
+                      <td style={{padding:"8px 14px",color:"#B91C1C"}}>{sr.resignDate?(()=>{const[y,m,d]=sr.resignDate.split("-");return`${d}/${m}/${y}`;})():"—"}</td>
+                      <td style={{padding:"8px 14px"}}><StatusEditWidget status={sr.status} onSave={(newStatus,desc,rd)=>saveSRStatus(sr.id,newStatus,desc,rd)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}:null}/></td>
+                      <td style={{padding:"8px 14px",textAlign:"right"}}><button className="btn btn-danger" onClick={()=>removeSR(sr.id)}>Remove</button></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+                </div>
+              </div>
+            </div>;
+          })()}
           <p style={{fontSize:11,color:"#8A96A8",marginTop:8}}>Click SR name to edit inline. Other fields save immediately on change.</p>
         </div>}
       </div>
@@ -1820,10 +1858,11 @@ export default function App(){
   // Resigned SRs only appear in the month they resigned (and all months before)
   const srVisibleInMonth=(sr,m,y)=>{
     if(!(sr.status||'').toLowerCase().includes('resigned'))return true;
-    if(!sr.resignDate)return false; // resigned but no date = hide everywhere
-    const rd=new Date(sr.resignDate);
-    // Visible if resignation date is in this month or later
-    return rd.getFullYear()>y||(rd.getFullYear()===y&&rd.getMonth()+1>=m);
+    if(!sr.resignDate)return false;
+    // Parse date string directly (avoid timezone shift from new Date("YYYY-MM-DD"))
+    const [ry,rm]=sr.resignDate.split("-").map(Number);
+    // Visible if resignation month >= selected month (show in month they resigned)
+    return ry>y||(ry===y&&rm>=m);
   };
   const lockBranchMonth=async(branchId)=>{
     if(isBranchLocked(branchId)){alert("This branch's "+selMonth+"/"+selYear+" report is already locked.");return;}
