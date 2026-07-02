@@ -748,6 +748,7 @@ export default function App(){
     const prevM=selMonth===1?12:selMonth-1,prevY=selMonth===1?selYear-1:selYear;
     const prevTargetKey=`emax_v5_targets_${prevY}_${prevM}`;
     const publishKey=`emax_v5_published_${selYear}_${selMonth}`;
+    const typeKey=`emax_v5_sr_types_${selYear}_${selMonth}`;
     Promise.all([
       loadData(`emax_v5_records_${selYear}_${selMonth}`),
       loadData(targetKey),
@@ -760,7 +761,8 @@ export default function App(){
       loadData("emax_v5_reward_history"),
       loadData("emax_v5_status_history"),
       loadData(publishKey),
-    ]).then(([r,t,tPrev,srData,bmData,snap,rep,rb,rh,sh,pub])=>{
+      loadData(typeKey),
+    ]).then(([r,t,tPrev,srData,bmData,snap,rep,rb,rh,sh,pub,srTypes])=>{
       // Only show records up to the published date
       const pubDate=pub?new Date(pub):null;
       const filteredR={};
@@ -774,13 +776,16 @@ export default function App(){
       setRecords(filteredR);
       setPublishedUntil(pub||null);
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
-      // Only apply snapshot for PAST months — current month uses live sr_list
+      // Apply monthly type overrides to base SR list
+      const baseSRTyped=srTypes&&Object.keys(srTypes).length>0
+        ?baseSR.map(sr=>srTypes[sr.id]?{...sr,type:srTypes[sr.id]}:{...sr})
+        :baseSR;
       const nowD=new Date();
       const isCurrentMonthV=(selMonth===nowD.getMonth()+1&&selYear===nowD.getFullYear());
       if(!isCurrentMonthV&&snap&&Object.keys(snap).length>0){
-        const merged=baseSR.map(sr=>snap[sr.id]?{...sr,status:snap[sr.id].status,active:snap[sr.id].active!==false}:{...sr});
+        const merged=baseSRTyped.map(sr=>snap[sr.id]?{...sr,status:snap[sr.id].status,active:snap[sr.id].active!==false}:{...sr});
         setSrList(merged.filter(sr=>sr.active!==false));
-      } else setSrList(baseSR);
+      } else setSrList(baseSRTyped);
       if(bmData&&Object.keys(bmData).length>0)setBMeta({...DEFAULT_BRANCH_META,...bmData});
       setRewardBalances(rb||{});
       setRewardHistory(rh||{});

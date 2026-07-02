@@ -373,7 +373,8 @@ export default function App(){
     const prevM=selMonth===1?12:selMonth-1,prevY=selMonth===1?selYear-1:selYear;
     const prevTargetKey=`emax_v5_targets_${prevY}_${prevM}`;
     const publishKey=`emax_v5_published_${selYear}_${selMonth}`;
-    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData("emax_v5_reward_balance"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history"),loadData(snapKey),loadData(publishKey)]).then(([r,t,tPrev,srData,bmData,rb,rh,sh,snap,pub])=>{
+    const typeKey=`emax_v5_sr_types_${selYear}_${selMonth}`;
+    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData("emax_v5_reward_balance"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history"),loadData(snapKey),loadData(publishKey),loadData(typeKey)]).then(([r,t,tPrev,srData,bmData,rb,rh,sh,snap,pub,srTypes])=>{
       // Only show records up to the published date
       const pubDate=pub?new Date(pub):null;
       const filteredR={};
@@ -394,6 +395,10 @@ export default function App(){
         const isCurMonthB=(selMonth===nowB.getMonth()+1&&selYear===nowB.getFullYear());
         if(!isCurMonthB&&snap&&Object.keys(snap).length>0){
           filtered=filtered.map(sr=>snap[sr.id]?{...sr,status:snap[sr.id].status}:{...sr});
+        }
+        // Apply monthly type overrides
+        if(srTypes&&Object.keys(srTypes).length>0){
+          filtered=filtered.map(sr=>srTypes[sr.id]?{...sr,type:srTypes[sr.id]}:{...sr});
         }
         setSrList(filtered);
       }
