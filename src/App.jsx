@@ -1013,81 +1013,79 @@ function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,
       <div style={{padding:20}}>
         {loading&&<div style={{textAlign:"center",padding:"32px 0",color:"#8A96A8",fontSize:13}}>Loading targets for {MONTHS_LABEL[tgtMonth-1]} {tgtYear}…</div>}
         {!loading&&<>
-          {/* BM section */}
-          <div style={{fontWeight:800,fontSize:11,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>Branch Manager Targets</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:12,marginBottom:28}}>
-            {branches.map(b=>(
-              <div key={b} style={{background:"#F7F9FC",borderRadius:10,padding:14,border:"1px solid #E4EAF2"}}>
-                <div style={{fontWeight:700,fontSize:12,color:"#0A1628",textTransform:"uppercase",marginBottom:8}}>{branchMeta[b]?.name}</div>
-                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch Manager</label>
-                <select className="input select" value={local.bmName?.[b]??branchMeta[b]?.manager??""} onChange={e=>setBMName(b,e.target.value)} style={{marginBottom:8,fontSize:12}}>
-                  <option value="">— Select Staff —</option>
-                  {[...srList.map(s=>s.canon),...BRANCH_ORDER.map(br=>branchMeta[br]?.manager).filter(Boolean)].filter((v,i,a)=>v&&a.indexOf(v)===i).sort().map(n=><option key={n} value={n}>{n}</option>)}
-                </select>
-                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Employment Status</label>
-                <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
-                  {(()=>{
-                    const curStatus=local.bmStatus?.[b]??branchMeta[b]?.mStatus??"Probation (P0 F0)";
-                    const ps=parseStatus(curStatus);
-                    const setBS=(v)=>setLocal(p=>({...p,bmStatus:{...(p.bmStatus||{}),[b]:v}}));
-                    return <>
-                      <select className="input select" value={ps.base} onChange={e=>setBS(buildStatus(e.target.value,ps.p,ps.f))} style={{width:"auto",minWidth:95,padding:"4px 20px 4px 6px",fontSize:11}}>
-                        {["Probation","Confirmed","Director","Resigned"].map(s=><option key={s} value={s}>{s}</option>)}
-                      </select>
-                      {ps.base!=="Director"&&ps.base!=="Resigned"&&<>
-                        <span style={{fontSize:10,color:"#8A96A8"}}>P</span>
-                        <input type="number" min="0" className="input" value={ps.p} onChange={e=>setBS(buildStatus(ps.base,Math.max(0,parseInt(e.target.value)||0),ps.f))} style={{width:40,padding:"4px",fontSize:11,textAlign:"center"}}/>
-                        <span style={{fontSize:10,color:"#8A96A8"}}>F</span>
-                        <input type="number" min="0" className="input" value={ps.f} onChange={e=>setBS(buildStatus(ps.base,ps.p,Math.max(0,parseInt(e.target.value)||0)))} style={{width:40,padding:"4px",fontSize:11,textAlign:"center"}}/>
-                      </>}
-                    </>;
-                  })()}
-                </div>
-                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Monthly Target (RM)</label>
-                <input className="input" type="number" value={local.bm?.[b]||""} onChange={e=>setBM(b,e.target.value)} placeholder="0" style={{marginBottom:8,fontSize:12}}/>
-                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>BM Bonus if Branch 100%+ (RM)</label>
-                <input className="input" type="number" value={local.bmBonus?.[b]||""} onChange={e=>setBMB(b,e.target.value)} placeholder="0" style={{fontSize:12,marginBottom:12}}/>
-                {onConvertBMtoSR&&(local.bmName?.[b]||branchMeta[b]?.manager)&&<button
-                  onClick={()=>{
-                    const bmName=local.bmName?.[b]||branchMeta[b]?.manager||"";
-                    const bmStatus=local.bmStatus?.[b]||branchMeta[b]?.mStatus||"Probation (P0 F0)";
-                    if(!bmName){alert("Please set a BM name first.");return;}
-                    if(!confirm(`Convert "${bmName}" from BM to SR for ${MONTHS_LABEL[tgtMonth-1]} ${tgtYear} onwards?
-
-This will:
-• Add them as an SR (Online) starting ${MONTHS_LABEL[tgtMonth-1]} ${tgtYear}
-• Clear the BM name for this month so you can enter the new BM`))return;
-                    onConvertBMtoSR(b,bmName,bmStatus,tgtMonth,tgtYear);
-                    // Clear BM name for this month so admin sets new BM
-                    setLocal(p=>({...p,bmName:{...(p.bmName||{}),[b]:""},bmStatus:{...(p.bmStatus||{}),[b]:""}}));
-                  }}
-                  style={{width:"100%",padding:"7px 0",fontSize:11,fontWeight:700,border:"1px solid #F59E0B",borderRadius:7,background:"#FFFBEB",color:"#92400E",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
-                  ⇄ Move this BM to SR from {MONTHS_LABEL[tgtMonth-1]} {tgtYear}
-                </button>}
-              </div>
-            ))}
-          </div>
-
-          {/* SR section */}
-          <div style={{fontWeight:800,fontSize:11,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>SR Targets</div>
-          <p style={{fontSize:11,color:"#8A96A8",marginBottom:14}}>Achievement bonus auto-calculated. Set personal bonus and target per SR.</p>
+          {/* Branch-by-branch: BM + SR together */}
+          <p style={{fontSize:11,color:"#8A96A8",marginBottom:16}}>Each branch shows BM settings followed by SR targets. Achievement bonus auto-calculated.</p>
           {branches.map(b=>{
             const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,tgtMonth,tgtYear));
-            if(!bSRs.length)return null;
-            return <div key={b} style={{marginBottom:20}}>
-              <div style={{fontWeight:700,fontSize:10,color:"#1E6FDB",marginBottom:8,paddingBottom:4,borderBottom:"1px solid #E4EAF2",textTransform:"uppercase",letterSpacing:"0.08em"}}>{branchMeta[b]?.name}</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
-                {bSRs.map(sr=>(
-                  <div key={sr.id} style={{background:"#F7F9FC",borderRadius:8,padding:10,border:"1px solid #E4EAF2"}}>
-                    <div style={{fontWeight:700,fontSize:12,color:"#0A1628",marginBottom:4}}>{sr.canon}</div>
-                    <div style={{marginBottom:6}}><TypeTag type={sr.type}/></div>
-                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Target (RM)</label>
-                    <input className="input" type="number" value={local.sr?.[sr.id]?.target||""} onChange={e=>setSR(sr.id,"target",e.target.value)} placeholder="0" style={{marginBottom:6,fontSize:12,padding:"5px 8px"}}/>
-                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Personal Bonus (RM)</label>
-                    <input className="input" type="number" value={local.sr?.[sr.id]?.bonus||""} onChange={e=>setSR(sr.id,"bonus",e.target.value)} placeholder="0" style={{fontSize:12,padding:"5px 8px"}}/>
-                  </div>
-                ))}
+            const bmName=local.bmName?.[b]??branchMeta[b]?.manager??"";
+            const allStaffNames=[...srList.map(s=>s.canon),...BRANCH_ORDER.map(br=>branchMeta[br]?.manager).filter(Boolean)].filter((v,i,a)=>v&&a.indexOf(v)===i).sort();
+            const curBMStatus=local.bmStatus?.[b]??branchMeta[b]?.mStatus??"Probation (P0 F0)";
+            const bps=parseStatus(curBMStatus);
+            const setBS=(v)=>setLocal(p=>({...p,bmStatus:{...(p.bmStatus||{}),[b]:v}}));
+            return <div key={b} style={{marginBottom:24,border:"1px solid #E4EAF2",borderRadius:12,overflow:"hidden"}}>
+              {/* Branch header */}
+              <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>{branchMeta[b]?.name}</div>
+                <div style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>{b}</div>
               </div>
+              {/* BM settings */}
+              <div style={{padding:"14px 16px",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2"}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
+                  <div>
+                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch Manager</label>
+                    <select className="input select" value={bmName} onChange={e=>setBMName(b,e.target.value)} style={{fontSize:12}}>
+                      <option value="">— Select Staff —</option>
+                      {allStaffNames.map(n=><option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>BM Status</label>
+                    <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
+                      <select className="input select" value={bps.base} onChange={e=>setBS(buildStatus(e.target.value,bps.p,bps.f))} style={{width:"auto",minWidth:90,padding:"4px 20px 4px 6px",fontSize:11}}>
+                        {["Probation","Confirmed","Director","Resigned"].map(s=><option key={s} value={s}>{s}</option>)}
+                      </select>
+                      {bps.base!=="Director"&&bps.base!=="Resigned"&&<>
+                        <span style={{fontSize:10,color:"#8A96A8"}}>P</span>
+                        <input type="number" min="0" className="input" value={bps.p} onChange={e=>setBS(buildStatus(bps.base,Math.max(0,parseInt(e.target.value)||0),bps.f))} style={{width:38,padding:"4px",fontSize:11,textAlign:"center"}}/>
+                        <span style={{fontSize:10,color:"#8A96A8"}}>F</span>
+                        <input type="number" min="0" className="input" value={bps.f} onChange={e=>setBS(buildStatus(bps.base,bps.p,Math.max(0,parseInt(e.target.value)||0)))} style={{width:38,padding:"4px",fontSize:11,textAlign:"center"}}/>
+                      </>}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch Target (RM)</label>
+                    <input className="input" type="number" value={local.bm?.[b]||""} onChange={e=>setBM(b,e.target.value)} placeholder="0" style={{fontSize:12}}/>
+                  </div>
+                  <div>
+                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>BM Bonus if 100%+ (RM)</label>
+                    <input className="input" type="number" value={local.bmBonus?.[b]||""} onChange={e=>setBMB(b,e.target.value)} placeholder="0" style={{fontSize:12}}/>
+                  </div>
+                </div>
+                {onConvertBMtoSR&&bmName&&<button onClick={()=>{
+                  if(!confirm(`Convert "${bmName}" from BM to SR for ${MONTHS_LABEL[tgtMonth-1]} ${tgtYear} onwards?`))return;
+                  onConvertBMtoSR(b,bmName,curBMStatus,tgtMonth,tgtYear);
+                  setLocal(p=>({...p,bmName:{...(p.bmName||{}),[b]:""},bmStatus:{...(p.bmStatus||{}),[b]:""}}));
+                }} style={{marginTop:10,padding:"6px 14px",fontSize:11,fontWeight:700,border:"1px solid #F59E0B",borderRadius:7,background:"#FFFBEB",color:"#92400E",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
+                  ⇄ Move {bmName} to SR from {MONTHS_LABEL[tgtMonth-1]} {tgtYear}
+                </button>}
+              </div>
+              {/* SR targets */}
+              {bSRs.length>0&&<div style={{padding:"12px 16px"}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#1E6FDB",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>SR Targets</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:8}}>
+                  {bSRs.map(sr=>(
+                    <div key={sr.id} style={{background:"#F7F9FC",borderRadius:8,padding:10,border:"1px solid #E4EAF2"}}>
+                      <div style={{fontWeight:700,fontSize:12,color:"#0A1628",marginBottom:4}}>{sr.canon}</div>
+                      <div style={{marginBottom:6}}><TypeTag type={sr.type}/></div>
+                      <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Target (RM)</label>
+                      <input className="input" type="number" value={local.sr?.[sr.id]?.target||""} onChange={e=>setSR(sr.id,"target",e.target.value)} placeholder="0" style={{marginBottom:6,fontSize:12,padding:"5px 8px"}}/>
+                      <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Personal Bonus (RM)</label>
+                      <input className="input" type="number" value={local.sr?.[sr.id]?.bonus||""} onChange={e=>setSR(sr.id,"bonus",e.target.value)} placeholder="0" style={{fontSize:12,padding:"5px 8px"}}/>
+                    </div>
+                  ))}
+                </div>
+              </div>}
+              {bSRs.length===0&&<div style={{padding:"10px 16px",fontSize:11,color:"#8A96A8"}}>No active SR for this branch in {MONTHS_LABEL[tgtMonth-1]} {tgtYear}.</div>}
             </div>;
           })}
 
@@ -1279,8 +1277,14 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
           <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Manage Staff</h2>
           <div style={{fontSize:11,color:"#8A96A8",marginTop:2}}>All staff arranged by branch — BM, SR, and resigned</div>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
           {(saved||srSaved)&&<span style={{fontSize:12,color:"#00C896",fontWeight:600}}>✓ Saved</span>}
+          <select className="input select" value={typeMonth} onChange={e=>setTypeMonth(parseInt(e.target.value))} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
+            {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
+          </select>
+          <select className="input select" value={typeYear} onChange={e=>setTypeYear(parseInt(e.target.value))} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
+            {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
           <button className="btn btn-success" onClick={()=>setEditSR("new")}>+ Add New SR</button>
           <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
         </div>
