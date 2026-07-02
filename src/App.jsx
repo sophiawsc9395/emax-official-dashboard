@@ -949,7 +949,7 @@ function UploadPanel({records,setRecords,srList,defaultBranch,recordsKey:rKey}){
 }
 
 // ─── TARGET MODAL ──────────────────────────────────────────
-function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,currentYear,onSaveForMonth}){
+function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,currentYear,onSaveForMonth,onConvertBMtoSR}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [tgtMonth,setTgtMonth]=useState(currentMonth);
   const [tgtYear,setTgtYear]=useState(currentYear);
@@ -1043,7 +1043,24 @@ function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,
                 <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Monthly Target (RM)</label>
                 <input className="input" type="number" value={local.bm?.[b]||""} onChange={e=>setBM(b,e.target.value)} placeholder="0" style={{marginBottom:8,fontSize:12}}/>
                 <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>BM Bonus if Branch 100%+ (RM)</label>
-                <input className="input" type="number" value={local.bmBonus?.[b]||""} onChange={e=>setBMB(b,e.target.value)} placeholder="0" style={{fontSize:12}}/>
+                <input className="input" type="number" value={local.bmBonus?.[b]||""} onChange={e=>setBMB(b,e.target.value)} placeholder="0" style={{fontSize:12,marginBottom:12}}/>
+                {onConvertBMtoSR&&(local.bmName?.[b]||branchMeta[b]?.manager)&&<button
+                  onClick={()=>{
+                    const bmName=local.bmName?.[b]||branchMeta[b]?.manager||"";
+                    const bmStatus=local.bmStatus?.[b]||branchMeta[b]?.mStatus||"Probation (P0 F0)";
+                    if(!bmName){alert("Please set a BM name first.");return;}
+                    if(!confirm(`Convert "${bmName}" from BM to SR for ${MONTHS_LABEL[tgtMonth-1]} ${tgtYear} onwards?
+
+This will:
+• Add them as an SR (Online) starting ${MONTHS_LABEL[tgtMonth-1]} ${tgtYear}
+• Clear the BM name for this month so you can enter the new BM`))return;
+                    onConvertBMtoSR(b,bmName,bmStatus,tgtMonth,tgtYear);
+                    // Clear BM name for this month so admin sets new BM
+                    setLocal(p=>({...p,bmName:{...(p.bmName||{}),[b]:""},bmStatus:{...(p.bmStatus||{}),[b]:""}}));
+                  }}
+                  style={{width:"100%",padding:"7px 0",fontSize:11,fontWeight:700,border:"1px solid #F59E0B",borderRadius:7,background:"#FFFBEB",color:"#92400E",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
+                  ⇄ Move this BM to SR from {MONTHS_LABEL[tgtMonth-1]} {tgtYear}
+                </button>}
               </div>
             ))}
           </div>
@@ -2616,7 +2633,20 @@ export default function App(){
       </div>
     </div>{/* end flex layout */}
 
-    {showTargetModal&&<TargetModal targets={targets} setTargets={setTargets} srList={srList} branchMeta={branchMeta} onClose={()=>setShowTargetModal(false)} currentMonth={selMonth} currentYear={selYear} onSaveForMonth={async(t,m,y)=>{if(m===selMonth&&y===selYear){setTargets(t);handleSaveTargets(t);}else await saveData(`emax_v5_targets_${y}_${m}`,t);}}/>}
+    {showTargetModal&&<TargetModal targets={targets} setTargets={setTargets} srList={srList} branchMeta={branchMeta} onClose={()=>setShowTargetModal(false)} currentMonth={selMonth} currentYear={selYear} onSaveForMonth={async(t,m,y)=>{if(m===selMonth&&y===selYear){setTargets(t);handleSaveTargets(t);}else await saveData(`emax_v5_targets_${y}_${m}`,t);}} onConvertBMtoSR={async(branch,name,status,m,y)=>{
+  // Generate a new SR ID (use timestamp-based to avoid clashes)
+  const newId="BM"+branch+String(y)+String(m).padStart(2,"0");
+  const newSR={id:newId,canon:name.toUpperCase(),branch:branch,type:"Online",status:status,joinDate:`${y}-${String(m).padStart(2,"0")}`};
+  if(srList.find(s=>s.id===newId)){alert(`SR already converted for ${name} (${newId})`);return;}
+  const updated=[...srList,newSR];
+  setSrList(updated);
+  await saveData(SR_KEY,updated);
+  alert(`✅ ${name} has been added as an Online SR for ${branch} starting ${["January","February","March","April","May","June","July","August","September","October","November","December"][m-1]} ${y}.
+
+Please now:
+1. Set the new BM name above
+2. Click Save`);
+}}/>}
     {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson}/>}
     {printBranch&&<PrintBranchReport branchId={printBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onClose={()=>setPrintBranch(null)} month={month} year={year} days={days}/>}
     {showPointsModal&&<PointsHistoryModal srList={srList} branchMeta={branchMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onDeletePointsEntry={deletePointsEntry} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
