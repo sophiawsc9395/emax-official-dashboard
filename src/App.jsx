@@ -1019,8 +1019,11 @@ function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,
             {branches.map(b=>(
               <div key={b} style={{background:"#F7F9FC",borderRadius:10,padding:14,border:"1px solid #E4EAF2"}}>
                 <div style={{fontWeight:700,fontSize:12,color:"#0A1628",textTransform:"uppercase",marginBottom:8}}>{branchMeta[b]?.name}</div>
-                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch Manager Name</label>
-                <input className="input" value={local.bmName?.[b]??branchMeta[b]?.manager??""} onChange={e=>setBMName(b,e.target.value)} placeholder={branchMeta[b]?.manager||"Name"} style={{marginBottom:8,fontSize:12}}/>
+                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch Manager</label>
+                <select className="input select" value={local.bmName?.[b]??branchMeta[b]?.manager??""} onChange={e=>setBMName(b,e.target.value)} style={{marginBottom:8,fontSize:12}}>
+                  <option value="">— Select Staff —</option>
+                  {[...srList.map(s=>s.canon),...BRANCH_ORDER.map(br=>branchMeta[br]?.manager).filter(Boolean)].filter((v,i,a)=>v&&a.indexOf(v)===i).sort().map(n=><option key={n} value={n}>{n}</option>)}
+                </select>
                 <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Employment Status</label>
                 <div style={{display:"flex",gap:5,alignItems:"center",marginBottom:8,flexWrap:"wrap"}}>
                   {(()=>{
@@ -1261,207 +1264,157 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
   };
   const removeSR=async(id)=>{if(!confirm("Remove this SR?"))return;const updated=localSR.filter(s=>s.id!==id);setLocalSR(updated);await saveSR(updated);};
   const filteredSR=(filterBranch==="ALL"?localSR:localSR.filter(s=>s.branch===filterBranch)).filter(s=>!(s.status||'').toLowerCase().includes('resigned')&&srActiveInMonth(s,month,year));
+  // All staff for this branch: BM + SRs (active + resigned)
+  const allStaffForBranch=(b)=>{
+    const active=localSR.filter(s=>s.branch===b&&srActiveInMonth(s,month,year)&&!(s.status||'').toLowerCase().includes('resigned'));
+    const resigned=localSR.filter(s=>s.branch===b&&(s.status||'').toLowerCase().includes('resigned'));
+    return{active,resigned};
+  };
+
   return <div className="modal-overlay">
-    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:860,maxHeight:"92vh",overflow:"auto"}}>
-      <div style={{padding:"18px 24px",borderBottom:"1px solid #E4EAF2",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:1}}>
-        <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Manage SR & Branch Managers</h2>
-        <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
+    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:900,maxHeight:"92vh",overflow:"auto"}}>
+      {/* Header */}
+      <div style={{padding:"16px 24px",borderBottom:"1px solid #E4EAF2",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:10}}>
+        <div>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Manage Staff</h2>
+          <div style={{fontSize:11,color:"#8A96A8",marginTop:2}}>All staff arranged by branch — BM, SR, and resigned</div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          {(saved||srSaved)&&<span style={{fontSize:12,color:"#00C896",fontWeight:600}}>✓ Saved</span>}
+          <button className="btn btn-success" onClick={()=>setEditSR("new")}>+ Add New SR</button>
+          <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
+        </div>
       </div>
-      <div style={{display:"flex",borderBottom:"1px solid #E4EAF2",padding:"0 24px"}}>
-        {[{id:"bm",label:"Branch Managers"},{id:"sr",label:"Sales Representatives"}].map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"10px 20px",border:"none",cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"Inter,sans-serif",background:"none",
-            borderBottom:tab===t.id?"3px solid #1E6FDB":"3px solid transparent",color:tab===t.id?"#1E6FDB":"#8A96A8",marginBottom:-1,transition:"all .15s"}}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div style={{padding:24}}>
-        {tab==="bm"&&<div>
-          <p style={{fontSize:12,color:"#8A96A8",marginTop:0,marginBottom:16}}>Edit branch manager names and employment status shown in reports.</p>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12,marginBottom:20}}>
-            {BRANCH_ORDER.map(b=>(
-              <div key={b} style={{background:"#F7F9FC",borderRadius:10,padding:14,border:"1px solid #E4EAF2"}}>
-                <div style={{fontWeight:700,fontSize:12,color:"#0A1628"}}>{localBM[b]?.name}</div>
-                <div style={{fontSize:10,color:"#8A96A8",marginBottom:10}}>{b}</div>
-                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Manager Name</label>
-                <input className="input" value={localBM[b]?.manager||""} onChange={e=>setLocalBM(p=>({...p,[b]:{...p[b],manager:e.target.value}}))} style={{marginBottom:8,fontSize:12}}/>
-                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em"}}>Employment Status{month&&year?` (${["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"][month-1]} ${year})`:""}</label>
-                <div style={{marginBottom:8}}>
-                  <StatusEditWidget status={localBM[b]?.mStatus||""} onSave={(newStatus,desc)=>saveBMStatus(b,newStatus,desc)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(`BM_${b}`);setShowStatusHistoryModal(true);}:null}/>
-                </div>
-                <label style={{fontSize:10,fontWeight:700,color:"#F5A623",display:"block",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.05em"}}>🏆 Reward Points Balance</label>
+
+      <div style={{padding:"20px 24px"}}>
+        {/* Add New SR form */}
+        {editSR==="new"&&<div style={{background:"rgba(0,200,150,.06)",borderRadius:12,padding:16,border:"1px solid rgba(0,200,150,.3)",marginBottom:20}}>
+          <div style={{fontWeight:700,fontSize:13,color:"#00C896",marginBottom:12}}>New Sales Representative</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10}}>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Promoter ID</label>
+              <input className="input" placeholder="EM0311" value={newSR.id} onChange={e=>setNewSR(p=>({...p,id:e.target.value.toUpperCase()}))} style={{fontSize:12}}/>
+            </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Full Name</label>
+              <input className="input" placeholder="FULL NAME" value={newSR.canon} onChange={e=>setNewSR(p=>({...p,canon:e.target.value.toUpperCase()}))} style={{fontSize:12}}/>
+            </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch</label>
+              <select className="input select" value={newSR.branch} onChange={e=>setNewSR(p=>({...p,branch:e.target.value}))} style={{fontSize:12}}>
+                {BRANCH_ORDER.map(b=><option key={b} value={b}>{branchMeta[b]?.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Type</label>
+              <select className="input select" value={newSR.type} onChange={e=>setNewSR(p=>({...p,type:e.target.value}))} style={{fontSize:12}}>
+                <option value="Online">Online</option><option value="Offline">Offline</option>
+              </select>
+            </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:"#00C896",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Start Month</label>
+              <div style={{display:"flex",gap:4}}>
+                <select className="input select" value={(newSR.joinDate||"").split("-")[1]||String(month).padStart(2,"0")} onChange={e=>setNewSR(p=>({...p,joinDate:`${(p.joinDate||`${year}-${String(month).padStart(2,"0")}`).split("-")[0]}-${e.target.value}`}))} style={{fontSize:11,flex:1,padding:"4px 20px 4px 6px"}}>
+                  {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((m,i)=><option key={i+1} value={String(i+1).padStart(2,"0")}>{m}</option>)}
+                </select>
+                <select className="input select" value={(newSR.joinDate||"").split("-")[0]||year} onChange={e=>setNewSR(p=>({...p,joinDate:`${e.target.value}-${(p.joinDate||`${year}-${String(month).padStart(2,"0")}`).split("-")[1]}`}))} style={{fontSize:11,width:70,padding:"4px 20px 4px 6px"}}>
+                  {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div style={{marginTop:10,gridColumn:"1/-1"}}>
+            <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Employment Status</label>
+            {(()=>{const ps=parseStatus(newSR.status);return <div style={{display:"flex",gap:8,alignItems:"center"}}><select className="input select" value={ps.base} onChange={e=>setNewSR(p=>({...p,status:buildStatus(e.target.value,ps.p,ps.f)}))} style={{width:"auto",minWidth:110,padding:"4px 24px 4px 8px",fontSize:12}}>{["Probation","Confirmed","Director","Resigned"].map(s=><option key={s} value={s}>{s}</option>)}</select>{ps.base!=="Director"&&ps.base!=="Resigned"&&<><label style={{fontSize:11,color:"#8A96A8"}}>P</label><input type="number" min="0" className="input" value={ps.p} onChange={e=>setNewSR(p=>({...p,status:buildStatus(ps.base,Math.max(0,parseInt(e.target.value)||0),ps.f)}))} style={{width:54,padding:"4px 6px",fontSize:12,textAlign:"center"}}/><label style={{fontSize:11,color:"#8A96A8"}}>F</label><input type="number" min="0" className="input" value={ps.f} onChange={e=>setNewSR(p=>({...p,status:buildStatus(ps.base,ps.p,Math.max(0,parseInt(e.target.value)||0))}))} style={{width:54,padding:"4px 6px",fontSize:12,textAlign:"center"}}/></>}</div>;})()}
+          </div>
+          <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:12}}>
+            <button className="btn btn-ghost" onClick={()=>setEditSR(null)}>Cancel</button>
+            <button className="btn btn-success" onClick={addSR}>Add SR</button>
+          </div>
+        </div>}
+
+        {/* Branch-by-branch view */}
+        {BRANCH_ORDER.map(b=>{
+          const {active,resigned}=allStaffForBranch(b);
+          const bm=localBM[b];
+          return <div key={b} style={{marginBottom:28}}>
+            {/* Branch header */}
+            <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",borderRadius:"10px 10px 0 0",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>{bm?.name||b}</div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>{b}</div>
+            </div>
+
+            {/* BM row */}
+            <div style={{background:"#0F2040",padding:"10px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+              <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em",minWidth:24}}>BM</div>
+              <div style={{flex:1,minWidth:140}}>
+                <input className="input" value={bm?.manager||""} onChange={e=>setLocalBM(p=>({...p,[b]:{...p[b],manager:e.target.value}}))} placeholder="Branch Manager Name" style={{fontSize:12,background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",color:"#fff",width:"100%"}}/>
+              </div>
+              <div style={{minWidth:200}}>
+                <StatusEditWidget status={bm?.mStatus||""} onSave={(newStatus,desc)=>saveBMStatus(b,newStatus,desc)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(`BM_${b}`);setShowStatusHistoryModal(true);}:null}/>
+              </div>
+              <div style={{minWidth:160}}>
                 <AdjustBalanceWidget personId={`BM_${b}`} balance={rewardBalances?.[`BM_${b}`]?.balance||0} adjustBalance={adjustBalance}/>
               </div>
-            ))}
-          </div>
-          <div style={{display:"flex",justifyContent:"flex-end"}}>
-            <button className="btn btn-primary" onClick={saveBM}>{saved?"Saved!":"Save Changes"}</button>
-          </div>
-        </div>}
-        {tab==="sr"&&<div>
-          <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap",padding:"10px 14px",background:"#F0F4FA",borderRadius:8}}>
-            <span style={{fontSize:11,fontWeight:700,color:"#0A1628"}}>SR Type for:</span>
-            <select className="input select" value={typeMonth} onChange={e=>setTypeMonth(parseInt(e.target.value))} style={{width:"auto",padding:"4px 22px 4px 8px",fontSize:12}}>
-              {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
-            </select>
-            <select className="input select" value={typeYear} onChange={e=>setTypeYear(parseInt(e.target.value))} style={{width:"auto",padding:"4px 22px 4px 8px",fontSize:12}}>
-              {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
-            </select>
-            <span style={{fontSize:11,color:"#8A96A8",marginLeft:4}}>Type changes here only affect the selected month</span>
-          </div>
-          <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
-            <select className="input select" value={filterBranch} onChange={e=>setFilterBranch(e.target.value)} style={{width:"auto",minWidth:180,padding:"7px 28px 7px 10px",fontSize:12}}>
-              <option value="ALL">All Branches ({localSR.filter(s=>!(s.status||"").toLowerCase().includes("resigned")).length})</option>
-              {BRANCH_ORDER.map(b=><option key={b} value={b}>{branchMeta[b]?.name} ({localSR.filter(s=>s.branch===b&&!(s.status||"").toLowerCase().includes("resigned")).length})</option>)}
-            </select>
-            <div style={{flex:1}}/>
-            {srSaved&&<span style={{color:"#00C896",fontWeight:600,fontSize:12}}>Changes saved</span>}
-            <button className="btn btn-success" onClick={()=>setEditSR("new")}>Add New SR</button>
-          </div>
-          {editSR==="new"&&<div style={{background:"rgba(0,200,150,.06)",borderRadius:12,padding:16,border:"1px solid rgba(0,200,150,.3)",marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:13,color:"#00C896",marginBottom:12}}>New Sales Representative</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10}}>
-              <div>
-                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Promoter ID</label>
-                <input className="input" placeholder="EM0311" value={newSR.id} onChange={e=>setNewSR(p=>({...p,id:e.target.value.toUpperCase()}))} style={{fontSize:12}}/>
-              </div>
-              <div>
-                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Full Name</label>
-                <input className="input" placeholder="FULL NAME" value={newSR.canon} onChange={e=>setNewSR(p=>({...p,canon:e.target.value.toUpperCase()}))} style={{fontSize:12}}/>
-              </div>
-              <div>
-                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch</label>
-                <select className="input select" value={newSR.branch} onChange={e=>setNewSR(p=>({...p,branch:e.target.value}))} style={{fontSize:12}}>
-                  {BRANCH_ORDER.map(b=><option key={b} value={b}>{branchMeta[b]?.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Type</label>
-                <select className="input select" value={newSR.type} onChange={e=>setNewSR(p=>({...p,type:e.target.value}))} style={{fontSize:12}}>
-                  <option value="Online">Online</option><option value="Offline">Offline</option>
-                </select>
-              </div>
-              <div>
-                <label style={{fontSize:10,fontWeight:700,color:"#00C896",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Start Month</label>
-                <div style={{display:"flex",gap:4}}>
-                  <select className="input select" value={(newSR.joinDate||"").split("-")[1]||String(month).padStart(2,"0")} onChange={e=>setNewSR(p=>({...p,joinDate:`${(p.joinDate||`${year}-${String(month).padStart(2,"0")}`).split("-")[0]}-${e.target.value}`}))} style={{fontSize:11,flex:1,padding:"4px 20px 4px 6px"}}>
-                    {["January","February","March","April","May","June","July","August","September","October","November","December"].map((m,i)=><option key={i+1} value={String(i+1).padStart(2,"0")}>{m.slice(0,3)}</option>)}
-                  </select>
-                  <select className="input select" value={(newSR.joinDate||"").split("-")[0]||year} onChange={e=>setNewSR(p=>({...p,joinDate:`${e.target.value}-${(p.joinDate||`${year}-${String(month).padStart(2,"0")}`).split("-")[1]}`}))} style={{fontSize:11,width:68,padding:"4px 20px 4px 6px"}}>
-                    {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{gridColumn:"1/-1"}}>
-                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Employment Status{month&&year?` (${["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"][month-1]} ${year})`:""}</label>
-                {(()=>{
-                  const ps=parseStatus(newSR.status);
-                  return <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                    <select className="input select" value={ps.base} onChange={e=>setNewSR(p=>({...p,status:buildStatus(e.target.value,ps.p,ps.f)}))} style={{width:"auto",minWidth:110,padding:"4px 24px 4px 8px",fontSize:12}}>
-                      {statusBaseOptions.map(s=><option key={s} value={s}>{s}</option>)}
-                    </select>
-                    {ps.base!=="Director"&&ps.base!=="Resigned"&&<>
-                      <label style={{fontSize:11,color:"#8A96A8"}}>P</label>
-                      <input type="number" min="0" className="input" value={ps.p} onChange={e=>setNewSR(p=>({...p,status:buildStatus(ps.base,Math.max(0,parseInt(e.target.value)||0),ps.f)}))} style={{width:54,padding:"4px 6px",fontSize:12,textAlign:"center"}}/>
-                      <label style={{fontSize:11,color:"#8A96A8"}}>F</label>
-                      <input type="number" min="0" className="input" value={ps.f} onChange={e=>setNewSR(p=>({...p,status:buildStatus(ps.base,ps.p,Math.max(0,parseInt(e.target.value)||0))}))} style={{width:54,padding:"4px 6px",fontSize:12,textAlign:"center"}}/>
-                    </>}
-                  </div>;
-                })()}
-              </div>
+              <button className="btn btn-primary" onClick={saveBM} style={{fontSize:11,padding:"5px 12px",flexShrink:0}}>{saved?"Saved!":"Save BM"}</button>
             </div>
-            <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:12}}>
-              <button className="btn btn-ghost" onClick={()=>setEditSR(null)}>Cancel</button>
-              <button className="btn btn-success" onClick={addSR}>Add SR</button>
-            </div>
-          </div>}
-          {/* Active SR */}
-          <div className="card" style={{overflow:"visible",marginBottom:16}}>
-            <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:900}}>
-              <thead><tr style={{background:"#0A1628"}}>
-                {(()=>{const MNTHS=["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"];const empHeader="Employment Status"+(month&&year?" ("+MNTHS[month-1]+" "+year+")":"");const typeHeader="Type ("+MONTHS_LABEL[typeMonth-1].slice(0,3)+" "+typeYear+")";return ["ID","Name","Branch",typeHeader,"Start",empHeader,"Points Balance",""].map(h=>(
-                  <th key={h} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.7)",textTransform:"uppercase",letterSpacing:"0.06em"}}>{h}</th>
-                ));})()}
-              </tr></thead>
-              <tbody>{filteredSR.map((sr,i)=>(
-                <tr key={sr.id} className="shine-row" style={{borderBottom:"1px solid #E4EAF2",background:i%2===0?"#fff":"#F7F9FC"}}>
-                  <td style={{padding:"8px 14px",color:"#8A96A8",fontSize:10}}>{sr.id}</td>
-                  <td style={{padding:"8px 14px"}}>
-                    {editSR?.id===sr.id
-                      ?<input autoFocus className="input" style={{width:160,padding:"4px 8px",fontSize:12}} value={editSR.canon}
-                          onChange={e=>setEditSR(p=>({...p,canon:e.target.value.toUpperCase()}))}
-                          onBlur={async()=>{await updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}}
-                          onKeyDown={e=>{if(e.key==="Enter"){updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}if(e.key==="Escape")setEditSR(null);}}/>
-                      :<span style={{fontWeight:700,color:"#0A1628",cursor:"pointer",borderBottom:"1px dashed #E4EAF2"}} onClick={()=>setEditSR({...sr})}>{sr.canon}</span>
-                    }
-                  </td>
-                  <td style={{padding:"8px 14px"}}>
-                    <select className="input select" value={sr.branch} onChange={e=>updateSR(sr.id,"branch",e.target.value)} style={{width:"auto",minWidth:80,padding:"4px 24px 4px 8px",fontSize:11}}>
-                      {BRANCH_ORDER.map(b=><option key={b} value={b}>{b}</option>)}
-                    </select>
-                  </td>
-                  <td style={{padding:"8px 14px"}}>
-                    <select className="input select" value={getType(sr)} onChange={e=>setTypeOverride(sr.id,e.target.value)} style={{width:"auto",padding:"4px 24px 4px 8px",fontSize:11,background:typeOverrides[sr.id]?"#EFF6FF":"",borderColor:typeOverrides[sr.id]?"#1E6FDB":""}}>
-                      <option value="Online">Online</option><option value="Offline">Offline</option>
-                    </select>
-                  </td>
-                  <td style={{padding:"8px 14px",fontSize:11,color:"#4A5568"}}>
-                    {sr.joinDate?sr.joinDate.replace(/(\d{4})-(\d{2})/,(full,y,m)=>["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m-1]+" "+y):"—"}
-                  </td>
-                  <td style={{padding:"8px 14px"}}>
-                    <StatusEditWidget status={sr.status} onSave={(newStatus,desc,rd)=>saveSRStatus(sr.id,newStatus,desc,rd)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}:null}/>
-                  </td>
-                  <td style={{padding:"8px 14px"}}>
-                    <AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/>
-                  </td>
-                  <td style={{padding:"8px 14px",textAlign:"right"}}>
-                    <button className="btn btn-danger" onClick={()=>removeSR(sr.id)}>Remove</button>
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-            </div>
-          </div>
 
-          {/* Resigned SR — separate section */}
-          {(()=>{
-            const resignedSR=(filterBranch==="ALL"?localSR:localSR.filter(s=>s.branch===filterBranch)).filter(s=>(s.status||"").toLowerCase().includes("resigned"));
-            if(!resignedSR.length)return null;
-            return <div style={{marginTop:16}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#B91C1C",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8,padding:"6px 12px",background:"#FEF2F2",borderRadius:6,border:"1px solid #FECACA",display:"inline-block"}}>
-                Resigned Staff ({resignedSR.length})
-              </div>
-              <div className="card" style={{overflow:"visible"}}>
-                <div style={{overflowX:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:900}}>
-                  <thead><tr style={{background:"#7F1D1D"}}>
-                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left"}}>ID</th>
-                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left"}}>Name</th>
-                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left"}}>Branch</th>
-                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left"}}>Type</th>
-                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left"}}>Resignation Date</th>
-                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"left"}}>Status</th>
-                    <th style={{padding:"10px 14px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em"}}></th>
-                  </tr></thead>
-                  <tbody>{resignedSR.map((sr,i)=>(
-                    <tr key={sr.id} style={{borderBottom:"1px solid #FEE2E2",background:i%2===0?"#FFF5F5":"#FEF2F2"}}>
-                      <td style={{padding:"8px 14px",color:"#B91C1C",fontSize:10}}>{sr.id}</td>
-                      <td style={{padding:"8px 14px",fontWeight:700,color:"#7F1D1D"}}>{sr.canon}</td>
-                      <td style={{padding:"8px 14px",color:"#B91C1C"}}>{sr.branch}</td>
-                      <td style={{padding:"8px 14px",color:"#B91C1C"}}>{sr.type}</td>
-                      <td style={{padding:"8px 14px",color:"#B91C1C"}}>{sr.resignDate?sr.resignDate.split("-").reverse().join("/"):"—"}</td>
-                      <td style={{padding:"8px 14px"}}><StatusEditWidget status={sr.status} onSave={(newStatus,desc,rd)=>saveSRStatus(sr.id,newStatus,desc,rd)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}:null}/></td>
-                      <td style={{padding:"8px 14px",textAlign:"right"}}><button className="btn btn-danger" onClick={()=>removeSR(sr.id)}>Remove</button></td>
-                    </tr>
-                  ))}</tbody>
-                </table>
-                </div>
-              </div>
-            </div>;
-          })()}
-          <p style={{fontSize:11,color:"#8A96A8",marginTop:8}}>Click SR name to edit inline. Other fields save immediately on change.</p>
-        </div>}
+            {/* SR rows */}
+            {active.length>0&&<div style={{border:"1px solid #E4EAF2",borderTop:"none",borderRadius:"0 0 0 0",overflow:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:700}}>
+                <thead><tr style={{background:"#F7F9FC"}}>
+                  <th style={{padding:"7px 12px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>ID</th>
+                  <th style={{padding:"7px 12px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Name</th>
+                  <th style={{padding:"7px 12px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Type ({MONTHS_LABEL[typeMonth-1].slice(0,3)} {typeYear})</th>
+                  <th style={{padding:"7px 12px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Start</th>
+                  <th style={{padding:"7px 12px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Status</th>
+                  <th style={{padding:"7px 12px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Points</th>
+                  <th/>
+                </tr></thead>
+                <tbody>{active.map((sr,i)=>(
+                  <tr key={sr.id} style={{borderTop:"1px solid #F0F2F5",background:i%2===0?"#fff":"#FAFBFC"}}>
+                    <td style={{padding:"7px 12px",color:"#8A96A8",fontSize:10}}>{sr.id}</td>
+                    <td style={{padding:"7px 12px"}}>
+                      {editSR?.id===sr.id
+                        ?<input autoFocus className="input" style={{width:140,padding:"3px 7px",fontSize:12}} value={editSR.canon} onChange={e=>setEditSR(p=>({...p,canon:e.target.value.toUpperCase()}))} onBlur={async()=>{await updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}} onKeyDown={e=>{if(e.key==="Enter"){updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}if(e.key==="Escape")setEditSR(null);}}/>
+                        :<span style={{fontWeight:700,color:"#0A1628",cursor:"pointer",borderBottom:"1px dashed #E4EAF2"}} onClick={()=>setEditSR({...sr})}>{sr.canon}</span>}
+                    </td>
+                    <td style={{padding:"7px 12px"}}>
+                      <select className="input select" value={getType(sr)} onChange={e=>setTypeOverride(sr.id,e.target.value)} style={{width:"auto",padding:"3px 20px 3px 6px",fontSize:11,background:typeOverrides[sr.id]?"#EFF6FF":"",borderColor:typeOverrides[sr.id]?"#1E6FDB":""}}>
+                        <option value="Online">Online</option><option value="Offline">Offline</option>
+                      </select>
+                    </td>
+                    <td style={{padding:"7px 12px",fontSize:11,color:"#4A5568"}}>{sr.joinDate?sr.joinDate.replace(/(\d{4})-(\d{2})/,(f,y,m)=>["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m-1]+" "+y):"—"}</td>
+                    <td style={{padding:"7px 12px"}}><StatusEditWidget status={sr.status} onSave={(newStatus,desc,rd)=>saveSRStatus(sr.id,newStatus,desc,rd)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}:null}/></td>
+                    <td style={{padding:"7px 12px"}}><AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/></td>
+                    <td style={{padding:"7px 12px",textAlign:"right"}}><button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"3px 8px"}}>Remove</button></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>}
+
+            {/* Resigned rows */}
+            {resigned.length>0&&<div style={{border:"1px solid #FECACA",borderTop:"none",borderRadius:"0 0 10px 10px",overflow:"auto"}}>
+              <div style={{padding:"5px 12px",background:"#FEF2F2",fontSize:10,fontWeight:700,color:"#B91C1C",textTransform:"uppercase",letterSpacing:"0.07em"}}>Resigned ({resigned.length})</div>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:700}}>
+                <tbody>{resigned.map((sr,i)=>(
+                  <tr key={sr.id} style={{borderTop:"1px solid #FEE2E2",background:i%2===0?"#FFF5F5":"#FEF2F2"}}>
+                    <td style={{padding:"7px 12px",color:"#B91C1C",fontSize:10}}>{sr.id}</td>
+                    <td style={{padding:"7px 12px",fontWeight:700,color:"#7F1D1D"}}>{sr.canon}</td>
+                    <td style={{padding:"7px 12px",color:"#B91C1C",fontSize:11}}>{sr.type}</td>
+                    <td style={{padding:"7px 12px",color:"#B91C1C",fontSize:11}}>{sr.resignDate?sr.resignDate.split("-").reverse().join("/"):"—"}</td>
+                    <td style={{padding:"7px 12px"}}><StatusEditWidget status={sr.status} onSave={(newStatus,desc,rd)=>saveSRStatus(sr.id,newStatus,desc,rd)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}:null}/></td>
+                    <td style={{padding:"7px 12px"}}><AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/></td>
+                    <td style={{padding:"7px 12px",textAlign:"right"}}><button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"3px 8px"}}>Remove</button></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>}
+
+            {active.length===0&&resigned.length===0&&<div style={{border:"1px solid #E4EAF2",borderTop:"none",borderRadius:"0 0 10px 10px",padding:"12px 16px",color:"#8A96A8",fontSize:12}}>No staff in this branch.</div>}
+          </div>;
+        })}
+        <p style={{fontSize:11,color:"#8A96A8",marginTop:4}}>Click SR name to edit inline. Type changes apply to selected month.</p>
       </div>
     </div>
   </div>;
