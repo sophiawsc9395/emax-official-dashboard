@@ -791,6 +791,18 @@ export default function App(){
     });
   },[selMonth,selYear]);
 
+  const srActiveInMonth=(sr,m,y)=>{
+    if(sr.joinDate){const[jy,jm]=sr.joinDate.split("-").map(Number);if(y<jy||(y===jy&&m<jm))return false;}
+    return true;
+  };
+  const srVisibleInMonth=(sr,m,y)=>{
+    if(!srActiveInMonth(sr,m,y))return false;
+    if(!(sr.status||'').toLowerCase().includes('resigned'))return true;
+    if(!sr.resignDate)return false;
+    const[ry,rm]=sr.resignDate.split("-").map(Number);
+    return ry>y||(ry===y&&rm>=m);
+  };
+
   const branchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
@@ -882,17 +894,7 @@ export default function App(){
   }).sort((a,b)=>b.p-a.p);
 
 
-  const srActiveInMonth=(sr,m,y)=>{
-    if(sr.joinDate){const[jy,jm]=sr.joinDate.split("-").map(Number);if(y<jy||(y===jy&&m<jm))return false;}
-    return true;
-  };
-  const srVisibleInMonth=(sr,m,y)=>{
-    if(!srActiveInMonth(sr,m,y))return false;
-    if(!(sr.status||'').toLowerCase().includes('resigned'))return true;
-    if(!sr.resignDate)return false;
-    const[ry,rm]=sr.resignDate.split("-").map(Number);
-    return ry>y||(ry===y&&rm>=m);
-  };
+
   const mkSRRank=type=>srList.filter(s=>s.type===type&&srVisibleInMonth(s,selMonth,selYear)).map(s=>{
     const profit=rankSRTotals[s.id]?.total||0,target=targets?.sr?.[s.id]?.target||0;
     const bTotal=rankBranchTotals[s.branch]?.total||0,bTarget=targets?.bm?.[s.branch]||0;
