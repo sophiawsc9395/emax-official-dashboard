@@ -904,18 +904,19 @@ export default function App(){
 
   const branchMeta=bMeta;
   const bmRank=[...BRANCH_ORDER].map(b=>{
-    const profit=rankBranchTotals[b]?.total||0,target=targets?.bm?.[b]||0,p=pctN(profit,target);
-    return{name:bMeta[b]?.manager,status:bMeta[b]?.mStatus,branch:b,sub:(bMeta[b]?.name||b).toUpperCase(),profit,target,p,branchPct:p,role:"bm"};
-  }).sort((a,b)=>b.p-a.p);
+    const profit=rankBranchTotals[b]?.total||0,target=targets?.bm?.[b]||0,bonus=targets?.bmBonus?.[b]||0;
+    const bonusEarned=target>0&&profit>=target&&bonus>0,p=pctN(profit,target);
+    return{name:bMeta[b]?.manager,status:bMeta[b]?.mStatus,branch:b,sub:(bMeta[b]?.name||b).toUpperCase(),wi:rankBranchTotals[b]?.wi||0,ae:rankBranchTotals[b]?.ae||0,profit,target,bonus,bonusEarned,branchPct:p,role:"bm",points:calcRewardPoints(p,p)};
+  }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target));
 
 
 
   const mkSRRank=type=>srList.filter(s=>s.type===type&&srVisibleInMonth(s,selMonth,selYear)).map(s=>{
-    const profit=rankSRTotals[s.id]?.total||0,target=targets?.sr?.[s.id]?.target||0;
+    const profit=rankSRTotals[s.id]?.total||0,target=targets?.sr?.[s.id]?.target||0,bonus=targets?.sr?.[s.id]?.bonus||0;
     const bTotal=rankBranchTotals[s.branch]?.total||0,bTarget=targets?.bm?.[s.branch]||0;
-    const branchPct=pctN(bTotal,bTarget),p=pctN(profit,target);
-    return{name:s.canon,status:s.status,branch:s.branch,sub:(bMeta[s.branch]?.name||s.branch).toUpperCase(),profit,target,p,branchPct,role:"sr"};
-  }).sort((a,b)=>b.p-a.p);
+    const branchHit=bTarget>0&&bTotal>=bTarget,p=pctN(profit,target),branchPct=pctN(bTotal,bTarget);
+    return{name:s.canon,status:s.status,branch:s.branch,sub:(bMeta[s.branch]?.name||s.branch).toUpperCase(),wi:rankSRTotals[s.id]?.wi||0,ae:rankSRTotals[s.id]?.ae||0,profit,target,bonus,bonusEarned:branchHit&&profit>=target&&bonus>0,branchPct,role:"sr",points:calcRewardPoints(p,branchPct)};
+  }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target));
 
   const TABS=[{id:"overview",label:"Overview"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"report",label:"Monthly Report"},{id:"repair",label:"Repair & Service"}];
 

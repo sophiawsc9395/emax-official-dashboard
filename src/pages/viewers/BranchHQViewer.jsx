@@ -511,16 +511,17 @@ export default function App(){
   },[records,rankEndDay,month,year]);
 
   const srRankRows=allSRList.filter(s=>srVisibleInMonth(s,month,year)).map(s=>{
-    const profit=allSRTotals[s.id]?.total||0,target=targets?.sr?.[s.id]?.target||0;
-    const bTotalPct=pctN(allBranchTotals[s.branch]?.total||0,targets?.bm?.[s.branch]||0);
-    const p=pctN(profit,target);
-    return{name:s.canon,type:s.type,status:s.status,branch:s.branch,profit,target,p,branchPct:bTotalPct,role:"sr"};
-  }).sort((a,b)=>b.p-a.p);
+    const profit=allSRTotals[s.id]?.total||0,target=targets?.sr?.[s.id]?.target||0,bonus=targets?.sr?.[s.id]?.bonus||0;
+    const bTarget=targets?.bm?.[s.branch]||0,bTotal=allBranchTotals[s.branch]?.total||0;
+    const branchHit=bTarget>0&&bTotal>=bTarget,p=pctN(profit,target),branchPct=pctN(bTotal,bTarget);
+    return{name:s.canon,type:s.type,status:s.status,branch:s.branch,sub:null,wi:allSRTotals[s.id]?.wi||0,ae:allSRTotals[s.id]?.ae||0,profit,target,bonus,bonusEarned:branchHit&&profit>=target&&bonus>0,branchPct,role:"sr",points:calcRewardPoints(p,branchPct)};
+  }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target));
 
   const bmRankRows=BRANCH_ORDER.map(b=>{
-    const profit=allBranchTotals[b]?.total||0,target=targets?.bm?.[b]||0,p=pctN(profit,target);
-    return{name:bMeta[b]?.manager,status:bMeta[b]?.mStatus,branch:b,profit,target,p,branchPct:p,role:"bm"};
-  }).sort((a,b)=>b.p-a.p);
+    const profit=allBranchTotals[b]?.total||0,target=targets?.bm?.[b]||0,bonus=targets?.bmBonus?.[b]||0;
+    const bonusEarned=target>0&&profit>=target&&bonus>0,p=pctN(profit,target);
+    return{name:bMeta[b]?.manager,status:bMeta[b]?.mStatus,branch:b,sub:null,wi:allBranchTotals[b]?.wi||0,ae:allBranchTotals[b]?.ae||0,profit,target,bonus,bonusEarned,branchPct:p,role:"bm",points:calcRewardPoints(p,p)};
+  }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target));
   const branchPct=pctN(bTotal.total,bTarget);
   const meta=bMeta[BRANCH_ID]||{};
 
@@ -583,7 +584,7 @@ export default function App(){
           {(()=>{
             const allPeople=[
               ...BRANCH_ORDER.map(b=>({id:`BM_${b}`,name:bMeta[b]?.manager||b,role:"Branch Manager",branch:b})),
-              ...srList.filter(sr=>srVisibleInMonth(sr,month,year)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
+              ...allSRList.filter(sr=>srVisibleInMonth(sr,month,year)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
             ];
             const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0})).sort((a,b)=>b.balance-a.balance);
             const medals=["🥇","🥈","🥉"];
