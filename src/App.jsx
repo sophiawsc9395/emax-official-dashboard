@@ -1306,7 +1306,7 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
                     </select>
                   </td>
                   <td style={{padding:"8px 14px"}}>
-                    <StatusEditWidget status={sr.status} onSave={(newStatus,desc)=>saveSRStatus(sr.id,newStatus,desc)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}:null}/>
+                    <StatusEditWidget status={sr.status} onSave={(newStatus,desc,rd)=>saveSRStatus(sr.id,newStatus,desc,rd)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}:null}/>
                   </td>
                   <td style={{padding:"8px 14px"}}>
                     <AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/>
