@@ -953,90 +953,110 @@ function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [tgtMonth,setTgtMonth]=useState(currentMonth);
   const [tgtYear,setTgtYear]=useState(currentYear);
+  const [selBranch,setSelBranch]=useState("ALL");
   const [local,setLocal]=useState(JSON.parse(JSON.stringify(targets)));
   const [loading,setLoading]=useState(false);
+  const [saved,setSaved]=useState(false);
 
   // When month/year changes, load that month's targets
   const loadMonthTargets=async(m,y)=>{
     setLoading(true);
     setTgtMonth(m);setTgtYear(y);
-    // Dynamically import loadData
     const {loadData:ld}=await import("./storage/index.js");
     const t=await ld(`emax_v5_targets_${y}_${m}`);
     const tPrev=await ld(`emax_v5_targets_${m===1?y-1:y}_${m===1?12:m-1}`);
     const tUse=t||tPrev||targets;
-    if(tUse?.bm)setLocal({bm:{...targets.bm,...tUse.bm},bmBonus:{...targets.bmBonus,...(tUse.bmBonus||{})},sr:{...targets.sr,...tUse.sr}});
-    else setLocal(JSON.parse(JSON.stringify(targets)));
+    if(tUse?.bm)setLocal({bm:{...targets.bm,...tUse.bm},bmBonus:{...targets.bmBonus,...(tUse.bmBonus||{})},sr:{...targets.sr,...tUse.sr},bmName:{...tUse.bmName}});
+    else setLocal({...JSON.parse(JSON.stringify(targets)),bmName:{}});
     setLoading(false);
   };
 
   const save=async()=>{
     if(onSaveForMonth)await onSaveForMonth(local,tgtMonth,tgtYear);
     else setTargets(local);
-    onClose();
+    setSaved(true);setTimeout(()=>setSaved(false),1500);
   };
+
   const setBM=(b,v)=>setLocal(p=>({...p,bm:{...p.bm,[b]:parseFloat(v)||0}}));
   const setBMB=(b,v)=>setLocal(p=>({...p,bmBonus:{...p.bmBonus,[b]:parseFloat(v)||0}}));
+  const setBMName=(b,v)=>setLocal(p=>({...p,bmName:{...(p.bmName||{}),[b]:v}}));
   const setSR=(id,field,v)=>setLocal(p=>({...p,sr:{...p.sr,[id]:{...p.sr?.[id],[field]:parseFloat(v)||0}}}));
+
+  const branches=selBranch==="ALL"?BRANCH_ORDER:[selBranch];
+
   return <div className="modal-overlay">
-    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:820,maxHeight:"90vh",overflow:"auto"}}>
-      <div style={{padding:"18px 24px",borderBottom:"1px solid #E4EAF2",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:1}}>
-        <div>
+    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:860,maxHeight:"90vh",overflow:"auto"}}>
+      {/* Sticky header */}
+      <div style={{padding:"14px 20px",borderBottom:"1px solid #E4EAF2",position:"sticky",top:0,background:"#fff",zIndex:1}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Target & Bonus Settings</h2>
-          <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>Setting targets for: {MONTHS_LABEL[tgtMonth-1]} {tgtYear}</div>
+          <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+            <select className="input select" value={tgtMonth} onChange={e=>loadMonthTargets(parseInt(e.target.value),tgtYear)} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
+              {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
+            </select>
+            <select className="input select" value={tgtYear} onChange={e=>loadMonthTargets(tgtMonth,parseInt(e.target.value))} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
+              {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
+            </select>
+            <select className="input select" value={selBranch} onChange={e=>setSelBranch(e.target.value)} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
+              <option value="ALL">All Branches</option>
+              {BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name}</option>)}
+            </select>
+            <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
+          </div>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <select className="input select" value={tgtMonth} onChange={e=>loadMonthTargets(parseInt(e.target.value),tgtYear)} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
-            {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
-          </select>
-          <select className="input select" value={tgtYear} onChange={e=>loadMonthTargets(tgtMonth,parseInt(e.target.value))} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
-            {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
-          </select>
-          <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
+        <div style={{fontSize:11,color:"#8A96A8",marginTop:6}}>
+          {MONTHS_LABEL[tgtMonth-1]} {tgtYear}{selBranch!=="ALL"?` · ${branchMeta[selBranch]?.name}`:" · All Branches"}
+          {saved&&<span style={{color:"#00C896",fontWeight:700,marginLeft:12}}>✓ Saved</span>}
         </div>
       </div>
-      <div style={{padding:24}}>
-        {loading&&<div style={{textAlign:"center",padding:"20px 0",color:"#8A96A8",fontSize:13}}>Loading targets for {MONTHS_LABEL[tgtMonth-1]} {tgtYear}…</div>}
+
+      <div style={{padding:20}}>
+        {loading&&<div style={{textAlign:"center",padding:"32px 0",color:"#8A96A8",fontSize:13}}>Loading targets for {MONTHS_LABEL[tgtMonth-1]} {tgtYear}…</div>}
         {!loading&&<>
-        <h3 style={{fontSize:12,fontWeight:800,color:"#0A1628",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.06em"}}>Branch Manager Targets</h3>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:12,marginBottom:24}}>
-          {BRANCH_ORDER.map(b=>(
-            <div key={b} style={{background:"#F7F9FC",borderRadius:10,padding:14,border:"1px solid #E4EAF2"}}>
-              <div style={{fontWeight:700,fontSize:12,color:"#0A1628",textTransform:"uppercase"}}>{branchMeta[b]?.name}</div>
-              <div style={{fontSize:10,color:"#8A96A8",marginBottom:10}}>BM: {branchMeta[b]?.manager}</div>
-              <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Monthly Target (RM)</label>
-              <input className="input" type="number" value={local.bm?.[b]||""} onChange={e=>setBM(b,e.target.value)} placeholder="0" style={{marginBottom:8,fontSize:12}}/>
-              <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>BM Bonus if Branch 100%+ (RM)</label>
-              <input className="input" type="number" value={local.bmBonus?.[b]||""} onChange={e=>setBMB(b,e.target.value)} placeholder="0" style={{fontSize:12}}/>
-            </div>
-          ))}
-        </div>
-        <h3 style={{fontSize:12,fontWeight:800,color:"#0A1628",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>SR Targets</h3>
-        <p style={{fontSize:11,color:"#8A96A8",marginBottom:16}}>Achievement bonus calculated automatically. Set personal bonus and target here.</p>
-        {BRANCH_ORDER.map(b=>{
-          const bSRs=srList.filter(s=>s.branch===b&&!(s.status||'').toLowerCase().includes('resigned'));
-          if(!bSRs.length)return null;
-          return <div key={b} style={{marginBottom:20}}>
-            <div style={{fontWeight:700,fontSize:10,color:"#1E6FDB",marginBottom:8,paddingBottom:4,borderBottom:"1px solid #E4EAF2",textTransform:"uppercase",letterSpacing:"0.08em"}}>{branchMeta[b]?.name}</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
-              {bSRs.map(sr=>(
-                <div key={sr.id} style={{background:"#F7F9FC",borderRadius:8,padding:10,border:"1px solid #E4EAF2"}}>
-                  <div style={{fontWeight:700,fontSize:12,color:"#0A1628",marginBottom:4}}>{sr.canon}</div>
-                  <div style={{marginBottom:6}}><TypeTag type={sr.type}/></div>
-                  <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Target (RM)</label>
-                  <input className="input" type="number" value={local.sr?.[sr.id]?.target||""} onChange={e=>setSR(sr.id,"target",e.target.value)} placeholder="0" style={{marginBottom:6,fontSize:12,padding:"5px 8px"}}/>
-                  <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Personal Bonus (RM)</label>
-                  <input className="input" type="number" value={local.sr?.[sr.id]?.bonus||""} onChange={e=>setSR(sr.id,"bonus",e.target.value)} placeholder="0" style={{fontSize:12,padding:"5px 8px"}}/>
-                </div>
-              ))}
-            </div>
-          </div>;
-        })}
-        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:8,paddingTop:16,borderTop:"1px solid #E4EAF2"}}>
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={save}>Save Targets for {MONTHS_LABEL[tgtMonth-1]} {tgtYear}</button>
-        </div>
-      </>}
+          {/* BM section */}
+          <div style={{fontWeight:800,fontSize:11,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>Branch Manager Targets</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:12,marginBottom:28}}>
+            {branches.map(b=>(
+              <div key={b} style={{background:"#F7F9FC",borderRadius:10,padding:14,border:"1px solid #E4EAF2"}}>
+                <div style={{fontWeight:700,fontSize:12,color:"#0A1628",textTransform:"uppercase",marginBottom:2}}>{branchMeta[b]?.name}</div>
+                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>BM Name (this month)</label>
+                <input className="input" value={local.bmName?.[b]??branchMeta[b]?.manager??""} onChange={e=>setBMName(b,e.target.value)} placeholder={branchMeta[b]?.manager||"Name"} style={{marginBottom:8,fontSize:12}}/>
+                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Monthly Target (RM)</label>
+                <input className="input" type="number" value={local.bm?.[b]||""} onChange={e=>setBM(b,e.target.value)} placeholder="0" style={{marginBottom:8,fontSize:12}}/>
+                <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>BM Bonus if Branch 100%+ (RM)</label>
+                <input className="input" type="number" value={local.bmBonus?.[b]||""} onChange={e=>setBMB(b,e.target.value)} placeholder="0" style={{fontSize:12}}/>
+              </div>
+            ))}
+          </div>
+
+          {/* SR section */}
+          <div style={{fontWeight:800,fontSize:11,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>SR Targets</div>
+          <p style={{fontSize:11,color:"#8A96A8",marginBottom:14}}>Achievement bonus auto-calculated. Set personal bonus and target per SR.</p>
+          {branches.map(b=>{
+            const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,tgtMonth,tgtYear));
+            if(!bSRs.length)return null;
+            return <div key={b} style={{marginBottom:20}}>
+              <div style={{fontWeight:700,fontSize:10,color:"#1E6FDB",marginBottom:8,paddingBottom:4,borderBottom:"1px solid #E4EAF2",textTransform:"uppercase",letterSpacing:"0.08em"}}>{branchMeta[b]?.name}</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
+                {bSRs.map(sr=>(
+                  <div key={sr.id} style={{background:"#F7F9FC",borderRadius:8,padding:10,border:"1px solid #E4EAF2"}}>
+                    <div style={{fontWeight:700,fontSize:12,color:"#0A1628",marginBottom:4}}>{sr.canon}</div>
+                    <div style={{marginBottom:6}}><TypeTag type={sr.type}/></div>
+                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Target (RM)</label>
+                    <input className="input" type="number" value={local.sr?.[sr.id]?.target||""} onChange={e=>setSR(sr.id,"target",e.target.value)} placeholder="0" style={{marginBottom:6,fontSize:12,padding:"5px 8px"}}/>
+                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Personal Bonus (RM)</label>
+                    <input className="input" type="number" value={local.sr?.[sr.id]?.bonus||""} onChange={e=>setSR(sr.id,"bonus",e.target.value)} placeholder="0" style={{fontSize:12,padding:"5px 8px"}}/>
+                  </div>
+                ))}
+              </div>
+            </div>;
+          })}
+
+          <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:8,paddingTop:16,borderTop:"1px solid #E4EAF2"}}>
+            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" onClick={save}>Save — {MONTHS_LABEL[tgtMonth-1]} {tgtYear}{selBranch!=="ALL"?` · ${selBranch}`:""}</button>
+          </div>
+        </>}
       </div>
     </div>
   </div>;
@@ -1904,8 +1924,16 @@ export default function App(){
       if(bmData&&Object.keys(bmData).length>0)setBranchMeta({...DEFAULT_BRANCH_META,...bmData});
       // Use this month's saved targets; if none yet, fall back to previous month as starting point
       const tUse=t||(tPrev)||null;
-      if(tUse&&tUse.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr}});
-      else setTargets(DEFAULT_TARGETS);
+      if(tUse&&tUse.bm){
+        setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr},bmName:tUse.bmName||{}});
+        // Apply per-month BM name overrides to branchMeta for display
+        if(tUse.bmName&&Object.keys(tUse.bmName).length>0){
+          const bmOverrideData=bmData&&Object.keys(bmData).length>0?{...DEFAULT_BRANCH_META,...bmData}:{...DEFAULT_BRANCH_META};
+          const mergedMeta={};
+          BRANCH_ORDER.forEach(b=>{mergedMeta[b]={...bmOverrideData[b],manager:tUse.bmName[b]||bmOverrideData[b]?.manager};});
+          setBranchMeta(mergedMeta);
+        }
+      } else setTargets(DEFAULT_TARGETS);
       setRewardBalances(rb||{});
       setLockedMonths(lm||{});
       setRewardHistory(rh||{});
