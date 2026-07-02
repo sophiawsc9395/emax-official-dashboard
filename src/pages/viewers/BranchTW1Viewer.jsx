@@ -389,17 +389,7 @@ export default function App(){
       const tUse=t||(tPrev)||null;
       if(tUse?.bm)setTargets({bm:{...DEFAULT_TARGETS.bm,...tUse.bm},bmBonus:{...DEFAULT_TARGETS.bmBonus,...(tUse.bmBonus||{})},sr:{...DEFAULT_TARGETS.sr,...tUse.sr}});
       if(srData&&Array.isArray(srData)&&srData.length>0){
-      // Apply monthly BM name/status overrides from targets
-      if(tUse&&(tUse.bmName||tUse.bmStatus)){
-        const baseBM=srData?{...DEFAULT_BRANCH_META,...(bmData||{})}:{...DEFAULT_BRANCH_META};
-        const merged={};
-        const mn=tUse.bmName||{},ms=tUse.bmStatus||{};
-        BRANCH_ORDER.forEach(b=>{merged[b]={...baseBM[b],manager:mn[b]||baseBM[b]?.manager,mStatus:ms[b]||baseBM[b]?.mStatus};});
-        setBMeta(p=>({...p,...merged}));
-      }
         let filtered=srData.filter(s=>s.branch===BRANCH_ID);
-        // Apply post-lock status snapshot if available (so we show status as-of this month)
-        // Only apply snapshot for past months
         const nowB=new Date();
         const isCurMonthB=(selMonth===nowB.getMonth()+1&&selYear===nowB.getFullYear());
         if(!isCurMonthB&&snap&&Object.keys(snap).length>0){
@@ -407,17 +397,26 @@ export default function App(){
         }
         setSrList(filtered);
       }
-      if(bmData&&Object.keys(bmData).length>0){
-        // Apply BM status snapshot if available
-        if(snap&&Object.keys(snap).length>0){
-          const newMeta={...bmData};
-          if(snap[`BM_${BRANCH_ID}`]?.status){
-            newMeta[BRANCH_ID]={...(newMeta[BRANCH_ID]||{}),mStatus:snap[`BM_${BRANCH_ID}`].status};
-          }
-          setBMeta(p=>({...p,...newMeta}));
-        } else {
-          setBMeta(p=>({...p,...bmData}));
+      // Build bMeta: start from global bmData, apply snap, then apply monthly overrides LAST
+      {
+        const baseMeta=bmData&&Object.keys(bmData||{}).length>0?{...DEFAULT_BRANCH_META,...bmData}:{...DEFAULT_BRANCH_META};
+        const nowB=new Date();
+        const isCurMonthB=(selMonth===nowB.getMonth()+1&&selYear===nowB.getFullYear());
+        // Apply BM status snapshot for past months
+        const metaWithSnap={...baseMeta};
+        if(!isCurMonthB&&snap&&snap[`BM_${BRANCH_ID}`]?.status){
+          metaWithSnap[BRANCH_ID]={...metaWithSnap[BRANCH_ID],mStatus:snap[`BM_${BRANCH_ID}`].status};
         }
+        // Apply monthly bmName/bmStatus overrides LAST so they win
+        const mn=(tUse&&tUse.bmName)||{};
+        const ms=(tUse&&tUse.bmStatus)||{};
+        const finalMeta={};
+        BRANCH_ORDER.forEach(b=>{finalMeta[b]={
+          ...metaWithSnap[b],
+          manager:mn[b]||metaWithSnap[b]?.manager,
+          mStatus:ms[b]||metaWithSnap[b]?.mStatus,
+        };});
+        setBMeta(p=>({...p,...finalMeta}));
       }
       setRewardBalances(rb||{});
       setRewardHistory(rh||{});
