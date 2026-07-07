@@ -2249,7 +2249,9 @@ export default function App(){
   },[records,srList]);
 
   // Ranking-specific totals: always 1 → lastDataDay (last day with real data), independent of the Overview period filter
-  const rankEndDay=lastDataDay||daysInMonth(month,year);
+  // Cap rankEndDay at publishedUntil so dashboard ranking matches viewer ranking
+  const publishedDay=publishedUntil?(()=>{const[,, d]=publishedUntil.split("-");return parseInt(d);})():null;
+  const rankEndDay=publishedDay?Math.min(publishedDay,lastDataDay||daysInMonth(month,year)):lastDataDay||daysInMonth(month,year);
   const rankBranchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
