@@ -489,18 +489,18 @@ export default function App(){
   // For company-wide ranking, compute all SRs from all branches — always 1 → lastDataDay
   const allSRTotals=useMemo(()=>{
     const t={};
-    DEFAULT_SR.forEach(sr=>{
+    allSRList.filter(s=>srVisibleInMonth(s,month,year)).forEach(sr=>{
       let wi=0,ae=0;
       for(let d=1;d<=rankEndDay;d++){const k=`${d}/${month}/${year}`;wi+=(records[k]?.[sr.id]?.walkin||0);ae+=(records[k]?.[sr.id]?.aeon||0);}
       t[sr.id]={wi,ae,total:wi+ae};
     });
     return t;
-  },[records,rankEndDay,month,year]);
+  },[records,allSRList,rankEndDay,month,year]);
 
   const allBranchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
-      const bSRs=DEFAULT_SR.filter(s=>s.branch===b);let wi=0,ae=0;
+      const bSRs=allSRList.filter(s=>s.branch===b&&srVisibleInMonth(s,month,year));let wi=0,ae=0;
       for(let d=1;d<=rankEndDay;d++){
         const k=`${d}/${month}/${year}`,day=records[k]||{};
         bSRs.forEach(sr=>{wi+=(day[sr.id]?.walkin||0);ae+=(day[sr.id]?.aeon||0);});
@@ -509,7 +509,7 @@ export default function App(){
       t[b]={wi,ae,total:wi+ae};
     });
     return t;
-  },[records,rankEndDay,month,year]);
+  },[records,allSRList,rankEndDay,month,year]);
 
   const srRankRows=allSRList.filter(s=>srVisibleInMonth(s,month,year)).map(s=>{
     const profit=allSRTotals[s.id]?.total||0,target=targets?.sr?.[s.id]?.target||0,bonus=targets?.sr?.[s.id]?.bonus||0;
