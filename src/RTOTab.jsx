@@ -6,6 +6,22 @@ const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
 const fDate=(s)=>{if(!s)return"—";const[y,m,d]=s.split("-");return`${d}/${m}/${y}`;};
+const calcStampingFee=(totalContract)=>{
+  const t=parseFloat(totalContract)||0;
+  if(t<=1000)return 5;
+  if(t<=2000)return 10;
+  if(t<=3000)return 15;
+  if(t<=4000)return 20;
+  if(t<=5000)return 25;
+  if(t<=6000)return 30;
+  if(t<=7000)return 35;
+  if(t<=8000)return 40;
+  if(t<=9000)return 45;
+  if(t<=10000)return 50;
+  if(t<=11000)return 55;
+  if(t<=12000)return 60;
+  return 60;
+};
 const MNTHS_SHORT=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function genSchedule(customer){
@@ -46,15 +62,25 @@ function CustomerForm({initial,branchMeta,onSave,onCancel}){
         <div><label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Sales Invoice Date</label>
           <input className="input" type="date" value={f.salesInvoiceDate} onChange={e=>set("salesInvoiceDate",e.target.value)} style={{fontSize:12}}/></div>
         <div><label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Tenure (months)</label>
-          <input className="input" type="number" min="1" value={f.tenure} onChange={e=>set("tenure",e.target.value)} style={{fontSize:12}}/></div>
+          <input className="input" type="number" min="1" value={f.tenure} onChange={e=>{
+          const t=e.target.value;
+          const tc=parseInt(t||0)*(parseFloat(f.monthlyInstallment)||0);
+          setF(p=>({...p,tenure:t,agreementFee:"50",stampingFee:String(calcStampingFee(tc))}));
+        }} style={{fontSize:12}}/></div>
         <div><label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Monthly Installment (RM)</label>
-          <input className="input" type="number" value={f.monthlyInstallment} onChange={e=>set("monthlyInstallment",e.target.value)} style={{fontSize:12}}/></div>
+          <input className="input" type="number" value={f.monthlyInstallment} onChange={e=>{
+          const m=e.target.value;
+          const tc=(parseInt(f.tenure)||0)*(parseFloat(m)||0);
+          setF(p=>({...p,monthlyInstallment:m,agreementFee:"50",stampingFee:String(calcStampingFee(tc))}));
+        }} style={{fontSize:12}}/></div>
         <div><label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Finance Price (RM)</label>
           <input className="input" type="number" value={f.financePrice} onChange={e=>set("financePrice",e.target.value)} style={{fontSize:12}}/></div>
         <div><label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Agreement Fee (RM)</label>
-          <input className="input" type="number" value={f.agreementFee} onChange={e=>set("agreementFee",e.target.value)} style={{fontSize:12}}/></div>
+          <input className="input" type="number" value={f.agreementFee||"50"} readOnly style={{fontSize:12,background:"#F0F4FA",color:"#4A5568"}}/>
+          <div style={{fontSize:10,color:"#8A96A8",marginTop:2}}>Fixed: RM 50.00</div></div>
         <div><label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Stamping Fee (RM)</label>
-          <input className="input" type="number" value={f.stampingFee} onChange={e=>set("stampingFee",e.target.value)} style={{fontSize:12}}/></div>
+          <input className="input" type="number" value={f.stampingFee} readOnly style={{fontSize:12,background:"#F0F4FA",color:"#4A5568"}}/>
+          <div style={{fontSize:10,color:"#8A96A8",marginTop:2}}>Auto: based on total contract value</div></div>
         <div><label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Cost (RM)</label>
           <input className="input" type="number" value={f.cost} onChange={e=>set("cost",e.target.value)} style={{fontSize:12}}/></div>
         <div><label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Auto Debit Start</label>
@@ -67,13 +93,15 @@ function CustomerForm({initial,branchMeta,onSave,onCancel}){
             </select>
           </div></div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,background:"#F0F4FA",borderRadius:10,padding:14,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,background:"#F0F4FA",borderRadius:10,padding:14,marginBottom:16}}>
         <div><div style={{fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Branch Profit</div>
           <div style={{fontWeight:700,fontSize:13,color:branchProfit>=0?"#15803D":"#B91C1C"}}>{fRM(branchProfit)}</div></div>
         <div><div style={{fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Total Contract Value</div>
           <div style={{fontWeight:700,fontSize:13,color:"#0A1628"}}>{fRM(totalContract)}</div></div>
-        <div><div style={{fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Tenure</div>
-          <div style={{fontWeight:700,fontSize:13,color:"#0A1628"}}>{tenure} months</div></div>
+        <div><div style={{fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Agreement Fee</div>
+          <div style={{fontWeight:700,fontSize:13,color:"#0A1628"}}>RM 50.00</div></div>
+        <div><div style={{fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Stamping Fee</div>
+          <div style={{fontWeight:700,fontSize:13,color:"#0A1628"}}>{fRM(calcStampingFee(totalContract))}</div></div>
       </div>
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
@@ -214,9 +242,237 @@ function PaymentSchedule({customer,onUpdate}){
   );
 }
 
+
+function RTOSummary({customers,branchMeta}){
+  const summaryRef=useRef(null);
+  const now=new Date();
+  const currentKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+
+  // Compute per-customer analytics
+  const analytics=customers.map(c=>{
+    const schedule=genSchedule(c);
+    const payments=c.payments||{};
+    const totalContract=(parseInt(c.tenure)||0)*(parseFloat(c.monthlyInstallment)||0);
+    const totalReceived=schedule.filter(s=>payments[s.key]?.paid).reduce((sum,s)=>sum+(payments[s.key]?.amount||s.amount),0);
+    const outstanding=totalContract-totalReceived;
+    const cost=parseFloat(c.cost)||0;
+    const pl=-cost+totalReceived;
+    const financePrice=parseFloat(c.financePrice)||0;
+    const branchProfit=financePrice-cost;
+    const paidCount=schedule.filter(s=>payments[s.key]?.paid).length;
+
+    // Overdue: past months (before current) that are not paid
+    const overdue=schedule.filter(s=>s.key<currentKey&&!payments[s.key]?.paid);
+    // Current month due
+    const currentDue=schedule.find(s=>s.key===currentKey&&!payments[s.key]?.paid);
+    // Upcoming (future unpaid)
+    const upcoming=schedule.filter(s=>s.key>currentKey&&!payments[s.key]?.paid);
+
+    return{...c,schedule,totalContract,totalReceived,outstanding,cost,pl,branchProfit,paidCount,overdue,currentDue,upcoming,isComplete:outstanding<=0};
+  });
+
+  // Totals
+  const totals={
+    customers:analytics.length,
+    totalContract:analytics.reduce((s,c)=>s+c.totalContract,0),
+    totalReceived:analytics.reduce((s,c)=>s+c.totalReceived,0),
+    totalOutstanding:analytics.reduce((s,c)=>s+c.outstanding,0),
+    totalBranchProfit:analytics.reduce((s,c)=>s+c.branchProfit,0),
+    totalPL:analytics.reduce((s,c)=>s+c.pl,0),
+    overdueCount:analytics.filter(c=>c.overdue.length>0).length,
+    completeCount:analytics.filter(c=>c.isComplete).length,
+  };
+
+  const overdueCustomers=analytics.filter(c=>c.overdue.length>0).sort((a,b)=>b.overdue.length-a.overdue.length);
+  const activeCustomers=analytics.filter(c=>!c.isComplete&&c.overdue.length===0);
+  const completedCustomers=analytics.filter(c=>c.isComplete);
+
+  const downloadPhoto=async()=>{
+    const el=summaryRef.current;if(!el)return;
+    try{
+      const script=document.createElement("script");
+      script.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      document.head.appendChild(script);
+      await new Promise(r=>{script.onload=r;});
+      const canvas=await window.html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false});
+      const a=document.createElement("a");
+      a.href=canvas.toDataURL("image/png");
+      a.download=`RTO_Summary_${now.toISOString().split("T")[0]}.png`;
+      a.click();
+    }catch(e){alert("Download failed: "+e.message);}
+  };
+
+  const today=`${String(now.getDate()).padStart(2,"0")}/${String(now.getMonth()+1).padStart(2,"0")}/${now.getFullYear()}`;
+
+  return(
+    <div>
+      <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
+        <h2 style={{fontSize:16,fontWeight:800,color:"#0A1628",margin:0,flex:1}}>RTO Portfolio Summary</h2>
+        <div style={{fontSize:11,color:"#8A96A8"}}>As at {today}</div>
+        <button onClick={downloadPhoto} style={{padding:"8px 18px",background:"#0A1628",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>📷 Download as Photo</button>
+      </div>
+
+      <div ref={summaryRef} style={{background:"#fff",padding:24,borderRadius:16,border:"1px solid #E4EAF2"}}>
+        {/* Header */}
+        <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",borderRadius:10,padding:"16px 20px",marginBottom:20,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:9,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>EMAX NETWORK SDN BHD</div>
+            <div style={{fontWeight:800,fontSize:17,color:"#fff"}}>Rent-to-Own Portfolio Summary</div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,.45)",marginTop:3}}>As at {today} · {totals.customers} customers</div>
+          </div>
+          <div style={{textAlign:"right"}}>
+            {totals.overdueCount>0&&<div style={{background:"#FEF2F2",color:"#B91C1C",padding:"6px 14px",borderRadius:8,fontSize:12,fontWeight:700}}>⚠ {totals.overdueCount} Overdue</div>}
+            {totals.overdueCount===0&&<div style={{background:"#F0FDF4",color:"#15803D",padding:"6px 14px",borderRadius:8,fontSize:12,fontWeight:700}}>✓ No Overdue</div>}
+          </div>
+        </div>
+
+        {/* KPI row */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:12,marginBottom:20}}>
+          {[
+            ["Total Customers",totals.customers+" customers","#0A1628"],
+            ["Active",`${totals.customers-totals.completeCount} / ${totals.customers}`,"#1E6FDB"],
+            ["Completed",totals.completeCount+" customers","#15803D"],
+            ["Total Contract",fRM(totals.totalContract),"#0A1628"],
+            ["Total Received",fRM(totals.totalReceived),"#15803D"],
+            ["Outstanding",fRM(totals.totalOutstanding),totals.totalOutstanding>0?"#B91C1C":"#15803D"],
+            ["Branch Profit",fRM(totals.totalBranchProfit),totals.totalBranchProfit>=0?"#15803D":"#B91C1C"],
+            ["Portfolio P&L",fRM(totals.totalPL),totals.totalPL>=0?"#15803D":"#B91C1C"],
+          ].map(([l,v,c])=>(
+            <div key={l} style={{background:"#F7F9FC",borderRadius:10,padding:"12px 14px",border:"1px solid #E4EAF2"}}>
+              <div style={{fontSize:9,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>{l}</div>
+              <div style={{fontWeight:800,fontSize:13,color:c,lineHeight:1.2}}>{v}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Overdue section */}
+        {overdueCustomers.length>0&&<>
+          <div style={{fontSize:11,fontWeight:800,color:"#B91C1C",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10,padding:"8px 12px",background:"#FEF2F2",borderRadius:8,border:"1px solid #FECACA",display:"flex",alignItems:"center",gap:8}}>
+            <span>⚠</span><span>Overdue Payments ({overdueCustomers.length} customers)</span>
+          </div>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:20}}>
+            <thead><tr style={{background:"#7F1D1D"}}>
+              {["Customer","Branch","Overdue Months","Amount Overdue","Outstanding Bal","Action Required"].map(h=>(
+                <th key={h} style={{padding:"8px 12px",color:"rgba(255,255,255,.8)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",textAlign:"left"}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>{overdueCustomers.map((c,i)=>(
+              <tr key={c.id} style={{borderBottom:"1px solid #FEE2E2",background:i%2===0?"#FFF5F5":"#FEF2F2"}}>
+                <td style={{padding:"8px 12px"}}>
+                  <div style={{fontWeight:700,color:"#7F1D1D"}}>{c.name}</div>
+                  <div style={{fontSize:10,color:"#B91C1C"}}>{c.memberId}</div>
+                </td>
+                <td style={{padding:"8px 12px",color:"#B91C1C",fontSize:11}}>{c.branch}</td>
+                <td style={{padding:"8px 12px"}}>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                    {c.overdue.map(s=>(
+                      <span key={s.key} style={{background:"#FEE2E2",color:"#991B1B",padding:"2px 8px",borderRadius:12,fontSize:10,fontWeight:600,whiteSpace:"nowrap"}}>{s.label}</span>
+                    ))}
+                  </div>
+                </td>
+                <td style={{padding:"8px 12px",fontWeight:700,color:"#B91C1C"}}>{fRM(c.overdue.reduce((s,sl)=>s+sl.amount,0))}</td>
+                <td style={{padding:"8px 12px",fontWeight:700,color:"#B91C1C"}}>{fRM(c.outstanding)}</td>
+                <td style={{padding:"8px 12px",fontSize:11,color:"#7F1D1D"}}>
+                  {c.overdue.length===1?"1 month overdue — follow up":`${c.overdue.length} months overdue — urgent`}
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </>}
+
+        {/* All customers table */}
+        <div style={{fontSize:11,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>All Customers Payment Analysis</div>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,marginBottom:20}}>
+          <thead><tr style={{background:"#0A1628"}}>
+            {["#","Customer","Branch","Contract","Received","Outstanding","P&L","Paid","Status"].map(h=>(
+              <th key={h} style={{padding:"8px 10px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",textAlign:h==="#"?"center":"left"}}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>{analytics.map((c,i)=>{
+            const pct=c.schedule.length?Math.round(c.paidCount/c.schedule.length*100):0;
+            const status=c.isComplete?"Completed":c.overdue.length>0?`${c.overdue.length} Overdue`:"Active";
+            const statusColor=c.isComplete?"#15803D":c.overdue.length>0?"#B91C1C":"#1E6FDB";
+            return(
+              <tr key={c.id} style={{borderBottom:"1px solid #F0F2F5",background:c.overdue.length>0?"#FFF5F5":i%2===0?"#fff":"#FAFBFC"}}>
+                <td style={{padding:"7px 10px",textAlign:"center",color:"#8A96A8",fontSize:10}}>{i+1}</td>
+                <td style={{padding:"7px 10px"}}>
+                  <div style={{fontWeight:700,color:"#0A1628"}}>{c.name}</div>
+                  <div style={{fontSize:10,color:"#8A96A8"}}>{c.memberId} · {c.contactNumber}</div>
+                </td>
+                <td style={{padding:"7px 10px",fontSize:11,color:"#4A5568"}}>{c.branch}</td>
+                <td style={{padding:"7px 10px",fontSize:11,color:"#0A1628"}}>{fRM(c.totalContract)}</td>
+                <td style={{padding:"7px 10px",fontSize:11,color:"#15803D",fontWeight:600}}>{fRM(c.totalReceived)}</td>
+                <td style={{padding:"7px 10px",fontSize:11,color:c.outstanding>0?"#B91C1C":"#15803D",fontWeight:600}}>{fRM(c.outstanding)}</td>
+                <td style={{padding:"7px 10px",fontSize:11,color:c.pl>=0?"#15803D":"#B91C1C",fontWeight:600}}>{fRM(c.pl)}</td>
+                <td style={{padding:"7px 10px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{flex:1,height:5,background:"#E4EAF2",borderRadius:3,overflow:"hidden",minWidth:40}}>
+                      <div style={{height:"100%",background:c.overdue.length>0?"#B91C1C":"#1E6FDB",width:`${pct}%`,borderRadius:3}}/>
+                    </div>
+                    <span style={{fontSize:10,color:"#4A5568",whiteSpace:"nowrap"}}>{c.paidCount}/{c.schedule.length}</span>
+                  </div>
+                </td>
+                <td style={{padding:"7px 10px"}}>
+                  <span style={{background:c.isComplete?"#DCFCE7":c.overdue.length>0?"#FEE2E2":"#EFF6FF",color:statusColor,padding:"2px 8px",borderRadius:12,fontSize:10,fontWeight:700,whiteSpace:"nowrap"}}>{status}</span>
+                </td>
+              </tr>
+            );
+          })}
+          {/* Totals row */}
+          <tr style={{background:"#F0F4FA",borderTop:"2px solid #E4EAF2"}}>
+            <td colSpan={3} style={{padding:"8px 10px",fontWeight:800,fontSize:11,color:"#0A1628"}}>TOTAL ({analytics.length} customers)</td>
+            <td style={{padding:"8px 10px",fontWeight:800,fontSize:11,color:"#0A1628"}}>{fRM(totals.totalContract)}</td>
+            <td style={{padding:"8px 10px",fontWeight:800,fontSize:11,color:"#15803D"}}>{fRM(totals.totalReceived)}</td>
+            <td style={{padding:"8px 10px",fontWeight:800,fontSize:11,color:totals.totalOutstanding>0?"#B91C1C":"#15803D"}}>{fRM(totals.totalOutstanding)}</td>
+            <td style={{padding:"8px 10px",fontWeight:800,fontSize:11,color:totals.totalPL>=0?"#15803D":"#B91C1C"}}>{fRM(totals.totalPL)}</td>
+            <td colSpan={2}></td>
+          </tr>
+          </tbody>
+        </table>
+
+        {/* Current month due */}
+        {analytics.filter(c=>c.currentDue).length>0&&<>
+          <div style={{fontSize:11,fontWeight:800,color:"#854D0E",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10,padding:"8px 12px",background:"#FFFBEB",borderRadius:8,border:"1px solid #FDE68A"}}>
+            📅 Due This Month — {MONTHS[now.getMonth()]} {now.getFullYear()} ({analytics.filter(c=>c.currentDue).length} customers)
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8,marginBottom:20}}>
+            {analytics.filter(c=>c.currentDue).map(c=>(
+              <div key={c.id} style={{background:"#FFFBEB",borderRadius:8,padding:"10px 12px",border:"1px solid #FDE68A"}}>
+                <div style={{fontWeight:700,fontSize:12,color:"#92400E"}}>{c.name}</div>
+                <div style={{fontSize:10,color:"#B45309",marginTop:2}}>{c.branch} · {c.memberId}</div>
+                <div style={{fontSize:13,fontWeight:800,color:"#92400E",marginTop:6}}>{fRM(c.currentDue.amount)}</div>
+              </div>
+            ))}
+          </div>
+        </>}
+
+        {/* Branch breakdown */}
+        <div style={{fontSize:11,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>By Branch</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8}}>
+          {BRANCH_ORDER.map(b=>{
+            const bc=analytics.filter(c=>c.branch===b);
+            if(!bc.length)return null;
+            const bOutstanding=bc.reduce((s,c)=>s+c.outstanding,0);
+            const bOverdue=bc.filter(c=>c.overdue.length>0).length;
+            return(
+              <div key={b} style={{background:"#F7F9FC",borderRadius:10,padding:"10px 12px",border:`1px solid ${bOverdue>0?"#FECACA":"#E4EAF2"}`}}>
+                <div style={{fontWeight:700,fontSize:12,color:"#0A1628",marginBottom:2}}>{branchMeta[b]?.name||b}</div>
+                <div style={{fontSize:10,color:"#8A96A8",marginBottom:6}}>{bc.length} customer{bc.length>1?"s":""}</div>
+                <div style={{fontSize:11,color:bOutstanding>0?"#B91C1C":"#15803D",fontWeight:600}}>{fRM(bOutstanding)} outstanding</div>
+                {bOverdue>0&&<div style={{fontSize:10,color:"#B91C1C",marginTop:3}}>⚠ {bOverdue} overdue</div>}
+              </div>
+            );
+          }).filter(Boolean)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function RTOTab({branchMeta}){
   const [customers,setCustomers]=useState([]);
   const [loading,setLoading]=useState(true);
+  const [view,setView]=useState("list"); // "list" | "summary"
   const [showForm,setShowForm]=useState(false);
   const [editCustomer,setEditCustomer]=useState(null);
   const [selectedId,setSelectedId]=useState(null);
@@ -252,7 +508,13 @@ export default function RTOTab({branchMeta}){
   if(loading)return<div style={{padding:40,textAlign:"center",color:"#8A96A8"}}>Loading…</div>;
 
   return(
-    <div className="fade-in" style={{display:"grid",gridTemplateColumns:"320px 1fr",gap:20,alignItems:"start"}}>
+    <div className="fade-in">
+      <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"center"}}>
+        <button onClick={()=>setView("list")} style={{padding:"7px 18px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"Inter,sans-serif",background:view==="list"?"#0A1628":"#F0F4FA",color:view==="list"?"#fff":"#4A5568"}}>Customer List</button>
+        <button onClick={()=>setView("summary")} style={{padding:"7px 18px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:700,fontSize:12,fontFamily:"Inter,sans-serif",background:view==="summary"?"#0A1628":"#F0F4FA",color:view==="summary"?"#fff":"#4A5568"}}>Portfolio Summary</button>
+      </div>
+      {view==="summary"&&<RTOSummary customers={customers} branchMeta={branchMeta}/>}
+      {view==="list"&&<div style={{display:"grid",gridTemplateColumns:"320px 1fr",gap:20,alignItems:"start"}}>
       {/* Left: customer list */}
       <div>
         <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
@@ -303,6 +565,7 @@ export default function RTOTab({branchMeta}){
         {!showForm&&selected&&<PaymentSchedule customer={selected} onUpdate={(key,data)=>updatePayment(selected.id,key,data)}/>}
         {!showForm&&!selected&&<div style={{textAlign:"center",padding:"60px 20px",color:"#8A96A8",fontSize:13,background:"#fff",borderRadius:12,border:"1px solid #E4EAF2"}}>Select a customer to view their payment schedule and summary.</div>}
       </div>
+      </div>}
     </div>
   );
 }
