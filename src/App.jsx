@@ -4,6 +4,7 @@
 // ============================================================
 import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, saveData, supabase } from "./storage/index.js";
+import RTOTab from "./RTOTab.jsx";
 
 const T = {
   navy:"#0A1628", navyMid:"#0F2040", navyLight:"#162B52",
@@ -2324,8 +2325,8 @@ export default function App(){
     {id:"rankings",label:"Rankings"},
     {id:"points",label:"Reward Point Ranking"},
     {id:"report",label:"Monthly Report"},
-    {id:"daily",label:"Daily Entry"},
     {id:"repair",label:"Repair & Service"},
+    {id:"rto",label:"Rent to Own"},
   ];
 
   if(loading)return <div style={{display:"flex",height:"100vh",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
@@ -2537,10 +2538,10 @@ export default function App(){
 
 
       {/* DAILY ENTRY */}
-      {tab==="daily"&&<DailyEntry records={records} setRecords={setRecords} srList={srList} branchMeta={branchMeta} month={month} year={year} days={days} recordsKey={recordsKey} onRepairSave={()=>setRepairRefresh(r=>r+1)}/>}
 
       {/* REPAIR */}
       {tab==="repair"&&<RepairTab month={month} year={year} endDay={selEndDay} refreshKey={repairRefresh}/>}
+      {tab==="rto"&&<RTOTab branchMeta={branchMeta}/>}
 
       </div>{/* end main content */}
 

@@ -1,11 +1,8 @@
 /**
  * Storage adapter — Supabase-backed.
- * Exposes the exact same loadData/saveData API the rest of the app already
- * uses, so no component code needs to change.
+ * Exposes the same loadData/saveData API the rest of the app uses.
  *
- * Requires VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to be set
- * (see .env.example). These are safe to expose in frontend code — access
- * is controlled by Row Level Security policies on the Supabase side.
+ * Requires VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to be set.
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -15,8 +12,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.error(
-    'Missing Supabase config. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY ' +
-    'in your environment (see .env.example).'
+    'Missing Supabase config. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
   )
 }
 
@@ -35,8 +31,13 @@ export async function loadData(key) {
       console.error('loadData error:', key, error)
       return null
     }
-    if (!data) return null // ← null (not {}) so || fallbacks work correctly
-    return data.value
+    if (!data) return null
+    // value column is text — parse it back to the original JS value
+    try {
+      return JSON.parse(data.value)
+    } catch {
+      return data.value  // fallback: return raw string if not valid JSON
+    }
   } catch (e) {
     console.error('loadData exception:', key, e)
     return null
@@ -45,22 +46,23 @@ export async function loadData(key) {
 
 export async function saveData(key, value) {
   try {
-    // Saving `null`/`undefined` deletes the key (used by PDF delete feature)
+    // null/undefined = delete the row (used by PDF delete)
     if (value === null || value === undefined) {
       const { error } = await supabase.from(TABLE).delete().eq('key', key)
       if (error) console.error('saveData delete error:', key, error)
       return
     }
+    // Always stringify before storing — value column is text
     const { error } = await supabase
       .from(TABLE)
-      .upsert({ key, value }, { onConflict: 'key' })
+      .upsert({ key, value: JSON.stringify(value) }, { onConflict: 'key' })
     if (error) console.error('saveData error:', key, error)
   } catch (e) {
     console.error('saveData exception:', key, e)
   }
 }
 
-// Kept for parity with the old storage object some files imported directly.
+// Kept for parity with any code that imports { storage } directly
 export const storage = {
   async get(key) {
     const value = await loadData(key)
