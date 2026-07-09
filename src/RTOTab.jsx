@@ -184,6 +184,7 @@ function PaymentSchedule({customer,onUpdate}){
               <th style={{padding:"7px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #E4EAF2"}}>#</th>
               <th style={{padding:"7px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #E4EAF2"}}>Month</th>
               <th style={{padding:"7px 10px",textAlign:"right",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #E4EAF2"}}>Amount</th>
+              <th style={{padding:"7px 10px",textAlign:"center",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #E4EAF2"}}>INV</th>
               <th style={{padding:"7px 10px",textAlign:"center",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #E4EAF2"}}>Status</th>
               <th style={{padding:"7px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"1px solid #E4EAF2"}}>Payment Date</th>
             </tr></thead>
@@ -195,6 +196,11 @@ function PaymentSchedule({customer,onUpdate}){
                   <td style={{padding:"7px 10px",color:"#8A96A8",fontSize:11}}>{i+1}</td>
                   <td style={{padding:"7px 10px",fontWeight:600,color:"#0A1628"}}>{s.label}</td>
                   <td style={{padding:"7px 10px",textAlign:"right",color:"#0A1628"}}>{fRM(s.amount)}</td>
+                  <td style={{padding:"7px 10px",textAlign:"center"}}>
+                    {payments[s.key]?.invOpened
+                      ?<span style={{background:"#EFF6FF",color:"#1D4ED8",padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:700}}>✓ INV</span>
+                      :<span style={{color:"#CBD5E1",fontSize:10}}>—</span>}
+                  </td>
                   <td style={{padding:"7px 10px",textAlign:"center"}}>
                     {paid
                       ?<span style={{background:"#DCFCE7",color:"#15803D",padding:"2px 10px",borderRadius:20,fontSize:10,fontWeight:700}}>✓ Paid</span>
@@ -224,13 +230,21 @@ function PaymentSchedule({customer,onUpdate}){
                     <span style={{fontWeight:700,fontSize:12,color:"#0A1628"}}>{i+1}. {s.label}</span>
                     <span style={{marginLeft:8,fontSize:11,color:"#8A96A8"}}>{fRM(s.amount)}</span>
                   </div>
-                  <button onClick={()=>{
-                    const newPaid=!paid;
-                    const newDate=newPaid?(paidDate||new Date().toISOString().split("T")[0]):"";
-                    onUpdate(s.key,{paid:newPaid,amount:s.amount,date:newDate});
-                  }} style={{padding:"3px 10px",fontSize:10,fontWeight:700,border:"none",borderRadius:6,background:paid?"#B91C1C":"#15803D",color:"#fff",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>
-                    {paid?"Unmark":"Mark Paid"}
-                  </button>
+                  <div style={{display:"flex",gap:4}}>
+                    <button onClick={()=>{
+                      const invOpened=!payments[s.key]?.invOpened;
+                      onUpdate(s.key,{...payments[s.key],invOpened,amount:s.amount});
+                    }} style={{padding:"3px 8px",fontSize:10,fontWeight:700,border:`1px solid ${payments[s.key]?.invOpened?"#93C5FD":"#E4EAF2"}`,borderRadius:6,background:payments[s.key]?.invOpened?"#EFF6FF":"#F7F9FC",color:payments[s.key]?.invOpened?"#1D4ED8":"#8A96A8",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>
+                      {payments[s.key]?.invOpened?"INV ✓":"INV"}
+                    </button>
+                    <button onClick={()=>{
+                      const newPaid=!paid;
+                      const newDate=newPaid?(paidDate||new Date().toISOString().split("T")[0]):"";
+                      onUpdate(s.key,{...payments[s.key],paid:newPaid,amount:s.amount,date:newDate});
+                    }} style={{padding:"3px 10px",fontSize:10,fontWeight:700,border:"none",borderRadius:6,background:paid?"#B91C1C":"#15803D",color:"#fff",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>
+                      {paid?"Unmark":"Mark Paid"}
+                    </button>
+                  </div>
                 </div>
                 {paid&&<input type="date" value={paidDate} onChange={e=>onUpdate(s.key,{paid:true,amount:s.amount,date:e.target.value})} style={{fontSize:11,padding:"3px 6px",border:"1px solid #BBF7D0",borderRadius:5,width:"100%",background:"#fff",fontFamily:"Inter,sans-serif"}}/>}
               </div>
@@ -277,7 +291,6 @@ function RTOSummary({customers,branchMeta}){
     totalContract:analytics.reduce((s,c)=>s+c.totalContract,0),
     totalReceived:analytics.reduce((s,c)=>s+c.totalReceived,0),
     totalOutstanding:analytics.reduce((s,c)=>s+c.outstanding,0),
-    totalBranchProfit:analytics.reduce((s,c)=>s+c.branchProfit,0),
     totalPL:analytics.reduce((s,c)=>s+c.pl,0),
     overdueCount:analytics.filter(c=>c.overdue.length>0).length,
     completeCount:analytics.filter(c=>c.isComplete).length,
@@ -335,7 +348,6 @@ function RTOSummary({customers,branchMeta}){
             ["Total Contract",fRM(totals.totalContract),"#0A1628"],
             ["Total Received",fRM(totals.totalReceived),"#15803D"],
             ["Outstanding",fRM(totals.totalOutstanding),totals.totalOutstanding>0?"#B91C1C":"#15803D"],
-            ["Branch Profit",fRM(totals.totalBranchProfit),totals.totalBranchProfit>=0?"#15803D":"#B91C1C"],
             ["Portfolio P&L",fRM(totals.totalPL),totals.totalPL>=0?"#15803D":"#B91C1C"],
           ].map(([l,v,c])=>(
             <div key={l} style={{background:"#F7F9FC",borderRadius:10,padding:"12px 14px",border:"1px solid #E4EAF2"}}>
@@ -352,7 +364,7 @@ function RTOSummary({customers,branchMeta}){
           </div>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:20}}>
             <thead><tr style={{background:"#7F1D1D"}}>
-              {["Customer","Branch","Overdue Months","Amount Overdue","Outstanding Bal","Action Required"].map(h=>(
+              {["Customer","Phone","Branch","Overdue Months","Amount Overdue","Outstanding Bal","Action Required"].map(h=>(
                 <th key={h} style={{padding:"8px 12px",color:"rgba(255,255,255,.8)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",textAlign:"left"}}>{h}</th>
               ))}
             </tr></thead>
@@ -362,6 +374,7 @@ function RTOSummary({customers,branchMeta}){
                   <div style={{fontWeight:700,color:"#7F1D1D"}}>{c.name}</div>
                   <div style={{fontSize:10,color:"#B91C1C"}}>{c.memberId}</div>
                 </td>
+                <td style={{padding:"8px 12px",color:"#B91C1C",fontSize:11}}>{c.contactNumber||"—"}</td>
                 <td style={{padding:"8px 12px",color:"#B91C1C",fontSize:11}}>{c.branch}</td>
                 <td style={{padding:"8px 12px"}}>
                   <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
@@ -430,40 +443,30 @@ function RTOSummary({customers,branchMeta}){
           </tbody>
         </table>
 
-        {/* Current month due */}
+        {/* Current month due — table list */}
         {analytics.filter(c=>c.currentDue).length>0&&<>
-          <div style={{fontSize:11,fontWeight:800,color:"#854D0E",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10,padding:"8px 12px",background:"#FFFBEB",borderRadius:8,border:"1px solid #FDE68A"}}>
-            📅 Due This Month — {MONTHS[now.getMonth()]} {now.getFullYear()} ({analytics.filter(c=>c.currentDue).length} customers)
+          <div style={{fontSize:11,fontWeight:800,color:"#854D0E",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10,padding:"8px 12px",background:"#FFFBEB",borderRadius:8,border:"1px solid #FDE68A",display:"flex",alignItems:"center",gap:8}}>
+            <span>📅</span><span>Due This Month — {MONTHS[now.getMonth()]} {now.getFullYear()} ({analytics.filter(c=>c.currentDue).length} customers)</span>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8,marginBottom:20}}>
-            {analytics.filter(c=>c.currentDue).map(c=>(
-              <div key={c.id} style={{background:"#FFFBEB",borderRadius:8,padding:"10px 12px",border:"1px solid #FDE68A"}}>
-                <div style={{fontWeight:700,fontSize:12,color:"#92400E"}}>{c.name}</div>
-                <div style={{fontSize:10,color:"#B45309",marginTop:2}}>{c.branch} · {c.memberId}</div>
-                <div style={{fontSize:13,fontWeight:800,color:"#92400E",marginTop:6}}>{fRM(c.currentDue.amount)}</div>
-              </div>
-            ))}
-          </div>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:20}}>
+            <thead><tr style={{background:"#92400E"}}>
+              {["Customer","Phone","Branch","Member ID","Amount Due"].map(h=>(
+                <th key={h} style={{padding:"8px 12px",color:"rgba(255,255,255,.8)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",textAlign:"left"}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>{analytics.filter(c=>c.currentDue).map((c,i)=>(
+              <tr key={c.id} style={{borderBottom:"1px solid #FDE68A",background:i%2===0?"#FFFBEB":"#FEF9C3"}}>
+                <td style={{padding:"8px 12px",fontWeight:700,color:"#92400E"}}>{c.name}</td>
+                <td style={{padding:"8px 12px",color:"#92400E",fontSize:11}}>{c.contactNumber||"—"}</td>
+                <td style={{padding:"8px 12px",color:"#92400E",fontSize:11}}>{c.branch}</td>
+                <td style={{padding:"8px 12px",color:"#B45309",fontSize:11}}>{c.memberId}</td>
+                <td style={{padding:"8px 12px",fontWeight:700,color:"#92400E"}}>{fRM(c.currentDue.amount)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
         </>}
 
-        {/* Branch breakdown */}
-        <div style={{fontSize:11,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>By Branch</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8}}>
-          {BRANCH_ORDER.map(b=>{
-            const bc=analytics.filter(c=>c.branch===b);
-            if(!bc.length)return null;
-            const bOutstanding=bc.reduce((s,c)=>s+c.outstanding,0);
-            const bOverdue=bc.filter(c=>c.overdue.length>0).length;
-            return(
-              <div key={b} style={{background:"#F7F9FC",borderRadius:10,padding:"10px 12px",border:`1px solid ${bOverdue>0?"#FECACA":"#E4EAF2"}`}}>
-                <div style={{fontWeight:700,fontSize:12,color:"#0A1628",marginBottom:2}}>{branchMeta[b]?.name||b}</div>
-                <div style={{fontSize:10,color:"#8A96A8",marginBottom:6}}>{bc.length} customer{bc.length>1?"s":""}</div>
-                <div style={{fontSize:11,color:bOutstanding>0?"#B91C1C":"#15803D",fontWeight:600}}>{fRM(bOutstanding)} outstanding</div>
-                {bOverdue>0&&<div style={{fontSize:10,color:"#B91C1C",marginTop:3}}>⚠ {bOverdue} overdue</div>}
-              </div>
-            );
-          }).filter(Boolean)}
-        </div>
+
       </div>
     </div>
   );
