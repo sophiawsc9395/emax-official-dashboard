@@ -1168,7 +1168,7 @@ export default function App(){
       </div>
     </div>{/* end flex layout */}
     {showPointsModal&&<PointsHistoryModal srList={srList} bMeta={bMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
-    {tab==="rto"&&<div className="fade-in"><RTOSummary branchMeta={bMeta}/></div>}
+    {tab==="rto"&&<RTOSummary branchMeta={bMeta}/>}
     {showStatusHistoryModal&&<StatusHistoryModal srList={srList} bMeta={bMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}
   </div>;
 }

@@ -66,10 +66,14 @@ function RTOSummaryInner({customers,branchMeta}){
   const downloadPhoto=async()=>{
     const el=summaryRef.current;if(!el)return;
     try{
-      const script=document.createElement("script");
-      script.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-      document.head.appendChild(script);
-      await new Promise(r=>{script.onload=r;});
+      if(!window.html2canvas){
+        await new Promise((res,rej)=>{
+          const s=document.createElement("script");
+          s.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+          s.onload=res;s.onerror=rej;
+          document.head.appendChild(s);
+        });
+      }
       const canvas=await window.html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false});
       const a=document.createElement("a");
       a.href=canvas.toDataURL("image/png");
