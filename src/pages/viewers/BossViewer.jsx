@@ -1,5 +1,5 @@
 // EMAX NETWORK — Boss Viewer (All Branches, Read-Only)
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, supabase } from "../../storage/index.js";
 
 const CSS = `
