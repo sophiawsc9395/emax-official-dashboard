@@ -448,22 +448,31 @@ function RTOSummary({customers,branchMeta}){
           <div style={{fontSize:11,fontWeight:800,color:"#854D0E",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10,padding:"8px 12px",background:"#FFFBEB",borderRadius:8,border:"1px solid #FDE68A",display:"flex",alignItems:"center",gap:8}}>
             <span>📅</span><span>Due This Month — {MONTHS[now.getMonth()]} {now.getFullYear()} ({analytics.filter(c=>c.currentDue).length} customers)</span>
           </div>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:20}}>
+          {(()=>{
+            const dueCusts=analytics.filter(c=>c.currentDue);
+            const totalDue=dueCusts.reduce((s,c)=>s+c.currentDue.amount,0);
+            return <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:20}}>
             <thead><tr style={{background:"#92400E"}}>
               {["Customer","Phone","Branch","Member ID","Amount Due"].map(h=>(
-                <th key={h} style={{padding:"8px 12px",color:"rgba(255,255,255,.8)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",textAlign:"left"}}>{h}</th>
+                <th key={h} style={{padding:"8px 12px",color:"rgba(255,255,255,.8)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",textAlign:h==="Amount Due"?"right":"left"}}>{h}</th>
               ))}
             </tr></thead>
-            <tbody>{analytics.filter(c=>c.currentDue).map((c,i)=>(
+            <tbody>{dueCusts.map((c,i)=>(
               <tr key={c.id} style={{borderBottom:"1px solid #FDE68A",background:i%2===0?"#FFFBEB":"#FEF9C3"}}>
                 <td style={{padding:"8px 12px",fontWeight:700,color:"#92400E"}}>{c.name}</td>
                 <td style={{padding:"8px 12px",color:"#92400E",fontSize:11}}>{c.contactNumber||"—"}</td>
                 <td style={{padding:"8px 12px",color:"#92400E",fontSize:11}}>{c.branch}</td>
                 <td style={{padding:"8px 12px",color:"#B45309",fontSize:11}}>{c.memberId}</td>
-                <td style={{padding:"8px 12px",fontWeight:700,color:"#92400E"}}>{fRM(c.currentDue.amount)}</td>
+                <td style={{padding:"8px 12px",fontWeight:700,color:"#92400E",textAlign:"right"}}>{fRM(c.currentDue.amount)}</td>
               </tr>
-            ))}</tbody>
-          </table>
+            ))}
+            <tr style={{background:"#FEF3C7",borderTop:"2px solid #F59E0B"}}>
+              <td colSpan={4} style={{padding:"8px 12px",fontWeight:800,fontSize:12,color:"#92400E"}}>TOTAL DUE THIS MONTH</td>
+              <td style={{padding:"8px 12px",fontWeight:800,fontSize:13,color:"#92400E",textAlign:"right"}}>{fRM(totalDue)}</td>
+            </tr>
+            </tbody>
+          </table>;
+          })()}
         </>}
 
 
