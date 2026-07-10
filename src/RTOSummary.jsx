@@ -142,7 +142,7 @@ function RTOSummaryInner({customers,branchMeta}){
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead><tr style={{background:"#F7F9FC",borderBottom:"1px solid #E4EAF2"}}>
               {["Customer","Phone","Branch","Overdue Months","Amount Overdue","Outstanding","Remark"].map(h=>(
-                <th key={h} style={{padding:"8px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>
+                <th key={h} style={{padding:"8px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",width:w,overflow:"hidden"}}>{h}</th>
               ))}
             </tr></thead>
             <tbody>{overdueCustomers.map((c,i)=>(
@@ -178,23 +178,23 @@ function RTOSummaryInner({customers,branchMeta}){
               <span style={{fontSize:10,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.08em"}}>Due This Month — {MONTHS[now.getMonth()]} {now.getFullYear()} · {dueCusts.length} customer{dueCusts.length>1?"s":""}</span>
             </div>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-              <thead><tr style={{background:"#F7F9FC",borderBottom:"1px solid #E4EAF2"}}>
-                {["Customer","Phone","Branch","Member ID","Amount Due"].map(h=>(
-                  <th key={h} style={{padding:"8px 14px",textAlign:h==="Amount Due"?"right":"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>
+              <thead><tr style={{background:"#0A1628"}}>
+                {["Member ID","Customer","Phone","Branch","Amount Due"].map(h=>(
+                  <th key={h} style={{padding:"8px 14px",textAlign:h==="Amount Due"?"right":"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.7)",textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
                 {dueCusts.map((c,i)=>(
                   <tr key={c.id} style={{borderBottom:"1px solid #F0F2F5",background:i%2===0?"#fff":"#FAFBFC"}}>
+                    <td style={{padding:"9px 14px",fontSize:11,color:"#8A96A8"}}>{c.memberId}</td>
                     <td style={{padding:"9px 14px",fontWeight:700,color:"#0A1628"}}>{c.name}</td>
                     <td style={{padding:"9px 14px",fontSize:11,color:"#4A5568"}}>{c.contactNumber||"—"}</td>
                     <td style={{padding:"9px 14px",fontSize:11,color:"#4A5568"}}>{c.branch}</td>
-                    <td style={{padding:"9px 14px",fontSize:11,color:"#8A96A8"}}>{c.memberId}</td>
                     <td style={{padding:"9px 14px",fontWeight:700,color:"#0A1628",textAlign:"right"}}>{fRM(c.currentDue.amount)}</td>
                   </tr>
                 ))}
                 <tr style={{borderTop:"2px solid #E4EAF2",background:"#F7F9FC"}}>
-                  <td colSpan={4} style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:"#0A1628"}}>Total Due This Month</td>
+                  <td colSpan={4} style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:"#0A1628",background:"#F7F9FC"}}>Total Due This Month</td>
                   <td style={{padding:"9px 14px",fontWeight:800,fontSize:13,color:"#0A1628",textAlign:"right"}}>{fRM(totalDue)}</td>
                 </tr>
               </tbody>
@@ -207,10 +207,10 @@ function RTOSummaryInner({customers,branchMeta}){
           <div style={{width:3,height:14,background:"#0A1628",borderRadius:2}}/>
           <span style={{fontSize:10,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.08em"}}>All Customers Payment Analysis</span>
         </div>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,tableLayout:"fixed"}}>
           <thead><tr style={{background:"#F7F9FC",borderBottom:"1px solid #E4EAF2"}}>
-            {["#","Customer","Branch","Contract","Received","Outstanding","P&L","Progress","Status"].map(h=>(
-              <th key={h} style={{padding:"8px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>
+            {[["#",40],["Customer",180],["Branch",60],["Contract",100],["Received",100],["Outstanding",100],["P&L",100],["Progress",100],["Status",90]].map(([h,w])=>(
+              <th key={h} style={{padding:"8px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",width:w,overflow:"hidden"}}>{h}</th>
             ))}
           </tr></thead>
           <tbody>
@@ -225,10 +225,10 @@ function RTOSummaryInner({customers,branchMeta}){
                     <div style={{fontSize:10,color:"#8A96A8"}}>{c.memberId} · {c.contactNumber}</div>
                   </td>
                   <td style={{padding:"9px 14px",fontSize:11,color:"#4A5568"}}>{c.branch}</td>
-                  <td style={{padding:"9px 14px",fontSize:11,color:"#0A1628"}}>{fRM(c.totalContract)}</td>
-                  <td style={{padding:"9px 14px",fontSize:11,color:"#0A1628"}}>{fRM(c.totalReceived)}</td>
-                  <td style={{padding:"9px 14px",fontSize:11,color:c.outstanding>0?"#B91C1C":"#15803D",fontWeight:600}}>{fRM(c.outstanding)}</td>
-                  <td style={{padding:"9px 14px",fontSize:11,color:c.pl>=0?"#15803D":"#B91C1C",fontWeight:600}}>{fRM(c.pl)}</td>
+                  <td style={{padding:"9px 14px",fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>{fRM(c.totalContract)}</td>
+                  <td style={{padding:"9px 14px",fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>{fRM(c.totalReceived)}</td>
+                  <td style={{padding:"9px 14px",fontSize:11,color:c.outstanding>0?"#B91C1C":"#15803D",fontWeight:600,whiteSpace:"nowrap"}}>{fRM(c.outstanding)}</td>
+                  <td style={{padding:"9px 14px",fontSize:11,color:c.pl>=0?"#15803D":"#B91C1C",fontWeight:600,whiteSpace:"nowrap"}}>{fRM(c.pl)}</td>
                   <td style={{padding:"9px 14px",minWidth:100}}>
                     <div style={{display:"flex",alignItems:"center",gap:6}}>
                       <div style={{flex:1,height:4,background:"#E4EAF2",borderRadius:2,overflow:"hidden"}}>
@@ -238,7 +238,7 @@ function RTOSummaryInner({customers,branchMeta}){
                     </div>
                   </td>
                   <td style={{padding:"9px 14px"}}>
-                    <span style={{padding:"3px 9px",borderRadius:4,fontSize:10,fontWeight:700,
+                    <span style={{padding:"3px 9px",borderRadius:4,fontSize:10,fontWeight:700,whiteSpace:"nowrap",display:"inline-block",
                       background:c.isComplete?"#F0FDF4":c.overdue.length>0?"#FEF2F2":"#EFF6FF",
                       color:c.isComplete?"#15803D":c.overdue.length>0?"#B91C1C":"#1E6FDB",
                       border:`1px solid ${c.isComplete?"#BBF7D0":c.overdue.length>0?"#FECACA":"#BFDBFE"}`
@@ -250,10 +250,10 @@ function RTOSummaryInner({customers,branchMeta}){
             <tr style={{borderTop:"2px solid #E4EAF2",background:"#F7F9FC"}}>
               <td colSpan={2} style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:"#0A1628"}}>TOTAL ({analytics.length})</td>
               <td style={{padding:"9px 14px"}}/>
-              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:"#0A1628"}}>{fRM(totals.totalContract)}</td>
-              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:"#0A1628"}}>{fRM(totals.totalReceived)}</td>
-              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:totals.totalOutstanding>0?"#B91C1C":"#15803D"}}>{fRM(totals.totalOutstanding)}</td>
-              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:totals.totalPL>=0?"#15803D":"#B91C1C"}}>{fRM(totals.totalPL)}</td>
+              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:"#0A1628",whiteSpace:"nowrap"}}>{fRM(totals.totalContract)}</td>
+              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:"#0A1628",whiteSpace:"nowrap"}}>{fRM(totals.totalReceived)}</td>
+              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:totals.totalOutstanding>0?"#B91C1C":"#15803D",whiteSpace:"nowrap"}}>{fRM(totals.totalOutstanding)}</td>
+              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:totals.totalPL>=0?"#15803D":"#B91C1C",whiteSpace:"nowrap"}}>{fRM(totals.totalPL)}</td>
               <td colSpan={2}/>
             </tr>
           </tbody>
