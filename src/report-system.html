@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emax Group — Daily Financial Report</title>
+<style>
+  :root{
+    --navy:#1C2333;
+    --navy-2:#2A3350;
+    --cream:#F6F4EE;
+    --card:#FFFFFF;
+    --blue-head:#C9D9F0;
+    --amber:#F5A623;
+    --amber-dark:#C97E00;
+    --yellow:#FFD500;
+    --ink:#20242E;
+    --muted:#6B7280;
+    --border:#E4E1D6;
+    --danger:#D64545;
+    --good:#2E8B57;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:var(--cream); color:var(--ink);
+  }
+  header{
+    background:var(--navy); color:#fff; padding:18px 16px 14px;
+    position:sticky; top:0; z-index:20;
+  }
+  header h1{
+    margin:0; font-size:18px; letter-spacing:0.2px; font-weight:700;
+  }
+  header .sub{color:#AEB6CC; font-size:12px; margin-top:2px;}
+  .tabs{
+    display:flex; gap:8px; padding:12px 12px 0; overflow-x:auto; background:var(--navy);
+    -ms-overflow-style:none; scrollbar-width:none;
+  }
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab-btn{
+    flex:0 0 auto; padding:9px 14px; border-radius:10px 10px 0 0; border:none;
+    background:var(--navy-2); color:#C7CEDE; font-weight:600; font-size:13px; cursor:pointer;
+    white-space:nowrap;
+  }
+  .tab-btn.active{background:var(--cream); color:var(--navy);}
+  main{padding:14px; max-width:720px; margin:0 auto 80px;}
+  .topbar{
+    display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap;
+  }
+  .topbar label{font-size:12px; color:var(--muted); font-weight:600; display:block; margin-bottom:3px;}
+  .topbar input[type=date], .topbar input[type=time]{
+    padding:8px 10px; border-radius:8px; border:1px solid var(--border); font-size:14px; background:#fff;
+  }
+  .card{
+    background:var(--card); border-radius:12px; margin-bottom:14px; overflow:hidden;
+    border:1px solid var(--border); box-shadow:0 1px 2px rgba(0,0,0,0.03);
+  }
+  .card-head{
+    background:var(--blue-head); padding:10px 14px; font-weight:700; font-size:13.5px;
+    display:flex; justify-content:space-between; align-items:center; color:var(--navy);
+  }
+  .row-list{padding:6px 10px;}
+  .row-item{
+    display:flex; gap:6px; align-items:center; padding:6px 2px; border-bottom:1px solid #F0EEE6;
+  }
+  .row-item:last-child{border-bottom:none;}
+  .row-item input[type=text]{
+    flex:1 1 auto; min-width:0; border:none; background:transparent; font-size:13.5px; padding:6px 4px;
+    border-bottom:1px dashed transparent;
+  }
+  .row-item input[type=text]:focus{outline:none; border-bottom:1px dashed var(--amber);}
+  .row-item .amt-wrap{display:flex; align-items:center; gap:2px; flex:0 0 auto;}
+  .row-item .amt-wrap span{font-size:12px; color:var(--muted);}
+  .row-item input[type=number]{
+    width:100px; text-align:right; border:none; background:#FAF9F5; border-radius:6px; padding:6px 8px;
+    font-size:13.5px; font-variant-numeric:tabular-nums;
+  }
+  .row-item input[type=number]:focus{outline:1.5px solid var(--amber);}
+  .row-item .del{
+    background:none; border:none; color:var(--danger); font-size:16px; cursor:pointer; padding:2px 6px;
+    flex:0 0 auto;
+  }
+  .add-row-btn{
+    margin:8px 10px 10px; padding:7px 12px; border-radius:8px; border:1px dashed #B9B6A8;
+    background:transparent; color:var(--navy-2); font-size:12.5px; font-weight:600; cursor:pointer;
+  }
+  .total-row{
+    background:var(--amber); color:#fff; display:flex; justify-content:space-between;
+    padding:9px 14px; font-weight:700; font-size:13.5px;
+  }
+  .total-row span.tval{font-variant-numeric:tabular-nums;}
+  .fixed-fields{padding:8px 12px 12px;}
+  .field{margin-bottom:8px;}
+  .field label{display:block; font-size:12px; color:var(--muted); font-weight:600; margin-bottom:3px;}
+  .field input{
+    width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--border); font-size:14px;
+    font-variant-numeric:tabular-nums;
+  }
+  .field-row{display:flex; gap:8px;}
+  .field-row .field{flex:1;}
+  .stock-row{
+    display:grid; grid-template-columns:1fr 100px 100px 24px; gap:8px; align-items:center; padding:7px 4px;
+    border-bottom:1px solid #F0EEE6;
+  }
+  .stock-row:last-child{border-bottom:none;}
+  .stock-row input[type=text]{border:none; background:transparent; font-size:13px; padding:5px 2px;}
+  .stock-row input[type=number]{
+    border:none; background:#FAF9F5; border-radius:6px; padding:6px 8px; font-size:12.5px; text-align:right;
+  }
+  .stock-head{
+    display:grid; grid-template-columns:1fr 100px 100px 24px; gap:8px; padding:4px 12px 6px; font-size:9.5px;
+    color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.2px; line-height:1.2;
+  }
+  .save-bar{
+    position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--border);
+    padding:10px 14px; display:flex; gap:8px; z-index:30;
+  }
+  .btn{
+    flex:1; padding:12px; border-radius:10px; border:none; font-weight:700; font-size:14px; cursor:pointer;
+  }
+  .btn-primary{background:var(--yellow); color:var(--navy);}
+  .btn-secondary{background:var(--navy); color:#fff;}
+  .history{
+    padding:10px 12px 12px;
+  }
+  .history summary{cursor:pointer; font-weight:600; font-size:13px; color:var(--navy-2); padding:6px 0;}
+  summary{ list-style:none; }
+  summary::-webkit-details-marker{ display:none; }
+  .hist-item{
+    display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom:1px solid #F0EEE6;
+    font-size:13px;
+  }
+  .hist-item button{
+    border:1px solid var(--border); background:#fff; border-radius:7px; padding:5px 10px; font-size:12px; cursor:pointer;
+  }
+  .toast{
+    position:fixed; top:14px; left:50%; transform:translateX(-50%); background:var(--navy); color:#fff;
+    padding:9px 16px; border-radius:20px; font-size:13px; z-index:99; opacity:0; transition:opacity .25s;
+    pointer-events:none;
+  }
+  .toast.show{opacity:1;}
+  .month-picker{margin-bottom:12px;}
+  .month-picker label{font-size:12px; color:var(--muted); font-weight:600; display:block; margin-bottom:3px;}
+  .month-picker input{padding:8px 10px; border-radius:8px; border:1px solid var(--border); font-size:14px;}
+  .empty-hint{font-size:12px; color:var(--muted); padding:8px 12px;}
+  .copy-btn{
+    background:none; border:1px solid var(--border); color:var(--navy-2); font-size:11.5px; font-weight:600;
+    padding:5px 9px; border-radius:7px; cursor:pointer;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Emax Group — Daily Financial Report</h1>
+  <div class="sub">Key in daily figures for each company · saved automatically</div>
+  <div class="tabs" id="tabs"></div>
+</header>
+
+<main id="main"></main>
+
+<div class="save-bar">
+  <button class="btn btn-secondary" id="photoBtn">Save as Photo</button>
+  <button class="btn btn-primary" id="saveBtn">Save Report</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+const STORAGE_SHARED = true; // shared so the whole team sees the same reports
+
+const COMPANIES = {
+  emax: {
+    name: 'EMAX NETWORK SDN BHD',
+    shortLabel: 'Emax',
+    hasTime: true,
+    sections: ['bank','stock','aeon','jcl','rto','supplier','customer']
+  },
+  spoonfork: {
+    name: 'SPOON & FORK SDN BHD',
+    shortLabel: 'Spoon & Fork',
+    hasTime: false,
+    sections: ['bank']
+  },
+  espacex: {
+    name: 'ESPACE X SDN BHD',
+    shortLabel: 'Espace X (Bank)',
+    hasTime: false,
+    sections: ['bank']
+  },
+  dojo: {
+    name: 'DOJO',
+    shortLabel: 'Dojo (Sales)',
+    hasTime: false,
+    sections: ['salesReport','summary'],
+    photoSections: ['salesReport']
+  },
+  espaceSales: {
+    name: 'ESPACE X — DAILY SALES ANALYSIS',
+    shortLabel: 'Espace X (Sales)',
+    hasTime: false,
+    sections: ['salesReport','playground','activateGame','other']
+  }
+};
+
+const QTY_SECTIONS = new Set(['playground','activateGame','other']);
+
+const SECTION_TITLES = {
+  bank:'Bank Balance', stock:'Stock Balance', aeon:'AEON (Unclaimed)',
+  jcl:'JCL (Unclaimed)', rto:'Rent-to-Own (RTO)', supplier:'Supplier', customer:'Customer',
+  salesReport:'Daily Sales Report', summary:'Summary', playground:'Children Playground',
+  activateGame:'Activate Game', other:'Other', rtoCare:'RTO Customers'
+};
+
+function defaultRows(company, section){
+  if(section==='bank'){
+    if(company==='emax') return [
+      {label:'Public Bank',amount:''},{label:'Agro',amount:''},
+      {label:'RHB',amount:''},{label:'RHB (AEON 1st Payment)',amount:''}
+    ];
+    if(company==='spoonfork') return [
+      {label:'Public Bank',amount:''},{label:'Maybank',amount:''},
+      {label:'Alliance Bank',amount:''},{label:'Cash In Hand (Pending Transfer to PBB)',amount:''}
+    ];
+    if(company==='espacex') return [
+      {label:'Maybank',amount:''},{label:'Cash In Hand (Pending Transfer to PBB)',amount:''}
+    ];
+  }
+  if(section==='aeon') return [{label:'',amount:''}];
+  if(section==='jcl') return [{label:'',amount:''}];
+  if(section==='supplier') return [{label:'Xianfeng',amount:''},{label:'E-Century',amount:''}];
+  if(section==='customer') return [{label:'',amount:''}];
+  return [];
+}
+
+function defaultQtyRows(section){
+  if(section==='playground') return [
+    {label:'Socks',qty:'',amount:''},{label:'Daily Pass',qty:'',amount:''},
+    {label:'10 Entries Pass',qty:'',amount:''},{label:'6 Entries Pass',qty:'',amount:''},
+    {label:'Redemption',qty:'',amount:''}
+  ];
+  if(section==='activateGame') return [
+    {label:'Extra Hour',qty:'',amount:''},{label:'(Weekend/SH) One Time Pass',qty:'',amount:''},
+    {label:'(Weekday) One Time Pass',qty:'',amount:''},{label:'10 Entries Pass',qty:'',amount:''},
+    {label:'5 Entries Pass',qty:'',amount:''},{label:'Redemption',qty:'',amount:''}
+  ];
+  if(section==='other') return [{label:'Google Review (Free Socks)',qty:'',amount:''}];
+  return [{label:'',qty:'',amount:''}];
+}
+
+function defaultSalesReport(){
+  return { cash:'', card:'', qr:'', grabfood:'', foodpanda:'' };
+}
+
+function defaultSummaryData(){
+  return {
+    cashSalesTotal:'', cashSalesDiscount:'',
+    surcharge:'',
+    grabFoodSst:'',
+    foodPandaSst:'',
+    sst:'',
+    aisolove:''
+  };
+}
+
+function defaultStockRows(){
+  return ['CKS','KM','TW2','HQ','ITCC','KB','LD','TW1','SUSPENSE','T1','TENOM']
+    .map(b=>({branch:b, category:'', total:''}));
+}
+
+function defaultRto(){
+  return {
+    contractValue:'', deviceDTP:'', expectedProfit:'', collectedPayment:'',
+    pendingCount:'', pendingAmount:'', pendingMonth:'',
+    nextMonthAmount:'', nextMonthLabel:''
+  };
+}
+
+const RTO_CARE_FIELDS = [
+  {key:'agent', label:'Agent', type:'text'},
+  {key:'memberId', label:'Emax Member ID', type:'text'},
+  {key:'customerName', label:'Customer Name', type:'text'},
+  {key:'branch', label:'Branch', type:'text'},
+  {key:'contactNumber', label:'Contact Number', type:'text'},
+  {key:'salesInvoiceDate', label:'Sales Invoice Date', type:'date'},
+  {key:'tenure', label:'Tenure (months)', type:'number'},
+  {key:'fp', label:'FP (RM)', type:'number'},
+  {key:'branchProfit', label:'Branch Profit (RM)', type:'number'},
+  {key:'ag', label:'AG (RM)', type:'number'},
+  {key:'sf', label:'SF (RM)', type:'number'},
+  {key:'cost', label:'Cost (RM)', type:'number'},
+  {key:'monthlyInstallment', label:'Monthly Installment (RM)', type:'number'},
+  {key:'totalContractValue', label:'Total Contract Value (RM)', type:'number'},
+  {key:'paymentReceived', label:'Payment Received (RM)', type:'number'},
+  {key:'autoDebitStartDate', label:'Auto Debit Start Date', type:'date'},
+];
+
+function defaultRtoCareRecord(){
+  const rec = { schedule:[] };
+  RTO_CARE_FIELDS.forEach(f=>{ rec[f.key] = ''; });
+  return rec;
+}
+
+function ordinal(n){
+  const s=['th','st','nd','rd'], v=n%100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
+}
+
+function blankReport(company){
+  const r = { date:new Date().toISOString().slice(0,10), time:'', sections:{} };
+  const cfg = COMPANIES[company];
+  cfg.sections.forEach(sec=>{
+    if(sec==='stock') r.sections.stock = defaultStockRows();
+    else if(sec==='rto') r.sections.rto = defaultRto();
+    else if(sec==='salesReport') r.sections.salesReport = defaultSalesReport();
+    else if(sec==='summary') r.sections.summary = defaultSummaryData();
+    else if(sec==='rtoCare') r.sections.rtoCare = [defaultRtoCareRecord()];
+    else if(QTY_SECTIONS.has(sec)) r.sections[sec] = defaultQtyRows(sec);
+    else r.sections[sec] = defaultRows(company, sec);
+  });
+  return r;
+}
+
+function blankFailedLog(){
+  return { month:new Date().toISOString().slice(0,7), rows:[{name:'',contact:'',amount:''}] };
+}
+
+let currentCompany = 'emax';
+let refreshSummaryFn = null;
+let currentData = blankReport('emax');
+let currentFailed = blankFailedLog();
+
+function num(v){ const n = parseFloat(v); return isNaN(n)?0:n; }
+function fmt(n){ return n.toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function storageKeyReport(company, date){ return `report:${company}:${date}`; }
+function storageKeyFailed(month){ return `failed:${month}`; }
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+// ---------- Tabs ----------
+function renderTabs(){
+  const tabs = document.getElementById('tabs');
+  tabs.innerHTML = '';
+  Object.keys(COMPANIES).forEach(key=>{
+    const b = document.createElement('button');
+    b.className = 'tab-btn' + (key===currentCompany?' active':'');
+    b.textContent = COMPANIES[key].shortLabel;
+    b.onclick = ()=>{ switchCompany(key); };
+    tabs.appendChild(b);
+  });
+}
+
+async function switchCompany(key){
+  currentCompany = key;
+  renderTabs();
+  if(COMPANIES[key].isLog){
+    const months = await listFailedMonths();
+    await loadFailedLog(months.length ? months[0] : new Date().toISOString().slice(0,7));
+  } else {
+    const dates = await listReportDates(key);
+    await loadReport(key, dates.length ? dates[0] : new Date().toISOString().slice(0,10));
+  }
+}
+
+// ---------- Load / Save ----------
+async function loadReport(company, date){
+  try{
+    const res = await window.storage.get(storageKeyReport(company, date), STORAGE_SHARED);
+    currentData = res && res.value ? JSON.parse(res.value) : blankReport(company);
+    currentData.date = date;
+  }catch(e){
+    currentData = blankReport(company);
+    currentData.date = date;
+  }
+  renderMain();
+}
+
+async function saveReport(){
+  const company = currentCompany;
+  if(COMPANIES[company].isLog){ return saveFailed(); }
+  try{
+    const res = await window.storage.set(storageKeyReport(company, currentData.date), JSON.stringify(currentData), STORAGE_SHARED);
+    if(res) showToast('Saved ✓ ' + currentData.date);
+    else showToast('Save failed, try again');
+  }catch(e){ showToast('Save failed: '+e.message); }
+}
+
+async function loadFailedLog(month){
+  try{
+    const res = await window.storage.get(storageKeyFailed(month), STORAGE_SHARED);
+    currentFailed = res && res.value ? JSON.parse(res.value) : blankFailedLog();
+    currentFailed.month = month;
+  }catch(e){
+    currentFailed = blankFailedLog();
+    currentFailed.month = month;
+  }
+  renderMain();
+}
+
+async function saveFailed(){
+  try{
+    const res = await window.storage.set(storageKeyFailed(currentFailed.month), JSON.stringify(currentFailed), STORAGE_SHARED);
+    if(res){ showToast('Saved ✓ '+currentFailed.month); renderMain(); }
+    else showToast('Save failed, try again');
+  }catch(e){ showToast('Save failed: '+e.message); }
+}
+
+async function listReportDates(company){
+  try{
+    const res = await window.storage.list(`report:${company}:`, STORAGE_SHARED);
+    if(!res || !res.keys) return [];
+    return res.keys.map(k=>k.split(':')[2]).sort().reverse();
+  }catch(e){ return []; }
+}
+
+// ---------- Rendering ----------
+function renderMain(){
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  refreshSummaryFn = null;
+
+  if(COMPANIES[currentCompany].isLog){
+    renderFailedUI(main);
+    return;
+  }
+
+  const cfg = COMPANIES[currentCompany];
+
+  // topbar: date/time
+  const topbar = document.createElement('div');
+  topbar.className = 'topbar';
+  topbar.innerHTML = `
+    <div><label>Date</label><input type="date" id="dateInput" value="${currentData.date}"></div>
+    ${cfg.hasTime ? `<div><label>Time</label><input type="time" id="timeInput" value="${currentData.time||''}"></div>` : ''}
+  `;
+  main.appendChild(topbar);
+  document.getElementById('dateInput').onchange = async (e)=>{
+    await loadReport(currentCompany, e.target.value);
+  };
+  if(cfg.hasTime){
+    document.getElementById('timeInput').oninput = (e)=>{ currentData.time = e.target.value; };
+  }
+
+  cfg.sections.forEach(sec=>{
+    if(sec==='stock') main.appendChild(renderStockCard());
+    else if(sec==='rto') main.appendChild(renderRtoCard());
+    else if(sec==='salesReport') main.appendChild(renderSalesReportCard());
+    else if(sec==='summary') main.appendChild(renderSummaryCard());
+    else if(sec==='rtoCare') main.appendChild(renderRtoCareCard());
+    else if(QTY_SECTIONS.has(sec)) main.appendChild(renderQtyListCard(sec));
+    else main.appendChild(renderListCard(sec));
+  });
+}
+
+function renderListCard(sec){
+  const card = document.createElement('div');
+  card.className = 'card';
+  const rows = currentData.sections[sec];
+  const total = rows.reduce((s,r)=>s+num(r.amount),0);
+
+  card.innerHTML = `<div class="card-head"><span>${SECTION_TITLES[sec]}</span></div>`;
+  const list = document.createElement('div');
+  list.className = 'row-list';
+  rows.forEach((r,i)=>{
+    const item = document.createElement('div');
+    item.className = 'row-item';
+    item.innerHTML = `
+      <input type="text" placeholder="Label" value="${escapeHtml(r.label)}">
+      <div class="amt-wrap"><span>RM</span><input type="number" step="0.01" value="${r.amount}"></div>
+      <button class="del">✕</button>
+    `;
+    const [labelInput, , amtWrap] = item.children;
+    const amtInput = item.querySelector('input[type=number]');
+    labelInput.oninput = e=>{ rows[i].label = e.target.value; };
+    amtInput.oninput = e=>{ rows[i].amount = e.target.value; updateTotal(card, rows); };
+    item.querySelector('.del').onclick = ()=>{ rows.splice(i,1); renderMain(); };
+    list.appendChild(item);
+  });
+  card.appendChild(list);
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-row-btn';
+  addBtn.textContent = '+ Add row';
+  addBtn.onclick = ()=>{ rows.push({label:'',amount:''}); renderMain(); };
+  card.appendChild(addBtn);
+
+  const totalRow = document.createElement('div');
+  totalRow.className = 'total-row';
+  totalRow.innerHTML = `<span>TOTAL</span><span class="tval">RM ${fmt(total)}</span>`;
+  card.appendChild(totalRow);
+
+  return card;
+}
+
+function updateTotal(card, rows){
+  const total = rows.reduce((s,r)=>s+num(r.amount),0);
+  card.querySelector('.tval').textContent = 'RM ' + fmt(total);
+}
+
+function renderQtyListCard(sec){
+  const card = document.createElement('div');
+  card.className = 'card';
+  const rows = currentData.sections[sec];
+  card.innerHTML = `<div class="card-head"><span>${SECTION_TITLES[sec]}</span></div>`;
+  const head = document.createElement('div');
+  head.className = 'stock-head';
+  head.innerHTML = `<span>Item</span><span>Qty</span><span>Amount</span><span></span>`;
+  card.appendChild(head);
+
+  rows.forEach((r,i)=>{
+    const item = document.createElement('div');
+    item.className = 'stock-row';
+    item.innerHTML = `
+      <input type="text" value="${escapeHtml(r.label)}" placeholder="Item">
+      <input type="number" value="${r.qty}">
+      <input type="number" step="0.01" value="${r.amount}">
+      <button class="del">✕</button>
+    `;
+    const inputs = item.querySelectorAll('input');
+    inputs[0].oninput = e=>{ rows[i].label = e.target.value; };
+    inputs[1].oninput = e=>{ rows[i].qty = e.target.value; };
+    inputs[2].oninput = e=>{ rows[i].amount = e.target.value; updateQtyTotal(card, rows); };
+    item.querySelector('.del').onclick = ()=>{ rows.splice(i,1); renderMain(); };
+    card.appendChild(item);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-row-btn';
+  addBtn.textContent = '+ Add item';
+  addBtn.onclick = ()=>{ rows.push({label:'',qty:'',amount:''}); renderMain(); };
+  card.appendChild(addBtn);
+
+  const total = rows.reduce((s,r)=>s+num(r.amount),0);
+  const totalRow = document.createElement('div');
+  totalRow.className = 'total-row';
+  totalRow.innerHTML = `<span>TOTAL</span><span class="tval">RM ${fmt(total)}</span>`;
+  card.appendChild(totalRow);
+
+  return card;
+}
+
+function updateQtyTotal(card, rows){
+  const total = rows.reduce((s,r)=>s+num(r.amount),0);
+  card.querySelector('.tval').textContent = 'RM ' + fmt(total);
+}
+
+function renderStockCard(){
+  const card = document.createElement('div');
+  card.className = 'card';
+  const rows = currentData.sections.stock;
+  card.innerHTML = `<div class="card-head"><span>Stock Balance</span></div>`;
+  const head = document.createElement('div');
+  head.className = 'stock-head';
+  head.innerHTML = `<span>Branch</span><span>TV/Laptop/HP/Tablet</span><span>Total</span><span></span>`;
+  card.appendChild(head);
+
+  rows.forEach((r,i)=>{
+    const item = document.createElement('div');
+    item.className = 'stock-row';
+    item.innerHTML = `
+      <input type="text" value="${escapeHtml(r.branch)}">
+      <input type="number" step="0.01" value="${r.category}">
+      <input type="number" step="0.01" value="${r.total}">
+      <button class="del">✕</button>
+    `;
+    const inputs = item.querySelectorAll('input');
+    inputs[0].oninput = e=>{ rows[i].branch = e.target.value; };
+    inputs[1].oninput = e=>{ rows[i].category = e.target.value; updateStockTotal(card, rows); };
+    inputs[2].oninput = e=>{ rows[i].total = e.target.value; updateStockTotal(card, rows); };
+    item.querySelector('.del').onclick = ()=>{ rows.splice(i,1); renderMain(); };
+    card.appendChild(item);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-row-btn';
+  addBtn.textContent = '+ Add branch';
+  addBtn.onclick = ()=>{ rows.push({branch:'',category:'',total:''}); renderMain(); };
+  card.appendChild(addBtn);
+
+  const catTotal = rows.reduce((s,r)=>s+num(r.category),0);
+  const grandTotal = rows.reduce((s,r)=>s+num(r.total),0);
+  const totalRow = document.createElement('div');
+  totalRow.className = 'total-row';
+  totalRow.innerHTML = `<span>TOTAL</span><span class="tval">RM ${fmt(catTotal)} · RM ${fmt(grandTotal)}</span>`;
+  card.appendChild(totalRow);
+
+  return card;
+}
+
+function updateStockTotal(card, rows){
+  const catTotal = rows.reduce((s,r)=>s+num(r.category),0);
+  const grandTotal = rows.reduce((s,r)=>s+num(r.total),0);
+  card.querySelector('.tval').textContent = `RM ${fmt(catTotal)} · RM ${fmt(grandTotal)}`;
+}
+
+function renderRtoCard(){
+  const card = document.createElement('div');
+  card.className = 'card';
+  const d = currentData.sections.rto;
+  card.innerHTML = `<div class="card-head"><span>Rent-to-Own (RTO)</span></div>`;
+  const ff = document.createElement('div');
+  ff.className = 'fixed-fields';
+  ff.innerHTML = `
+    <div class="field"><label>Total Contract Value (RM)</label><input type="number" step="0.01" id="rto_contractValue" value="${d.contractValue}"></div>
+    <div class="field"><label>Device DTP (RM)</label><input type="number" step="0.01" id="rto_deviceDTP" value="${d.deviceDTP}"></div>
+    <div class="field"><label>Expected Total Profit (RM)</label><input type="number" step="0.01" id="rto_expectedProfit" value="${d.expectedProfit}"></div>
+    <div class="field"><label>Collected Payment (RM)</label><input type="number" step="0.01" id="rto_collectedPayment" value="${d.collectedPayment}"></div>
+    <div class="field"><label>Balance to Receive (auto)</label><input type="text" disabled id="rto_balance" value=""></div>
+    <div class="field-row">
+      <div class="field"><label>Pending Collection — Month</label><input type="text" id="rto_pendingMonth" value="${escapeHtml(d.pendingMonth)}" placeholder="e.g. June 2026"></div>
+      <div class="field"><label>Count</label><input type="number" id="rto_pendingCount" value="${d.pendingCount}"></div>
+    </div>
+    <div class="field"><label>Pending Collection Amount (RM)</label><input type="number" step="0.01" id="rto_pendingAmount" value="${d.pendingAmount}"></div>
+    <div class="field-row">
+      <div class="field"><label>Next Month Collection — Label</label><input type="text" id="rto_nextMonthLabel" value="${escapeHtml(d.nextMonthLabel)}" placeholder="e.g. July 2026"></div>
+      <div class="field"><label>Amount (RM)</label><input type="number" step="0.01" id="rto_nextMonthAmount" value="${d.nextMonthAmount}"></div>
+    </div>
+  `;
+  card.appendChild(ff);
+
+  function bind(id, key, isText){
+    const el = ff.querySelector('#'+id);
+    el.oninput = e=>{ d[key] = e.target.value; updateBalance(); };
+  }
+  ['contractValue','deviceDTP','expectedProfit','collectedPayment'].forEach(k=>bind('rto_'+k,k));
+  bind('rto_pendingMonth','pendingMonth'); bind('rto_pendingCount','pendingCount');
+  bind('rto_pendingAmount','pendingAmount'); bind('rto_nextMonthLabel','nextMonthLabel');
+  bind('rto_nextMonthAmount','nextMonthAmount');
+
+  function updateBalance(){
+    const bal = num(d.contractValue) - num(d.collectedPayment);
+    ff.querySelector('#rto_balance').value = 'RM ' + fmt(bal);
+  }
+  updateBalance();
+
+  return card;
+}
+
+function renderSalesReportCard(){
+  const card = document.createElement('div');
+  card.className = 'card';
+  const d = currentData.sections.salesReport;
+  card.innerHTML = `<div class="card-head"><span>Daily Sales Report</span></div>`;
+  const ff = document.createElement('div');
+  ff.className = 'fixed-fields';
+  ff.innerHTML = `
+    <div class="field"><label>Cash (RM)</label><input type="number" step="0.01" id="sr_cash" value="${d.cash}"></div>
+    <div class="field"><label>Credit/Debit Card (RM)</label><input type="number" step="0.01" id="sr_card" value="${d.card}"></div>
+    <div class="field"><label>QR Payment (RM)</label><input type="number" step="0.01" id="sr_qr" value="${d.qr}"></div>
+    <div class="field"><label>GrabFood (RM)</label><input type="number" step="0.01" id="sr_grabfood" value="${d.grabfood}"></div>
+    <div class="field"><label>FoodPanda (RM)</label><input type="number" step="0.01" id="sr_foodpanda" value="${d.foodpanda}"></div>
+  `;
+  card.appendChild(ff);
+
+  ['cash','card','qr','grabfood','foodpanda'].forEach(k=>{
+    ff.querySelector('#sr_'+k).oninput = e=>{
+      d[k] = e.target.value;
+      updateTotalSales();
+      if((k==='grabfood' || k==='foodpanda') && refreshSummaryFn) refreshSummaryFn();
+    };
+  });
+
+  const totalRow = document.createElement('div');
+  totalRow.className = 'total-row';
+  totalRow.innerHTML = `<span>TOTAL SALES</span><span class="tval">RM 0.00</span>`;
+  card.appendChild(totalRow);
+
+  function updateTotalSales(){
+    const total = num(d.cash)+num(d.card)+num(d.qr)+num(d.grabfood)+num(d.foodpanda);
+    totalRow.querySelector('.tval').textContent = 'RM ' + fmt(total);
+  }
+  updateTotalSales();
+
+  return card;
+}
+
+function renderSummaryCard(){
+  const card = document.createElement('div');
+  card.className = 'card';
+  const d = currentData.sections.summary;
+  card.innerHTML = `<div class="card-head"><span>Summary</span></div>`;
+  const ff = document.createElement('div');
+  ff.className = 'fixed-fields';
+  ff.innerHTML = `
+    <div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:2px 0 6px;">Cash Sales</div>
+    <div class="field-row">
+      <div class="field"><label>Total Sales (RM)</label><input type="number" step="0.01" id="sum_cashTotal" value="${d.cashSalesTotal}"></div>
+      <div class="field"><label>Discount (RM)</label><input type="number" step="0.01" id="sum_cashDiscount" value="${d.cashSalesDiscount}"></div>
+    </div>
+    <div class="field"><label>Net Sales (auto)</label><input type="text" disabled id="sum_cashNet"></div>
+
+    <div class="field" style="margin-top:14px;"><label>Surcharge (RM)</label><input type="number" step="0.01" id="sum_surcharge" value="${d.surcharge}"></div>
+
+    <div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:14px 0 6px;">Grab Food</div>
+    <div class="field-row">
+      <div class="field"><label>Total Sales (auto — from Daily Sales Report)</label><input type="text" disabled id="sum_grabTotalDisplay"></div>
+      <div class="field"><label>SST (RM)</label><input type="number" step="0.01" id="sum_grabSst" value="${d.grabFoodSst}"></div>
+    </div>
+    <div class="field"><label>Net Sales (auto)</label><input type="text" disabled id="sum_grabNet"></div>
+
+    <div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:14px 0 6px;">FoodPanda</div>
+    <div class="field-row">
+      <div class="field"><label>Total Sales (auto — from Daily Sales Report)</label><input type="text" disabled id="sum_fpTotalDisplay"></div>
+      <div class="field"><label>SST (RM)</label><input type="number" step="0.01" id="sum_fpSst" value="${d.foodPandaSst}"></div>
+    </div>
+    <div class="field"><label>Net Sales (auto)</label><input type="text" disabled id="sum_fpNet"></div>
+
+    <div class="field" style="margin-top:14px;"><label>SST (RM)</label><input type="number" step="0.01" id="sum_sst" value="${d.sst}"></div>
+
+    <div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:14px 0 6px;">Aisolove</div>
+    <div class="field"><label>Amount (RM)</label><input type="number" step="0.01" id="sum_aisolove" value="${d.aisolove}"></div>
+
+    <div class="field" style="margin-top:14px;"><label>Autocount Sales (auto — Total Sales − Surcharge − Grab Food Net − FoodPanda Net − SST)</label><input type="text" disabled id="sum_autocount"></div>
+  `;
+  card.appendChild(ff);
+
+  function bind(id, key){ ff.querySelector('#'+id).oninput = e=>{ d[key] = e.target.value; updateSummary(); }; }
+  bind('sum_cashTotal','cashSalesTotal'); bind('sum_cashDiscount','cashSalesDiscount');
+  bind('sum_surcharge','surcharge');
+  bind('sum_grabSst','grabFoodSst');
+  bind('sum_fpSst','foodPandaSst');
+  bind('sum_sst','sst');
+  bind('sum_aisolove','aisolove');
+
+  const totalRow = document.createElement('div');
+  totalRow.className = 'total-row';
+  totalRow.innerHTML = `<span>TOTAL</span><span class="tval">RM 0.00</span>`;
+  card.appendChild(totalRow);
+
+  function updateSummary(){
+    const sr = currentData.sections.salesReport || {};
+    const grabTotal = num(sr.grabfood);
+    const fpTotal = num(sr.foodpanda);
+    ff.querySelector('#sum_grabTotalDisplay').value = 'RM ' + fmt(grabTotal);
+    ff.querySelector('#sum_fpTotalDisplay').value = 'RM ' + fmt(fpTotal);
+    const cashNet = num(d.cashSalesTotal) - num(d.cashSalesDiscount);
+    const grabNet = grabTotal - num(d.grabFoodSst);
+    const fpNet = fpTotal - num(d.foodPandaSst);
+    ff.querySelector('#sum_cashNet').value = 'RM ' + fmt(cashNet);
+    ff.querySelector('#sum_grabNet').value = 'RM ' + fmt(grabNet);
+    ff.querySelector('#sum_fpNet').value = 'RM ' + fmt(fpNet);
+    const dailyTotalSales = num(sr.cash)+num(sr.card)+num(sr.qr)+num(sr.grabfood)+num(sr.foodpanda);
+    const autocountSales = dailyTotalSales - num(d.surcharge) - grabNet - fpNet - num(d.sst);
+    ff.querySelector('#sum_autocount').value = 'RM ' + fmt(autocountSales);
+    const total = cashNet + num(d.surcharge) + grabNet + fpNet + num(d.sst) + num(d.aisolove);
+    totalRow.querySelector('.tval').textContent = 'RM ' + fmt(total);
+  }
+  updateSummary();
+  refreshSummaryFn = updateSummary;
+
+  return card;
+}
+
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+function installmentStatus(s){
+  if(s.paidDate) return 'Paid';
+  if(s.dueDate && s.dueDate < todayISO()) return 'Late';
+  if(s.dueDate) return 'Upcoming';
+  return '-';
+}
+
+function statusColor(status){
+  if(status==='Paid') return '#2E8B57';
+  if(status==='Late') return '#D64545';
+  if(status==='Upcoming') return '#C97E00';
+  return '#999';
+}
+
+function addMonthsISO(dateStr, months){
+  if(!dateStr) return '';
+  const d = new Date(dateStr+'T00:00:00');
+  d.setMonth(d.getMonth()+months);
+  return d.toISOString().slice(0,10);
+}
+
+function renderRtoCareCard(){
+  const wrap = document.createElement('div');
+  const records = currentData.sections.rtoCare;
+
+  wrap.appendChild(renderPaymentMonitor(records));
+
+  const header = document.createElement('div');
+  header.className = 'card-head';
+  header.style.marginBottom = '10px';
+  header.innerHTML = `<span>RTO Customers</span>`;
+  wrap.appendChild(header);
+
+  records.forEach((rec, i)=>{
+    wrap.appendChild(renderRtoCareRecord(rec, i, records));
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-row-btn';
+  addBtn.textContent = '+ Add Customer';
+  addBtn.style.margin = '0 0 14px';
+  addBtn.onclick = ()=>{ records.push(defaultRtoCareRecord()); renderMain(); };
+  wrap.appendChild(addBtn);
+
+  const totalContract = records.reduce((s,r)=>s+num(r.totalContractValue),0);
+  const totalOutstanding = records.reduce((s,r)=>s+(num(r.totalContractValue)-num(r.paymentReceived)),0);
+  const summaryRow = document.createElement('div');
+  summaryRow.className = 'card';
+  summaryRow.innerHTML = `<div class="total-row" style="border-radius:12px;">
+    <span>${records.length} Customer${records.length===1?'':'s'} · Total Contract</span>
+    <span>RM ${fmt(totalContract)} &nbsp;|&nbsp; Outstanding RM ${fmt(totalOutstanding)}</span>
+  </div>`;
+  wrap.appendChild(summaryRow);
+
+  return wrap;
+}
+
+function renderPaymentMonitor(records){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<div class="card-head"><span>Payment Monitor — unpaid installments</span></div>`;
+
+  let items = [];
+  records.forEach((rec, ri)=>{
+    (rec.schedule||[]).forEach((s, si)=>{
+      if(!s.paidDate){ items.push({rec, ri, s, si}); }
+    });
+  });
+  items.sort((a,b)=> (a.s.dueDate||'9999').localeCompare(b.s.dueDate||'9999'));
+
+  if(items.length===0){
+    const empty = document.createElement('div');
+    empty.className = 'empty-hint';
+    empty.textContent = 'No unpaid installments — all caught up, or no schedules generated yet.';
+    card.appendChild(empty);
+    return card;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'row-list';
+  items.forEach(({rec, s, si})=>{
+    const status = installmentStatus(s);
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid #F0EEE6;flex-wrap:wrap;';
+    row.innerHTML = `
+      <div style="flex:1.4;min-width:120px;">
+        <div style="font-weight:600;font-size:13px;">${escapeHtml(rec.customerName)||'Unnamed'}</div>
+        <div style="font-size:11.5px;color:var(--muted);">${escapeHtml(rec.branch)||''} · ${escapeHtml(s.label)||''} · Due ${s.dueDate||'—'}</div>
+      </div>
+      <span style="font-size:11px;font-weight:700;color:${statusColor(status)};flex:0 0 auto;min-width:52px;">${status}</span>
+      <input type="date" style="flex:0 0 auto;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:12.5px;" value="${s.paidDate||''}" title="Mark paid date">
+      <button style="flex:0 0 auto;background:var(--good);color:#fff;border:none;border-radius:7px;padding:6px 10px;font-size:11.5px;font-weight:600;cursor:pointer;">Mark Paid Today</button>
+    `;
+    const dateInput = row.querySelector('input[type=date]');
+    dateInput.onchange = e=>{ s.paidDate = e.target.value; renderMain(); };
+    row.querySelector('button').onclick = ()=>{ s.paidDate = todayISO(); renderMain(); };
+    list.appendChild(row);
+  });
+  card.appendChild(list);
+  return card;
+}
+
+function renderRtoCareRecord(rec, index, records){
+  const card = document.createElement('details');
+  card.className = 'card';
+  card.style.marginBottom = '12px';
+  card.open = !rec.customerName;
+
+  const outstanding = num(rec.totalContractValue) - num(rec.paymentReceived);
+  const breakeven = num(rec.monthlyInstallment) > 0 ? (num(rec.cost) / num(rec.monthlyInstallment)) : 0;
+
+  const summary = document.createElement('summary');
+  summary.style.cssText = 'background:#C9D9F0;color:#1C2333;padding:10px 14px;font-weight:700;font-size:13.5px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;list-style:none;flex-wrap:wrap;';
+  const nextUnpaid = (rec.schedule||[]).find(s=>!s.paidDate);
+  const nextStatus = nextUnpaid ? installmentStatus(nextUnpaid) : null;
+  summary.innerHTML = `
+    <span class="rc-title">${escapeHtml(rec.customerName)||'New Customer'} ${rec.branch?('· '+escapeHtml(rec.branch)):''}</span>
+    <span style="display:flex;gap:10px;align-items:center;">
+      ${nextUnpaid ? `<span class="rc-next" style="font-size:11px;font-weight:700;color:${statusColor(nextStatus)};">${escapeHtml(nextUnpaid.label)} due ${nextUnpaid.dueDate||'—'} · ${nextStatus}</span>` : `<span class="rc-next" style="font-size:11px;font-weight:700;color:#2E8B57;">All paid</span>`}
+      <span class="rc-outstanding">RM ${fmt(outstanding)}</span>
+    </span>
+  `;
+  card.appendChild(summary);
+
+  const ff = document.createElement('div');
+  ff.className = 'fixed-fields';
+
+  let fieldsHtml = '';
+  for(let i=0;i<RTO_CARE_FIELDS.length;i+=2){
+    const f1 = RTO_CARE_FIELDS[i], f2 = RTO_CARE_FIELDS[i+1];
+    fieldsHtml += `<div class="field-row">
+      <div class="field"><label>${f1.label}</label><input type="${f1.type}" ${f1.type==='number'?'step="0.01"':''} id="rc_${index}_${f1.key}" value="${f1.type==='text'||f1.type==='date' ? escapeHtml(rec[f1.key]) : rec[f1.key]}"></div>
+      ${f2 ? `<div class="field"><label>${f2.label}</label><input type="${f2.type}" ${f2.type==='number'?'step="0.01"':''} id="rc_${index}_${f2.key}" value="${f2.type==='text'||f2.type==='date' ? escapeHtml(rec[f2.key]) : rec[f2.key]}"></div>` : '<div class="field"></div>'}
+    </div>`;
+  }
+  fieldsHtml += `
+    <div class="field-row">
+      <div class="field"><label>Outstanding (auto)</label><input type="text" disabled id="rc_${index}_outstanding"></div>
+      <div class="field"><label>Breakeven — months (auto)</label><input type="text" disabled id="rc_${index}_breakeven"></div>
+    </div>
+  `;
+  ff.innerHTML = fieldsHtml;
+  card.appendChild(ff);
+
+  RTO_CARE_FIELDS.forEach(f=>{
+    ff.querySelector(`#rc_${index}_${f.key}`).oninput = e=>{
+      rec[f.key] = e.target.value;
+      updateRecordCalc();
+      if(f.key==='customerName' || f.key==='branch'){
+        summary.querySelector('.rc-title').textContent = `${rec.customerName||'New Customer'} ${rec.branch?('· '+rec.branch):''}`;
+      }
+    };
+  });
+
+  function updateRecordCalc(){
+    const out = num(rec.totalContractValue) - num(rec.paymentReceived);
+    const be = num(rec.monthlyInstallment) > 0 ? (num(rec.cost) / num(rec.monthlyInstallment)) : 0;
+    ff.querySelector(`#rc_${index}_outstanding`).value = 'RM ' + fmt(out);
+    ff.querySelector(`#rc_${index}_breakeven`).value = be ? be.toFixed(2) + ' months' : '-';
+    summary.querySelector('.rc-outstanding').textContent = 'RM ' + fmt(out);
+  }
+  updateRecordCalc();
+
+  // Payment / due date schedule
+  const schedWrap = document.createElement('div');
+  schedWrap.style.padding = '4px 14px 12px';
+  const schedTitleRow = document.createElement('div');
+  schedTitleRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px;';
+  schedTitleRow.innerHTML = `<span style="font-weight:700;font-size:12.5px;color:var(--navy-2);">Monthly Payment Schedule</span>`;
+  schedWrap.appendChild(schedTitleRow);
+
+  const genBtn = document.createElement('button');
+  genBtn.className = 'add-row-btn';
+  genBtn.style.margin = '0 0 8px';
+  genBtn.textContent = rec.schedule.length ? '↻ Regenerate from Tenure' : '+ Generate Schedule from Tenure';
+  genBtn.onclick = ()=>{
+    const months = parseInt(rec.tenure, 10) || 0;
+    if(months <= 0){ showToast('Set Tenure (months) first'); return; }
+    const existing = rec.schedule || [];
+    const newSchedule = [];
+    for(let n=1;n<=months;n++){
+      const prev = existing[n-1];
+      const dueDate = rec.autoDebitStartDate ? addMonthsISO(rec.autoDebitStartDate, n-1) : (prev ? prev.dueDate : '');
+      newSchedule.push({ label: ordinal(n), dueDate, paidDate: prev ? prev.paidDate : '' });
+    }
+    rec.schedule = newSchedule;
+    renderMain();
+  };
+  schedWrap.appendChild(genBtn);
+
+  const schedHead = document.createElement('div');
+  schedHead.style.cssText = 'display:flex;gap:6px;padding:2px 2px;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;';
+  schedHead.innerHTML = `<span style="flex:0 0 44px;">#</span><span style="flex:1;">Due Date</span><span style="flex:1;">Paid Date</span><span style="flex:0 0 50px;">Status</span><span style="flex:0 0 20px;"></span>`;
+  schedWrap.appendChild(schedHead);
+
+  const schedList = document.createElement('div');
+  rec.schedule.forEach((s, si)=>{
+    const status = installmentStatus(s);
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;padding:5px 2px;border-bottom:1px solid #F0EEE6;';
+    row.innerHTML = `
+      <input type="text" style="flex:0 0 44px;border:none;background:transparent;font-size:12px;padding:4px 2px;" value="${escapeHtml(s.label)}" placeholder="1st">
+      <input type="date" style="flex:1;border:none;background:#FAF9F5;border-radius:6px;padding:5px 6px;font-size:11.5px;" value="${s.dueDate||''}">
+      <input type="date" style="flex:1;border:none;background:#FAF9F5;border-radius:6px;padding:5px 6px;font-size:11.5px;" value="${s.paidDate||''}">
+      <span style="flex:0 0 50px;font-size:10.5px;font-weight:700;color:${statusColor(status)};">${status}</span>
+      <button class="del" style="flex:0 0 20px;">✕</button>
+    `;
+    const inputs = row.querySelectorAll('input');
+    inputs[0].oninput = e=>{ s.label = e.target.value; };
+    inputs[1].onchange = e=>{ s.dueDate = e.target.value; renderMain(); };
+    inputs[2].onchange = e=>{ s.paidDate = e.target.value; renderMain(); };
+    row.querySelector('.del').onclick = ()=>{ rec.schedule.splice(si,1); renderMain(); };
+    schedList.appendChild(row);
+  });
+  schedWrap.appendChild(schedList);
+
+  const addSchedBtn = document.createElement('button');
+  addSchedBtn.className = 'add-row-btn';
+  addSchedBtn.textContent = '+ Add single row';
+  addSchedBtn.onclick = ()=>{
+    rec.schedule.push({label: ordinal(rec.schedule.length+1), dueDate:'', paidDate:''});
+    renderMain();
+  };
+  schedWrap.appendChild(addSchedBtn);
+  card.appendChild(schedWrap);
+
+  const delBtn = document.createElement('button');
+  delBtn.textContent = 'Delete Customer';
+  delBtn.style.cssText = 'margin:0 14px 14px;padding:8px 12px;border-radius:8px;border:1px solid var(--danger);background:#fff;color:var(--danger);font-size:12.5px;font-weight:600;cursor:pointer;';
+  delBtn.onclick = ()=>{ records.splice(index,1); if(records.length===0) records.push(defaultRtoCareRecord()); renderMain(); };
+  card.appendChild(delBtn);
+
+  return card;
+}
+
+async function listFailedMonths(){
+  try{
+    const res = await window.storage.list('failed:', STORAGE_SHARED);
+    if(!res || !res.keys) return [];
+    return res.keys.map(k=>k.split(':')[1]).sort().reverse();
+  }catch(e){ return []; }
+}
+
+// ---------- Failed payments log ----------
+async function renderFailedUI(main){
+  const mp = document.createElement('div');
+  mp.className = 'month-picker';
+  mp.innerHTML = `<label>Month</label><input type="month" id="monthInput" value="${currentFailed.month}">`;
+  main.appendChild(mp);
+  document.getElementById('monthInput').onchange = async (e)=>{ await loadFailedLog(e.target.value); };
+
+  const months = await listFailedMonths();
+  if(months.length){
+    const chips = document.createElement('div');
+    chips.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin:-6px 0 14px;';
+    months.forEach(m=>{
+      const b = document.createElement('button');
+      b.textContent = m;
+      const active = m === currentFailed.month;
+      b.style.cssText = `padding:6px 11px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid ${active?'#F5A623':'#E4E1D6'};background:${active?'#F5A623':'#fff'};color:${active?'#fff':'#2A3350'};`;
+      b.onclick = ()=>loadFailedLog(m);
+      chips.appendChild(b);
+    });
+    main.appendChild(chips);
+  }
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<div class="card-head"><span>Failed Payment (RTO) — ${currentFailed.month}</span></div>`;
+  const list = document.createElement('div');
+  list.className = 'row-list';
+
+  currentFailed.rows.forEach((r,i)=>{
+    const item = document.createElement('div');
+    item.className = 'row-item';
+    item.innerHTML = `
+      <input type="text" placeholder="Customer name" value="${escapeHtml(r.name)}" style="flex:1.3">
+      <input type="text" placeholder="Contact" value="${escapeHtml(r.contact)}" style="flex:1; max-width:110px">
+      <div class="amt-wrap"><span>RM</span><input type="number" step="0.01" value="${r.amount}"></div>
+      <button class="del">✕</button>
+    `;
+    const inputs = item.querySelectorAll('input');
+    inputs[0].oninput = e=>{ r.name = e.target.value; };
+    inputs[1].oninput = e=>{ r.contact = e.target.value; };
+    inputs[2].oninput = e=>{ r.amount = e.target.value; updateFailedTotal(card); };
+    item.querySelector('.del').onclick = ()=>{ currentFailed.rows.splice(i,1); renderMain(); };
+    list.appendChild(item);
+  });
+  card.appendChild(list);
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-row-btn';
+  addBtn.textContent = '+ Add customer';
+  addBtn.onclick = ()=>{ currentFailed.rows.push({name:'',contact:'',amount:''}); renderMain(); };
+  card.appendChild(addBtn);
+
+  const total = currentFailed.rows.reduce((s,r)=>s+num(r.amount),0);
+  const totalRow = document.createElement('div');
+  totalRow.className = 'total-row';
+  totalRow.innerHTML = `<span>TOTAL</span><span class="tval">RM ${fmt(total)}</span>`;
+  card.appendChild(totalRow);
+
+  main.appendChild(card);
+}
+
+function updateFailedTotal(card){
+  const total = currentFailed.rows.reduce((s,r)=>s+num(r.amount),0);
+  card.querySelector('.tval').textContent = 'RM ' + fmt(total);
+}
+
+// ---------- Copy as text ----------
+function escapeHtml(str){
+  return (str||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+// ---------- Save as photo ----------
+function photoSectionTable(title, rows, totalLabel, totalValue){
+  let html = `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+  html += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">${title}</div>`;
+  rows.forEach(r=>{
+    if(!r.label && !r.amount) return;
+    html += `<div style="display:flex;justify-content:space-between;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:14px;">
+      <span>${escapeHtml(r.label)||'&nbsp;'}</span><span style="font-weight:600;">RM ${fmt(num(r.amount))}</span></div>`;
+  });
+  html += `<div style="display:flex;justify-content:space-between;padding:8px 14px;background:#F5A623;color:#fff;font-weight:700;font-size:14px;">
+    <span>${totalLabel}</span><span>RM ${fmt(totalValue)}</span></div>`;
+  html += `</div>`;
+  return html;
+}
+
+function buildPhotoHTML(){
+  let inner = '';
+  if(COMPANIES[currentCompany].isLog){
+    inner += `<h2 style="margin:0 0 4px;font-size:19px;">FAILED PAYMENT (RTO)</h2>`;
+    inner += `<div style="color:#666;font-size:13px;margin-bottom:14px;">Month: ${currentFailed.month}</div>`;
+    inner += `<div style="border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+    inner += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:12px;padding:8px 14px;">
+      <span style="flex:1.4;">NAME</span><span style="flex:1;">CONTACT</span><span style="flex:0.8;text-align:right;">AMT</span></div>`;
+    currentFailed.rows.forEach(r=>{
+      if(!r.name && !r.amount) return;
+      inner += `<div style="display:flex;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:13.5px;">
+        <span style="flex:1.4;">${escapeHtml(r.name)}</span><span style="flex:1;">${escapeHtml(r.contact)}</span>
+        <span style="flex:0.8;text-align:right;font-weight:600;">${fmt(num(r.amount))}</span></div>`;
+    });
+    const total = currentFailed.rows.reduce((s,r)=>s+num(r.amount),0);
+    inner += `<div style="display:flex;justify-content:flex-end;padding:8px 14px;background:#F5A623;color:#fff;font-weight:700;">RM ${fmt(total)}</div>`;
+    inner += `</div>`;
+  } else {
+    const cfg = COMPANIES[currentCompany];
+    inner += `<h2 style="margin:0 0 4px;font-size:19px;">${cfg.name}</h2>`;
+    inner += `<div style="color:#666;font-size:13px;margin-bottom:14px;">${cfg.hasTime?('Time: '+(currentData.time||'-')+' &middot; '):''}Date: ${currentData.date}</div>`;
+    const sectionsForPhoto = cfg.photoSections || cfg.sections;
+    sectionsForPhoto.forEach(sec=>{
+      if(sec==='stock'){
+        let html = `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+        html += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">Stock Balance</div>`;
+        html += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:10.5px;text-transform:uppercase;padding:6px 14px;color:#555;">
+          <span style="flex:1.1;">Branch</span>
+          <span style="flex:1;text-align:right;padding-right:16px;">TV/Laptop/HP/Tablet</span>
+          <span style="flex:1;text-align:right;">Total Stock Balance</span>
+        </div>`;
+        let catT=0, totT=0;
+        currentData.sections.stock.forEach(r=>{
+          if(!r.branch) return;
+          html += `<div style="display:flex;align-items:center;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:13.5px;">
+            <span style="flex:1.1;font-weight:600;">${escapeHtml(r.branch)}</span>
+            <span style="flex:1;text-align:right;padding-right:16px;">RM ${fmt(num(r.category))}</span>
+            <span style="flex:1;text-align:right;font-weight:600;">RM ${fmt(num(r.total))}</span>
+          </div>`;
+          catT+=num(r.category); totT+=num(r.total);
+        });
+        html += `<div style="display:flex;padding:8px 14px;background:#F5A623;color:#fff;font-weight:700;font-size:14px;">
+          <span style="flex:1.1;">TOTAL</span>
+          <span style="flex:1;text-align:right;padding-right:16px;">RM ${fmt(catT)}</span>
+          <span style="flex:1;text-align:right;">RM ${fmt(totT)}</span>
+        </div></div>`;
+        inner += html;
+      } else if(sec==='rto'){
+        const d = currentData.sections.rto;
+        const rows = [
+          {label:'Total Contract Value', amount:d.contractValue},
+          {label:'Device DTP', amount:d.deviceDTP},
+          {label:'Expected Total Profit', amount:d.expectedProfit},
+          {label:'Collected Payment', amount:d.collectedPayment},
+          {label:'Balance to Receive', amount:num(d.contractValue)-num(d.collectedPayment)},
+          {label:`Pending Collection - ${d.pendingMonth||''} (${d.pendingCount||0})`, amount:d.pendingAmount},
+          {label:`Next Month Collection - ${d.nextMonthLabel||''}`, amount:d.nextMonthAmount},
+        ];
+        inner += photoSectionTable('Rent-to-Own (RTO)', rows, 'BALANCE TO RECEIVE', num(d.contractValue)-num(d.collectedPayment));
+      } else if(sec==='salesReport'){
+        const d = currentData.sections.salesReport;
+        const total = num(d.cash)+num(d.card)+num(d.qr)+num(d.grabfood)+num(d.foodpanda);
+        const rows = [
+          {label:'Cash', amount:d.cash},
+          {label:'Credit/Debit Card', amount:d.card},
+          {label:'QR Payment', amount:d.qr},
+          {label:'GrabFood', amount:d.grabfood},
+          {label:'FoodPanda', amount:d.foodpanda},
+        ];
+        inner += photoSectionTable('Daily Sales Report', rows, 'TOTAL SALES', total);
+      } else if(sec==='summary'){
+        const d = currentData.sections.summary;
+        const sr = currentData.sections.salesReport || {};
+        const cashNet = num(d.cashSalesTotal) - num(d.cashSalesDiscount);
+        const grabNet = num(sr.grabfood) - num(d.grabFoodSst);
+        const fpNet = num(sr.foodpanda) - num(d.foodPandaSst);
+        const grandT = cashNet + num(d.surcharge) + grabNet + fpNet + num(d.sst) + num(d.aisolove);
+        const dailyTotalSales = num(sr.cash)+num(sr.card)+num(sr.qr)+num(sr.grabfood)+num(sr.foodpanda);
+        const autocountSales = dailyTotalSales - num(d.surcharge) - grabNet - fpNet - num(d.sst);
+        const rows = [
+          {label:'Cash Sales (Total − Discount)', amount:cashNet},
+          {label:'Surcharge', amount:d.surcharge},
+          {label:'Grab Food (Total − SST)', amount:grabNet},
+          {label:'FoodPanda (Total − SST)', amount:fpNet},
+          {label:'SST', amount:d.sst},
+          {label:'Aisolove', amount:d.aisolove},
+          {label:'Autocount Sales (auto)', amount:autocountSales},
+        ];
+        inner += photoSectionTable('Summary', rows, 'TOTAL', grandT);
+      } else if(sec==='rtoCare'){
+        const records = currentData.sections.rtoCare;
+        let html = `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+        html += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">RTO Customers</div>`;
+        html += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:10px;text-transform:uppercase;padding:6px 14px;color:#555;">
+          <span style="flex:1.6;">Customer</span>
+          <span style="flex:1;">Branch</span>
+          <span style="flex:1;text-align:right;">Monthly</span>
+          <span style="flex:1;text-align:right;">Outstanding</span>
+        </div>`;
+        let totalContract=0, totalOutstanding=0;
+        records.forEach(r=>{
+          if(!r.customerName) return;
+          const out = num(r.totalContractValue) - num(r.paymentReceived);
+          html += `<div style="display:flex;align-items:center;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:12.5px;">
+            <span style="flex:1.6;font-weight:600;">${escapeHtml(r.customerName)}</span>
+            <span style="flex:1;">${escapeHtml(r.branch)}</span>
+            <span style="flex:1;text-align:right;">RM ${fmt(num(r.monthlyInstallment))}</span>
+            <span style="flex:1;text-align:right;font-weight:600;">RM ${fmt(out)}</span>
+          </div>`;
+          totalContract += num(r.totalContractValue);
+          totalOutstanding += out;
+        });
+        html += `<div style="display:flex;justify-content:space-between;padding:8px 14px;background:#F5A623;color:#fff;font-weight:700;font-size:13px;">
+          <span>TOTAL (${records.filter(r=>r.customerName).length} customers)</span>
+          <span>Contract RM ${fmt(totalContract)} · Outstanding RM ${fmt(totalOutstanding)}</span>
+        </div></div>`;
+        inner += html;
+      } else if(QTY_SECTIONS.has(sec)){
+        const rows = currentData.sections[sec];
+        let html = `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+        html += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">${SECTION_TITLES[sec]}</div>`;
+        html += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:10.5px;text-transform:uppercase;padding:6px 14px;color:#555;">
+          <span style="flex:1.6;">Item</span>
+          <span style="flex:0.5;text-align:right;">Qty</span>
+          <span style="flex:0.8;text-align:right;">Amount</span>
+        </div>`;
+        let t=0;
+        rows.forEach(r=>{
+          if(!r.label) return;
+          html += `<div style="display:flex;align-items:center;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:13.5px;">
+            <span style="flex:1.6;">${escapeHtml(r.label)}</span>
+            <span style="flex:0.5;text-align:right;">${r.qty||'-'}</span>
+            <span style="flex:0.8;text-align:right;font-weight:600;">RM ${fmt(num(r.amount))}</span>
+          </div>`;
+          t+=num(r.amount);
+        });
+        html += `<div style="display:flex;justify-content:space-between;padding:8px 14px;background:#F5A623;color:#fff;font-weight:700;font-size:14px;">
+          <span>TOTAL</span><span>RM ${fmt(t)}</span></div></div>`;
+        inner += html;
+      } else {
+        const rows = currentData.sections[sec];
+        const total = rows.reduce((s,r)=>s+num(r.amount),0);
+        inner += photoSectionTable(SECTION_TITLES[sec], rows, 'TOTAL', total);
+      }
+    });
+  }
+  return inner;
+}
+
+async function buildAllFailedPhotoHTML(){
+  const months = await listFailedMonths();
+  let inner = `<h2 style="margin:0 0 4px;font-size:19px;">FAILED PAYMENT (RTO)</h2>`;
+  inner += `<div style="color:#666;font-size:13px;margin-bottom:14px;">All months on record</div>`;
+
+  if(months.length===0){
+    inner += `<div style="padding:10px;color:#888;font-size:13px;">No failed payment months saved yet.</div>`;
+    return inner;
+  }
+
+  let grandTotal = 0;
+  for(const m of months){
+    let rows = [];
+    if(m === currentFailed.month){
+      rows = currentFailed.rows;
+    } else {
+      try{
+        const res = await window.storage.get(storageKeyFailed(m), STORAGE_SHARED);
+        rows = res && res.value ? JSON.parse(res.value).rows : [];
+      }catch(e){ rows = []; }
+    }
+    rows = rows.filter(r=>r.name || r.amount);
+    const monthTotal = rows.reduce((s,r)=>s+num(r.amount),0);
+    grandTotal += monthTotal;
+
+    inner += `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+    inner += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">Month: ${m}</div>`;
+    inner += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:12px;padding:6px 14px;">
+      <span style="flex:1.4;">NAME</span><span style="flex:1;">CONTACT</span><span style="flex:0.8;text-align:right;">AMT</span></div>`;
+    if(rows.length===0){
+      inner += `<div style="padding:8px 14px;color:#999;font-size:13px;background:#FBF8EF;">No failed payments recorded</div>`;
+    }
+    rows.forEach(r=>{
+      inner += `<div style="display:flex;padding:6px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:13px;">
+        <span style="flex:1.4;">${escapeHtml(r.name)}</span><span style="flex:1;">${escapeHtml(r.contact)}</span>
+        <span style="flex:0.8;text-align:right;font-weight:600;">${fmt(num(r.amount))}</span></div>`;
+    });
+    inner += `<div style="display:flex;justify-content:space-between;padding:7px 14px;background:#F5A623;color:#fff;font-weight:700;font-size:13.5px;">
+      <span>Month Total</span><span>RM ${fmt(monthTotal)}</span></div>`;
+    inner += `</div>`;
+  }
+
+  inner += `<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#1C2333;color:#FFD500;font-weight:700;font-size:15px;border-radius:4px;">
+    <span>GRAND TOTAL</span><span>RM ${fmt(grandTotal)}</span></div>`;
+
+  return inner;
+}
+
+async function saveAsPhoto(){
+  if(typeof html2canvas === 'undefined'){ showToast('Image tool still loading, try again'); return; }
+  const container = document.createElement('div');
+  container.style.cssText = 'position:fixed;left:-9999px;top:0;width:560px;background:#F6F4EE;padding:20px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#20242E;';
+  const isFailed = COMPANIES[currentCompany].isLog;
+  container.innerHTML = isFailed ? await buildAllFailedPhotoHTML() : buildPhotoHTML();
+  document.body.appendChild(container);
+  try{
+    const canvas = await html2canvas(container, {backgroundColor:'#F6F4EE', scale:2});
+    const name = isFailed ? `failed-payments-all-months` : `${currentCompany}-${currentData.date}`;
+
+    canvas.toBlob(function(blob){
+      if(!blob){ showToast('Could not generate photo'); return; }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${name}.png`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(()=>{
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 1000);
+      showToast('Photo saved ✓ check your Downloads');
+    }, 'image/png');
+  }catch(e){
+    showToast('Could not generate photo: '+e.message);
+  }finally{
+    document.body.removeChild(container);
+  }
+}
+
+document.getElementById('photoBtn').onclick = saveAsPhoto;
+document.getElementById('saveBtn').onclick = saveReport;
+
+// ---------- Init ----------
+(async function init(){
+  renderTabs();
+  const dates = await listReportDates('emax');
+  await loadReport('emax', dates.length ? dates[0] : new Date().toISOString().slice(0,10));
+})();
+</script>
+</body>
+</html>

@@ -5,6 +5,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, saveData, supabase } from "./storage/index.js";
 import RTOTab from "./RTOTab.jsx";
+import DailyReportPanel from "./DailyReportPanel.jsx";
 
 const T = {
   navy:"#0A1628", navyMid:"#0F2040", navyLight:"#162B52",
@@ -1849,6 +1850,7 @@ export default function App(){
   const [showPointsModal,setShowPointsModal] = useState(false);
   const [showStatusHistoryModal,setShowStatusHistoryModal] = useState(false);
   const [publishedUntil,setPublishedUntil] = useState(null);
+  const [showDailyReport,setShowDailyReport] = useState(false);
   const [srTypeOverrides,setSrTypeOverrides] = useState({});
   const [statusModalPerson,setStatusModalPerson] = useState(null);
   const [pointsModalPerson,setPointsModalPerson] = useState(null);
@@ -2594,6 +2596,13 @@ export default function App(){
             Manage SR
           </button>
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
+          <button onClick={()=>{setShowDailyReport(true);setSidebarOpen(false);}} style={{
+            display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+            border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+            background:"rgba(255,213,0,.1)",color:"#FFD500",transition:"background .15s",
+          }}>
+            📊 Daily Financial Report
+          </button>
           <button onClick={()=>supabase.auth.signOut()} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
@@ -2625,5 +2634,6 @@ Please now:
     {printBranch&&<PrintBranchReport branchId={printBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onClose={()=>setPrintBranch(null)} month={month} year={year} days={days}/>}
     {showPointsModal&&<PointsHistoryModal srList={srList} branchMeta={branchMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onDeletePointsEntry={deletePointsEntry} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
     {showStatusHistoryModal&&<StatusHistoryModal srList={srList} branchMeta={branchMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onDeleteStatusEntry={deleteStatusEntry} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}
+  {showDailyReport&&<DailyReportPanel onClose={()=>setShowDailyReport(false)}/>}
   </div>;
 }
