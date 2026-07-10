@@ -972,9 +972,17 @@ function RTOSummaryInner({customers,branchMeta}){
 function RTOSummary({branchMeta}){
   const [customers,setCustomers]=useState([]);
   const [loading,setLoading]=useState(true);
-  useEffect(()=>{loadData("emax_v5_rto_customers").then(d=>{setCustomers(d||[]);setLoading(false);});},[]);
+  const [err,setErr]=useState(null);
+  useEffect(()=>{
+    loadData("emax_v5_rto_customers")
+      .then(d=>{setCustomers(Array.isArray(d)?d:[]);setLoading(false);})
+      .catch(e=>{setErr(e?.message||"Load failed");setLoading(false);});
+  },[]);
   if(loading)return<div style={{padding:40,textAlign:"center",color:"#8A96A8",fontFamily:"Inter,sans-serif"}}>Loading RTO data…</div>;
-  return <RTOSummaryInner customers={customers} branchMeta={branchMeta}/>;
+  if(err)return<div style={{padding:40,textAlign:"center",color:"#B91C1C",fontFamily:"Inter,sans-serif"}}>Error: {err}</div>;
+  if(!customers.length)return<div style={{padding:40,textAlign:"center",color:"#8A96A8",fontFamily:"Inter,sans-serif"}}>No RTO customers found.</div>;
+  try{return <RTOSummaryInner customers={customers} branchMeta={branchMeta}/>;}
+  catch(e){return<div style={{padding:40,color:"#B91C1C",fontFamily:"Inter,sans-serif"}}>Render error: {e?.message}</div>;}
 }
 
 export default function App(){
@@ -1404,7 +1412,7 @@ export default function App(){
         </div>
       </div>}
 
-      {tab==="rto"&&<div style={{padding:"0 4px"}}><RTOSummary branchMeta={bMeta}/></div>}
+      {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}><RTOSummary branchMeta={bMeta}/></div>}
     </div>{/* end main content */}
 
       {/* SIDEBAR — right side, collapsible */}
