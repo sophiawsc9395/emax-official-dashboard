@@ -780,7 +780,7 @@ function RTOSummaryComp({customers}){
             {totals.overdueCount===0&&<div style={{background:"#F0FDF4",color:"#15803D",padding:"6px 14px",borderRadius:8,fontSize:12,fontWeight:700}}>✓ No Overdue</div>}
           </div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:1,marginBottom:0,borderBottom:"1px solid #E4EAF2",borderTop:"1px solid #E4EAF2"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:0,borderBottom:"1px solid #E4EAF2"}}>
           {[
             ["Total Customers",totals.customers+" customers","#0A1628"],
             ["Active",`${totals.customers-totals.completeCount} / ${totals.customers}`,"#1E6FDB"],
@@ -791,9 +791,9 @@ function RTOSummaryComp({customers}){
             ["Outstanding",fRM(totals.totalOutstanding),totals.totalOutstanding>0?"#B91C1C":"#15803D"],
             ["Portfolio P&L",fRM(totals.totalPL),totals.totalPL>=0?"#15803D":"#B91C1C"],
           ].map(([l,v,c])=>(
-            <div key={l} style={{background:"#fff",padding:"12px 14px",borderRight:"1px solid #E4EAF2"}}>
+            <div key={l} style={{background:"#fff",padding:"12px 16px",borderRight:"1px solid #E4EAF2",borderBottom:"1px solid #E4EAF2"}}>
               <div style={{fontSize:9,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:5}}>{l}</div>
-              <div style={{fontWeight:800,fontSize:13,color:c,lineHeight:1.2}}>{v}</div>
+              <div style={{fontWeight:800,fontSize:13,color:c,lineHeight:1.3,whiteSpace:"nowrap"}}>{v}</div>
             </div>
           ))}
         </div>
