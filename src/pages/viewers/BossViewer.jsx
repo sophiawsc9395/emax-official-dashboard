@@ -780,7 +780,7 @@ function RTOSummaryComp({customers}){
             {totals.overdueCount===0&&<div style={{background:"#F0FDF4",color:"#15803D",padding:"6px 14px",borderRadius:8,fontSize:12,fontWeight:700}}>✓ No Overdue</div>}
           </div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:12,marginBottom:20}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:20}}>
           {[
             ["Total Customers",totals.customers+" customers","#0A1628"],
             ["Active",`${totals.customers-totals.completeCount} / ${totals.customers}`,"#1E6FDB"],
@@ -801,7 +801,7 @@ function RTOSummaryComp({customers}){
           <div style={{fontSize:11,fontWeight:800,color:"#B91C1C",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10,padding:"8px 12px",background:"#FEF2F2",borderRadius:8,border:"1px solid #FECACA",display:"flex",alignItems:"center",gap:8}}>
             <span>⚠</span><span>Overdue Payments ({overdueCustomers.length} customers)</span>
           </div>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:20}}>
+          <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:20,minWidth:700}}>
             <thead><tr style={{background:"#7F1D1D"}}>
               {["Customer","Phone","Branch","Overdue Months","Amount Overdue","Outstanding Bal","Action Required"].map(h=>(
                 <th key={h} style={{padding:"8px 12px",color:"rgba(255,255,255,.8)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",textAlign:"left"}}>{h}</th>
@@ -818,13 +818,13 @@ function RTOSummaryComp({customers}){
                 <td style={{padding:"8px 12px",fontSize:11,color:"#7F1D1D"}}>{c.overdue.length===1?"1 month — follow up":`${c.overdue.length} months — urgent`}</td>
               </tr>
             ))}</tbody>
-          </table>
+          </table></div>
         </>}
         <div style={{fontSize:11,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>All Customers Payment Analysis</div>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,marginBottom:20}}>
+        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:11,marginBottom:20,minWidth:800}}>
           <thead><tr style={{background:"#0A1628"}}>
-            {["#","Customer","Branch","Contract","Cost","Received","Outstanding","P&L","Paid","Status"].map(h=>(
-              <th key={h} style={{padding:"8px 10px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",textAlign:h==="#"?"center":"left"}}>{h}</th>
+            {[["#",32],["Customer",160],["Branch",60],["Contract",95],["Cost",90],["Received",90],["Outstanding",95],["P&L",90],["Paid",65],["Status",70]].map(([h,w])=>(
+              <th key={h} style={{padding:"8px 10px",color:"rgba(255,255,255,.7)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",textAlign:h==="#"?"center":"left",width:w,minWidth:w}}>{h}</th>
             ))}
           </tr></thead>
           <tbody>
@@ -857,7 +857,7 @@ function RTOSummaryComp({customers}){
               <td colSpan={2}></td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
         {analytics.filter(c=>c.currentDue).length>0&&(()=>{
           const dueCusts=analytics.filter(c=>c.currentDue);
           const totalDue=dueCusts.reduce((s,c)=>s+c.currentDue.amount,0);
@@ -865,7 +865,7 @@ function RTOSummaryComp({customers}){
             <div style={{fontSize:11,fontWeight:800,color:"#854D0E",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10,padding:"8px 12px",background:"#FFFBEB",borderRadius:8,border:"1px solid #FDE68A",display:"flex",alignItems:"center",gap:8}}>
               <span>📅</span><span>Due This Month — {MONTHS_BOSS[now.getMonth()]} {now.getFullYear()} ({dueCusts.length} customers)</span>
             </div>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:8}}>
+            <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginBottom:8,minWidth:500}}>
               <thead><tr style={{background:"#0A1628"}}>
                 {["Member ID","Customer","Phone","Branch","Amount Due"].map(h=>(
                   <th key={h} style={{padding:"8px 12px",color:"rgba(255,255,255,.8)",fontWeight:700,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em",textAlign:h==="Amount Due"?"right":"left"}}>{h}</th>
@@ -886,7 +886,7 @@ function RTOSummaryComp({customers}){
                   <td style={{padding:"8px 12px",fontWeight:800,fontSize:13,color:"#0A1628",textAlign:"right",whiteSpace:"nowrap"}}>{fRM(totalDue)}</td>
                 </tr>
               </tbody>
-            </table>
+            </table></div>
           </>;
         })()}
       </div>
