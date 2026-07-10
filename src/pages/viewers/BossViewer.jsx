@@ -1135,6 +1135,7 @@ export default function App(){
         </div>
       </div>}
 
+      {tab==="rto"&&<div style={{padding:"0 4px"}}><RTOSummary branchMeta={bMeta}/></div>}
     </div>{/* end main content */}
 
       {/* SIDEBAR — right side, collapsible */}
@@ -1168,7 +1169,6 @@ export default function App(){
       </div>
     </div>{/* end flex layout */}
     {showPointsModal&&<PointsHistoryModal srList={srList} bMeta={bMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
-    {tab==="rto"&&<RTOSummary branchMeta={bMeta}/>}
     {showStatusHistoryModal&&<StatusHistoryModal srList={srList} bMeta={bMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}
   </div>;
 }
