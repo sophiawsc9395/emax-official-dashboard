@@ -296,6 +296,7 @@ function RTOSummary({customers,branchMeta}){
   const totals={
     customers:analytics.length,
     totalContract:analytics.reduce((s,c)=>s+c.totalContract,0),
+    totalCost:analytics.reduce((s,c)=>s+c.cost,0),
     totalReceived:analytics.reduce((s,c)=>s+c.totalReceived,0),
     totalOutstanding:analytics.reduce((s,c)=>s+c.outstanding,0),
     totalPL:analytics.reduce((s,c)=>s+c.pl,0),
@@ -353,6 +354,7 @@ function RTOSummary({customers,branchMeta}){
             ["Active",`${totals.customers-totals.completeCount} / ${totals.customers}`,"#1E6FDB"],
             ["Completed",totals.completeCount+" customers","#15803D"],
             ["Total Contract",fRM(totals.totalContract),"#0A1628"],
+            ["Total Cost",fRM(totals.totalCost),"#0A1628"],
             ["Total Received",fRM(totals.totalReceived),"#15803D"],
             ["Outstanding",fRM(totals.totalOutstanding),totals.totalOutstanding>0?"#B91C1C":"#15803D"],
             ["Portfolio P&L",fRM(totals.totalPL),totals.totalPL>=0?"#15803D":"#B91C1C"],
