@@ -766,7 +766,6 @@ function RTOSummaryComp({customers}){
       <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
         <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0,flex:1}}>RTO Portfolio Summary</h2>
         <div style={{fontSize:11,color:"#8A96A8"}}>As at {today}</div>
-        <button onClick={downloadPhoto} style={{padding:"8px 18px",background:"#0A1628",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>📷 Download as Photo</button>
       </div>
       <div ref={summaryRef} style={{background:"#fff",borderRadius:12,border:"1px solid #E4EAF2",overflow:"hidden"}}>
         <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
