@@ -835,7 +835,7 @@ function RTOSummaryComp({customers}){
               return(
                 <tr key={c.id} style={{borderBottom:"1px solid #F0F2F5",background:c.overdue.length>0?"#FFF5F5":i%2===0?"#fff":"#FAFBFC"}}>
                   <td style={{padding:"7px 10px",textAlign:"center",color:"#8A96A8",fontSize:10}}>{i+1}</td>
-                  <td style={{padding:"7px 10px"}}><div style={{fontWeight:700,color:"#0A1628"}}>{c.name}</div><div style={{fontSize:10,color:"#8A96A8"}}>{c.memberId} · {c.contactNumber}</div></td>
+                  <td style={{padding:"7px 10px",minWidth:160}}><div style={{fontWeight:700,color:"#0A1628",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:200}}>{c.name}</div><div style={{fontSize:10,color:"#8A96A8",marginTop:1}}>{c.memberId}</div><div style={{fontSize:10,color:"#8A96A8"}}>{c.contactNumber}</div></td>
                   <td style={{padding:"7px 10px",fontSize:11,color:"#4A5568"}}>{c.branch}</td>
                   <td style={{padding:"7px 10px",fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>{fRM(c.totalContract)}</td>
                   <td style={{padding:"7px 10px",fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>{fRM(c.cost)}</td>
