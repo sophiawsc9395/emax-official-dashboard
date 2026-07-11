@@ -918,7 +918,8 @@ export default function App(){
   const [selEndDay,setSelEndDay]=useState(daysInMonth(now.getMonth()+1,now.getFullYear()));
   const periodDays=days.filter(d=>d>=selStartDay&&d<=selEndDay);
   const [selBranch,setSelBranch]=useState(BRANCH_ORDER[0]);
-  const [tab,setTab]=useState("overview");
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","repair","rto"].includes(h)?h:"overview";});
+  const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
 
   const [records,setRecords]=useState({});

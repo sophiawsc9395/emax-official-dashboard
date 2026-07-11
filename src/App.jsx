@@ -1845,7 +1845,11 @@ export default function App(){
   const [srList,setSrList]         = useState(DEFAULT_SR);
   const [branchMeta,setBranchMeta] = useState(DEFAULT_BRANCH_META);
   const [loading,setLoading]       = useState(true);
-  const [tab,setTab]               = useState("overview");
+  const [tab,setTabRaw]             = useState(()=>{
+    const h=window.location.hash.replace("#","");
+    return ["overview","rankings","points","report","daily","repair","rto"].includes(h)?h:"overview";
+  });
+  const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen] = useState(false);
   const [showPointsModal,setShowPointsModal] = useState(false);
   const [showStatusHistoryModal,setShowStatusHistoryModal] = useState(false);
