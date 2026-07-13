@@ -169,6 +169,42 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
+    // ── localStorage shim for window.storage API ──────────────────────
+    window.storage = {
+      get: async (key) => {
+        try {
+          const val = localStorage.getItem('emax_report:' + key);
+          return val !== null ? { key, value: val } : null;
+        } catch(e) { return null; }
+      },
+      set: async (key, value) => {
+        try {
+          localStorage.setItem('emax_report:' + key, value);
+          return { key, value };
+        } catch(e) { return null; }
+      },
+      delete: async (key) => {
+        try {
+          localStorage.removeItem('emax_report:' + key);
+          return { key, deleted: true };
+        } catch(e) { return null; }
+      },
+      list: async (prefix) => {
+        try {
+          const fullPrefix = 'emax_report:' + prefix;
+          const keys = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(fullPrefix)) {
+              keys.push(k.replace('emax_report:', ''));
+            }
+          }
+          return { keys, prefix };
+        } catch(e) { return { keys: [], prefix }; }
+      }
+    };
+    // ──────────────────────────────────────────────────────────────────
+
 const STORAGE_SHARED = true; // shared so the whole team sees the same reports
 
 const COMPANIES = {
@@ -251,7 +287,7 @@ function defaultQtyRows(section){
 }
 
 function defaultSalesReport(){
-  return { cash:'', card:'', qr:'', grabfood:'', foodpanda:'' };
+  return { cash:'', card:'', qr:'' };
 }
 
 function defaultSummaryData(){
@@ -654,16 +690,14 @@ function renderSalesReportCard(){
     <div class="field"><label>Cash (RM)</label><input type="number" step="0.01" id="sr_cash" value="${d.cash}"></div>
     <div class="field"><label>Credit/Debit Card (RM)</label><input type="number" step="0.01" id="sr_card" value="${d.card}"></div>
     <div class="field"><label>QR Payment (RM)</label><input type="number" step="0.01" id="sr_qr" value="${d.qr}"></div>
-    <div class="field"><label>GrabFood (RM)</label><input type="number" step="0.01" id="sr_grabfood" value="${d.grabfood}"></div>
-    <div class="field"><label>FoodPanda (RM)</label><input type="number" step="0.01" id="sr_foodpanda" value="${d.foodpanda}"></div>
   `;
   card.appendChild(ff);
 
-  ['cash','card','qr','grabfood','foodpanda'].forEach(k=>{
+  ['cash','card','qr'].forEach(k=>{
     ff.querySelector('#sr_'+k).oninput = e=>{
       d[k] = e.target.value;
       updateTotalSales();
-      if((k==='grabfood' || k==='foodpanda') && refreshSummaryFn) refreshSummaryFn();
+      if(refreshSummaryFn) refreshSummaryFn();
     };
   });
 
@@ -673,7 +707,7 @@ function renderSalesReportCard(){
   card.appendChild(totalRow);
 
   function updateTotalSales(){
-    const total = num(d.cash)+num(d.card)+num(d.qr)+num(d.grabfood)+num(d.foodpanda);
+    const total = num(d.cash)+num(d.card)+num(d.qr);
     totalRow.querySelector('.tval').textContent = 'RM ' + fmt(total);
   }
   updateTotalSales();
@@ -698,14 +732,12 @@ function renderSummaryCard(){
 
     <div class="field" style="margin-top:14px;"><label>Surcharge (RM)</label><input type="number" step="0.01" id="sum_surcharge" value="${d.surcharge}"></div>
 
-    <div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:14px 0 6px;">Grab Food</div>
     <div class="field-row">
       <div class="field"><label>Total Sales (auto — from Daily Sales Report)</label><input type="text" disabled id="sum_grabTotalDisplay"></div>
       <div class="field"><label>SST (RM)</label><input type="number" step="0.01" id="sum_grabSst" value="${d.grabFoodSst}"></div>
     </div>
     <div class="field"><label>Net Sales (auto)</label><input type="text" disabled id="sum_grabNet"></div>
 
-    <div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:14px 0 6px;">FoodPanda</div>
     <div class="field-row">
       <div class="field"><label>Total Sales (auto — from Daily Sales Report)</label><input type="text" disabled id="sum_fpTotalDisplay"></div>
       <div class="field"><label>SST (RM)</label><input type="number" step="0.01" id="sum_fpSst" value="${d.foodPandaSst}"></div>
@@ -717,7 +749,7 @@ function renderSummaryCard(){
     <div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:14px 0 6px;">Aisolove</div>
     <div class="field"><label>Amount (RM)</label><input type="number" step="0.01" id="sum_aisolove" value="${d.aisolove}"></div>
 
-    <div class="field" style="margin-top:14px;"><label>Autocount Sales (auto — Total Sales − Surcharge − Grab Food Net − FoodPanda Net − SST)</label><input type="text" disabled id="sum_autocount"></div>
+    <div class="field" style="margin-top:14px;"><label>Autocount Sales (auto — Total Sales − Surcharge − SST)</label><input type="text" disabled id="sum_autocount"></div>
   `;
   card.appendChild(ff);
 
@@ -736,8 +768,8 @@ function renderSummaryCard(){
 
   function updateSummary(){
     const sr = currentData.sections.salesReport || {};
-    const grabTotal = num(sr.grabfood);
-    const fpTotal = num(sr.foodpanda);
+    const grabTotal = 0;
+    const fpTotal = 0;
     ff.querySelector('#sum_grabTotalDisplay').value = 'RM ' + fmt(grabTotal);
     ff.querySelector('#sum_fpTotalDisplay').value = 'RM ' + fmt(fpTotal);
     const cashNet = num(d.cashSalesTotal) - num(d.cashSalesDiscount);
@@ -746,7 +778,7 @@ function renderSummaryCard(){
     ff.querySelector('#sum_cashNet').value = 'RM ' + fmt(cashNet);
     ff.querySelector('#sum_grabNet').value = 'RM ' + fmt(grabNet);
     ff.querySelector('#sum_fpNet').value = 'RM ' + fmt(fpNet);
-    const dailyTotalSales = num(sr.cash)+num(sr.card)+num(sr.qr)+num(sr.grabfood)+num(sr.foodpanda);
+    const dailyTotalSales = num(sr.cash)+num(sr.card)+num(sr.qr);
     const autocountSales = dailyTotalSales - num(d.surcharge) - grabNet - fpNet - num(d.sst);
     ff.querySelector('#sum_autocount').value = 'RM ' + fmt(autocountSales);
     const total = cashNet + num(d.surcharge) + grabNet + fpNet + num(d.sst) + num(d.aisolove);
@@ -1151,29 +1183,27 @@ function buildPhotoHTML(){
         inner += photoSectionTable('Rent-to-Own (RTO)', rows, 'BALANCE TO RECEIVE', num(d.contractValue)-num(d.collectedPayment));
       } else if(sec==='salesReport'){
         const d = currentData.sections.salesReport;
-        const total = num(d.cash)+num(d.card)+num(d.qr)+num(d.grabfood)+num(d.foodpanda);
+        const total = num(d.cash)+num(d.card)+num(d.qr);
         const rows = [
           {label:'Cash', amount:d.cash},
           {label:'Credit/Debit Card', amount:d.card},
           {label:'QR Payment', amount:d.qr},
-          {label:'GrabFood', amount:d.grabfood},
-          {label:'FoodPanda', amount:d.foodpanda},
+
         ];
         inner += photoSectionTable('Daily Sales Report', rows, 'TOTAL SALES', total);
       } else if(sec==='summary'){
         const d = currentData.sections.summary;
         const sr = currentData.sections.salesReport || {};
         const cashNet = num(d.cashSalesTotal) - num(d.cashSalesDiscount);
-        const grabNet = num(sr.grabfood) - num(d.grabFoodSst);
-        const fpNet = num(sr.foodpanda) - num(d.foodPandaSst);
+        const grabNet = 0;
+        const fpNet = 0;
         const grandT = cashNet + num(d.surcharge) + grabNet + fpNet + num(d.sst) + num(d.aisolove);
-        const dailyTotalSales = num(sr.cash)+num(sr.card)+num(sr.qr)+num(sr.grabfood)+num(sr.foodpanda);
+        const dailyTotalSales = num(sr.cash)+num(sr.card)+num(sr.qr);
         const autocountSales = dailyTotalSales - num(d.surcharge) - grabNet - fpNet - num(d.sst);
         const rows = [
           {label:'Cash Sales (Total − Discount)', amount:cashNet},
           {label:'Surcharge', amount:d.surcharge},
-          {label:'Grab Food (Total − SST)', amount:grabNet},
-          {label:'FoodPanda (Total − SST)', amount:fpNet},
+
           {label:'SST', amount:d.sst},
           {label:'Aisolove', amount:d.aisolove},
           {label:'Autocount Sales (auto)', amount:autocountSales},
