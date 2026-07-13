@@ -5,6 +5,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, saveData, supabase } from "./storage/index.js";
 import RTOTab from "./RTOTab.jsx";
+import OrderTab from "./OrderTab.jsx";
 import DailyReportPanel from "./DailyReportPanel.jsx";
 
 const T = {
@@ -2333,6 +2334,7 @@ export default function App(){
     {id:"report",label:"Monthly Report"},
     {id:"repair",label:"Repair & Service"},
     {id:"rto",label:"Rent to Own"},
+    {id:"orders",label:"Order Tracking"},
   ];
 
   if(loading)return <div style={{display:"flex",height:"100vh",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
@@ -2548,6 +2550,7 @@ export default function App(){
       {/* REPAIR */}
       {tab==="repair"&&<RepairTab month={month} year={year} endDay={selEndDay} refreshKey={repairRefresh}/>}
       {tab==="rto"&&<RTOTab branchMeta={branchMeta}/>}
+      {tab==="orders"&&<OrderTab branchMeta={branchMeta} isAdmin={true}/>}
 
       </div>{/* end main content */}
 
