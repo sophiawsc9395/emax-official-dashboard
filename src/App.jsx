@@ -2550,7 +2550,7 @@ export default function App(){
       {/* REPAIR */}
       {tab==="repair"&&<RepairTab month={month} year={year} endDay={selEndDay} refreshKey={repairRefresh}/>}
       {tab==="rto"&&<RTOTab branchMeta={branchMeta}/>}
-      {tab==="orders"&&<OrderTab branchMeta={branchMeta} isAdmin={true}/>}
+      {tab==="orders"&&<OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList}/>}
 
       </div>{/* end main content */}
 
