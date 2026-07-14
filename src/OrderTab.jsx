@@ -76,6 +76,7 @@ const getPhase=step=>PHASES.find(p=>p.steps.includes(step));
 const shortId=id=>id?("ORD-"+String(id).slice(-6).toUpperCase()):"";
 const readFile=f=>new Promise(res=>{const r=new FileReader();r.onload=()=>res({name:f.name,data:r.result});r.readAsDataURL(f);});
 const calcUpfront=o=>{const a=parseFloat(o.agreementFee)||0,s=parseFloat(o.stampingFee)||0,d=parseFloat(o.deposit)||0;return{a,s,d,total:a+s+d};};
+const calcCashDue=o=>(parseFloat(o.retailPrice)||0)-(parseFloat(o.deposit)||0);
 
 /* ── Icons ────────────────────────────────────────────────────────────── */
 const Ic={
@@ -187,7 +188,7 @@ function Timeline({order}){
     const ph=getPhase(s.step),showPh=ph&&ph.id!==lastPh;
     if(ph)lastPh=ph.id;
     return<div key={s.step}>
-      {showPh&&<div style={{fontSize:9,fontWeight:800,color:ph.color,textTransform:"uppercase",letterSpacing:"0.08em",padding:"8px 0 5px 36px",marginTop:i>0?8:0,borderBottom:`1px solid ${ph.color}20`,marginBottom:5,display:"flex",alignItems:"center",gap:5}}><span style={{color:ph.color}}>{PHASE_ICONS[ph.id]}</span>{ph.label}</div>}
+      {showPh&&<div style={{fontSize:9,fontWeight:800,color:C.navy,textTransform:"uppercase",letterSpacing:"0.08em",padding:"8px 0 5px 36px",marginTop:i>0?8:0,borderBottom:`1px solid ${C.border}`,marginBottom:5,display:"flex",alignItems:"center",gap:5}}><span style={{color:C.navy}}>{PHASE_ICONS[ph.id]}</span>{ph.label}</div>}
       <div style={{display:"flex",position:"relative"}}>
         {i<visSteps.length-1&&<div style={{position:"absolute",left:11,top:24,width:1,height:"calc(100% + 2px)",background:done?`${ph?.color}40`:C.border,zIndex:0}}/>}
         <div style={{flexShrink:0,width:22,height:22,borderRadius:"50%",background:done?C.navy:active?C.blue:C.surface,border:`2px solid ${done?C.navy:active?C.blue:C.border}`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,marginRight:10,marginTop:1,color:"#fff",transition:"all .2s"}}>
@@ -354,7 +355,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const advance=async()=>{
     setSaving(true);
     const rf={};for(const[k,f] of Object.entries(files))if(f)rf[k]=await readFile(f);
-    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,totalDue:upfront.total,paymentMethod:payMethod}:{})};
+    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,totalDue:isCash?calcCashDue(order):upfront.total,paymentMethod:payMethod}:{})};
     const updated={...order,step:nextDef.step,history:[...(order.history||[]),h]};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
     if(isCash&&nextDef.step===13){updated.step=13;}
@@ -393,10 +394,10 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
             <span style={{fontSize:12,color:val?"#15803D":C.text,fontWeight:val?600:400}}>{label}</span>
           </div>)}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,margin:"10px 0"}}>
-            <div><L req>Upfront Payment Date</L><I type="date" value={upfrontDate} onChange={e=>setUpfrontDate(e.target.value)}/></div>
+            <div><L req>{isCash?"Balance Payment Date":"Upfront Payment Date"}</L><I type="date" value={upfrontDate} onChange={e=>setUpfrontDate(e.target.value)}/></div>
             <div><L>Payment Method</L><SEL value={payMethod} onChange={e=>setPayMethod(e.target.value)}>{PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
-            <div><L>1st Monthly Installment (RM)</L><I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)} placeholder={order.billingData?.monthlyInstallment||order.monthlyInstallment||""}/></div>
-            <div><L>Total Due (RM)</L><div style={{...inp,background:C.surface,color:C.textLight}}>{fRM(upfront.total)}</div></div>
+            <div><L>{isCash?"Balance Payment Amount (RM)":"1st Monthly Installment (RM)"}</L><I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)} placeholder={order.billingData?.monthlyInstallment||order.monthlyInstallment||""}/></div>
+            {isCash?<div><L>Total Due (auto: Retail − Deposit)</L><div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600}}>{fRM(calcCashDue(order))}</div></div>:<div><L>Total Due (RM)</L><div style={{...inp,background:C.surface,color:C.textLight}}>{fRM(upfront.total)}</div></div>}
           </div>
           <div><L>Remark</L><I value={verRemark} onChange={e=>setVerRemark(e.target.value)} placeholder="Verification notes…"/></div>
         </div>}
@@ -487,7 +488,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     </div>
 
     {/* Upfront breakdown */}
-    {upfront&&<div style={{...card,marginBottom:14}}>
+    {upfront&&!isCash&&<div style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.cash}>Upfront Payment Breakdown</SecHdr>
       <div style={{padding:"10px 16px"}}>
         {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
