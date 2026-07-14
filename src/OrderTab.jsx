@@ -103,8 +103,8 @@ const PHASE_ICONS={stock:Ic.box,transfer:Ic.truck,billing:Ic.card,agreement_hq:I
 
 /* ── Design tokens (matching App.jsx) ────────────────────────────────── */
 const C={navy:"#0A1628",navyMid:"#0F2040",navyLight:"#162B52",blue:"#1E6FDB",blueBright:"#2D85F0",yellow:"#FFD500",white:"#fff",surface:"#F7F9FC",border:"#E4EAF2",text:"#0A1628",textMid:"#4A5568",textLight:"#8A96A8"};
-const inp={width:"100%",padding:"8px 12px",border:`1.5px solid ${C.border}`,borderRadius:8,fontSize:13,fontFamily:"Inter,sans-serif",color:C.text,outline:"none",background:C.white,boxSizing:"border-box"};
-const lbl={fontSize:10,fontWeight:700,color:C.textLight,display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"};
+const inp={width:"100%",padding:"11px 14px",border:`1.5px solid ${C.border}`,borderRadius:10,fontSize:13,fontFamily:"Inter,sans-serif",color:C.text,outline:"none",background:C.white,boxSizing:"border-box",lineHeight:"1.4"};
+const lbl={fontSize:11,fontWeight:700,color:C.textLight,display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"};
 const card={background:C.white,border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)"};
 
 /* ── Primitives ───────────────────────────────────────────────────────── */
@@ -527,6 +527,21 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
 }
 
 /* ── Order Form ───────────────────────────────────────────────────────── */
+/* ── Form primitives (defined at module level to preserve focus) ──────── */
+function FormField({label,req,children,span}){
+  return<div style={span?{gridColumn:"1/-1"}:{}}><L req={req}>{label}</L>{children}</div>;
+}
+
+/* ── Form section card ─────────────────────────────────────────────────── */
+function FormCard({title,children}){
+  return<div style={{...card,marginBottom:16}}>
+    <div style={{padding:"12px 18px",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
+      <div style={{fontSize:12,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.07em"}}>{title}</div>
+    </div>
+    <div style={{padding:"20px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>{children}</div>
+  </div>;
+}
+
 function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList}){
   const empty={phoneModel:"",branch:userBranch||"KM",merchant:"Aeon",agreementNumber:"",customerName:"",salesAgentId:"",salesAgentName:"",aeonApprovalDate:"",financePrice:"",deposit:"",stampingFee:"",agreementFee:"",monthlyInstallment:"",retailPrice:"",stockStatus:"stock_request",orderType:"ccm",depositPaymentDate:"",depositSlip:null};
   const [f,setF]=useState(order?{...order}:empty);
@@ -544,38 +559,35 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
     const initHist=isReady?[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"},{step:2,date:nowDate(),time:nowTime(),note:"Ready stock"},{step:3,date:nowDate(),time:nowTime(),note:"Arrived HQ"},{step:4,date:nowDate(),time:nowTime(),note:"Dispatching"}]:[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"}];
     onSave({...f,depositSlip,id:order?.id||Date.now().toString(),step:order?.step||initStep,history:order?.history||initHist});
   };
-  const row=(k,l,t="text",req=false)=><div key={k}><L req={req}>{l}</L><I type={t} value={f[k]||""} onChange={e=>set(k,e.target.value)} style={req&&missing.includes(k)?{borderColor:"#FECACA"}:{}}/></div>;
-  const CardSection=({title,children})=><div style={{...card,marginBottom:14}}>
-    <div style={{padding:"10px 16px",borderBottom:`1px solid ${C.border}`,background:C.surface,fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.07em"}}>{title}</div>
-    <div style={{padding:"14px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>{children}</div>
-  </div>;
+  // row() helper — uses module-level FormField (no focus loss)
+  const row=(k,l,t="text",req=false)=>(<FormField key={k} label={l} req={req}><I type={t} value={f[k]||""} onChange={e=>set(k,e.target.value)} style={req&&missing.includes(k)?{borderColor:"#FECACA"}:{}}/></FormField>);
   return<div className="fade-in">
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
       <GBtn onClick={onCancel}>{Ic.chevL} Back</GBtn>
       <div style={{fontSize:15,fontWeight:800,color:C.navy}}>{order?"Edit Order":"New Order Request"}</div>
     </div>
-    <CardSection title="Order Type">
+    <FormCard title="Order Type">
       <div>
         <L req>Stock Status</L>
         <div style={{display:"flex",gap:8}}>
-          {[["stock_request","Stock Request"],["ready","Ready Stock"]].map(([v,l])=><button key={v} onClick={()=>set("stockStatus",v)} style={{flex:1,padding:"9px 8px",borderRadius:8,border:`2px solid ${f.stockStatus===v?C.navy:C.border}`,background:f.stockStatus===v?C.navy:C.white,color:f.stockStatus===v?"#fff":C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",transition:"all .15s"}}>{l}</button>)}
+          {[["stock_request","Stock Request"],["ready","Ready Stock"]].map(([v,l])=><button key={v} onClick={()=>set("stockStatus",v)} style={{flex:1,padding:"12px 8px",borderRadius:10,border:`2px solid ${f.stockStatus===v?C.navy:C.border}`,background:f.stockStatus===v?C.navy:C.white,color:f.stockStatus===v?"#fff":C.textMid,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",transition:"all .15s"}}>{l}</button>)}
         </div>
         {isReady&&<div style={{fontSize:10,color:"#15803D",marginTop:5,fontWeight:600}}>Will skip to Step 4 — Dispatching</div>}
       </div>
       <div>
         <L req>Order Type</L>
         <div style={{display:"flex",gap:8}}>
-          {[["ccm","CCM Order"],["cash","Cash Order"]].map(([v,l])=><button key={v} onClick={()=>set("orderType",v)} style={{flex:1,padding:"9px 8px",borderRadius:8,border:`2px solid ${f.orderType===v?C.navy:C.border}`,background:f.orderType===v?C.navy:C.white,color:f.orderType===v?"#fff":C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",transition:"all .15s"}}>{l}</button>)}
+          {[["ccm","CCM Order"],["cash","Cash Order"]].map(([v,l])=><button key={v} onClick={()=>set("orderType",v)} style={{flex:1,padding:"12px 8px",borderRadius:10,border:`2px solid ${f.orderType===v?C.navy:C.border}`,background:f.orderType===v?C.navy:C.white,color:f.orderType===v?"#fff":C.textMid,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",transition:"all .15s"}}>{l}</button>)}
         </div>
       </div>
-    </CardSection>
-    <CardSection title="Basic Information">
+    </FormCard>
+    <FormCard title="Basic Information">
       {row("phoneModel","Phone Model / Item","text",true)}
       {row("customerName","Customer Name","text",true)}
       <div><L>Branch</L><SEL value={f.branch} onChange={e=>set("branch",e.target.value)} disabled={!isAdmin&&!!userBranch}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}</SEL></div>
       <div><L>Sales Agent</L>{branchSRs.length>0?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>:<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder="Agent ID"/>}</div>
-    </CardSection>
-    {!isCash&&<CardSection title="CCM / Financing Details">
+    </FormCard>
+    {!isCash&&<FormCard title="CCM / Financing Details">
       <div><L>Merchant</L><SEL value={f.merchant} onChange={e=>set("merchant",e.target.value)}>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
       {row("agreementNumber","Agreement No.")}
       {row("aeonApprovalDate","Aeon Approval Date","date")}
@@ -584,13 +596,13 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
       {row("agreementFee","Agreement Fee (RM)","number",true)}
       {row("deposit","Deposit (RM)","number",true)}
       {row("monthlyInstallment","Monthly Installment (RM)","number")}
-    </CardSection>}
-    {isCash&&<CardSection title="Cash Order Details">
+    </FormCard>}
+    {isCash&&<FormCard title="Cash Order Details">
       {row("retailPrice","Retail Price (RM)","number",true)}
       {row("deposit","Deposit (RM)","number",true)}
       {row("depositPaymentDate","Deposit Payment Date","date")}
       <div><L>Deposit Payment Slip</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setSlipFile(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{(slipFile||f.depositSlip)&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {slipFile?.name||f.depositSlip?.name}</div>}</div>
-    </CardSection>}
+    </FormCard>}
     {missing.length>0&&!order&&<div style={{padding:"9px 12px",background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:8,fontSize:11,color:"#92400E",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill all required fields to submit.</div>}
     <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><GBtn onClick={onCancel}>Cancel</GBtn><PBtn onClick={submit} disabled={!order&&missing.length>0}>{isReady?"Submit & Dispatch":"Submit Order Request"}</PBtn></div>
   </div>;
