@@ -762,17 +762,21 @@ function AlertBanner({alerts,onClickOrder}){
   const expired=alerts.filter(a=>a.type==="approval_expired");
   const urgent=alerts.filter(a=>a.type==="approval_urgent"||a.type==="overdue_order");
   const warning=alerts.filter(a=>a.type==="approval_warning");
-  const Block=({items,bg,border,color,title})=>items.length>0&&<div style={{background:bg,border:`1px solid ${border}`,borderRadius:10,padding:"10px 14px",marginBottom:8}}>
-    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}><span style={{color,flexShrink:0}}>{Ic.alertCircle}</span><span style={{fontSize:11,fontWeight:800,color,textTransform:"uppercase",letterSpacing:"0.06em"}}>{title} ({items.length})</span></div>
-    {items.map((a,i)=><div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",borderRadius:7,background:"rgba(255,255,255,.55)",marginBottom:3,cursor:onClickOrder?"pointer":"default",border:`1px solid ${border}`}}>
-      <div><span style={{fontSize:11,fontWeight:700,color}}>{a.phoneModel}</span><span style={{fontSize:10,color,marginLeft:6,opacity:.8}}>{a.customerName} · {a.branch}</span></div>
-      <span style={{fontSize:10,color,fontWeight:600,whiteSpace:"nowrap"}}>{a.msg}</span>
+  const Block=({items,color,title})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
+      <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
+      <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>{title}</span>
+      <span style={{fontSize:10,fontWeight:700,color,background:color+"15",padding:"1px 8px",borderRadius:20}}>{items.length}</span>
+    </div>
+    {items.map((a,i)=><div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"8px 4px",borderTop:i>0?`1px solid ${C.border}`:"none",cursor:onClickOrder?"pointer":"default"}}>
+      <div style={{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}><span style={{fontSize:12,fontWeight:700,color:C.text}}>{a.phoneModel}</span><span style={{fontSize:11,color:C.textLight,marginLeft:8}}>{a.customerName} · {a.branch}</span></div>
+      <span style={{fontSize:11,color,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{a.msg}</span>
     </div>)}
   </div>;
-  return<div style={{marginBottom:16}}>
-    <Block items={expired} bg="#1A0000" border="#7F1D1D" color="#FCA5A5" title="Approval Expired"/>
-    <Block items={urgent} bg="#FEF2F2" border="#FECACA" color="#B91C1C" title="Urgent Attention"/>
-    <Block items={warning} bg="#FFFBEB" border="#FDE68A" color="#92400E" title="Approval Warning"/>
+  return<div style={{marginBottom:18}}>
+    <Block items={expired} color="#DC2626" title="Approval Expired"/>
+    <Block items={urgent} color="#B91C1C" title="Urgent Attention"/>
+    <Block items={warning} color="#B45309" title="Approval Warning"/>
   </div>;
 }
 
@@ -847,10 +851,10 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     {showArchive&&<BatchArchive orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowArchive(false)}/>}
 
     {/* Page header */}
-    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18,flexWrap:"wrap",gap:10}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,paddingBottom:16,borderBottom:`1px solid ${C.border}`,flexWrap:"wrap",gap:10}}>
       <div>
-        <div style={{fontSize:16,fontWeight:800,color:C.navy}}>Order Tracking</div>
-        <div style={{fontSize:11,color:C.textLight,marginTop:2}}>{activeOrders.length} active · {completedCount} completed</div>
+        <div style={{fontSize:19,fontWeight:800,color:C.navy,letterSpacing:"-0.01em"}}>Order Tracking</div>
+        <div style={{fontSize:12,color:C.textLight,marginTop:4}}>{activeOrders.length} active · {completedCount} completed</div>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {isAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
@@ -877,14 +881,17 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     </div>}
 
     {/* Phase KPI cards — 2×2 grid */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
       {PHASES.map(ph=>{
         const count=phaseCounts[ph.id]||0,active=filterPhase===ph.id;
-        return<div key={ph.id} onClick={()=>setFilterPhase(active?"all":ph.id)} style={{...card,padding:"12px 14px",cursor:"pointer",border:`${active?2:1}px solid ${active?ph.color:C.border}`,transition:"all .15s",display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:36,height:36,borderRadius:9,background:active?ph.color:ph.bg,display:"flex",alignItems:"center",justifyContent:"center",color:active?"#fff":ph.color,flexShrink:0,transition:"all .15s"}}>{PHASE_ICONS[ph.id]}</div>
-          <div style={{minWidth:0}}>
-            <div style={{fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ph.label}</div>
-            <div style={{fontSize:22,fontWeight:800,color:active?ph.color:C.navy,lineHeight:1}}>{count}</div>
+        return<div key={ph.id} onClick={()=>setFilterPhase(active?"all":ph.id)} style={{...card,padding:0,overflow:"hidden",cursor:"pointer",border:`1px solid ${active?ph.color:C.border}`,boxShadow:active?`0 0 0 1px ${ph.color}, 0 1px 3px rgba(10,22,40,.06)`:card.boxShadow,transition:"all .15s"}}>
+          <div style={{height:3,background:active?ph.color:"transparent",transition:"background .15s"}}/>
+          <div style={{padding:"13px 16px",display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:34,height:34,borderRadius:8,background:active?ph.color:C.surface,border:active?"none":`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:active?"#fff":C.textMid,flexShrink:0,transition:"all .15s"}}>{PHASE_ICONS[ph.id]}</div>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ph.label}</div>
+              <div style={{fontSize:23,fontWeight:800,color:C.navy,lineHeight:1}}>{count}</div>
+            </div>
           </div>
         </div>;
       })}
