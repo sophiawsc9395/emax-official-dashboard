@@ -44,7 +44,7 @@
     white-space:nowrap;
   }
   .tab-btn.active{background:var(--cream); color:var(--navy);}
-  main{padding:14px; max-width:720px; margin:0 auto 80px;}
+  main{padding:14px; max-width:720px; margin:0 auto 90px;}
   .topbar{
     display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap;
   }
@@ -113,8 +113,9 @@
     color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.2px; line-height:1.2;
   }
   .save-bar{
-    position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:1px solid var(--border);
-    padding:10px 14px; display:flex; gap:8px; z-index:30;
+    position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:2px solid var(--border);
+    padding:10px 14px; display:flex; gap:8px; z-index:9999;
+    box-shadow:0 -2px 12px rgba(0,0,0,.08);
   }
   .btn{
     flex:1; padding:12px; border-radius:10px; border:none; font-weight:700; font-size:14px; cursor:pointer;
@@ -418,14 +419,85 @@ async function switchCompany(key){
 async function loadReport(company, date){
   try{
     const res = await window.storage.get(storageKeyReport(company, date), STORAGE_SHARED);
-    currentData = res && res.value ? JSON.parse(res.value) : blankReport(company);
-    if(currentData.sections && currentData.sections.rto) migratePendingMonths(currentData.sections.rto);
-    currentData.date = date;
+    if(res && res.value){
+      // Existing saved data — just load it
+      currentData = JSON.parse(res.value);
+      if(currentData.sections && currentData.sections.rto) migratePendingMonths(currentData.sections.rto);
+      currentData.date = date;
+    } else {
+      // No data for this date — start blank but auto-fill labels from yesterday (EMAX only)
+      currentData = blankReport(company);
+      currentData.date = date;
+      if(company === 'emax'){
+        await autoFillLabelsFromYesterday(date);
+      }
+    }
   }catch(e){
     currentData = blankReport(company);
     currentData.date = date;
   }
   renderMain();
+}
+
+// Auto-fill labels (NOT amounts) for EMAX from the previous day's saved data
+async function autoFillLabelsFromYesterday(date){
+  // Find yesterday = date minus 1 day
+  const d = new Date(date);
+  d.setDate(d.getDate() - 1);
+  const yDate = d.toISOString().slice(0, 10);
+  let yData = null;
+  try{
+    const res = await window.storage.get(storageKeyReport('emax', yDate), STORAGE_SHARED);
+    yData = res && res.value ? JSON.parse(res.value) : null;
+  }catch(e){ return; }
+  if(!yData || !yData.sections) return;
+
+  // ── bank: copy labels, clear amounts ────────────────────────────────
+  if(yData.sections.bank && Array.isArray(yData.sections.bank)){
+    currentData.sections.bank = yData.sections.bank.map(r => ({label: r.label, amount: ''}));
+  }
+
+  // ── aeon: copy labels, clear amounts ────────────────────────────────
+  if(yData.sections.aeon && Array.isArray(yData.sections.aeon)){
+    currentData.sections.aeon = yData.sections.aeon.map(r => ({label: r.label, amount: ''}));
+  }
+
+  // ── jcl: copy labels, clear amounts ─────────────────────────────────
+  if(yData.sections.jcl && Array.isArray(yData.sections.jcl)){
+    currentData.sections.jcl = yData.sections.jcl.map(r => ({label: r.label, amount: ''}));
+  }
+
+  // ── supplier: copy labels, clear amounts ─────────────────────────────
+  if(yData.sections.supplier && Array.isArray(yData.sections.supplier)){
+    currentData.sections.supplier = yData.sections.supplier.map(r => ({label: r.label, amount: ''}));
+  }
+
+  // ── customer: copy labels, clear amounts ─────────────────────────────
+  if(yData.sections.customer && Array.isArray(yData.sections.customer)){
+    currentData.sections.customer = yData.sections.customer.map(r => ({label: r.label, amount: ''}));
+  }
+
+  // ── rto: copy structural fields (months labels, next month label),
+  //         clear all amounts ──────────────────────────────────────────
+  if(yData.sections.rto){
+    const yr = yData.sections.rto;
+    if(yr.pendingMonth && !yr.pendingMonths){
+      yr.pendingMonths = [{month: yr.pendingMonth, count: yr.pendingCount||'', amount: ''}];
+    }
+    currentData.sections.rto = {
+      contractValue: '',
+      deviceDTP: '',
+      expectedProfit: '',
+      collectedPayment: '',
+      pendingMonths: (yr.pendingMonths || [{month:'',count:'',amount:''}]).map(pm => ({
+        month: pm.month,
+        count: '',
+        amount: ''
+      })),
+      nextMonthLabel: yr.nextMonthLabel || '',
+      nextMonthAmount: ''
+    };
+  }
 }
 
 async function saveReport(){
@@ -701,7 +773,7 @@ async function renderYesterdayPanel(main){
     return block;
   }
 
-  function fmtRM(v){ return 'RM ' + (parseFloat(v)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+  function fmtRM(v){ return 'RM ' + (parseFloat(v)||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2}); }
   function numY(v){ return parseFloat(v)||0; }
 
   // ── AEON (Unclaimed) yesterday ───────────────────────────────────────
@@ -836,12 +908,15 @@ function renderSalesReportCard(){
     <div class="field"><label>Cash (RM)</label><input type="number" step="0.01" id="sr_cash" value="${d.cash}"></div>
     <div class="field"><label>Credit/Debit Card (RM)</label><input type="number" step="0.01" id="sr_card" value="${d.card}"></div>
     <div class="field"><label>QR Payment (RM)</label><input type="number" step="0.01" id="sr_qr" value="${d.qr}"></div>
+    ${currentCompany==='dojo'?`
     <div class="field"><label>GrabFood (RM)</label><input type="number" step="0.01" id="sr_grabfood" value="${d.grabfood||''}"></div>
     <div class="field"><label>FoodPanda (RM)</label><input type="number" step="0.01" id="sr_foodpanda" value="${d.foodpanda||''}"></div>
+    `:''}
   `;
   card.appendChild(ff);
 
-  ['cash','card','qr','grabfood','foodpanda'].forEach(k=>{
+  const srKeys = currentCompany==='dojo' ? ['cash','card','qr','grabfood','foodpanda'] : ['cash','card','qr'];
+  srKeys.forEach(k=>{
     ff.querySelector('#sr_'+k).oninput = e=>{
       d[k] = e.target.value;
       updateTotalSales();
@@ -855,8 +930,9 @@ function renderSalesReportCard(){
   card.appendChild(totalRow);
 
   function updateTotalSales(){
-    const total = num(d.cash)+num(d.card)+num(d.qr)+num(d.grabfood)+num(d.foodpanda);
-    totalRow.querySelector('.tval').textContent = 'RM ' + fmt(total);
+    const base = num(d.cash)+num(d.card)+num(d.qr);
+    const delivery = currentCompany==='dojo' ? num(d.grabfood)+num(d.foodpanda) : 0;
+    totalRow.querySelector('.tval').textContent = 'RM ' + fmt(base+delivery);
   }
   updateTotalSales();
 
