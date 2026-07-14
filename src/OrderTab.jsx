@@ -729,7 +729,7 @@ function getOrderAlerts(orders,userBranch=null){
     if(days>=7)alerts.push({type:"overdue_order",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,invoiceNo:o.invoiceNo,days,msg:`Ordered ${days} days ago — not yet arrived at HQ`});
   });
   // Alert 2: Approval date 31-60 days (warning), 61-90 days (urgent) for steps 6-11
-  myOrders.filter(o=>o.aeonApprovalDate&&o.step>=6&&o.step<=11).forEach(o=>{
+  myOrders.filter(o=>o.aeonApprovalDate&&o.step>=1&&o.step<=12).forEach(o=>{
     const days=daysSince(o.aeonApprovalDate);
     if(days>=61&&days<=90)alerts.push({type:"approval_urgent",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,invoiceNo:o.invoiceNo,days,msg:`Approval date ${days} days ago — URGENT`});
     else if(days>=31&&days<=60)alerts.push({type:"approval_warning",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,invoiceNo:o.invoiceNo,days,msg:`Approval date ${days} days ago — action needed`});
