@@ -126,7 +126,7 @@ function DBtn({children,onClick,style={}}){
 
 /* ── Section header matching dashboard style ─────────────────────────── */
 function SecHdr({icon,children,right}){
-  return<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
+  return<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",borderBottom:`1px solid ${C.border}`,background:C.surface,borderLeft:`3px solid ${C.blue}`}}>
     <div style={{display:"flex",alignItems:"center",gap:7,fontSize:11,fontWeight:700,color:C.text,textTransform:"uppercase",letterSpacing:"0.07em"}}>{icon&&<span style={{color:C.blue}}>{icon}</span>}{children}</div>
     {right&&<div>{right}</div>}
   </div>;
@@ -134,7 +134,7 @@ function SecHdr({icon,children,right}){
 function InfoCell({label,value}){return<div><div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2,fontWeight:600}}>{label}</div><div style={{fontSize:12,fontWeight:600,color:C.text}}>{value||"—"}</div></div>;}
 
 /* ── Phase Progress Bar ───────────────────────────────────────────────── */
-function PhaseBar({step,order}){
+function PhaseBar({step,order,dark=false}){
   const mxS=order?maxStep(order):12;
   const pct=Math.round(((Math.min(step,mxS)-1)/(mxS-1))*100);
   const ph=getPhase(step);
@@ -145,22 +145,22 @@ function PhaseBar({step,order}){
           const maxS=Math.max(...p.steps),done=step>maxS,active=p.steps.includes(step);
           return<div key={p.id} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-start"}}>
             <div style={{display:"flex",alignItems:"center",width:"100%"}}>
-              <div style={{width:24,height:24,borderRadius:"50%",background:done?C.navy:active?C.blue:"#E4EAF2",border:`2px solid ${done?C.navy:active?C.blue:"#E4EAF2"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",transition:"all .2s"}}>
-                {done?Ic.check:active?<div style={{width:7,height:7,borderRadius:"50%",background:"#fff"}}/>:<span style={{fontSize:8,fontWeight:700,color:C.textLight}}>{i+1}</span>}
+              <div style={{width:24,height:24,borderRadius:"50%",background:done?(dark?"rgba(255,255,255,.9)":C.navy):active?C.blue:(dark?"rgba(255,255,255,.1)":"#E4EAF2"),border:`2px solid ${done?(dark?"rgba(255,255,255,.7)":C.navy):active?C.blue:(dark?"rgba(255,255,255,.2)":"#E4EAF2")}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:dark&&done?"#0A1628":"#fff",transition:"all .2s"}}>
+                {done?Ic.check:active?<div style={{width:7,height:7,borderRadius:"50%",background:"#fff"}}/>:<span style={{fontSize:8,fontWeight:700,color:dark?"rgba(255,255,255,.35)":C.textLight}}>{i+1}</span>}
               </div>
-              {i<arr.length-1&&<div style={{flex:1,height:2,background:done?C.navy:"#E4EAF2",margin:"0 3px",transition:"background .3s"}}/>}
+              {i<arr.length-1&&<div style={{flex:1,height:2,background:done?(dark?"rgba(255,255,255,.7)":C.navy):(dark?"rgba(255,255,255,.15)":"#E4EAF2"),margin:"0 3px",transition:"background .3s"}}/>}
             </div>
             <div style={{marginTop:5,paddingLeft:1}}>
-              <div style={{fontSize:9,fontWeight:700,color:active?ph.color:done?C.textMid:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",lineHeight:1.2}}>{p.label}</div>
+              <div style={{fontSize:9,fontWeight:700,color:dark?(active?"#FFD500":done?"rgba(255,255,255,.7)":"rgba(255,255,255,.35)"):(active?ph.color:done?C.textMid:C.textLight),textTransform:"uppercase",letterSpacing:"0.04em",lineHeight:1.2}}>{p.label}</div>
             </div>
           </div>;
         })}
       </div>
-      <div style={{height:4,background:C.border,borderRadius:2,overflow:"hidden"}}>
-        <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${C.blue},${C.blueBright})`,borderRadius:2,transition:"width .5s cubic-bezier(.4,0,.2,1)"}}/>
+      <div style={{height:4,background:dark?"rgba(255,255,255,.15)":C.border,borderRadius:2,overflow:"hidden"}}>
+        <div style={{height:"100%",width:`${pct}%`,background:dark?"linear-gradient(90deg,#FFD500,#FFF176)":`linear-gradient(90deg,${C.blue},${C.blueBright})`,borderRadius:2,transition:"width .5s cubic-bezier(.4,0,.2,1)"}}/>
       </div>
       <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:10,color:C.textLight}}>
-        <span>Step {step} of {mxS}</span><span style={{fontWeight:600,color:ph?.color||C.blue}}>{pct}%</span>
+        <span style={{color:dark?"rgba(255,255,255,.5)":C.textLight}}>Step {step} of {mxS}</span><span style={{fontWeight:700,color:dark?"#FFD500":(ph?.color||C.blue)}}>{pct}%</span>
       </div>
     </div>
   );
@@ -366,7 +366,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
     if(!branchOk)return false;
     if(nextDef.needsOrderDate&&isAdmin&&!orderDate)return false;
     if(nextDef.needsInvoiceNo&&isAdmin&&!invoiceNo.trim())return false;
-    if(nextDef.needsFiles){const req=(nextDef.needsFiles||[]).filter(f=>!f.optional);if(isAdmin&&req.some(f=>!files[f.key]))return false;}
+    if(nextDef.needsFiles){const req=(nextDef.needsFiles||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof"));if(isAdmin&&req.some(f=>!files[f.key]))return false;}
     return true;
   };
 
@@ -380,11 +380,11 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
         {nextDef.needsRemark&&isAdmin&&<div style={{marginBottom:12}}><L>Remark / ETA / Order Details</L><TX value={remark} onChange={e=>setRemark(e.target.value)} rows={2} placeholder="ETA, order reference, notes…"/></div>}
         {nextDef.needsInvoiceNo&&isAdmin&&<>
           <div style={{marginBottom:12}}><L req>Sales Invoice Number</L><I value={invoiceNo} onChange={e=>setInvoiceNo(e.target.value)} placeholder="INV-2026-0001"/></div>
-          <div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
+          {!isCash&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
             <div style={{...lbl,marginBottom:8}}>Customer Upfront Payment Breakdown</div>
             {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
             <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",fontWeight:800,color:C.navy}}><span>Total Upfront</span><span>{fRM(upfront.total)}</span></div>
-          </div>
+          </div>}
         </>}
         {nextDef.needsVerification&&isAdmin&&<div style={{marginBottom:12}}>
           <div style={{...lbl,marginBottom:8}}>Verification Checklist</div>
@@ -456,24 +456,29 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
   const s=getStep(order.step),ph=getPhase(order.step),isCash=order.orderType==="cash";
   const upfront=order.billingData&&order.step>=7?calcUpfront(order):null;
   return<div className="fade-in">
-    {/* Top bar */}
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <GBtn onClick={onBack}>{Ic.chevL} Back</GBtn>
+    {/* Top bar — navy header */}
+    <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,borderRadius:12,padding:"16px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+      <button onClick={onBack} style={{padding:"6px 12px",background:"rgba(255,255,255,.1)",color:"rgba(255,255,255,.8)",border:"1px solid rgba(255,255,255,.2)",borderRadius:7,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",gap:5,flexShrink:0,whiteSpace:"nowrap"}}>{Ic.chevL} Back</button>
       <div style={{flex:1,minWidth:0}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-          <span style={{fontSize:14,fontWeight:800,color:C.navy}}>{order.phoneModel}</span>
-          <span style={{fontSize:10,color:C.textLight,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>{shortId(order.id)}</span>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:4}}>
+          <span style={{fontSize:15,fontWeight:800,color:"#fff"}}>{order.phoneModel}</span>
+          <span style={{fontSize:10,color:"rgba(255,255,255,.45)",background:"rgba(255,255,255,.08)",padding:"2px 8px",borderRadius:4,border:"1px solid rgba(255,255,255,.15)"}}>{shortId(order.id)}</span>
           <StepBadge step={order.step}/>
-          {order.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:C.blue,background:"#EFF6FF",padding:"2px 8px",borderRadius:4,border:"1px solid #BFDBFE",display:"inline-flex",alignItems:"center",gap:3}}>{Ic.lightning} Ready Stock</span>}
-          {isCash&&<span style={{fontSize:9,fontWeight:700,color:"#15803D",background:"#F0FDF4",padding:"2px 8px",borderRadius:4,border:"1px solid #BBF7D0",display:"inline-flex",alignItems:"center",gap:3}}>{Ic.cash} Cash</span>}
+          {order.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:"#FFD500",background:"rgba(255,213,0,.15)",padding:"2px 8px",borderRadius:4,border:"1px solid rgba(255,213,0,.3)",display:"inline-flex",alignItems:"center",gap:3}}>{Ic.lightning} Ready Stock</span>}
+          {isCash&&<span style={{fontSize:9,fontWeight:700,color:"#86EFAC",background:"rgba(134,239,172,.15)",padding:"2px 8px",borderRadius:4,border:"1px solid rgba(134,239,172,.3)",display:"inline-flex",alignItems:"center",gap:3}}>{Ic.cash} Cash</span>}
         </div>
-        <div style={{fontSize:11,color:C.textLight,marginTop:3}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}</div>
+        <div style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}</div>
       </div>
-      {isAdmin&&!isReadOnly&&<div style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn><DBtn onClick={onDelete}>{Ic.trash} Delete</DBtn></div>}
+      {isAdmin&&!isReadOnly&&<div style={{display:"flex",gap:6,flexShrink:0}}>
+        <button onClick={onEdit} style={{padding:"6px 12px",background:"rgba(255,255,255,.1)",color:"rgba(255,255,255,.8)",border:"1px solid rgba(255,255,255,.2)",borderRadius:7,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",gap:5}}>{Ic.edit} Edit</button>
+        <button onClick={onDelete} style={{padding:"6px 12px",background:"rgba(220,38,38,.15)",color:"#FCA5A5",border:"1px solid rgba(220,38,38,.3)",borderRadius:7,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",gap:5}}>{Ic.trash} Delete</button>
+      </div>}
     </div>
 
     {/* Phase progress card */}
-    <div style={{...card,padding:"16px 20px",marginBottom:14}}><PhaseBar step={order.step} order={order}/></div>
+    <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,borderRadius:12,padding:"18px 20px",marginBottom:14}}>
+      <PhaseBar step={order.step} order={order} dark={true}/>
+    </div>
 
     {/* Order info summary */}
     <div style={{...card,marginBottom:14}}>
