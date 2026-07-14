@@ -103,14 +103,14 @@ const PHASE_ICONS={stock:Ic.box,transfer:Ic.truck,billing:Ic.card,agreement_hq:I
 
 /* ── Design tokens (matching App.jsx) ────────────────────────────────── */
 const C={navy:"#0A1628",navyMid:"#0F2040",navyLight:"#162B52",blue:"#1E6FDB",blueBright:"#2D85F0",yellow:"#FFD500",white:"#fff",surface:"#F7F9FC",border:"#E4EAF2",text:"#0A1628",textMid:"#4A5568",textLight:"#8A96A8"};
-const inp={width:"100%",padding:"11px 14px",border:`1.5px solid ${C.border}`,borderRadius:10,fontSize:13,fontFamily:"Inter,sans-serif",color:C.text,outline:"none",background:C.white,boxSizing:"border-box",lineHeight:"1.4"};
+const inp={display:"block",width:"100%",padding:"11px 14px",border:`1.5px solid ${C.border}`,borderRadius:10,fontSize:13,fontFamily:"Inter,sans-serif",color:C.text,outline:"none",background:C.white,boxSizing:"border-box",lineHeight:"1.4",minWidth:0};
 const lbl={fontSize:11,fontWeight:700,color:C.textLight,display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"};
 const card={background:C.white,border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)"};
 
 /* ── Primitives ───────────────────────────────────────────────────────── */
 function L({children,req}){return<label style={lbl}>{children}{req&&<span style={{color:"#DC2626"}}> *</span>}</label>;}
-function I(p){return<input style={{...inp,...p.style}} {...p}/>;}
-function SEL({children,...p}){return<select style={{...inp,appearance:"none",backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238A96A8'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 10px center",paddingRight:28,...p.style}} {...p}>{children}</select>;}
+function I({style,...p}){return<input style={{...inp,...style,width:"100%"}} {...p}/>;}
+function SEL({children,style,...p}){return<select style={{...inp,appearance:"none",backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238A96A8'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 10px center",paddingRight:28,...style,width:"100%"}} {...p}>{children}</select>;}
 function TX(p){return<textarea style={{...inp,resize:"vertical",...p.style}} {...p}/>;}
 function Divider(){return<div style={{height:1,background:C.border,margin:"14px 0"}}/>;}
 
@@ -529,7 +529,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
 /* ── Order Form ───────────────────────────────────────────────────────── */
 /* ── Form primitives (defined at module level to preserve focus) ──────── */
 function FormField({label,req,children,span}){
-  return<div style={span?{gridColumn:"1/-1"}:{}}><L req={req}>{label}</L>{children}</div>;
+  return<div style={{width:"100%",minWidth:0,...(span?{gridColumn:"1/-1"}:{})}}><L req={req}>{label}</L>{children}</div>;
 }
 
 /* ── Form section card ─────────────────────────────────────────────────── */
@@ -538,7 +538,7 @@ function FormCard({title,children}){
     <div style={{padding:"12px 18px",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
       <div style={{fontSize:12,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.07em"}}>{title}</div>
     </div>
-    <div style={{padding:"20px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>{children}</div>
+    <div style={{padding:"20px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,minWidth:0}}>{children}</div>
   </div>;
 }
 
