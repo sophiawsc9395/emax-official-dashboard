@@ -309,9 +309,18 @@ function defaultStockRows(){
 function defaultRto(){
   return {
     contractValue:'', deviceDTP:'', expectedProfit:'', collectedPayment:'',
-    pendingCount:'', pendingAmount:'', pendingMonth:'',
+    pendingMonths:[{month:'',count:'',amount:''}],
     nextMonthAmount:'', nextMonthLabel:''
   };
+}
+
+function migratePendingMonths(d){
+  // Migrate old single-month fields to array
+  if(!d.pendingMonths){
+    d.pendingMonths=[{month:d.pendingMonth||'',count:d.pendingCount||'',amount:d.pendingAmount||''}];
+    delete d.pendingMonth; delete d.pendingCount; delete d.pendingAmount;
+  }
+  return d;
 }
 
 const RTO_CARE_FIELDS = [
@@ -410,6 +419,7 @@ async function loadReport(company, date){
   try{
     const res = await window.storage.get(storageKeyReport(company, date), STORAGE_SHARED);
     currentData = res && res.value ? JSON.parse(res.value) : blankReport(company);
+    if(currentData.sections && currentData.sections.rto) migratePendingMonths(currentData.sections.rto);
     currentData.date = date;
   }catch(e){
     currentData = blankReport(company);
@@ -493,6 +503,10 @@ function renderMain(){
     else if(QTY_SECTIONS.has(sec)) main.appendChild(renderQtyListCard(sec));
     else main.appendChild(renderListCard(sec));
   });
+  // EMAX: show yesterday snapshot panels
+  if(currentCompany==='emax'){
+    renderYesterdayPanel(main);
+  }
 }
 
 function renderListCard(sec){
@@ -636,9 +650,113 @@ function updateStockTotal(card, rows){
   card.querySelector('.tval').textContent = `RM ${fmt(catTotal)} · RM ${fmt(grandTotal)}`;
 }
 
+function yesterdayISO(){
+  const d = new Date();
+  d.setDate(d.getDate()-1);
+  return d.toISOString().slice(0,10);
+}
+
+async function renderYesterdayPanel(main){
+  const yDate = yesterdayISO();
+  let yData = null;
+  try{
+    const res = await window.storage.get(storageKeyReport('emax', yDate), STORAGE_SHARED);
+    yData = res && res.value ? JSON.parse(res.value) : null;
+  }catch(e){ yData = null; }
+
+  const panel = document.createElement('div');
+  panel.style.cssText = 'margin-top:8px;';
+
+  const hdr = document.createElement('div');
+  hdr.style.cssText = 'background:linear-gradient(135deg,#0A1628,#162B52);border-radius:10px;padding:12px 16px;margin-bottom:10px;display:flex;align-items:center;gap:10px;';
+  hdr.innerHTML = `<span style="font-size:18px;">📋</span><div><div style="font-weight:800;font-size:13px;color:#fff;">Yesterday's Summary</div><div style="font-size:11px;color:rgba(255,255,255,.45);margin-top:1px;">${yDate ? yDate.split('-').reverse().join('/') : '—'}</div></div>`;
+  panel.appendChild(hdr);
+
+  if(!yData){
+    const empty = document.createElement('div');
+    empty.style.cssText = 'background:#F7F9FC;border:1px solid #E4EAF2;border-radius:9px;padding:16px;text-align:center;font-size:12px;color:#8A96A8;';
+    empty.textContent = 'No data saved for yesterday.';
+    panel.appendChild(empty);
+    main.appendChild(panel);
+    return;
+  }
+
+  // Helper: render a summary block
+  function yBlock(title, color, rows){
+    const block = document.createElement('div');
+    block.style.cssText = 'background:#fff;border:1px solid #E4EAF2;border-radius:9px;overflow:hidden;margin-bottom:8px;';
+    const bHdr = document.createElement('div');
+    bHdr.style.cssText = `background:${color}15;border-bottom:2px solid ${color}30;padding:8px 14px;font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.06em;`;
+    bHdr.textContent = title;
+    block.appendChild(bHdr);
+    const body = document.createElement('div');
+    body.style.cssText = 'padding:10px 14px;';
+    rows.forEach(([label,value,bold])=>{
+      const row = document.createElement('div');
+      row.style.cssText = `display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid #F3F4F6;`;
+      row.innerHTML = `<span style="color:#4A5568;">${label}</span><span style="font-weight:${bold?'700':'500'};color:${bold?'#0A1628':'#374151'};">${value}</span>`;
+      body.appendChild(row);
+    });
+    block.appendChild(body);
+    return block;
+  }
+
+  function fmtRM(v){ return 'RM ' + (parseFloat(v)||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+  function numY(v){ return parseFloat(v)||0; }
+
+  // ── AEON (Unclaimed) yesterday ───────────────────────────────────────
+  const aeonRows = yData.sections && yData.sections.aeon;
+  if(aeonRows && aeonRows.length){
+    const total = aeonRows.reduce((s,r)=>s+numY(r.amount),0);
+    const rows = [...aeonRows.filter(r=>r.label||r.amount).map(r=>[r.label||'—',fmtRM(r.amount),false]),['Total Unclaimed',fmtRM(total),true]];
+    panel.appendChild(yBlock('AEON (Unclaimed) — Yesterday','#1E6FDB',rows));
+  }
+
+  // ── RTO yesterday ─────────────────────────────────────────────────────
+  const rto = yData.sections && yData.sections.rto;
+  if(rto){
+    if(rto.pendingMonth&&!rto.pendingMonths) rto.pendingMonths=[{month:rto.pendingMonth,count:rto.pendingCount,amount:rto.pendingAmount}];
+    const profit = numY(rto.contractValue) - numY(rto.deviceDTP);
+    const bal = numY(rto.contractValue) - numY(rto.collectedPayment);
+    const rows = [
+      ['Total Contract Value',fmtRM(rto.contractValue),false],
+      ['Device DTP',fmtRM(rto.deviceDTP),false],
+      ['Expected Profit (auto)',fmtRM(profit),false],
+      ['Collected Payment',fmtRM(rto.collectedPayment),false],
+      ['Balance to Receive',fmtRM(bal),true],
+    ];
+    if(rto.pendingMonths&&rto.pendingMonths.length){
+      rto.pendingMonths.forEach(pm=>{
+        if(pm.month||pm.amount) rows.push([`Pending — ${pm.month||'?'} (${pm.count||0})`,fmtRM(pm.amount),false]);
+      });
+    }
+    if(rto.nextMonthLabel) rows.push([`Next — ${rto.nextMonthLabel}`,fmtRM(rto.nextMonthAmount),false]);
+    panel.appendChild(yBlock('Rent-to-Own (RTO) — Yesterday','#7C3AED',rows));
+  }
+
+  // ── Supplier yesterday ────────────────────────────────────────────────
+  const supplierRows = yData.sections && yData.sections.supplier;
+  if(supplierRows && supplierRows.length){
+    const total = supplierRows.reduce((s,r)=>s+numY(r.amount),0);
+    const rows = [...supplierRows.filter(r=>r.label||r.amount).map(r=>[r.label||'—',fmtRM(r.amount),false]),['Total Payable',fmtRM(total),true]];
+    panel.appendChild(yBlock('Supplier — Yesterday','#B45309',rows));
+  }
+
+  // ── Customer yesterday ────────────────────────────────────────────────
+  const customerRows = yData.sections && yData.sections.customer;
+  if(customerRows && customerRows.length){
+    const total = customerRows.reduce((s,r)=>s+numY(r.amount),0);
+    const rows = [...customerRows.filter(r=>r.label||r.amount).map(r=>[r.label||'—',fmtRM(r.amount),false]),['Total Receivable',fmtRM(total),true]];
+    panel.appendChild(yBlock('Customer — Yesterday','#15803D',rows));
+  }
+
+  main.appendChild(panel);
+}
+
 function renderRtoCard(){
   const card = document.createElement('div');
   card.className = 'card';
+  migratePendingMonths(currentData.sections.rto);
   const d = currentData.sections.rto;
   card.innerHTML = `<div class="card-head"><span>Rent-to-Own (RTO)</span></div>`;
   const ff = document.createElement('div');
@@ -646,14 +764,9 @@ function renderRtoCard(){
   ff.innerHTML = `
     <div class="field"><label>Total Contract Value (RM)</label><input type="number" step="0.01" id="rto_contractValue" value="${d.contractValue}"></div>
     <div class="field"><label>Device DTP (RM)</label><input type="number" step="0.01" id="rto_deviceDTP" value="${d.deviceDTP}"></div>
-    <div class="field"><label>Expected Total Profit (RM)</label><input type="number" step="0.01" id="rto_expectedProfit" value="${d.expectedProfit}"></div>
+    <div class="field"><label>Expected Total Profit (RM) <span style="color:#8A96A8;font-weight:400;">(auto: Contract − DTP)</span></label><input type="text" disabled id="rto_expectedProfit" value=""></div>
     <div class="field"><label>Collected Payment (RM)</label><input type="number" step="0.01" id="rto_collectedPayment" value="${d.collectedPayment}"></div>
     <div class="field"><label>Balance to Receive (auto)</label><input type="text" disabled id="rto_balance" value=""></div>
-    <div class="field-row">
-      <div class="field"><label>Pending Collection — Month</label><input type="text" id="rto_pendingMonth" value="${escapeHtml(d.pendingMonth)}" placeholder="e.g. June 2026"></div>
-      <div class="field"><label>Count</label><input type="number" id="rto_pendingCount" value="${d.pendingCount}"></div>
-    </div>
-    <div class="field"><label>Pending Collection Amount (RM)</label><input type="number" step="0.01" id="rto_pendingAmount" value="${d.pendingAmount}"></div>
     <div class="field-row">
       <div class="field"><label>Next Month Collection — Label</label><input type="text" id="rto_nextMonthLabel" value="${escapeHtml(d.nextMonthLabel)}" placeholder="e.g. July 2026"></div>
       <div class="field"><label>Amount (RM)</label><input type="number" step="0.01" id="rto_nextMonthAmount" value="${d.nextMonthAmount}"></div>
@@ -661,20 +774,53 @@ function renderRtoCard(){
   `;
   card.appendChild(ff);
 
-  function bind(id, key, isText){
-    const el = ff.querySelector('#'+id);
-    el.oninput = e=>{ d[key] = e.target.value; updateBalance(); };
+  // Pending months section (multi-row)
+  const pendingHdr = document.createElement('div');
+  pendingHdr.style.cssText = 'font-weight:700;font-size:12px;color:var(--navy-2);margin:10px 0 6px;padding:0 2px;display:flex;justify-content:space-between;align-items:center;';
+  pendingHdr.innerHTML = '<span>Pending Collection Months</span><button id="addPendingBtn" style="background:#0A1628;color:#fff;border:none;border-radius:5px;padding:3px 10px;font-size:11px;font-family:Inter,sans-serif;cursor:pointer;">+ Add Month</button>';
+  card.appendChild(pendingHdr);
+  const pendingList = document.createElement('div');
+  pendingList.id = 'rto_pendingList';
+  card.appendChild(pendingList);
+
+  function renderPendingRows(){
+    pendingList.innerHTML = '';
+    d.pendingMonths.forEach((pm,i)=>{
+      const row = document.createElement('div');
+      row.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 2fr auto;gap:6px;align-items:end;margin-bottom:7px;background:#F7F9FC;border:1px solid #E4EAF2;border-radius:7px;padding:8px;';
+      row.innerHTML = `
+        <div><label style="font-size:10px;color:#8A96A8;display:block;margin-bottom:3px;">Month</label><input type="text" placeholder="e.g. June 2026" value="${escapeHtml(pm.month)}" style="width:100%;padding:6px 8px;border:1px solid #D1D5DB;border-radius:5px;font-size:12px;font-family:Inter,sans-serif;box-sizing:border-box;"></div>
+        <div><label style="font-size:10px;color:#8A96A8;display:block;margin-bottom:3px;">Count</label><input type="number" value="${pm.count}" style="width:100%;padding:6px 8px;border:1px solid #D1D5DB;border-radius:5px;font-size:12px;font-family:Inter,sans-serif;box-sizing:border-box;"></div>
+        <div><label style="font-size:10px;color:#8A96A8;display:block;margin-bottom:3px;">Amount (RM)</label><input type="number" step="0.01" value="${pm.amount}" style="width:100%;padding:6px 8px;border:1px solid #D1D5DB;border-radius:5px;font-size:12px;font-family:Inter,sans-serif;box-sizing:border-box;"></div>
+        <button style="background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA;border-radius:5px;padding:6px 8px;font-size:11px;cursor:pointer;margin-bottom:0;font-family:Inter,sans-serif;" ${d.pendingMonths.length<=1?'disabled':''}>✕</button>
+      `;
+      const [mIn,cIn,aIn,delBtn] = row.querySelectorAll('input,button');
+      mIn.oninput = e=>{ pm.month = e.target.value; };
+      cIn.oninput = e=>{ pm.count = e.target.value; };
+      aIn.oninput = e=>{ pm.amount = e.target.value; };
+      delBtn.onclick = ()=>{ if(d.pendingMonths.length>1){ d.pendingMonths.splice(i,1); renderPendingRows(); }};
+      pendingList.appendChild(row);
+    });
   }
-  ['contractValue','deviceDTP','expectedProfit','collectedPayment'].forEach(k=>bind('rto_'+k,k));
-  bind('rto_pendingMonth','pendingMonth'); bind('rto_pendingCount','pendingCount');
-  bind('rto_pendingAmount','pendingAmount'); bind('rto_nextMonthLabel','nextMonthLabel');
+  renderPendingRows();
+  pendingHdr.querySelector('#addPendingBtn').onclick = ()=>{ d.pendingMonths.push({month:'',count:'',amount:''}); renderPendingRows(); };
+
+  function bind(id, key){
+    const el = ff.querySelector('#'+id);
+    if(el) el.oninput = e=>{ d[key] = e.target.value; calcAutos(); };
+  }
+  ['contractValue','deviceDTP','collectedPayment'].forEach(k=>bind('rto_'+k,k));
+  bind('rto_nextMonthLabel','nextMonthLabel');
   bind('rto_nextMonthAmount','nextMonthAmount');
 
-  function updateBalance(){
+  function calcAutos(){
+    const profit = num(d.contractValue) - num(d.deviceDTP);
     const bal = num(d.contractValue) - num(d.collectedPayment);
+    ff.querySelector('#rto_expectedProfit').value = 'RM ' + fmt(profit);
     ff.querySelector('#rto_balance').value = 'RM ' + fmt(bal);
+    d.expectedProfit = String(profit);
   }
-  updateBalance();
+  calcAutos();
 
   return card;
 }
@@ -690,10 +836,12 @@ function renderSalesReportCard(){
     <div class="field"><label>Cash (RM)</label><input type="number" step="0.01" id="sr_cash" value="${d.cash}"></div>
     <div class="field"><label>Credit/Debit Card (RM)</label><input type="number" step="0.01" id="sr_card" value="${d.card}"></div>
     <div class="field"><label>QR Payment (RM)</label><input type="number" step="0.01" id="sr_qr" value="${d.qr}"></div>
+    <div class="field"><label>GrabFood (RM)</label><input type="number" step="0.01" id="sr_grabfood" value="${d.grabfood||''}"></div>
+    <div class="field"><label>FoodPanda (RM)</label><input type="number" step="0.01" id="sr_foodpanda" value="${d.foodpanda||''}"></div>
   `;
   card.appendChild(ff);
 
-  ['cash','card','qr'].forEach(k=>{
+  ['cash','card','qr','grabfood','foodpanda'].forEach(k=>{
     ff.querySelector('#sr_'+k).oninput = e=>{
       d[k] = e.target.value;
       updateTotalSales();
@@ -707,7 +855,7 @@ function renderSalesReportCard(){
   card.appendChild(totalRow);
 
   function updateTotalSales(){
-    const total = num(d.cash)+num(d.card)+num(d.qr);
+    const total = num(d.cash)+num(d.card)+num(d.qr)+num(d.grabfood)+num(d.foodpanda);
     totalRow.querySelector('.tval').textContent = 'RM ' + fmt(total);
   }
   updateTotalSales();
@@ -768,8 +916,8 @@ function renderSummaryCard(){
 
   function updateSummary(){
     const sr = currentData.sections.salesReport || {};
-    const grabTotal = 0;
-    const fpTotal = 0;
+    const grabTotal = num(sr.grabfood)||0;
+    const fpTotal = num(sr.foodpanda)||0;
     ff.querySelector('#sum_grabTotalDisplay').value = 'RM ' + fmt(grabTotal);
     ff.querySelector('#sum_fpTotalDisplay').value = 'RM ' + fmt(fpTotal);
     const cashNet = num(d.cashSalesTotal) - num(d.cashSalesDiscount);
@@ -778,7 +926,7 @@ function renderSummaryCard(){
     ff.querySelector('#sum_cashNet').value = 'RM ' + fmt(cashNet);
     ff.querySelector('#sum_grabNet').value = 'RM ' + fmt(grabNet);
     ff.querySelector('#sum_fpNet').value = 'RM ' + fmt(fpNet);
-    const dailyTotalSales = num(sr.cash)+num(sr.card)+num(sr.qr);
+    const dailyTotalSales = num(sr.cash)+num(sr.card)+num(sr.qr)+grabTotal+fpTotal;
     const autocountSales = dailyTotalSales - num(d.surcharge) - grabNet - fpNet - num(d.sst);
     ff.querySelector('#sum_autocount').value = 'RM ' + fmt(autocountSales);
     const total = cashNet + num(d.surcharge) + grabNet + fpNet + num(d.sst) + num(d.aisolove);
