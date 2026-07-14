@@ -906,21 +906,19 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
           return<div key={o.id} onClick={()=>nav("detail",o)} className="card" style={{cursor:"pointer",overflow:"hidden",transition:"box-shadow .2s,transform .2s"}}
             onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 16px rgba(10,22,40,.10)";e.currentTarget.style.transform="translateY(-1px)";}}
             onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)";e.currentTarget.style.transform="none";}}>
-            {/* Gradient header strip */}
-            <div style={{background:o.cancelled?`linear-gradient(135deg,#7F1D1D,#991B1B)`:o.step===12||o.step===13?`linear-gradient(135deg,#14532D,#166534)`:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"12px 14px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-                <div>
-                  <div style={{display:"flex",gap:4,marginBottom:5,flexWrap:"wrap"}}>
-                    {o.cancelled?<span style={{fontSize:8,fontWeight:700,color:"#FCA5A5",background:"rgba(255,255,255,.12)",padding:"1px 7px",borderRadius:4}}>Cancelled</span>:isPendingBranchAction(o)?<span style={{fontSize:8,fontWeight:700,color:"#FCA5A5",background:"rgba(255,255,255,.12)",padding:"1px 7px",borderRadius:4}}>Pending Branch Action</span>:ph&&<span style={{fontSize:8,fontWeight:700,color:"rgba(255,255,255,.9)",background:ph.color+"40",padding:"1px 7px",borderRadius:4,display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>{ph.label}</span>}
-                    {o.stockStatus==="ready"&&<span style={{fontSize:8,fontWeight:700,color:C.yellow,background:"rgba(255,213,0,.15)",padding:"1px 7px",borderRadius:4,display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>Ready Stock</span>}
-                    {o.orderType==="cash"?<span style={{fontSize:8,fontWeight:700,color:"#86EFAC",background:"rgba(134,239,172,.15)",padding:"1px 7px",borderRadius:4,display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>Cash</span>:<span style={{fontSize:8,fontWeight:700,color:"#93C5FD",background:"rgba(147,197,253,.15)",padding:"1px 7px",borderRadius:4,display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>CCM</span>}
+            {/* Header strip */}
+            <div style={{background:o.cancelled?`linear-gradient(135deg,#7F1D1D,#991B1B)`:o.step===12||o.step===13?`linear-gradient(135deg,#14532D,#166534)`:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 16px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+                <div style={{minWidth:0,flex:1}}>
+                  <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
+                    {o.cancelled?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Cancelled</span>:isPendingBranchAction(o)?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Pending Branch Action</span>:ph&&<span style={{fontSize:9,fontWeight:600,color:"#fff",background:"rgba(255,255,255,.08)",border:`1px solid ${ph.color}80`,padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>{ph.label}</span>}
+                    {o.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:600,color:C.yellow,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,213,0,.4)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Ready Stock</span>}
+                    {o.orderType==="cash"?<span style={{fontSize:9,fontWeight:600,color:"#86EFAC",background:"rgba(255,255,255,.06)",border:"1px solid rgba(134,239,172,.4)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Cash</span>:<span style={{fontSize:9,fontWeight:600,color:"#93C5FD",background:"rgba(255,255,255,.06)",border:"1px solid rgba(147,197,253,.4)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>CCM</span>}
                   </div>
-                  <div style={{fontWeight:800,fontSize:14,color:"#fff",lineHeight:1.2}}>{o.phoneModel}</div>
-                  <div style={{fontSize:10,color:"rgba(255,255,255,.5)",marginTop:3}}>{o.customerName} · {o.branch}</div>
+                  <div style={{fontWeight:700,fontSize:15,color:"#fff",lineHeight:1.25,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.phoneModel}</div>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,.55)",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.customerName} <span style={{opacity:.6}}>·</span> {o.branch}</div>
                 </div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,.9)"}}>{pct}%</div>
-                </div>
+                <div style={{fontSize:11,fontWeight:700,color:"#fff",background:"rgba(255,255,255,.1)",padding:"4px 11px",borderRadius:20,flexShrink:0}}>{pct}%</div>
               </div>
             </div>
             {/* Progress bar */}
