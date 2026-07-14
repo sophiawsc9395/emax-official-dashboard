@@ -104,10 +104,10 @@ const Ic={
 const PHASE_ICONS={stock:Ic.box,transfer:Ic.truck,billing:Ic.card,agreement_hq:Ic.fileText,unclaimed:Ic.alertCircle,claimed:Ic.checkCircle};
 
 /* ── Design tokens (matching App.jsx) ────────────────────────────────── */
-const C={navy:"#0A1628",navyMid:"#0F2040",navyLight:"#162B52",blue:"#1E6FDB",blueBright:"#2D85F0",yellow:"#FFD500",white:"#fff",surface:"#F7F9FC",border:"#E4EAF2",text:"#0A1628",textMid:"#4A5568",textLight:"#8A96A8"};
+const C={navy:"#0A1628",navyMid:"#0F2040",navyLight:"#162B52",blue:"#1B3F72",blueBright:"#2C5AA0",yellow:"#FFD500",white:"#fff",surface:"#F7F9FC",border:"#E4EAF2",text:"#0A1628",textMid:"#4A5568",textLight:"#8A96A8"};
 const inp={display:"block",width:"100%",padding:"11px 14px",border:`1.5px solid ${C.border}`,borderRadius:10,fontSize:13,fontFamily:"Inter,sans-serif",color:C.text,outline:"none",background:C.white,boxSizing:"border-box",lineHeight:"1.4",minWidth:0};
 const lbl={fontSize:11,fontWeight:700,color:C.textLight,display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.05em"};
-const card={background:C.white,border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)"};
+const card={background:C.white,border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)",overflow:"hidden"};
 
 /* ── Primitives ───────────────────────────────────────────────────────── */
 function L({children,req}){return<label style={lbl}>{children}{req&&<span style={{color:"#DC2626"}}> *</span>}</label>;}
@@ -117,7 +117,7 @@ function TX(p){return<textarea style={{...inp,resize:"vertical",...p.style}} {..
 function Divider(){return<div style={{height:1,background:C.border,margin:"14px 0"}}/>;}
 
 function PBtn({children,onClick,disabled,style={}}){
-  return<button onClick={onClick} disabled={disabled} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,padding:"9px 18px",background:disabled?"#E4EAF2":`linear-gradient(135deg,${C.blue},${C.blueBright})`,color:disabled?C.textLight:C.white,border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:disabled?"default":"pointer",fontFamily:"Inter,sans-serif",boxShadow:disabled?"none":`0 2px 8px rgba(30,111,219,.3)`,transition:"all .15s",...style}}>{children}</button>;
+  return<button onClick={onClick} disabled={disabled} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,padding:"9px 18px",background:disabled?"#E4EAF2":`linear-gradient(135deg,${C.blue},${C.blueBright})`,color:disabled?C.textLight:C.white,border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:disabled?"default":"pointer",fontFamily:"Inter,sans-serif",boxShadow:disabled?"none":`0 2px 8px rgba(27,63,114,.35)`,transition:"all .15s",...style}}>{children}</button>;
 }
 function GBtn({children,onClick,style={}}){
   return<button onClick={onClick} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 14px",background:"transparent",color:C.textMid,border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif",transition:"all .15s",...style}}>{children}</button>;
@@ -223,8 +223,8 @@ function Timeline({order}){
             {hist.issueItems?.length>0&&<div style={{marginBottom:2,color:C.textMid,fontSize:10}}>Issues: {hist.issueItems.join(" · ")}</div>}
             {hist.checklistItems&&<div style={{fontSize:10,color:C.textMid}}>{hist.checklistItems.filter(x=>x.checked).length}/{hist.checklistItems.length} checklist items</div>}
             {hist.collectionChecked!==undefined&&<div style={{fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"✓":"✗"} Collection · </>}{hist.paymentChecked?"✓":"✗"} Payment verified</div>}
-            {hist.files&&Object.entries(hist.files).map(([k,f])=>f&&<a key={k} href={f.data} download={f.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EFF6FF",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} {f.name}</a>)}
-            {s.step===1&&order.orderType==="cash"&&order.depositSlip&&<a href={order.depositSlip.data} download={order.depositSlip.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EFF6FF",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} Deposit Payment Slip — {order.depositSlip.name}</a>}
+            {hist.files&&Object.entries(hist.files).map(([k,f])=>f&&<a key={k} href={f.data} download={f.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} {f.name}</a>)}
+            {s.step===1&&order.orderType==="cash"&&order.depositSlip&&<a href={order.depositSlip.data} download={order.depositSlip.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} Deposit Payment Slip — {order.depositSlip.name}</a>}
           </div>}
         </div>
       </div>
@@ -471,7 +471,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
             </div>
             <div style={{...lbl,marginBottom:6}}>Uploaded Files</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {[["deviceSerialImg","Device Serial No. Image"],["freeGiftSerialImg","Free Gift Serial No. Image"],["resultListFile","Result Listing File"],["agreementFile","Agreement File"]].map(([k,l])=>order.billingData[k]&&<a key={k} href={order.billingData[k].data} download={order.billingData[k].name} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:C.blue,textDecoration:"none",background:"#EFF6FF",padding:"4px 10px",borderRadius:5,fontWeight:600,border:"1px solid #BFDBFE"}}>{Ic.download} {l}</a>)}
+              {[["deviceSerialImg","Device Serial No. Image"],["freeGiftSerialImg","Free Gift Serial No. Image"],["resultListFile","Result Listing File"],["agreementFile","Agreement File"]].map(([k,l])=>order.billingData[k]&&<a key={k} href={order.billingData[k].data} download={order.billingData[k].name} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"4px 10px",borderRadius:5,fontWeight:600,border:"1px solid #C7D2E3"}}>{Ic.download} {l}</a>)}
               {!["deviceSerialImg","freeGiftSerialImg","resultListFile","agreementFile"].some(k=>order.billingData[k])&&<span style={{fontSize:11,color:C.textLight,fontStyle:"italic"}}>No files uploaded.</span>}
             </div>
           </div>}
@@ -1005,9 +1005,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
                 <div style={{minWidth:0,flex:1}}>
                   <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
-                    {o.cancelled?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Cancelled</span>:isPendingBranchAction(o)?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Pending Branch Action</span>:o.step===13?<span style={{fontSize:9,fontWeight:600,color:"#86EFAC",background:"rgba(255,255,255,.06)",border:"1px solid rgba(134,239,172,.4)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Completed</span>:ph&&<span style={{fontSize:9,fontWeight:600,color:"#fff",background:"rgba(255,255,255,.08)",border:`1px solid ${ph.color}80`,padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>{ph.label}</span>}
-                    {o.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:600,color:C.yellow,background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,213,0,.4)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Ready Stock</span>}
-                    {o.orderType==="cash"?<span style={{fontSize:9,fontWeight:600,color:"#86EFAC",background:"rgba(255,255,255,.06)",border:"1px solid rgba(134,239,172,.4)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Cash</span>:<span style={{fontSize:9,fontWeight:600,color:"#93C5FD",background:"rgba(255,255,255,.06)",border:"1px solid rgba(147,197,253,.4)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>CCM</span>}
+                    {o.cancelled?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Cancelled</span>:isPendingBranchAction(o)?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Pending Branch Action</span>:o.step===13?<span style={{fontSize:9,fontWeight:600,color:"#86EFAC",background:"rgba(255,255,255,.06)",border:"1px solid rgba(134,239,172,.4)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Completed</span>:ph&&<span style={{fontSize:9,fontWeight:600,color:"#fff",background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>{ph.label}</span>}
+                    {o.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:600,color:"rgba(255,255,255,.75)",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Ready Stock</span>}
+                    {o.orderType==="cash"?<span style={{fontSize:9,fontWeight:600,color:"rgba(255,255,255,.75)",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Cash</span>:<span style={{fontSize:9,fontWeight:600,color:"rgba(255,255,255,.75)",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>CCM</span>}
                   </div>
                   <div style={{fontWeight:700,fontSize:15,color:"#fff",lineHeight:1.25,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.phoneModel}</div>
                   <div style={{fontSize:11,color:"rgba(255,255,255,.55)",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.customerName} <span style={{opacity:.6}}>·</span> {o.branch}</div>
@@ -1021,10 +1021,10 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             <div style={{padding:"10px 14px"}}>
               {alert&&<div style={{fontSize:10,fontWeight:700,color:alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#92400E",background:alert.type==="approval_warning"?"#FFFBEB":"#FEF2F2",borderRadius:5,padding:"3px 8px",marginBottom:7,border:`1px solid ${alert.type==="approval_warning"?"#FDE68A":"#FECACA"}`}}>{alert.msg}</div>}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                <span style={{fontSize:11,fontWeight:700,color:ph?.color||C.blue}}>Step {o.step}/{maxStep(o)} · {s.label}</span>
+                <span style={{fontSize:11,fontWeight:700,color:o.step>=12?"#15803D":C.navy}}>Step {o.step}/{maxStep(o)} · {s.label}</span>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <div style={{flex:1,height:3,background:C.border,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:ph?.color||C.blue,borderRadius:2}}/></div>
+                <div style={{flex:1,height:3,background:C.border,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:o.step>=12?"#15803D":C.navy,borderRadius:2}}/></div>
                 <span style={{fontSize:9,color:C.textLight,flexShrink:0}}>{o.salesAgentName||o.salesAgentId||"—"}</span>
               </div>
               {(order=>{ const lh=(o.history||[]).slice(-1)[0]; return lh?.date&&<div style={{fontSize:10,color:C.textLight,marginTop:5}}>Updated {fDT(lh.date,lh.time)}</div>; })()}
