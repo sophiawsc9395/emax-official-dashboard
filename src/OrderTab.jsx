@@ -9,9 +9,9 @@ const PAYMENT_METHODS=["RHB","Public Bank"];
 const PHASES=[
   {id:"stock",label:"Stock Order",steps:[1,2,3],color:"#1E6FDB",bg:"#EFF6FF"},
   {id:"transfer",label:"Stock Transfer",steps:[4,5],color:"#7C3AED",bg:"#F5F3FF"},
-  {id:"billing",label:"Billing",steps:[6,7,8],color:"#B45309",bg:"#FFFBEB"},
-  {id:"agreement_hq",label:"Agreement → HQ",steps:[9,10],color:"#0891B2",bg:"#ECFEFF"},
-  {id:"unclaimed",label:"Unclaimed",steps:[11],color:"#DC2626",bg:"#FEF2F2"},
+  {id:"billing",label:"Billing",steps:[6,7,8,9],color:"#B45309",bg:"#FFFBEB"},
+  {id:"agreement_hq",label:"Agreement Submission",steps:[10],color:"#0891B2",bg:"#ECFEFF"},
+  {id:"unclaimed",label:"Agreement Received by HQ",steps:[11],color:"#DC2626",bg:"#FEF2F2"},
   {id:"claimed",label:"Claimed",steps:[12],color:"#15803D",bg:"#F0FDF4"},
 ];
 const STEPS=[
@@ -23,11 +23,11 @@ const STEPS=[
   {step:6,label:"Billing Request",desc:"Submit billing request form.",who:"branch",phase:"billing",needsBillingForm:true},
   {step:7,label:"Billed",desc:"Admin completes billing with invoice.",who:"admin",phase:"billing",needsInvoiceNo:true,needsFiles:[{key:"invoice",label:"Sales Invoice PDF"}]},
   {step:8,label:"Customer Collection",desc:"Customer collects device and payment received.",who:"admin",phase:"billing",needsFiles:[{key:"collectionProof",label:"Collection Proof"},{key:"paymentProof",label:"Payment Proof"}]},
-  {step:9,label:"Collection Verified",desc:"HQ verifies collection and upfront payment.",who:"admin",phase:"agreement_hq",needsVerification:true},
-  {step:10,label:"Agreement Checklist",desc:"Branch completes agreement checklist.",who:"both",phase:"agreement_hq",needsChecklist:true},
-  {step:11,label:"Agreement at HQ",desc:"HQ receives original signed agreement.",who:"admin",phase:"unclaimed",canReverse:true},
-  {step:12,label:"Claimed",desc:"Claim released. Enter claim sent date and knock-off date.",who:"admin",phase:"claimed"},
-  {step:13,label:"Completed",desc:"Order completed and archived.",who:"admin",phase:"claimed"},
+  {step:9,label:"Collection Verified",desc:"HQ verifies collection and upfront payment.",who:"admin",phase:"billing",needsVerification:true},
+  {step:10,label:"Agreement Submission by Branch",desc:"Branch completes agreement checklist.",who:"both",phase:"agreement_hq",needsChecklist:true},
+  {step:11,label:"Agreement Received by HQ",desc:"HQ receives original signed agreement.",who:"admin",phase:"unclaimed",canReverse:true},
+  {step:12,label:"Claim Submitted",desc:"Claim submitted to merchant. Enter claim sent date and knock-off date.",who:"admin",phase:"claimed"},
+  {step:13,label:"Claim Released",desc:"Order completed and archived.",who:"admin",phase:"claimed"},
 ];
 const CHECKLIST_ITEMS=["Aeon Application Form (3 pages)","Invoice","Result List","Notice 1 — Application (2 pages × 2 sets)","Notice 2 — Approval (8 pages)","Agreement (16 pages)","IC Copy","AutoDebit Form (Personal Account)","Bank Proof (Personal Account)"];
 
@@ -89,6 +89,7 @@ const Ic={
   plus:<svg width="13"height="13"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2.5"strokeLinecap="round"><line x1="12"y1="5"x2="12"y2="19"/><line x1="5"y1="12"x2="19"y2="12"/></svg>,
   chevL:<svg width="13"height="13"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>,
   chevR:<svg width="13"height="13"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>,
+  chevDown:<svg width="13"height="13"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>,
   edit:<svg width="12"height="12"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
   trash:<svg width="12"height="12"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
   rotate:<svg width="12"height="12"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3"/></svg>,
@@ -262,7 +263,7 @@ function Timeline({order,isAdmin,onUpdate}){
 
 /* ── Billing Form ─────────────────────────────────────────────────────── */
 function BillingForm({order,onSubmit,onCancel}){
-  const [f,setF]=useState(order.billingData||{billingDate:nowDate(),customerFullName:"",customerIC:"",customerHP:"",customerAddress:"",customerPostCode:"",customerCity:"",customerEmail:"",itemCode:"",imeiSerial:"",freeGiftItemCode:"",freeGiftItemName:"",cashPriceOnListing:"",monthlyInstallment:""});
+  const [f,setF]=useState(order.billingData||{billingDate:nowDate(),customerFullName:order.customerName||"",customerIC:order.customerIC||"",customerHP:order.customerHP||"",customerAddress:order.customerAddress||"",customerPostCode:order.customerPostCode||"",customerCity:order.customerCity||"",customerEmail:order.customerEmail||"",itemCode:"",imeiSerial:"",freeGiftItemCode:"",freeGiftItemName:"",cashPriceOnListing:"",monthlyInstallment:order.monthlyInstallment||"",agreementNumber:order.agreementNumber||"",agreementFee:order.agreementFee||"",stampingFee:order.stampingFee||"",deposit:order.deposit||""});
   const [fls,setFls]=useState({});
   const [saving,setSaving]=useState(false);
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -279,11 +280,12 @@ function BillingForm({order,onSubmit,onCancel}){
     <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px"}}><div style={{fontWeight:800,fontSize:14,color:"#fff"}}>Billing Request Form</div><div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginTop:2}}>All marked fields are required</div></div>
     <div style={{padding:18}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-        {sec("Billing Info")}{row("billingDate","Billing Date","date",true)}<div/>
+        {sec("Billing Info")}{row("billingDate","Billing Date","date",true)}{row("agreementNumber","Agreement Number")}
         {sec("Customer Details")}{row("customerFullName","Customer Full Name","text",true)}{row("customerIC","Customer IC No.","text",true)}{row("customerHP","HP Number","tel",true)}{row("customerEmail","Email","email",true)}{row("customerAddress","Address","text",true,true)}{row("customerPostCode","Post Code","text",true)}{row("customerCity","City","text",true)}
         {sec("Item Details")}{row("itemCode","Item Code","text",true)}{row("imeiSerial","IMEI / Serial No.","text",true)}{row("freeGiftItemCode","Free Gift Item Code")}{row("freeGiftItemName","Free Gift Item Name")}
         {order.orderType!=="cash"&&row("cashPriceOnListing","Cash Price on Result Listing (RM)","number",true)}
         {order.orderType!=="cash"&&row("monthlyInstallment","Monthly Installment (RM)","number",true)}
+        {sec("Charges")}{row("agreementFee","Agreement Fee (RM)","number")}{row("stampingFee","Stamping Fee (RM)","number")}{row("deposit","Deposit (RM)","number")}<div/>
         {sec("File Uploads")}
         {(isCashOrder?[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false]]:[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false],["resultListFile","Result Listing File",true],["agreementFile","Agreement File",true]]).map(([k,l,req])=><div key={k}><L req={req}>{l}</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFls(p=>({...p,[k]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>{(fls[k]||f[k])&&<div style={{fontSize:10,color:"#15803D",marginTop:2,fontWeight:600}}>✓ {fls[k]?.name||f[k]?.name}</div>}</div>)}
       </div>
@@ -325,11 +327,21 @@ function ChecklistForm({onSubmit,onCancel,issueItems=[]}){
 }
 
 /* ── Report generators ────────────────────────────────────────────────── */
-function downloadReport(orders,type,dateFilter){
+function calcAmountDueByMerchant(o){
+  const cashPrice=parseFloat(o.billingData?.cashPriceOnListing)||0;
+  const deposit=parseFloat(o.billingData?.deposit??o.deposit)||0;
+  const agreementFee=parseFloat(o.billingData?.agreementFee??o.agreementFee)||0;
+  const stampingFee=parseFloat(o.billingData?.stampingFee??o.stampingFee)||0;
+  return cashPrice-deposit-agreementFee-stampingFee;
+}
+function downloadReport(orders,type,dateFilter,merchantFilter){
   const isClaim=type==="claim";
   const isKnockoff=type==="knockoff";
   const isCompleted=type==="completed";
+  const isAgreementReceived=type==="agreementReceived";
+  orders=merchantFilter&&merchantFilter!=="all"?orders.filter(o=>o.merchant===merchantFilter):orders;
   const filtered=orders.filter(o=>{
+    if(isAgreementReceived){const h=(o.history||[]).find(h=>h.step===11);return o.step===11&&(!dateFilter||h?.date===dateFilter);}
     if(isCompleted){const h=(o.history||[]).find(h=>h.step===13);return o.step===13&&(!dateFilter||h?.date===dateFilter);}
     if(isKnockoff) return o.knockOffDate&&(!dateFilter||o.knockOffDate===dateFilter);
     if(isClaim) return o.claimSentDate&&(!dateFilter||o.claimSentDate===dateFilter)&&o.step>=12;
@@ -339,21 +351,24 @@ function downloadReport(orders,type,dateFilter){
   if(!filtered.length){alert(`No records found${dateFilter?` for ${fDate(dateFilter)}`:""}.`);return;}
   const dateStr=dateFilter?fDate(dateFilter):"All Dates";
   let rows="",total1=0,total2=0;
-  if(isCompleted){
+  if(isAgreementReceived){
+    rows=filtered.map((o,i)=>{const due=calcAmountDueByMerchant(o);total1+=due;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>RM ${due.toFixed(2)}</td></tr>`;}).join("");
+    rows+=`<tr class="tot"><td colspan="7"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
+  } else if(isCompleted){
     rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;const h=(o.history||[]).find(h=>h.step===13);total1+=ka;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>${fDate(o.claimSentDate)}</td><td>${fDate(o.knockOffDate)}</td><td>RM ${ka.toFixed(2)}</td><td>${fDT(h?.date,h?.time)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="9"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td></tr>`;
   } else if(isKnockoff){
     rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;total1+=ka;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>${fDate(o.knockOffDate)}</td><td>RM ${ka.toFixed(2)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="8"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
   } else if(isClaim){
-    rows=filtered.map((o,i)=>{const fp=parseFloat(o.financePrice)||0;total1+=fp;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>RM ${fp.toFixed(2)}</td><td>${fDate(o.claimSentDate)}</td><td>${fDate(o.knockOffDate)}</td></tr>`;}).join("");
-    rows+=`<tr class="tot"><td colspan="7"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td colspan="2"></td></tr>`;
+    rows=filtered.map((o,i)=>{const due=calcAmountDueByMerchant(o);total1+=due;return`<tr><td>${i+1}</td><td>${fDate(o.claimSentDate)}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>RM ${due.toFixed(2)}</td></tr>`;}).join("");
+    rows+=`<tr class="tot"><td colspan="8"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
   } else {
     rows=filtered.map((o,i)=>{const h=(o.history||[]).find(h=>h.step===9);const up=calcUpfront(o);const monthly=parseFloat(o.billingData?.monthlyInstallment||o.monthlyInstallment)||0;total1+=monthly;total2+=up.total;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${fDate(h?.upfrontPaymentDate)}</td><td>RM ${monthly.toFixed(2)}</td><td>RM ${up.total.toFixed(2)}</td><td>${h?.paymentMethod||"—"}</td><td>${h?.verificationRemark||"—"}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="7"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td><td colspan="2"></td></tr>`;
   }
-  const title=isCompleted?"Completed Orders Report":isKnockoff?"Knock-off Report":isClaim?"Claim Sent Report":"Upfront Payment Report";
-  const heads=isCompleted?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Claim Sent Date</th><th>Knock-off Date</th><th>Knock-off Amount</th><th>Completed On</th>":isKnockoff?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Knock-off Date</th><th>Knock-off Amount</th>":isClaim?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Finance Price</th><th>Claim Sent Date</th><th>Knock-off Date</th>":"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Payment Date</th><th>1st Monthly (RM)</th><th>Total Due (RM)</th><th>Method</th><th>Remark</th>";
+  const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Knock-off Report":isClaim?"Claim Submitted Report":"Upfront Payment Report";
+  const heads=isAgreementReceived?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Amount Due by Merchant</th>":isCompleted?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Claim Sent Date</th><th>Knock-off Date</th><th>Knock-off Amount</th><th>Completed On</th>":isKnockoff?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Knock-off Date</th><th>Knock-off Amount</th>":isClaim?"<th>#</th><th>Date</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Amount Due by Merchant</th>":"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Payment Date</th><th>1st Monthly (RM)</th><th>Total Due (RM)</th><th>Method</th><th>Remark</th>";
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
   const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
 }
@@ -476,8 +491,12 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
               <div><b style={{color:C.text}}>Item Code:</b> {order.billingData.itemCode||"—"}</div>
               <div><b style={{color:C.text}}>IMEI / Serial No.:</b> {order.billingData.imeiSerial||"—"}</div>
               {(order.billingData.freeGiftItemCode||order.billingData.freeGiftItemName)&&<div style={{gridColumn:"1/-1"}}><b style={{color:C.text}}>Free Gift:</b> {order.billingData.freeGiftItemCode||"—"} {order.billingData.freeGiftItemName?`· ${order.billingData.freeGiftItemName}`:""}</div>}
+              {order.billingData.agreementNumber&&<div><b style={{color:C.text}}>Agreement Number:</b> {order.billingData.agreementNumber}</div>}
               {!isCash&&<div><b style={{color:C.text}}>Cash Price on Listing:</b> {fRM(order.billingData.cashPriceOnListing)}</div>}
               {!isCash&&<div><b style={{color:C.text}}>Monthly Installment:</b> {fRM(order.billingData.monthlyInstallment)}</div>}
+              {order.billingData.agreementFee&&<div><b style={{color:C.text}}>Agreement Fee:</b> {fRM(order.billingData.agreementFee)}</div>}
+              {order.billingData.stampingFee&&<div><b style={{color:C.text}}>Stamping Fee:</b> {fRM(order.billingData.stampingFee)}</div>}
+              {order.billingData.deposit&&<div><b style={{color:C.text}}>Deposit:</b> {fRM(order.billingData.deposit)}</div>}
             </div>
             <div style={{...lbl,marginBottom:6}}>Uploaded Files</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -613,7 +632,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <div style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.fileText}>Order Information</SecHdr>
       <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:12}}>
-        {[!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],isAdmin&&order.supplierName&&["Supplier",order.supplierName],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
+        {[order.customerIC&&["Customer IC",order.customerIC],order.customerHP&&["Customer HP",order.customerHP],order.customerEmail&&["Customer Email",order.customerEmail],order.customerAddress&&["Address",`${order.customerAddress}${order.customerPostCode?`, ${order.customerPostCode}`:""}${order.customerCity?` ${order.customerCity}`:""}`],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],isAdmin&&order.supplierName&&["Supplier",order.supplierName],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
       </div>
       {order.adminRemark&&<div style={{padding:"8px 16px",borderTop:`1px solid ${C.border}`,background:"#FFFBEB"}}><div style={{fontSize:10,color:"#92400E",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Admin Remark</div><div style={{fontSize:12,color:"#78350F"}}>{order.adminRemark}</div></div>}
     </div>
@@ -634,7 +653,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     {order.billingData&&<div style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.card}>Billing Details</SecHdr>
       <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:10}}>
-        {[["Customer Name",order.billingData.customerFullName],["Billing Date",fDate(order.billingData.billingDate)],["Customer IC",order.billingData.customerIC],["HP",order.billingData.customerHP],["IMEI",order.billingData.imeiSerial],["Item Code",order.billingData.itemCode],["Cash Price",fRM(order.billingData.cashPriceOnListing)],["Monthly",fRM(order.billingData.monthlyInstallment)]].filter(([,v])=>v&&v!=="RM 0.00").map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
+        {[["Customer Name",order.billingData.customerFullName],["Billing Date",fDate(order.billingData.billingDate)],["Customer IC",order.billingData.customerIC],["HP",order.billingData.customerHP],["IMEI",order.billingData.imeiSerial],["Item Code",order.billingData.itemCode],["Agreement No.",order.billingData.agreementNumber],["Cash Price",fRM(order.billingData.cashPriceOnListing)],["Monthly",fRM(order.billingData.monthlyInstallment)],["Agreement Fee",fRM(order.billingData.agreementFee)],["Stamping Fee",fRM(order.billingData.stampingFee)],["Deposit",fRM(order.billingData.deposit)]].filter(([,v])=>v&&v!=="RM 0.00").map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
         {order.billingData.customerEmail&&<div style={{gridColumn:"1/-1"}}><InfoCell label="Email" value={order.billingData.customerEmail}/></div>}
         {order.billingData.customerAddress&&<div style={{gridColumn:"1/-1"}}><InfoCell label="Address" value={`${order.billingData.customerAddress}, ${order.billingData.customerPostCode} ${order.billingData.customerCity}`}/></div>}
       </div>
@@ -674,7 +693,7 @@ function FormCard({title,children}){
 }
 
 function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList}){
-  const empty={phoneModel:"",branch:userBranch||"KM",merchant:"Aeon",agreementNumber:"",customerName:"",salesAgentId:"",salesAgentName:"",aeonApprovalDate:"",financePrice:"",deposit:"",stampingFee:"",agreementFee:"",monthlyInstallment:"",retailPrice:"",stockStatus:"stock_request",orderType:"ccm",depositPaymentDate:"",depositSlip:null};
+  const empty={phoneModel:"",branch:userBranch||"KM",merchant:"Aeon",agreementNumber:"",customerName:"",customerIC:"",customerEmail:"",customerHP:"",customerAddress:"",customerPostCode:"",customerCity:"",salesAgentId:"",salesAgentName:"",aeonApprovalDate:"",financePrice:"",deposit:"",stampingFee:"",agreementFee:"",monthlyInstallment:"",retailPrice:"",stockStatus:"stock_request",orderType:"ccm",depositPaymentDate:"",depositSlip:null};
   const [f,setF]=useState(order?{...order}:empty);
   const [slipFile,setSlipFile]=useState(null);
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -717,6 +736,14 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
       {row("customerName","Customer Name","text",true)}
       <div><L>Branch</L><SEL value={f.branch} onChange={e=>set("branch",e.target.value)} disabled={!isAdmin&&!!userBranch}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}</SEL></div>
       <div><L>Sales Agent</L>{branchSRs.length>0?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>:<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder="Agent ID"/>}</div>
+    </FormCard>
+    <FormCard title="Customer Details">
+      {row("customerIC","Customer IC")}
+      {row("customerEmail","Customer Email Address","email")}
+      {row("customerHP","Customer HP No.")}
+      {row("customerAddress","Address")}
+      {row("customerPostCode","Postcode")}
+      {row("customerCity","City")}
     </FormCard>
     {!isCash&&<FormCard title="CCM / Financing Details">
       <div><L>Merchant</L><SEL value={f.merchant} onChange={e=>set("merchant",e.target.value)}>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
@@ -910,6 +937,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [claimDate,setClaimDate]=useState(nowDate());
   const [knockOffReportDate,setKnockOffReportDate]=useState(nowDate());
   const [completedReportDate,setCompletedReportDate]=useState(nowDate());
+  const [agreementReceivedReportDate,setAgreementReceivedReportDate]=useState(nowDate());
+  const [reportMerchant,setReportMerchant]=useState("all");
+  const [reportsExpanded,setReportsExpanded]=useState(false);
 
   useEffect(()=>{loadData(ORDER_KEY).then(d=>{setOrders(Array.isArray(d)?d:[]);setLoading(false);});},[]);
   const nav=(v,sel=null)=>{setView(v);setSelected(sel);sessionStorage.setItem("orderView",v);sessionStorage.setItem("orderSelected",sel?JSON.stringify(sel):"null");};
@@ -1035,17 +1065,23 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
     {/* Report downloads — admin only, footer */}
     {isAdmin&&!isReadOnly&&<div style={{...card,marginTop:24}}>
-      <SecHdr icon={Ic.download}>Reports</SecHdr>
-      <div style={{padding:"14px 16px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:16}}>
-        {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,activeOrders],["Claim Sent","claim",claimDate,setClaimDate,activeOrders],["Knock-off","knockoff",knockOffReportDate,setKnockOffReportDate,activeOrders],["Completed","completed",completedReportDate,setCompletedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src])=><div key={type} style={{minWidth:0}}>
-          <div style={{fontSize:11,fontWeight:700,color:C.text,marginBottom:6}}>{label} Report</div>
-          <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
-            <div style={{flex:1,minWidth:0}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-            <PBtn onClick={()=>downloadReport(src,type,date)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
-          </div>
-          <button onClick={()=>downloadReport(src,type,"")} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",marginTop:4}}>All dates</button>
-        </div>)}
+      <div onClick={()=>setReportsExpanded(p=>!p)} style={{cursor:"pointer",userSelect:"none"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{color:C.blue}}>{Ic.download}</span><span style={{fontSize:12,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Reports</span></div>
+          <span style={{color:C.textLight,transition:"transform .15s",transform:reportsExpanded?"rotate(180deg)":"none"}}>{Ic.chevDown}</span>
+        </div>
       </div>
+      {reportsExpanded&&<div style={{padding:"0 16px 16px",borderTop:`1px solid ${C.border}`}}>
+        <div style={{padding:"14px 0 4px",maxWidth:260}}><L>Merchant</L><SEL value={reportMerchant} onChange={e=>setReportMerchant(e.target.value)}><option value="all">All Merchants</option>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
+        <div style={{display:"flex",flexDirection:"column"}}>
+          {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,activeOrders],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,activeOrders],["Claim Submitted","claim",claimDate,setClaimDate,activeOrders],["Knock-off","knockoff",knockOffReportDate,setKnockOffReportDate,activeOrders],["Completed","completed",completedReportDate,setCompletedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src],i)=><div key={type} style={{display:"flex",alignItems:"flex-end",gap:10,padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none",flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:140,fontSize:12,fontWeight:700,color:C.text}}>{label} Report</div>
+            <div style={{flex:1,minWidth:130}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+            <PBtn onClick={()=>downloadReport(src,type,date,reportMerchant)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
+            <button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",flexShrink:0}}>All dates</button>
+          </div>)}
+        </div>
+      </div>}
     </div>}
   </div>;
 }
