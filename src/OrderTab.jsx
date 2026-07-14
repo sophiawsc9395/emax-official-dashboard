@@ -132,7 +132,7 @@ function SecHdr({icon,children,right}){
     {right&&<div>{right}</div>}
   </div>;
 }
-function InfoCell({label,value}){return<div><div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2,fontWeight:600}}>{label}</div><div style={{fontSize:12,fontWeight:600,color:C.text}}>{value||"—"}</div></div>;}
+function InfoCell({label,value}){return<div style={{minWidth:0}}><div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2,fontWeight:600}}>{label}</div><div style={{fontSize:12,fontWeight:600,color:C.text,wordBreak:"break-word",overflowWrap:"anywhere"}}>{value||"—"}</div></div>;}
 
 /* ── Phase Progress Bar ───────────────────────────────────────────────── */
 function PhaseBar({step,order,dark=false}){
@@ -328,7 +328,9 @@ function ChecklistForm({onSubmit,onCancel,issueItems=[]}){
 function downloadReport(orders,type,dateFilter){
   const isClaim=type==="claim";
   const isKnockoff=type==="knockoff";
+  const isCompleted=type==="completed";
   const filtered=orders.filter(o=>{
+    if(isCompleted){const h=(o.history||[]).find(h=>h.step===13);return o.step===13&&(!dateFilter||h?.date===dateFilter);}
     if(isKnockoff) return o.knockOffDate&&(!dateFilter||o.knockOffDate===dateFilter);
     if(isClaim) return o.claimSentDate&&(!dateFilter||o.claimSentDate===dateFilter)&&o.step>=12;
     const h=(o.history||[]).find(h=>h.step===9);
@@ -337,7 +339,10 @@ function downloadReport(orders,type,dateFilter){
   if(!filtered.length){alert(`No records found${dateFilter?` for ${fDate(dateFilter)}`:""}.`);return;}
   const dateStr=dateFilter?fDate(dateFilter):"All Dates";
   let rows="",total1=0,total2=0;
-  if(isKnockoff){
+  if(isCompleted){
+    rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;const h=(o.history||[]).find(h=>h.step===13);total1+=ka;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>${fDate(o.claimSentDate)}</td><td>${fDate(o.knockOffDate)}</td><td>RM ${ka.toFixed(2)}</td><td>${fDT(h?.date,h?.time)}</td></tr>`;}).join("");
+    rows+=`<tr class="tot"><td colspan="9"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td></tr>`;
+  } else if(isKnockoff){
     rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;total1+=ka;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>${fDate(o.knockOffDate)}</td><td>RM ${ka.toFixed(2)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="8"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
   } else if(isClaim){
@@ -347,8 +352,8 @@ function downloadReport(orders,type,dateFilter){
     rows=filtered.map((o,i)=>{const h=(o.history||[]).find(h=>h.step===9);const up=calcUpfront(o);const monthly=parseFloat(o.billingData?.monthlyInstallment||o.monthlyInstallment)||0;total1+=monthly;total2+=up.total;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${fDate(h?.upfrontPaymentDate)}</td><td>RM ${monthly.toFixed(2)}</td><td>RM ${up.total.toFixed(2)}</td><td>${h?.paymentMethod||"—"}</td><td>${h?.verificationRemark||"—"}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="7"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td><td colspan="2"></td></tr>`;
   }
-  const title=isKnockoff?"Knock-off Report":isClaim?"Claim Sent Report":"Upfront Payment Report";
-  const heads=isKnockoff?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Knock-off Date</th><th>Knock-off Amount</th>":isClaim?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Finance Price</th><th>Claim Sent Date</th><th>Knock-off Date</th>":"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Payment Date</th><th>1st Monthly (RM)</th><th>Total Due (RM)</th><th>Method</th><th>Remark</th>";
+  const title=isCompleted?"Completed Orders Report":isKnockoff?"Knock-off Report":isClaim?"Claim Sent Report":"Upfront Payment Report";
+  const heads=isCompleted?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Claim Sent Date</th><th>Knock-off Date</th><th>Knock-off Amount</th><th>Completed On</th>":isKnockoff?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Knock-off Date</th><th>Knock-off Amount</th>":isClaim?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Finance Price</th><th>Claim Sent Date</th><th>Knock-off Date</th>":"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Payment Date</th><th>1st Monthly (RM)</th><th>Total Due (RM)</th><th>Method</th><th>Remark</th>";
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
   const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
 }
@@ -373,7 +378,6 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const [upfrontDate,setUpfrontDate]=useState(nowDate());
   const [upfrontMonthly,setUpfrontMonthly]=useState(order.billingData?.monthlyInstallment||order.monthlyInstallment||"");
   const [payMethod,setPayMethod]=useState(PAYMENT_METHODS[0]);
-  const [reportDate,setReportDate]=useState(nowDate());
   const [saving,setSaving]=useState(false);
   const [showBilling,setShowBilling]=useState(false);
   const [showChecklist,setShowChecklist]=useState(false);
@@ -397,7 +401,6 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           {order.knockOffDate&&isAdmin&&<><Divider/><DBtn onClick={async()=>{if(!confirm("Move to Completed?"))return;setSaving(true);const h={step:13,date:nowDate(),time:nowTime(),note:"Completed and archived"};await onUpdate({...order,step:13,history:[...(order.history||[]),h]});setSaving(false);}} style={{width:"100%",justifyContent:"center"}}>{Ic.trash} Mark as Completed</DBtn></>}
         </div>
       </div>
-      {isAdmin&&<ReportCard allOrders={allOrders} reportDate={reportDate} setReportDate={setReportDate}/>}
     </div>;
   }
   if(step===13)return<div style={{background:"#F0FDF4",borderRadius:12,padding:"16px",border:"1px solid #BBF7D0",display:"flex",alignItems:"center",gap:10}}>{Ic.checkCircle}<div><div style={{fontWeight:700,fontSize:14,color:"#15803D"}}>Order Completed</div><div style={{fontSize:11,color:"#166534",marginTop:2}}>Knock-off: {fDate(order.knockOffDate)}</div></div></div>;
@@ -478,9 +481,10 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           </div>}
           <div style={{marginBottom:12}}><L req>Sales Invoice Number</L><I value={invoiceNo} onChange={e=>setInvoiceNo(e.target.value)} placeholder="INV-2026-0001"/></div>
           {!isCash&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
-            <div style={{...lbl,marginBottom:8}}>Customer Upfront Payment Breakdown</div>
+            <div style={{...lbl,marginBottom:8}}>Upfront Payment Breakdown</div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",padding:"3px 0",borderBottom:`1px solid ${C.border}`}}><span>Description</span><span>Amount</span></div>
             {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",fontWeight:800,color:C.navy}}><span>Total Upfront</span><span>{fRM(upfront.total)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",fontWeight:800,color:C.navy}}><span>Subtotal (Upfront Charges)</span><span>{fRM(upfront.total)}</span></div>
           </div>}
         </>}
         {nextDef.needsVerification&&isAdmin&&<div style={{marginBottom:12}}>
@@ -498,11 +502,12 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div><L>Remark</L><I value={verRemark} onChange={e=>setVerRemark(e.target.value)} placeholder="Verification notes…"/></div>
         </div>}
         {nextDef.step===8&&isAdmin&&!isCash&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
-          <div style={{...lbl,marginBottom:8}}>Balance Due Upon Phone Collection</div>
+          <div style={{...lbl,marginBottom:8}}>Upfront Payment Breakdown</div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",padding:"3px 0",borderBottom:`1px solid ${C.border}`}}><span>Description</span><span>Amount</span></div>
           {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>Total Upfront</span><span style={{fontWeight:600}}>{fRM(upfront.total)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>1st Monthly Installment</span><span style={{fontWeight:600}}>{fRM(order.billingData?.monthlyInstallment||order.monthlyInstallment)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",fontWeight:800,color:C.navy}}><span>Total Balance Due Upon Phone Collection</span><span>{fRM(upfront.total+(parseFloat(order.billingData?.monthlyInstallment||order.monthlyInstallment)||0))}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Subtotal (Upfront Charges)</span><span>{fRM(upfront.total)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>First Monthly Instalment</span><span style={{fontWeight:600}}>{fRM(order.billingData?.monthlyInstallment||order.monthlyInstallment)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",fontWeight:800,color:C.navy}}><span>Total Payable Upon Collection</span><span>{fRM(upfront.total+(parseFloat(order.billingData?.monthlyInstallment||order.monthlyInstallment)||0))}</span></div>
         </div>}
         {nextDef.needsFiles&&isAdmin&&nextDef.needsFiles.filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional})=><div key={key} style={{marginBottom:12}}><L req={!optional}>{label}{optional?" (optional)":""}</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,[key]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>{files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files[key].name}</div>}</div>)}
         {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
@@ -541,7 +546,6 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
         </div>
       </div>
     )}
-    {step>=9&&step!==11&&isAdmin&&<ReportCard allOrders={allOrders} reportDate={reportDate} setReportDate={setReportDate}/>}
   </div>;
 }
 
@@ -581,8 +585,8 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
           <span style={{fontSize:14,fontWeight:800,color:C.navy}}>{order.phoneModel}</span>
           <StepBadge order={order}/>
-          {order.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:C.blue,background:"#EFF6FF",padding:"2px 8px",borderRadius:4,border:"1px solid #BFDBFE",display:"inline-flex",alignItems:"center",gap:3}}>{Ic.lightning} Ready Stock</span>}
-          {isCash&&<span style={{fontSize:9,fontWeight:700,color:"#15803D",background:"#F0FDF4",padding:"2px 8px",borderRadius:4,border:"1px solid #BBF7D0",display:"inline-flex",alignItems:"center",gap:3}}>{Ic.cash} Cash</span>}
+          {order.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:C.blue,background:"#EFF6FF",padding:"2px 8px",borderRadius:4,border:"1px solid #BFDBFE",display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>Ready Stock</span>}
+          {isCash?<span style={{fontSize:9,fontWeight:700,color:"#15803D",background:"#F0FDF4",padding:"2px 8px",borderRadius:4,border:"1px solid #BBF7D0",display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>Cash</span>:<span style={{fontSize:9,fontWeight:700,color:C.blue,background:"#EFF6FF",padding:"2px 8px",borderRadius:4,border:"1px solid #BFDBFE",display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>CCM</span>}
         </div>
         <div style={{fontSize:11,color:C.textLight,marginTop:3}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}</div>
       </div>
@@ -603,7 +607,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <div style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.fileText}>Order Information</SecHdr>
       <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:12}}>
-        {[!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],isAdmin&&order.supplierName&&["Supplier",order.supplierName],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
+        {[!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],isAdmin&&order.supplierName&&["Supplier",order.supplierName],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
       </div>
       {order.adminRemark&&<div style={{padding:"8px 16px",borderTop:`1px solid ${C.border}`,background:"#FFFBEB"}}><div style={{fontSize:10,color:"#92400E",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Admin Remark</div><div style={{fontSize:12,color:"#78350F"}}>{order.adminRemark}</div></div>}
     </div>
@@ -612,10 +616,11 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     {upfront&&!isCash&&<div style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.cash}>Upfront Payment Breakdown</SecHdr>
       <div style={{padding:"10px 16px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",padding:"4px 0",borderBottom:`1px solid ${C.border}`}}><span>Description</span><span>Amount</span></div>
         {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid,fontWeight:700}}><span>Total Due</span><span>{fRM(upfront.total)}</span></div>
-        {order.billingData?.monthlyInstallment&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>1st Monthly Installment</span><span style={{fontWeight:600}}>{fRM(order.billingData.monthlyInstallment)}</span></div>}
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 2px",fontWeight:800,color:C.navy}}><span>Total Upfront Payment Upon Phone Collection</span><span>{fRM(upfront.total+(parseFloat(order.billingData?.monthlyInstallment)||0))}</span></div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Subtotal (Upfront Charges)</span><span>{fRM(upfront.total)}</span></div>
+        {order.billingData?.monthlyInstallment&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>First Monthly Instalment</span><span style={{fontWeight:600}}>{fRM(order.billingData.monthlyInstallment)}</span></div>}
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 2px",fontWeight:800,color:C.navy}}><span>Total Payable Upon Collection</span><span>{fRM(upfront.total+(parseFloat(order.billingData?.monthlyInstallment)||0))}</span></div>
       </div>
     </div>}
 
@@ -623,7 +628,8 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     {order.billingData&&<div style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.card}>Billing Details</SecHdr>
       <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:10}}>
-        {[["Customer Name",order.billingData.customerFullName],["Billing Date",fDate(order.billingData.billingDate)],["Customer IC",order.billingData.customerIC],["HP",order.billingData.customerHP],["Email",order.billingData.customerEmail],["IMEI",order.billingData.imeiSerial],["Item Code",order.billingData.itemCode],["Cash Price",fRM(order.billingData.cashPriceOnListing)],["Monthly",fRM(order.billingData.monthlyInstallment)]].filter(([,v])=>v&&v!=="RM 0.00").map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
+        {[["Customer Name",order.billingData.customerFullName],["Billing Date",fDate(order.billingData.billingDate)],["Customer IC",order.billingData.customerIC],["HP",order.billingData.customerHP],["IMEI",order.billingData.imeiSerial],["Item Code",order.billingData.itemCode],["Cash Price",fRM(order.billingData.cashPriceOnListing)],["Monthly",fRM(order.billingData.monthlyInstallment)]].filter(([,v])=>v&&v!=="RM 0.00").map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
+        {order.billingData.customerEmail&&<div style={{gridColumn:"1/-1"}}><InfoCell label="Email" value={order.billingData.customerEmail}/></div>}
         {order.billingData.customerAddress&&<div style={{gridColumn:"1/-1"}}><InfoCell label="Address" value={`${order.billingData.customerAddress}, ${order.billingData.customerPostCode} ${order.billingData.customerCity}`}/></div>}
       </div>
     </div>}
@@ -814,6 +820,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [upfrontDate,setUpfrontDate]=useState(nowDate());
   const [claimDate,setClaimDate]=useState(nowDate());
   const [knockOffReportDate,setKnockOffReportDate]=useState(nowDate());
+  const [completedReportDate,setCompletedReportDate]=useState(nowDate());
 
   useEffect(()=>{loadData(ORDER_KEY).then(d=>{setOrders(Array.isArray(d)?d:[]);setLoading(false);});},[]);
   const nav=(v,sel=null)=>{setView(v);setSelected(sel);sessionStorage.setItem("orderView",v);sessionStorage.setItem("orderSelected",sel?JSON.stringify(sel):"null");};
@@ -857,14 +864,14 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     {/* Report downloads — admin only */}
     {isAdmin&&!isReadOnly&&<div style={{...card,marginBottom:18}}>
       <SecHdr icon={Ic.download}>Reports</SecHdr>
-      <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
-        {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate],["Claim Sent","claim",claimDate,setClaimDate],["Knock-off","knockoff",knockOffReportDate,setKnockOffReportDate]].map(([label,type,date,setDate])=><div key={type}>
+      <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:16}}>
+        {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,activeOrders],["Claim Sent","claim",claimDate,setClaimDate,activeOrders],["Knock-off","knockoff",knockOffReportDate,setKnockOffReportDate,activeOrders],["Completed","completed",completedReportDate,setCompletedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src])=><div key={type}>
           <div style={{fontSize:11,fontWeight:700,color:C.text,marginBottom:6}}>{label} Report</div>
           <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
             <div style={{flex:1}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-            <PBtn onClick={()=>downloadReport(activeOrders,type,date)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
+            <PBtn onClick={()=>downloadReport(src,type,date)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
           </div>
-          <button onClick={()=>downloadReport(activeOrders,type,"")} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",marginTop:4}}>All dates</button>
+          <button onClick={()=>downloadReport(src,type,"")} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",marginTop:4}}>All dates</button>
         </div>)}
       </div>
     </div>}
@@ -904,9 +911,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                 <div>
                   <div style={{display:"flex",gap:4,marginBottom:5,flexWrap:"wrap"}}>
-                    {o.cancelled?<span style={{fontSize:8,fontWeight:700,color:"#FCA5A5",background:"rgba(255,255,255,.12)",padding:"1px 7px",borderRadius:4}}>Cancelled</span>:isPendingBranchAction(o)?<span style={{fontSize:8,fontWeight:700,color:"#FCA5A5",background:"rgba(255,255,255,.12)",padding:"1px 7px",borderRadius:4}}>Pending Branch Action</span>:ph&&<span style={{fontSize:8,fontWeight:700,color:"rgba(255,255,255,.9)",background:ph.color+"40",padding:"1px 7px",borderRadius:4}}>{ph.label}</span>}
-                    {o.stockStatus==="ready"&&<span style={{fontSize:8,fontWeight:700,color:C.yellow,background:"rgba(255,213,0,.15)",padding:"1px 7px",borderRadius:4,display:"inline-flex",alignItems:"center",gap:2}}>{Ic.lightning} Ready</span>}
-                    {o.orderType==="cash"&&<span style={{fontSize:8,fontWeight:700,color:"#86EFAC",background:"rgba(134,239,172,.15)",padding:"1px 7px",borderRadius:4,display:"inline-flex",alignItems:"center",gap:2}}>{Ic.cash} Cash</span>}
+                    {o.cancelled?<span style={{fontSize:8,fontWeight:700,color:"#FCA5A5",background:"rgba(255,255,255,.12)",padding:"1px 7px",borderRadius:4}}>Cancelled</span>:isPendingBranchAction(o)?<span style={{fontSize:8,fontWeight:700,color:"#FCA5A5",background:"rgba(255,255,255,.12)",padding:"1px 7px",borderRadius:4}}>Pending Branch Action</span>:ph&&<span style={{fontSize:8,fontWeight:700,color:"rgba(255,255,255,.9)",background:ph.color+"40",padding:"1px 7px",borderRadius:4,display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>{ph.label}</span>}
+                    {o.stockStatus==="ready"&&<span style={{fontSize:8,fontWeight:700,color:C.yellow,background:"rgba(255,213,0,.15)",padding:"1px 7px",borderRadius:4,display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>Ready Stock</span>}
+                    {o.orderType==="cash"?<span style={{fontSize:8,fontWeight:700,color:"#86EFAC",background:"rgba(134,239,172,.15)",padding:"1px 7px",borderRadius:4,display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>Cash</span>:<span style={{fontSize:8,fontWeight:700,color:"#93C5FD",background:"rgba(147,197,253,.15)",padding:"1px 7px",borderRadius:4,display:"inline-flex",alignItems:"center",gap:4}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>CCM</span>}
                   </div>
                   <div style={{fontWeight:800,fontSize:14,color:"#fff",lineHeight:1.2}}>{o.phoneModel}</div>
                   <div style={{fontSize:10,color:"rgba(255,255,255,.5)",marginTop:3}}>{o.customerName} · {o.branch}</div>
