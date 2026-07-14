@@ -196,22 +196,22 @@ function Timeline({order}){
         <div style={{flex:1,paddingBottom:i<visSteps.length-1?11:0,paddingTop:1}}>
           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
             <span style={{fontSize:12,fontWeight:done||active?600:400,color:done||active?C.text:"#9CA3AF"}}>{s.label}</span>
-            {isAutoReady&&<span style={{background:"#EFF6FF",color:C.blue,padding:"1px 7px",borderRadius:20,fontSize:9,fontWeight:700,border:`1px solid ${C.blue}30`}}>Auto</span>}
+            {isAutoReady&&<span style={{background:C.surface,color:C.textLight,padding:"1px 7px",borderRadius:20,fontSize:9,fontWeight:600,border:`1px solid ${C.border}`}}>Auto</span>}
             {active&&<span style={{background:"#FEF9C3",color:"#92400E",padding:"1px 7px",borderRadius:20,fontSize:9,fontWeight:700,border:"1px solid #FDE68A"}}>Current</span>}
             {hist?.date&&<span style={{fontSize:10,color:C.textLight}}>{fDT(hist.date,hist.time)}</span>}
           </div>
           {hist&&<div style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid}}>
-            {hist.orderDate&&<div style={{marginBottom:2,color:C.blue,fontWeight:600}}>{Ic.calendar} Order Date: {fDate(hist.orderDate)}{hist.supplierName?` · ${hist.supplierName}`:""}</div>}
-            {hist.remark&&<div style={{marginBottom:2}}>Remark: {hist.remark}</div>}
-            {hist.invoiceNo&&<div style={{marginBottom:2,color:C.blue,fontWeight:600}}>Invoice: {hist.invoiceNo}</div>}
-            {hist.claimSentDate&&<div style={{marginBottom:2,color:"#0891B2",fontWeight:600}}>Claim Sent: {fDate(hist.claimSentDate)}</div>}
-            {hist.knockOffDate&&<div style={{marginBottom:2,color:"#15803D",fontWeight:600}}>Knock-off: {fDate(hist.knockOffDate)}</div>}
-            {hist.verificationRemark&&<div style={{marginBottom:2}}>Note: {hist.verificationRemark}</div>}
-            {hist.upfrontPaymentDate&&<div style={{marginBottom:2,color:C.blue}}>Payment Date: {fDate(hist.upfrontPaymentDate)} · {hist.paymentMethod}</div>}
-            {hist.returnRemark&&<div style={{marginBottom:2,color:"#DC2626",fontWeight:600}}>Returned: {hist.returnRemark}</div>}
-            {hist.issueItems?.length>0&&<div style={{marginBottom:2,color:"#DC2626",fontSize:10}}>Issues: {hist.issueItems.join(" · ")}</div>}
-            {hist.checklistItems&&<div style={{fontSize:10}}>{hist.checklistItems.filter(x=>x.checked).length}/{hist.checklistItems.length} checklist items</div>}
-            {hist.collectionChecked!==undefined&&<div style={{fontSize:10,color:hist.collectionChecked?"#15803D":"#DC2626"}}>{hist.collectionChecked?"✓":"✗"} Collection · {hist.paymentChecked?"✓":"✗"} Payment verified</div>}
+            {hist.orderDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Order Date: {fDate(hist.orderDate)}{hist.supplierName?` · ${hist.supplierName}`:""}</div>}
+            {hist.remark&&<div style={{marginBottom:2,color:C.textMid}}>Remark: {hist.remark}</div>}
+            {hist.invoiceNo&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Invoice: {hist.invoiceNo}</div>}
+            {hist.claimSentDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Claim Sent: {fDate(hist.claimSentDate)}</div>}
+            {hist.knockOffDate&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off: {fDate(hist.knockOffDate)}</div>}
+            {hist.verificationRemark&&<div style={{marginBottom:2,color:C.textMid}}>Note: {hist.verificationRemark}</div>}
+            {hist.upfrontPaymentDate&&<div style={{marginBottom:2,color:C.textMid}}>Payment Date: {fDate(hist.upfrontPaymentDate)} · {hist.paymentMethod}</div>}
+            {hist.returnRemark&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Returned: {hist.returnRemark}</div>}
+            {hist.issueItems?.length>0&&<div style={{marginBottom:2,color:C.textMid,fontSize:10}}>Issues: {hist.issueItems.join(" · ")}</div>}
+            {hist.checklistItems&&<div style={{fontSize:10,color:C.textMid}}>{hist.checklistItems.filter(x=>x.checked).length}/{hist.checklistItems.length} checklist items</div>}
+            {hist.collectionChecked!==undefined&&<div style={{fontSize:10,color:C.textMid}}>{hist.collectionChecked?"✓":"✗"} Collection · {hist.paymentChecked?"✓":"✗"} Payment verified</div>}
             {hist.files&&Object.entries(hist.files).map(([k,f])=>f&&<a key={k} href={f.data} download={f.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EFF6FF",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} {f.name}</a>)}
           </div>}
         </div>
@@ -456,28 +456,25 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
   const s=getStep(order.step),ph=getPhase(order.step),isCash=order.orderType==="cash";
   const upfront=order.billingData&&order.step>=7?calcUpfront(order):null;
   return<div className="fade-in">
-    {/* Top bar — navy header */}
-    <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,borderRadius:12,padding:"16px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-      <button onClick={onBack} style={{padding:"6px 12px",background:"rgba(255,255,255,.1)",color:"rgba(255,255,255,.8)",border:"1px solid rgba(255,255,255,.2)",borderRadius:7,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",gap:5,flexShrink:0,whiteSpace:"nowrap"}}>{Ic.chevL} Back</button>
+    {/* Top bar */}
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+      <GBtn onClick={onBack}>{Ic.chevL} Back</GBtn>
       <div style={{flex:1,minWidth:0}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:4}}>
-          <span style={{fontSize:15,fontWeight:800,color:"#fff"}}>{order.phoneModel}</span>
-          <span style={{fontSize:10,color:"rgba(255,255,255,.45)",background:"rgba(255,255,255,.08)",padding:"2px 8px",borderRadius:4,border:"1px solid rgba(255,255,255,.15)"}}>{shortId(order.id)}</span>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+          <span style={{fontSize:14,fontWeight:800,color:C.navy}}>{order.phoneModel}</span>
+          <span style={{fontSize:10,color:C.textLight,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>{shortId(order.id)}</span>
           <StepBadge step={order.step}/>
-          {order.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:"#FFD500",background:"rgba(255,213,0,.15)",padding:"2px 8px",borderRadius:4,border:"1px solid rgba(255,213,0,.3)",display:"inline-flex",alignItems:"center",gap:3}}>{Ic.lightning} Ready Stock</span>}
-          {isCash&&<span style={{fontSize:9,fontWeight:700,color:"#86EFAC",background:"rgba(134,239,172,.15)",padding:"2px 8px",borderRadius:4,border:"1px solid rgba(134,239,172,.3)",display:"inline-flex",alignItems:"center",gap:3}}>{Ic.cash} Cash</span>}
+          {order.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:C.blue,background:"#EFF6FF",padding:"2px 8px",borderRadius:4,border:"1px solid #BFDBFE",display:"inline-flex",alignItems:"center",gap:3}}>{Ic.lightning} Ready Stock</span>}
+          {isCash&&<span style={{fontSize:9,fontWeight:700,color:"#15803D",background:"#F0FDF4",padding:"2px 8px",borderRadius:4,border:"1px solid #BBF7D0",display:"inline-flex",alignItems:"center",gap:3}}>{Ic.cash} Cash</span>}
         </div>
-        <div style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}</div>
+        <div style={{fontSize:11,color:C.textLight,marginTop:3}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}</div>
       </div>
-      {isAdmin&&!isReadOnly&&<div style={{display:"flex",gap:6,flexShrink:0}}>
-        <button onClick={onEdit} style={{padding:"6px 12px",background:"rgba(255,255,255,.1)",color:"rgba(255,255,255,.8)",border:"1px solid rgba(255,255,255,.2)",borderRadius:7,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",gap:5}}>{Ic.edit} Edit</button>
-        <button onClick={onDelete} style={{padding:"6px 12px",background:"rgba(220,38,38,.15)",color:"#FCA5A5",border:"1px solid rgba(220,38,38,.3)",borderRadius:7,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif",display:"flex",alignItems:"center",gap:5}}>{Ic.trash} Delete</button>
-      </div>}
+      {isAdmin&&!isReadOnly&&<div style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn><DBtn onClick={onDelete}>{Ic.trash} Delete</DBtn></div>}
     </div>
 
     {/* Phase progress card */}
-    <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,borderRadius:12,padding:"18px 20px",marginBottom:14}}>
-      <PhaseBar step={order.step} order={order} dark={true}/>
+    <div style={{...card,padding:"16px 20px",marginBottom:14}}>
+      <PhaseBar step={order.step} order={order}/>
     </div>
 
     {/* Order info summary */}
