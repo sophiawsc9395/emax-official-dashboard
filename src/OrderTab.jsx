@@ -31,6 +31,41 @@ const STEPS=[
 ];
 const CHECKLIST_ITEMS=["Aeon Application Form (3 pages)","Invoice","Result List","Notice 1 — Application (2 pages × 2 sets)","Notice 2 — Approval (8 pages)","Agreement (16 pages)","IC Copy","AutoDebit Form (Personal Account)","Bank Proof (Personal Account)"];
 
+// Returns steps visible in timeline for a given order
+function getVisibleSteps(order){
+  const isCash=order.orderType==="cash";
+  const isReady=order.stockStatus==="ready";
+  if(isCash){
+    // Cash: 1, (2,3 if not ready), 4,5,6,7,8,9 then done
+    const base=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9];
+    return STEPS.filter(s=>base.includes(s.step));
+  }
+  // CCM: all 1-12
+  if(isReady){
+    // Show 1-4 as collapsed (auto), then 4-12
+    return STEPS.filter(s=>s.step<=12);
+  }
+  return STEPS.filter(s=>s.step<=12);
+}
+
+// Returns the "next" step number for a given order
+function nextStepNum(order){
+  const isCash=order.orderType==="cash";
+  const isReady=order.stockStatus==="ready";
+  const cur=order.step;
+  if(isCash){
+    const seq=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,13]; // 13=completed for cash
+    const idx=seq.indexOf(cur);
+    return idx>=0&&idx<seq.length-1?seq[idx+1]:null;
+  }
+  return cur<12?cur+1:null;
+}
+
+// Max step for progress calculation
+function maxStep(order){
+  return order.orderType==="cash"?9:12;
+}
+
 const fRM=(n=0)=>"RM "+((parseFloat(n)||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2}));
 const fDate=s=>{if(!s)return"—";const[y,m,d]=s.split("-");return`${d}/${m}/${y}`;};
 const nowDate=()=>new Date().toISOString().split("T")[0];
@@ -99,20 +134,21 @@ function SecHdr({icon,children,right}){
 function InfoCell({label,value}){return<div><div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2,fontWeight:600}}>{label}</div><div style={{fontSize:12,fontWeight:600,color:C.text}}>{value||"—"}</div></div>;}
 
 /* ── Phase Progress Bar ───────────────────────────────────────────────── */
-function PhaseBar({step}){
-  const pct=Math.round(((Math.min(step,12)-1)/11)*100);
+function PhaseBar({step,order}){
+  const mxS=order?maxStep(order):12;
+  const pct=Math.round(((Math.min(step,mxS)-1)/(mxS-1))*100);
   const ph=getPhase(step);
   return(
     <div>
       <div style={{display:"flex",alignItems:"flex-start",gap:0,marginBottom:12}}>
-        {PHASES.map((p,i)=>{
+        {(order?.orderType==="cash"?PHASES.filter(p=>["stock","transfer","billing","agreement_hq"].includes(p.id)):PHASES).map((p,i,arr)=>{
           const maxS=Math.max(...p.steps),done=step>maxS,active=p.steps.includes(step);
           return<div key={p.id} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-start"}}>
             <div style={{display:"flex",alignItems:"center",width:"100%"}}>
               <div style={{width:24,height:24,borderRadius:"50%",background:done?C.navy:active?C.blue:"#E4EAF2",border:`2px solid ${done?C.navy:active?C.blue:"#E4EAF2"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",transition:"all .2s"}}>
                 {done?Ic.check:active?<div style={{width:7,height:7,borderRadius:"50%",background:"#fff"}}/>:<span style={{fontSize:8,fontWeight:700,color:C.textLight}}>{i+1}</span>}
               </div>
-              {i<PHASES.length-1&&<div style={{flex:1,height:2,background:done?C.navy:"#E4EAF2",margin:"0 3px",transition:"background .3s"}}/>}
+              {i<arr.length-1&&<div style={{flex:1,height:2,background:done?C.navy:"#E4EAF2",margin:"0 3px",transition:"background .3s"}}/>}
             </div>
             <div style={{marginTop:5,paddingLeft:1}}>
               <div style={{fontSize:9,fontWeight:700,color:active?ph.color:done?C.textMid:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",lineHeight:1.2}}>{p.label}</div>
@@ -124,7 +160,7 @@ function PhaseBar({step}){
         <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${C.blue},${C.blueBright})`,borderRadius:2,transition:"width .5s cubic-bezier(.4,0,.2,1)"}}/>
       </div>
       <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:10,color:C.textLight}}>
-        <span>Step {step} of 12</span><span style={{fontWeight:600,color:ph?.color||C.blue}}>{pct}%</span>
+        <span>Step {step} of {mxS}</span><span style={{fontWeight:600,color:ph?.color||C.blue}}>{pct}%</span>
       </div>
     </div>
   );
@@ -140,22 +176,27 @@ function StepBadge({step}){
 /* ── Timeline ─────────────────────────────────────────────────────────── */
 function Timeline({order}){
   const cur=order.step;
+  const isReady=order.stockStatus==="ready";
+  const visSteps=getVisibleSteps(order);
   let lastPh=null;
-  return<div>{STEPS.filter(s=>s.step<=12).map((s,i)=>{
-    const done=cur>s.step,active=cur===s.step;
+  return<div>{visSteps.map((s,i)=>{
+    const isAutoReady=isReady&&[2,3].includes(s.step);
+    const done=cur>s.step||isAutoReady;
+    const active=cur===s.step&&!isAutoReady;
     const hist=(order.history||[]).find(h=>h.step===s.step);
     const ph=getPhase(s.step),showPh=ph&&ph.id!==lastPh;
     if(ph)lastPh=ph.id;
     return<div key={s.step}>
       {showPh&&<div style={{fontSize:9,fontWeight:800,color:ph.color,textTransform:"uppercase",letterSpacing:"0.08em",padding:"8px 0 5px 36px",marginTop:i>0?8:0,borderBottom:`1px solid ${ph.color}20`,marginBottom:5,display:"flex",alignItems:"center",gap:5}}><span style={{color:ph.color}}>{PHASE_ICONS[ph.id]}</span>{ph.label}</div>}
       <div style={{display:"flex",position:"relative"}}>
-        {i<STEPS.filter(s=>s.step<=12).length-1&&<div style={{position:"absolute",left:11,top:24,width:1,height:"calc(100% + 2px)",background:done?`${ph?.color}40`:C.border,zIndex:0}}/>}
+        {i<visSteps.length-1&&<div style={{position:"absolute",left:11,top:24,width:1,height:"calc(100% + 2px)",background:done?`${ph?.color}40`:C.border,zIndex:0}}/>}
         <div style={{flexShrink:0,width:22,height:22,borderRadius:"50%",background:done?C.navy:active?C.blue:C.surface,border:`2px solid ${done?C.navy:active?C.blue:C.border}`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,marginRight:10,marginTop:1,color:"#fff",transition:"all .2s"}}>
           {done?Ic.check:active?<div style={{width:6,height:6,borderRadius:"50%",background:"#fff"}}/>:<span style={{fontSize:8,fontWeight:700,color:C.textLight}}>{s.step}</span>}
         </div>
-        <div style={{flex:1,paddingBottom:i<STEPS.filter(s=>s.step<=12).length-1?11:0,paddingTop:1}}>
+        <div style={{flex:1,paddingBottom:i<visSteps.length-1?11:0,paddingTop:1}}>
           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
             <span style={{fontSize:12,fontWeight:done||active?600:400,color:done||active?C.text:"#9CA3AF"}}>{s.label}</span>
+            {isAutoReady&&<span style={{background:"#EFF6FF",color:C.blue,padding:"1px 7px",borderRadius:20,fontSize:9,fontWeight:700,border:`1px solid ${C.blue}30`}}>Auto</span>}
             {active&&<span style={{background:"#FEF9C3",color:"#92400E",padding:"1px 7px",borderRadius:20,fontSize:9,fontWeight:700,border:"1px solid #FDE68A"}}>Current</span>}
             {hist?.date&&<span style={{fontSize:10,color:C.textLight}}>{fDT(hist.date,hist.time)}</span>}
           </div>
@@ -185,7 +226,8 @@ function BillingForm({order,onSubmit,onCancel}){
   const [fls,setFls]=useState({});
   const [saving,setSaving]=useState(false);
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
-  const REQUIRED=["billingDate","customerFullName","customerIC","customerHP","customerEmail","customerAddress","customerPostCode","customerCity","itemCode","imeiSerial","cashPriceOnListing","monthlyInstallment"];
+  const isCashOrder=order.orderType==="cash";
+  const REQUIRED=["billingDate","customerFullName","customerIC","customerHP","customerEmail","customerAddress","customerPostCode","customerCity","itemCode","imeiSerial",...(isCashOrder?[]:["cashPriceOnListing","monthlyInstallment"])];
   const missing=REQUIRED.filter(k=>!f[k]?.toString().trim());
   const submit=async()=>{if(missing.length)return;setSaving(true);const data={...f};for(const[k,file] of Object.entries(fls))if(file)data[k]=await readFile(file);onSubmit(data);setSaving(false);};
   const row=(k,l,t="text",req=false,full=false)=><div key={k} style={full?{gridColumn:"1/-1"}:{}}>
@@ -199,9 +241,11 @@ function BillingForm({order,onSubmit,onCancel}){
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
         {sec("Billing Info")}{row("billingDate","Billing Date","date",true)}<div/>
         {sec("Customer Details")}{row("customerFullName","Customer Full Name","text",true)}{row("customerIC","Customer IC No.","text",true)}{row("customerHP","HP Number","tel",true)}{row("customerEmail","Email","email",true)}{row("customerAddress","Address","text",true,true)}{row("customerPostCode","Post Code","text",true)}{row("customerCity","City","text",true)}
-        {sec("Item Details")}{row("itemCode","Item Code","text",true)}{row("imeiSerial","IMEI / Serial No.","text",true)}{row("freeGiftItemCode","Free Gift Item Code")}{row("freeGiftItemName","Free Gift Item Name")}{row("cashPriceOnListing","Cash Price on Result Listing (RM)","number",true)}{row("monthlyInstallment","Monthly Installment (RM)","number",true)}
+        {sec("Item Details")}{row("itemCode","Item Code","text",true)}{row("imeiSerial","IMEI / Serial No.","text",true)}{row("freeGiftItemCode","Free Gift Item Code")}{row("freeGiftItemName","Free Gift Item Name")}
+        {order.orderType!=="cash"&&row("cashPriceOnListing","Cash Price on Result Listing (RM)","number",true)}
+        {order.orderType!=="cash"&&row("monthlyInstallment","Monthly Installment (RM)","number",true)}
         {sec("File Uploads")}
-        {[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false],["resultListFile","Result Listing File",true],["agreementFile","Agreement File",true]].map(([k,l,req])=><div key={k}><L req={req}>{l}</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFls(p=>({...p,[k]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>{(fls[k]||f[k])&&<div style={{fontSize:10,color:"#15803D",marginTop:2,fontWeight:600}}>✓ {fls[k]?.name||f[k]?.name}</div>}</div>)}
+        {(isCashOrder?[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false]]:[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false],["resultListFile","Result Listing File",true],["agreementFile","Agreement File",true]]).map(([k,l,req])=><div key={k}><L req={req}>{l}</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFls(p=>({...p,[k]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>{(fls[k]||f[k])&&<div style={{fontSize:10,color:"#15803D",marginTop:2,fontWeight:600}}>✓ {fls[k]?.name||f[k]?.name}</div>}</div>)}
       </div>
       {missing.length>0&&<div style={{padding:"9px 12px",background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:8,fontSize:11,color:"#92400E",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill all required fields before submitting.</div>}
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><GBtn onClick={onCancel}>{Ic.chevL} Back</GBtn><PBtn onClick={submit} disabled={!!missing.length||saving}>{saving?"Saving…":"Submit Billing Request"}</PBtn></div>
@@ -253,7 +297,9 @@ function downloadReport(orders,type,dateFilter){
 /* ── Action Panel ─────────────────────────────────────────────────────── */
 function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const step=order.step;
-  const nextDef=step<12?getStep(step+1):null;
+  const isCash=order.orderType==="cash";
+  const nextStepN=nextStepNum(order);
+  const nextDef=nextStepN?getStep(nextStepN):null;
   const [remark,setRemark]=useState("");
   const [invoiceNo,setInvoiceNo]=useState("");
   const [orderDate,setOrderDate]=useState(nowDate());
@@ -276,7 +322,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const [returnItems,setReturnItems]=useState(CHECKLIST_ITEMS.map(n=>({name:n,issue:false})));
   const upfront=calcUpfront(order);
 
-  if(step===12){
+  if(step===12&&!isCash){
     return<div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={card}>
         <SecHdr icon={Ic.checkCircle}>Claimed — Enter Dates</SecHdr>
@@ -311,6 +357,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
     const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,totalDue:upfront.total,paymentMethod:payMethod}:{})};
     const updated={...order,step:nextDef.step,history:[...(order.history||[]),h]};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
+    if(isCash&&nextDef.step===13){updated.step=13;}
     if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;}
     if(nextDef.needsInvoiceNo)updated.invoiceNo=invoiceNo;
     await onUpdate(updated);setSaving(false);setRemark("");setInvoiceNo("");setFiles({});setVerRemark("");setCollection(false);setPayment(false);
@@ -353,7 +400,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           </div>
           <div><L>Remark</L><I value={verRemark} onChange={e=>setVerRemark(e.target.value)} placeholder="Verification notes…"/></div>
         </div>}
-        {nextDef.needsFiles&&isAdmin&&nextDef.needsFiles.map(({key,label,optional})=><div key={key} style={{marginBottom:12}}><L req={!optional}>{label}{optional?" (optional)":""}</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,[key]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>{files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files[key].name}</div>}</div>)}
+        {nextDef.needsFiles&&isAdmin&&nextDef.needsFiles.filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional})=><div key={key} style={{marginBottom:12}}><L req={!optional}>{label}{optional?" (optional)":""}</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,[key]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>{files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files[key].name}</div>}</div>)}
         {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
         <PBtn onClick={advance} disabled={!ok()||saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":`Confirm: ${nextDef.label}`} {!saving&&Ic.chevR}</PBtn>
       </>}
@@ -426,7 +473,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     </div>
 
     {/* Phase progress card */}
-    <div style={{...card,padding:"16px 20px",marginBottom:14}}><PhaseBar step={order.step}/></div>
+    <div style={{...card,padding:"16px 20px",marginBottom:14}}><PhaseBar step={order.step} order={order}/></div>
 
     {/* Order info summary */}
     <div style={{...card,marginBottom:14}}>
@@ -744,7 +791,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             <div style={{padding:"10px 14px"}}>
               {alert&&<div style={{fontSize:10,fontWeight:700,color:alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#92400E",background:alert.type==="approval_warning"?"#FFFBEB":"#FEF2F2",borderRadius:5,padding:"3px 8px",marginBottom:7,border:`1px solid ${alert.type==="approval_warning"?"#FDE68A":"#FECACA"}`}}>{alert.msg}</div>}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                <span style={{fontSize:11,fontWeight:700,color:ph?.color||C.blue}}>Step {o.step}/12 · {s.label}</span>
+                <span style={{fontSize:11,fontWeight:700,color:ph?.color||C.blue}}>Step {o.step}/{maxStep(o)} · {s.label}</span>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
                 <div style={{flex:1,height:3,background:C.border,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:ph?.color||C.blue,borderRadius:2}}/></div>
