@@ -865,21 +865,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     {/* Alerts */}
     <AlertBanner alerts={alerts} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
 
-    {/* Report downloads — admin only */}
-    {isAdmin&&!isReadOnly&&<div style={{...card,marginBottom:18}}>
-      <SecHdr icon={Ic.download}>Reports</SecHdr>
-      <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:16}}>
-        {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,activeOrders],["Claim Sent","claim",claimDate,setClaimDate,activeOrders],["Knock-off","knockoff",knockOffReportDate,setKnockOffReportDate,activeOrders],["Completed","completed",completedReportDate,setCompletedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src])=><div key={type}>
-          <div style={{fontSize:11,fontWeight:700,color:C.text,marginBottom:6}}>{label} Report</div>
-          <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
-            <div style={{flex:1}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-            <PBtn onClick={()=>downloadReport(src,type,date)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
-          </div>
-          <button onClick={()=>downloadReport(src,type,"")} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",marginTop:4}}>All dates</button>
-        </div>)}
-      </div>
-    </div>}
-
     {/* Phase KPI cards — 2×2 grid */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
       {PHASES.map(ph=>{
@@ -946,5 +931,20 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         })}
       </div>
     }
+
+    {/* Report downloads — admin only, footer */}
+    {isAdmin&&!isReadOnly&&<div style={{...card,marginTop:24}}>
+      <SecHdr icon={Ic.download}>Reports</SecHdr>
+      <div style={{padding:"14px 16px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:16}}>
+        {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,activeOrders],["Claim Sent","claim",claimDate,setClaimDate,activeOrders],["Knock-off","knockoff",knockOffReportDate,setKnockOffReportDate,activeOrders],["Completed","completed",completedReportDate,setCompletedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src])=><div key={type} style={{minWidth:0}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.text,marginBottom:6}}>{label} Report</div>
+          <div style={{display:"flex",gap:6,alignItems:"flex-end"}}>
+            <div style={{flex:1,minWidth:0}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+            <PBtn onClick={()=>downloadReport(src,type,date)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
+          </div>
+          <button onClick={()=>downloadReport(src,type,"")} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",marginTop:4}}>All dates</button>
+        </div>)}
+      </div>
+    </div>}
   </div>;
 }
