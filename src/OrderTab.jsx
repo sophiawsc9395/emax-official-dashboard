@@ -178,7 +178,7 @@ function Timeline({order}){
   const visSteps=getVisibleSteps(order);
   let lastPh=null;
   return<div>{visSteps.map((s,i)=>{
-    const isAutoReady=isReady&&[2,3].includes(s.step);
+    const isAutoReady=isReady&&s.step===2;
     const done=cur>s.step||isAutoReady;
     const active=cur===s.step&&!isAutoReady;
     const hist=(order.history||[]).find(h=>h.step===s.step);
@@ -205,13 +205,14 @@ function Timeline({order}){
             {hist.remark&&<div style={{marginBottom:2,color:C.textMid}}>Remark: {hist.remark}</div>}
             {hist.invoiceNo&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Invoice: {hist.invoiceNo}</div>}
             {hist.claimSentDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Claim Sent: {fDate(hist.claimSentDate)}</div>}
-            {hist.knockOffDate&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off: {fDate(hist.knockOffDate)}</div>}
+            {hist.knockOffDate&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off: {fDate(hist.knockOffDate)}{hist.knockOffAmount?` · ${fRM(hist.knockOffAmount)}`:""}</div>}
             {hist.verificationRemark&&<div style={{marginBottom:2,color:C.textMid}}>Note: {hist.verificationRemark}</div>}
             {hist.upfrontPaymentDate&&<div style={{marginBottom:2,color:C.textMid}}>Payment Date: {fDate(hist.upfrontPaymentDate)} · {hist.paymentMethod}</div>}
+            {hist.monthlyInstallment&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>{order.orderType==="cash"?"Balance Payment Amount":"1st Monthly Installment"}: {fRM(hist.monthlyInstallment)}{hist.totalDue?` · Total Due: ${fRM(hist.totalDue)}`:""}</div>}
             {hist.returnRemark&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Returned: {hist.returnRemark}</div>}
             {hist.issueItems?.length>0&&<div style={{marginBottom:2,color:C.textMid,fontSize:10}}>Issues: {hist.issueItems.join(" · ")}</div>}
             {hist.checklistItems&&<div style={{fontSize:10,color:C.textMid}}>{hist.checklistItems.filter(x=>x.checked).length}/{hist.checklistItems.length} checklist items</div>}
-            {hist.collectionChecked!==undefined&&<div style={{fontSize:10,color:C.textMid}}>{hist.collectionChecked?"✓":"✗"} Collection · {hist.paymentChecked?"✓":"✗"} Payment verified</div>}
+            {hist.collectionChecked!==undefined&&<div style={{fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"✓":"✗"} Collection · </>}{hist.paymentChecked?"✓":"✗"} Payment verified</div>}
             {hist.files&&Object.entries(hist.files).map(([k,f])=>f&&<a key={k} href={f.data} download={f.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EFF6FF",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} {f.name}</a>)}
           </div>}
         </div>
@@ -432,7 +433,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
         </>}
         {nextDef.needsVerification&&isAdmin&&<div style={{marginBottom:12}}>
           <div style={{...lbl,marginBottom:8}}>Verification Checklist</div>
-          {[[collection,setCollection,"Customer Collection Proof verified"],[payment,setPayment,"Upfront Payment Proof verified"]].map(([val,setter,label],i)=><div key={i} onClick={()=>setter(!val)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:8,background:val?"#F0FDF4":C.surface,border:`1px solid ${val?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer",transition:"all .15s"}}>
+          {(isCash?[[payment,setPayment,"Payment Proof verified"]]:[[collection,setCollection,"Customer Collection Proof verified"],[payment,setPayment,"Upfront Payment Proof verified"]]).map(([val,setter,label],i)=><div key={i} onClick={()=>setter(!val)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:8,background:val?"#F0FDF4":C.surface,border:`1px solid ${val?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer",transition:"all .15s"}}>
             <div style={{width:18,height:18,borderRadius:4,background:val?C.navy:"#fff",border:`2px solid ${val?C.navy:"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",transition:"all .15s"}}>{val&&Ic.check}</div>
             <span style={{fontSize:12,color:val?"#15803D":C.text,fontWeight:val?600:400}}>{label}</span>
           </div>)}
@@ -545,7 +546,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <div style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.fileText}>Order Information</SecHdr>
       <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:12}}>
-        {[!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],order.supplierName&&["Supplier",order.supplierName],order.poNumber&&["PO Number",order.poNumber],order.purchaserName&&["Purchaser",order.purchaserName],order.cancelledDate&&["Cancelled Date",fDate(order.cancelledDate)],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)]].filter(Boolean).map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
+        {[!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],order.supplierName&&["Supplier",order.supplierName],order.poNumber&&["PO Number",order.poNumber],order.purchaserName&&["Purchaser",order.purchaserName],order.cancelledDate&&["Cancelled Date",fDate(order.cancelledDate)],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
       </div>
       {order.adminRemark&&<div style={{padding:"8px 16px",borderTop:`1px solid ${C.border}`,background:"#FFFBEB"}}><div style={{fontSize:10,color:"#92400E",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Admin Remark</div><div style={{fontSize:12,color:"#78350F"}}>{order.adminRemark}</div></div>}
     </div>
@@ -616,14 +617,15 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
   const isCash=f.orderType==="cash",isReady=f.stockStatus==="ready";
   const branchSRs=(srList||[]).filter(s=>s.branch===(userBranch||f.branch));
-  const REQUIRED=["phoneModel","customerName",...(isCash?["retailPrice","deposit"]:["financePrice","stampingFee","agreementFee","deposit"])];
+  const REQUIRED=["phoneModel","customerName",...(isCash?["retailPrice","deposit","depositPaymentDate","salesAgentId"]:["financePrice","stampingFee","agreementFee","deposit"])];
   const missing=REQUIRED.filter(k=>!f[k]?.toString().trim());
+  const missingSlip=isCash&&!slipFile&&!f.depositSlip;
   const submit=async()=>{
-    if(missing.length){alert("Please fill in all required fields.");return;}
+    if(missing.length||missingSlip){alert("Please fill in all required fields.");return;}
     let depositSlip=f.depositSlip||null;
     if(slipFile)depositSlip=await readFile(slipFile);
-    const initStep=isReady?4:1;
-    const initHist=isReady?[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"},{step:2,date:nowDate(),time:nowTime(),note:"Ready stock"},{step:3,date:nowDate(),time:nowTime(),note:"Arrived HQ"},{step:4,date:nowDate(),time:nowTime(),note:"Dispatching"}]:[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"}];
+    const initStep=isReady?3:1;
+    const initHist=isReady?[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"},{step:2,date:nowDate(),time:nowTime(),note:"Ready stock"},{step:3,date:nowDate(),time:nowTime(),note:"Arrived HQ"}]:[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"}];
     onSave({...f,depositSlip,id:order?.id||Date.now().toString(),step:order?.step||initStep,history:order?.history||initHist});
   };
   // row() helper — uses module-level FormField (no focus loss)
@@ -639,7 +641,7 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
         <div style={{display:"flex",gap:8}}>
           {[["stock_request","Stock Request"],["ready","Ready Stock"]].map(([v,l])=><button key={v} onClick={()=>set("stockStatus",v)} style={{flex:1,padding:"12px 8px",borderRadius:10,border:`2px solid ${f.stockStatus===v?C.navy:C.border}`,background:f.stockStatus===v?C.navy:C.white,color:f.stockStatus===v?"#fff":C.textMid,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",transition:"all .15s"}}>{l}</button>)}
         </div>
-        {isReady&&<div style={{fontSize:10,color:"#15803D",marginTop:5,fontWeight:600}}>Will skip to Step 4 — Dispatching</div>}
+        {isReady&&<div style={{fontSize:10,color:"#15803D",marginTop:5,fontWeight:600}}>Will skip to Step 3 — Arrived HQ</div>}
       </div>
       <div>
         <L req>Order Type</L>
@@ -652,7 +654,7 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
       {row("phoneModel","Phone Model / Item","text",true)}
       {row("customerName","Customer Name","text",true)}
       <div><L>Branch</L><SEL value={f.branch} onChange={e=>set("branch",e.target.value)} disabled={!isAdmin&&!!userBranch}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}</SEL></div>
-      <div><L>Sales Agent</L>{branchSRs.length>0?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>:<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder="Agent ID"/>}</div>
+      <div><L req={isCash}>Sales Agent</L>{branchSRs.length>0?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}} style={isCash&&missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>:<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder="Agent ID" style={isCash&&missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}}/>}</div>
     </FormCard>
     {!isCash&&<FormCard title="CCM / Financing Details">
       <div><L>Merchant</L><SEL value={f.merchant} onChange={e=>set("merchant",e.target.value)}>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
@@ -667,11 +669,11 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
     {isCash&&<FormCard title="Cash Order Details">
       {row("retailPrice","Retail Price (RM)","number",true)}
       {row("deposit","Deposit (RM)","number",true)}
-      {row("depositPaymentDate","Deposit Payment Date","date")}
-      <div><L>Deposit Payment Slip</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setSlipFile(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{(slipFile||f.depositSlip)&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {slipFile?.name||f.depositSlip?.name}</div>}</div>
+      {row("depositPaymentDate","Deposit Payment Date","date",true)}
+      <div><L req>Deposit Payment Slip</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setSlipFile(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{(slipFile||f.depositSlip)&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {slipFile?.name||f.depositSlip?.name}</div>}{!slipFile&&!f.depositSlip&&<div style={{fontSize:10,color:"#DC2626",marginTop:3}}>Required for cash orders</div>}</div>
     </FormCard>}
-    {missing.length>0&&!order&&<div style={{padding:"9px 12px",background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:8,fontSize:11,color:"#92400E",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill all required fields to submit.</div>}
-    <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><GBtn onClick={onCancel}>Cancel</GBtn><PBtn onClick={submit} disabled={!order&&missing.length>0}>{isReady?"Submit & Dispatch":"Submit Order Request"}</PBtn></div>
+    {(missing.length>0||missingSlip)&&!order&&<div style={{padding:"9px 12px",background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:8,fontSize:11,color:"#92400E",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill all required fields to submit.</div>}
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><GBtn onClick={onCancel}>Cancel</GBtn><PBtn onClick={submit} disabled={!order&&(missing.length>0||missingSlip)}>{isReady?"Submit & Dispatch":"Submit Order Request"}</PBtn></div>
   </div>;
 }
 
@@ -748,11 +750,100 @@ function BatchArchive({orders,onSave,onClose}){
   </div>;
 }
 
+/* ── Bulk Dispatch to Branch ──────────────────────────────────────────── */
+function BulkDispatch({orders,onSave,onClose}){
+  const awaitingDispatch=orders.filter(o=>o.step===3);
+  const branches=[...new Set(awaitingDispatch.map(o=>o.branch))];
+  const [branch,setBranch]=useState(branches[0]||"");
+  const pending=awaitingDispatch.filter(o=>o.branch===branch);
+  const [sel,setSel]=useState(new Set());
+  const [consignmentFile,setConsignmentFile]=useState(null);
+  const [stockTransferFile,setStockTransferFile]=useState(null);
+  const [saving,setSaving]=useState(false);
+  const submit=async()=>{
+    if(!sel.size||!consignmentFile||!stockTransferFile)return;
+    setSaving(true);
+    const consignment=await readFile(consignmentFile);
+    const stockTransfer=await readFile(stockTransferFile);
+    const updated=orders.map(o=>sel.has(o.id)?{...o,step:4,history:[...(o.history||[]),{step:4,date:nowDate(),time:nowTime(),note:"Dispatched to Branch (bulk)",files:{consignment,stockTransfer}}]}:o);
+    await onSave(updated);
+    setSaving(false);
+    onClose();
+  };
+  return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{...card,width:"90%",maxWidth:560,maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
+      <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
+        <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.truck} Dispatch to Branch (Bulk)</div>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+      </div>
+      <div style={{padding:16,overflowY:"auto",flex:1}}>
+        {awaitingDispatch.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No orders waiting to be dispatched.</div>:<>
+          <div style={{marginBottom:12}}><L req>Branch</L><SEL value={branch} onChange={e=>{setBranch(e.target.value);setSel(new Set());}}>{branches.map(b=><option key={b} value={b}>{b}</option>)}</SEL></div>
+          <div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Select the orders going out to {branch} in this batch — the same Stock Transfer PDF and Consignment Note will be attached to all of them.</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{fontSize:12,color:C.textLight}}>{pending.length} pending in {branch}</div>
+            <button onClick={()=>setSel(sel.size===pending.length?new Set():new Set(pending.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===pending.length&&pending.length>0?"Deselect All":"Select All"}</button>
+          </div>
+          {pending.map(o=><div key={o.id} onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F5F3FF":C.surface,border:`1px solid ${sel.has(o.id)?"#DDD6FE":C.border}`,marginBottom:7,cursor:"pointer"}}>
+            <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#7C3AED":"#fff",border:`2px solid ${sel.has(o.id)?"#7C3AED":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
+            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>{o.phoneModel} · {o.customerName}</div><div style={{fontSize:10,color:C.textLight}}>{shortId(o.id)}</div></div>
+          </div>)}
+          <Divider/>
+          <div style={{marginBottom:12}}><L req>Stock Transfer PDF</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setStockTransferFile(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{stockTransferFile&&<div style={{fontSize:10,color:"#15803D",marginTop:2,fontWeight:600}}>✓ {stockTransferFile.name}</div>}</div>
+          <div><L req>Consignment Note</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setConsignmentFile(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{consignmentFile&&<div style={{fontSize:10,color:"#15803D",marginTop:2,fontWeight:600}}>✓ {consignmentFile.name}</div>}</div>
+        </>}
+      </div>
+      <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <GBtn onClick={onClose}>Cancel</GBtn>
+        <PBtn onClick={submit} disabled={!sel.size||!consignmentFile||!stockTransferFile||saving}>{Ic.truck} {saving?"Saving…":`Dispatch (${sel.size})`}</PBtn>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ── Bulk Claim Sent ──────────────────────────────────────────────────── */
+function BulkClaimSent({orders,onSave,onClose}){
+  const pending=orders.filter(o=>o.step===12);
+  const [sel,setSel]=useState(new Set());
+  const [date,setDate]=useState(nowDate());
+  const [search,setSearch]=useState("");
+  const list=pending.filter(o=>!search||(o.invoiceNo||"").toLowerCase().includes(search.toLowerCase()));
+  return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
+      <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
+        <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.checkCircle} Set Claim Sent Date (Bulk)</div>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+      </div>
+      <div style={{padding:16,overflowY:"auto",flex:1}}>
+        {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No orders awaiting claim.</div>:<>
+          <div style={{marginBottom:10}}><I placeholder="Search by invoice number…" value={search} onChange={e=>setSearch(e.target.value)}/></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{fontSize:12,color:C.textLight}}>{list.length} shown</div>
+            <button onClick={()=>setSel(sel.size===list.length?new Set():new Set(list.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===list.length&&list.length>0?"Deselect All":"Select All Shown"}</button>
+          </div>
+          <div style={{marginBottom:12}}><L req>Claim Sent Out to Merchant Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+          {list.map(o=><div key={o.id} onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer"}}>
+            <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#15803D":"#fff",border:`2px solid ${sel.has(o.id)?"#15803D":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
+            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>Invoice: {o.invoiceNo||"—"}</div><div style={{fontSize:10,color:C.textLight}}>{o.phoneModel} · {o.customerName} · {shortId(o.id)} · {o.branch}</div></div>
+          </div>)}
+        </>}
+      </div>
+      <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <GBtn onClick={onClose}>Cancel</GBtn>
+        <PBtn onClick={async()=>{if(!sel.size||!date)return;const updated=orders.map(o=>sel.has(o.id)?{...o,step:13,claimSentDate:date,history:[...(o.history||[]),{step:13,date:nowDate(),time:nowTime(),note:"Claim sent out to merchant (bulk)",claimSentDate:date}]}:o);await onSave(updated);onClose();}} disabled={!sel.size||!date}>{Ic.checkCircle} Set Claim Sent ({sel.size})</PBtn>
+      </div>
+    </div>
+  </div>;
+}
+
 /* ── Bulk Knock-off ────────────────────────────────────────────────────── */
 function BulkKnockOff({orders,onSave,onClose}){
   const released=orders.filter(o=>o.step===13&&!o.knockOffDate);
   const [sel,setSel]=useState(new Set());
   const [date,setDate]=useState(nowDate());
+  const [amounts,setAmounts]=useState({});
+  const selectedList=released.filter(o=>sel.has(o.id));
+  const allAmountsFilled=selectedList.length>0&&selectedList.every(o=>parseFloat(amounts[o.id])>0);
   return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
@@ -766,15 +857,22 @@ function BulkKnockOff({orders,onSave,onClose}){
             <button onClick={()=>setSel(sel.size===released.length?new Set():new Set(released.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===released.length?"Deselect All":"Select All"}</button>
           </div>
           <div style={{marginBottom:12}}><L req>Knock-off Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-          {released.map(o=><div key={o.id} onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer"}}>
-            <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#15803D":"#fff",border:`2px solid ${sel.has(o.id)?"#15803D":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
-            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>{o.phoneModel} · {o.customerName}</div><div style={{fontSize:10,color:C.textLight}}>{shortId(o.id)} · {o.branch} · Invoice: {o.invoiceNo||"—"}</div></div>
+          <div style={{...lbl,marginBottom:4}}>Select invoices and fill in the knock-off amount for each</div>
+          {released.map(o=><div key={o.id} style={{padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7}}>
+            <div onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginBottom:sel.has(o.id)?8:0}}>
+              <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#15803D":"#fff",border:`2px solid ${sel.has(o.id)?"#15803D":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
+              <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>{o.phoneModel} · {o.customerName}</div><div style={{fontSize:10,color:C.textLight}}>{shortId(o.id)} · {o.branch} · Invoice: {o.invoiceNo||"—"}</div></div>
+            </div>
+            {sel.has(o.id)&&<div onClick={e=>e.stopPropagation()}><L req>Knock-off Amount (RM)</L><I type="number" value={amounts[o.id]||""} onChange={e=>setAmounts(p=>({...p,[o.id]:e.target.value}))} placeholder="0.00" style={!(parseFloat(amounts[o.id])>0)?{borderColor:"#FECACA"}:{}}/></div>}
           </div>)}
         </>}
       </div>
-      <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,justifyContent:"flex-end"}}>
-        <GBtn onClick={onClose}>Cancel</GBtn>
-        <PBtn onClick={async()=>{if(!sel.size||!date)return;const updated=orders.map(o=>sel.has(o.id)?{...o,knockOffDate:date,history:[...(o.history||[]),{step:13,date:nowDate(),time:nowTime(),note:"Knock-off date set (bulk)",knockOffDate:date}]}:o);await onSave(updated);onClose();}} disabled={!sel.size||!date}>{Ic.calendar} Set Knock-off ({sel.size})</PBtn>
+      <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:8}}>
+        {sel.size>0&&!allAmountsFilled&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the knock-off amount for every selected invoice.</div>}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <GBtn onClick={onClose}>Cancel</GBtn>
+          <PBtn onClick={async()=>{if(!sel.size||!date||!allAmountsFilled)return;const updated=orders.map(o=>sel.has(o.id)?{...o,knockOffDate:date,knockOffAmount:amounts[o.id],history:[...(o.history||[]),{step:13,date:nowDate(),time:nowTime(),note:"Knock-off date set (bulk)",knockOffDate:date,knockOffAmount:amounts[o.id]}]}:o);await onSave(updated);onClose();}} disabled={!sel.size||!date||!allAmountsFilled}>{Ic.calendar} Set Knock-off ({sel.size})</PBtn>
+        </div>
       </div>
     </div>
   </div>;
@@ -791,6 +889,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [filterBranch,setFilterBranch]=useState("ALL");
   const [search,setSearch]=useState("");
   const [showArchive,setShowArchive]=useState(false);
+  const [showBulkDispatch,setShowBulkDispatch]=useState(false);
+  const [showBulkClaimSent,setShowBulkClaimSent]=useState(false);
   const [showBulkKnockoff,setShowBulkKnockoff]=useState(false);
   const [upfrontDate,setUpfrontDate]=useState(nowDate());
   const [claimDate,setClaimDate]=useState(nowDate());
@@ -820,6 +920,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
   return<div className="fade-in">
     {showArchive&&<BatchArchive orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowArchive(false)}/>}
+    {showBulkDispatch&&<BulkDispatch orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowBulkDispatch(false)}/>}
+    {showBulkClaimSent&&<BulkClaimSent orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowBulkClaimSent(false)}/>}
     {showBulkKnockoff&&<BulkKnockOff orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowBulkKnockoff(false)}/>}
 
     {/* Page header */}
@@ -829,6 +931,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         <div style={{fontSize:11,color:C.textLight,marginTop:2}}>{activeOrders.length} active · {completedCount} completed</div>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {isAdmin&&!isReadOnly&&orders.some(o=>o.step===3)&&<GBtn onClick={()=>setShowBulkDispatch(true)}>{Ic.truck} Dispatch to Branch</GBtn>}
+        {isAdmin&&!isReadOnly&&orders.some(o=>o.step===12)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Claim Sent Date</GBtn>}
         {isAdmin&&!isReadOnly&&orders.some(o=>o.step===13&&!o.knockOffDate)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
         {isAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
         {!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
