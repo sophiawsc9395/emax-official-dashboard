@@ -18,7 +18,7 @@ const PHASES=[
 
 const STEPS=[
   {step:1,label:"New Order Request",desc:"Order submitted by branch.",who:"branch",phase:"stock"},
-  {step:2,label:"Ordered",desc:"Purchase order placed with supplier.",who:"admin",phase:"stock",needsRemark:true},
+  {step:2,label:"Ordered",desc:"Purchase order placed with supplier.",who:"admin",phase:"stock",needsRemark:true,needsOrderDate:true},
   {step:3,label:"Arrived HQ",desc:"Item received at HQ.",who:"admin",phase:"stock"},
   {step:4,label:"Dispatched to Branch",desc:"Item dispatched from HQ.",who:"admin",phase:"transfer",needsFiles:[{key:"consignment",label:"Consignment Note"},{key:"stockTransfer",label:"Stock Transfer PDF"}]},
   {step:5,label:"Arrived Branch",desc:"Branch confirms receipt.",who:"branch",phase:"transfer"},
@@ -28,7 +28,7 @@ const STEPS=[
   {step:9,label:"Collection Verified",desc:"HQ verifies collection and upfront payment.",who:"admin",phase:"agreement_hq",needsVerification:true},
   {step:10,label:"Agreement Checklist",desc:"Branch completes agreement checklist.",who:"both",phase:"agreement_hq",needsChecklist:true},
   {step:11,label:"Agreement at HQ",desc:"HQ receives original signed agreement.",who:"admin",phase:"unclaimed",canReverse:true},
-  {step:12,label:"Claimed",desc:"Claim released. Fill knock-off date.",who:"admin",phase:"claimed",needsKnockOff:true,needsFiles:[{key:"claimRef",label:"Claim Reference",optional:true}]},
+  {step:12,label:"Claimed",desc:"Claim released. Enter claim sent date and knock-off date.",who:"admin",phase:"claimed",needsKnockOff:true},
   {step:13,label:"Completed",desc:"Order completed and archived.",who:"admin",phase:"claimed"},
 ];
 
@@ -160,8 +160,10 @@ function Timeline({order}){
                   {hist?.date&&<span style={{fontSize:10,color:T.grey}}>{fDT(hist.date,hist.time)}</span>}
                 </div>
                 {hist&&<div style={{marginTop:4,background:T.bg,borderRadius:6,padding:"6px 10px",border:`1px solid ${T.border}`,fontSize:11,color:"#374151"}}>
+                  {hist.orderDate&&<div style={{marginBottom:2,color:T.blue,fontWeight:600}}>{Ic.calendar} Order Date: {fDate(hist.orderDate)}{hist.supplierName?` · ${hist.supplierName}`:""}</div>}
                   {hist.remark&&<div style={{marginBottom:2}}>💬 {hist.remark}</div>}
                   {hist.invoiceNo&&<div style={{marginBottom:2,color:T.blue,fontWeight:600}}>Invoice: {hist.invoiceNo}</div>}
+                  {hist.claimSentDate&&<div style={{marginBottom:2,color:"#0891B2",fontWeight:600}}>Claim Sent: {fDate(hist.claimSentDate)}</div>}
                   {hist.knockOffDate&&<div style={{marginBottom:2,color:"#15803D",fontWeight:600}}>Knock-off: {fDate(hist.knockOffDate)}</div>}
                   {hist.verificationRemark&&<div style={{marginBottom:2}}>Note: {hist.verificationRemark}</div>}
                   {hist.upfrontPaymentDate&&<div style={{marginBottom:2,color:T.blue}}>Payment Date: {fDate(hist.upfrontPaymentDate)}</div>}
@@ -253,6 +255,23 @@ function ChecklistForm({onSubmit,onCancel,issueItems=[]}){
 }
 
 // ── Download Upfront Report ────────────────────────────────────────────────
+function downloadClaimReport(orders,dateFilter){
+  const claimed=orders.filter(o=>{
+    return o.claimSentDate&&(!dateFilter||o.claimSentDate===dateFilter)&&o.step>=12;
+  }).sort((a,b)=>(a.invoiceNo||"").localeCompare(b.invoiceNo||""));
+  if(!claimed.length){alert("No claimed orders for this date.");return;}
+  const dateStr=dateFilter?fDate(dateFilter):"All Dates";
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Claim Report — ${dateStr}</title>
+  <style>body{font-family:Inter,sans-serif;margin:32px;color:#0A1628}h1{font-size:18px;font-weight:800;margin-bottom:4px}h2{font-size:13px;font-weight:400;color:#8A96A8;margin:0 0 24px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#0A1628;color:#fff;padding:8px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em}td{padding:8px 12px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.footer{margin-top:20px;font-size:11px;color:#8A96A8}</style></head>
+  <body><h1>Claim Sent Report</h1><h2>${dateStr} · ${claimed.length} order${claimed.length!==1?"s":""}</h2>
+  <table><thead><tr><th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Finance Price</th><th>Claim Sent Date</th><th>Knock-off Date</th></tr></thead>
+  <tbody>${claimed.map((o,i)=>`<tr><td>${i+1}</td><td>${o.invoiceNo||"—"}</td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>${(parseFloat(o.financePrice)||0).toFixed(2)}</td><td>${fDate(o.claimSentDate)}</td><td>${fDate(o.knockOffDate)}</td></tr>`).join("")}
+  </tbody></table>
+  <div class="footer">Generated: ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
+  const w=window.open("","_blank");
+  if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
+}
+
 function downloadUpfrontReport(orders,dateFilter){
   const verified=orders.filter(o=>{
     const h=(o.history||[]).find(h=>h.step===9);
@@ -262,9 +281,10 @@ function downloadUpfrontReport(orders,dateFilter){
   const rows=verified.map(o=>{
     const h=(o.history||[]).find(h=>h.step===9);
     const up=calcUpfront(o);
-    const monthly=parseFloat(o.billingData?.monthlyInstallment)||0;
+    const monthly=parseFloat(o.billingData?.monthlyInstallment)||parseFloat(o.monthlyInstallment)||0;
     return{
       orderId:shortId(o.id),
+      invoiceNo:o.invoiceNo||"—",
       phoneModel:o.phoneModel,
       customerName:o.customerName,
       branch:o.branch,
@@ -274,7 +294,7 @@ function downloadUpfrontReport(orders,dateFilter){
       paymentMethod:h.paymentMethod||"—",
       remark:h.verificationRemark||"—",
     };
-  });
+  }).sort((a,b)=>a.invoiceNo.localeCompare(b.invoiceNo));
   // Build HTML report
   const totalMonthly=rows.reduce((s,r)=>s+r.monthly,0);
   const totalDue=rows.reduce((s,r)=>s+r.totalDue,0);
@@ -282,8 +302,8 @@ function downloadUpfrontReport(orders,dateFilter){
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Upfront Payment Report — ${dateStr}</title>
   <style>body{font-family:Inter,sans-serif;margin:32px;color:#0A1628}h1{font-size:18px;font-weight:800;margin-bottom:4px}h2{font-size:13px;font-weight:400;color:#8A96A8;margin:0 0 24px}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#0A1628;color:#fff;padding:8px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em}td{padding:8px 12px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.total td{font-weight:700;background:#0A1628;color:#fff}.footer{margin-top:20px;font-size:11px;color:#8A96A8}@media print{body{margin:16px}}</style></head>
   <body><h1>Upfront Payment Report</h1><h2>${dateStr} · ${rows.length} record${rows.length!==1?"s":""}</h2>
-  <table><thead><tr><th>#</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Payment Date</th><th>1st Monthly (RM)</th><th>Total Due (RM)</th><th>Method</th><th>Remark</th></tr></thead>
-  <tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.orderId}</td><td>${r.customerName}</td><td>${r.branch}</td><td>${r.phoneModel}</td><td>${r.paymentDate}</td><td>${r.monthly.toFixed(2)}</td><td>${r.totalDue.toFixed(2)}</td><td>${r.paymentMethod}</td><td>${r.remark}</td></tr>`).join("")}
+  <table><thead><tr><th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Payment Date</th><th>1st Monthly (RM)</th><th>Total Due (RM)</th><th>Method</th><th>Remark</th></tr></thead>
+  <tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.invoiceNo}</td><td>${r.orderId}</td><td>${r.customerName}</td><td>${r.branch}</td><td>${r.phoneModel}</td><td>${r.paymentDate}</td><td>${r.monthly.toFixed(2)}</td><td>${r.totalDue.toFixed(2)}</td><td>${r.paymentMethod}</td><td>${r.remark}</td></tr>`).join("")}
   <tr class="total"><td colspan="6">TOTAL (${rows.length} records)</td><td>${totalMonthly.toFixed(2)}</td><td>${totalDue.toFixed(2)}</td><td colspan="2"></td></tr></tbody></table>
   <div class="footer">Generated: ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
   const w=window.open("","_blank");
@@ -296,13 +316,16 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const nextDef=step<12?getStep(step+1):null;
   const [remark,setRemark]=useState("");
   const [invoiceNo,setInvoiceNo]=useState("");
+  const [orderDate,setOrderDate]=useState(nowDate());
+  const [supplierName,setSupplierName]=useState("");
   const [knockOffDate,setKnockOffDate]=useState(nowDate());
+  const [claimSentDate,setClaimSentDate]=useState(nowDate());
   const [files,setFiles]=useState({});
   const [collection,setCollection]=useState(false);
   const [payment,setPayment]=useState(false);
   const [verRemark,setVerRemark]=useState("");
   const [upfrontDate,setUpfrontDate]=useState(nowDate());
-  const [upfrontMonthly,setUpfrontMonthly]=useState(order.billingData?.monthlyInstallment||"");
+  const [upfrontMonthly,setUpfrontMonthly]=useState(order.billingData?.monthlyInstallment||order.monthlyInstallment||"");
   const [payMethod,setPayMethod]=useState(PAYMENT_METHODS[0]);
   const [reportDate,setReportDate]=useState(nowDate());
   const [saving,setSaving]=useState(false);
@@ -324,11 +347,15 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div style={{padding:"10px 14px",background:"#F0FDF4",borderRadius:8,border:"1px solid #BBF7D0",marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
             {Ic.checkCircle}<div style={{fontSize:12,color:"#15803D",fontWeight:600}}>Claim released. Record the knock-off date to complete.</div>
           </div>
+          {order.claimSentDate
+            ?<div style={{fontSize:12,color:T.navy,marginBottom:8}}><span style={{color:T.grey,fontWeight:600}}>Claim Sent Date: </span>{fDate(order.claimSentDate)}</div>
+            :<div style={{marginBottom:10}}><L req>Claim Sent Out to Merchant Date</L><I type="date" value={claimSentDate} onChange={e=>setClaimSentDate(e.target.value)}/></div>
+          }
           {order.knockOffDate
             ?<div style={{fontSize:12,color:T.navy,marginBottom:12}}><span style={{color:T.grey,fontWeight:600}}>Knock-off Date: </span>{fDate(order.knockOffDate)}</div>
             :<div style={{marginBottom:12}}><L req>Knock-off Date</L><I type="date" value={knockOffDate} onChange={e=>setKnockOffDate(e.target.value)}/></div>
           }
-          {!order.knockOffDate&&<PBtn onClick={async()=>{setSaving(true);const h={step:12,date:nowDate(),time:nowTime(),note:"Knock-off date recorded",knockOffDate};await onUpdate({...order,knockOffDate,history:[...(order.history||[]),h]});setSaving(false);}} disabled={saving||!knockOffDate} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Save Knock-off Date"}</PBtn>}
+          {(!order.knockOffDate||!order.claimSentDate)&&<PBtn onClick={async()=>{setSaving(true);const h={step:12,date:nowDate(),time:nowTime(),note:"Claim sent and knock-off recorded",claimSentDate:claimSentDate||order.claimSentDate,knockOffDate:knockOffDate||order.knockOffDate};await onUpdate({...order,claimSentDate:claimSentDate||order.claimSentDate,knockOffDate:knockOffDate||order.knockOffDate,history:[...(order.history||[]),h]});setSaving(false);}} disabled={saving||(!claimSentDate&&!order.claimSentDate)||(!knockOffDate&&!order.knockOffDate)} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Save Dates"}</PBtn>}
           {order.knockOffDate&&isAdmin&&<PBtn onClick={async()=>{if(!confirm("Move to Completed and remove from active list?"))return;setSaving(true);const h={step:13,date:nowDate(),time:nowTime(),note:"Order completed and archived"};await onUpdate({...order,step:13,history:[...(order.history||[]),h]});setSaving(false);}} danger style={{width:"100%",justifyContent:"center",marginTop:8}}>{Ic.trash} Mark as Completed (Remove)</PBtn>}
         </div>
       </div>
@@ -340,7 +367,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   if(!nextDef)return null;
   const branchOk=isAdmin||[5,6,10].includes(nextDef.step);
 
-  if(nextDef.step===6&&!isAdmin){
+  if(nextDef.step===6&&(branchOk)){
     if(showBilling)return<BillingForm order={order} onCancel={()=>setShowBilling(false)} onSubmit={async d=>{setSaving(true);const h={step:6,date:nowDate(),time:nowTime(),note:"Billing Request",billingData:d};await onUpdate({...order,step:6,billingData:d,history:[...(order.history||[]),h]});setSaving(false);setShowBilling(false);}}/>;
     return<ActionItem icon={Ic.clipboard} title="Billing Request" desc="Complete the billing form to advance."><PBtn onClick={()=>setShowBilling(true)} style={{width:"100%",justifyContent:"center"}}>Open Billing Form {Ic.arrowR}</PBtn></ActionItem>;
   }
@@ -353,17 +380,19 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const advance=async()=>{
     setSaving(true);
     const rf={};for(const[k,f] of Object.entries(files))if(f)rf[k]=await readFile(f);
-    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,files:Object.keys(rf).length?rf:undefined,
+    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,files:Object.keys(rf).length?rf:undefined,
       ...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,totalDue,paymentMethod:payMethod}:{}),
     };
     const updated={...order,step:nextDef.step,history:[...(order.history||[]),h]};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
+    if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;}
     if(nextDef.needsInvoiceNo)updated.invoiceNo=invoiceNo;
     await onUpdate(updated);setSaving(false);setRemark("");setInvoiceNo("");setFiles({});
   };
   const ok=()=>{
     if(!branchOk)return false;
-    if(nextDef.needsRemark&&isAdmin&&!remark.trim())return false;
+    if(nextDef.needsOrderDate&&isAdmin&&!orderDate)return false;
+    if(nextDef.needsRemark&&!nextDef.needsOrderDate&&isAdmin&&!remark.trim())return false;
     if(nextDef.needsInvoiceNo&&isAdmin&&!invoiceNo.trim())return false;
     if(nextDef.needsFiles){const req=(nextDef.needsFiles||[]).filter(f=>!f.optional);if(isAdmin&&req.some(f=>!files[f.key]))return false;}
     return true;
@@ -375,7 +404,13 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
         {!branchOk
           ?<div style={{fontSize:12,color:T.grey,fontStyle:"italic"}}>Waiting for admin to process this step.</div>
           :<>
-            {nextDef.needsRemark&&isAdmin&&<div style={{marginBottom:12}}><L req>Admin Remark — Supplier / ETA / Order Details</L><TX value={remark} onChange={e=>setRemark(e.target.value)} rows={3} placeholder="Supplier details, ETA, order reference…"/></div>}
+            {nextDef.needsOrderDate&&isAdmin&&<>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                <div><L req>Order Date</L><I type="date" value={orderDate} onChange={e=>setOrderDate(e.target.value)}/></div>
+                <div><L>Supplier Name</L><I value={supplierName} onChange={e=>setSupplierName(e.target.value)} placeholder="Supplier name…"/></div>
+              </div>
+            </>}
+            {nextDef.needsRemark&&isAdmin&&<div style={{marginBottom:12}}><L>Remark / ETA / Order Details</L><TX value={remark} onChange={e=>setRemark(e.target.value)} rows={2} placeholder="ETA, order reference, notes…"/></div>}
             {nextDef.needsInvoiceNo&&isAdmin&&<>
               <div style={{marginBottom:12}}><L req>Sales Invoice Number</L><I value={invoiceNo} onChange={e=>setInvoiceNo(e.target.value)} placeholder="INV-2026-0001"/></div>
               <div style={{background:T.bg,borderRadius:8,padding:"12px 14px",border:`1px solid ${T.border}`,marginBottom:12}}>
@@ -412,17 +447,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           </>}
       </ActionItem>
 
-      {/* Download upfront report (step 9 confirmed — show on step 9+) */}
-      {step>=9&&isAdmin&&<div style={{...cardSt}}>
-        <CardHdr>{Ic.download} Download Upfront Payment Report</CardHdr>
-        <div style={{padding:"12px 16px",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
-          <div style={{flex:1,minWidth:140}}><L>Filter by Payment Date</L><I type="date" value={reportDate} onChange={e=>setReportDate(e.target.value)}/></div>
-          <div style={{display:"flex",gap:6,marginTop:14}}>
-            <PBtn onClick={()=>downloadUpfrontReport(allOrders||[],reportDate)}>{Ic.download} By Date</PBtn>
-            <GBtn onClick={()=>downloadUpfrontReport(allOrders||[],"")}>{Ic.download} All</GBtn>
-          </div>
-        </div>
-      </div>}
+
 
       {/* Return to branch (step 11) */}
       {step===11&&isAdmin&&(!showReturn
@@ -462,7 +487,7 @@ function ActionItem({icon,title,desc,children}){
 }
 
 // ── Order Detail ───────────────────────────────────────────────────────────
-function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,allOrders}){
+function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,allOrders,isReadOnly=false}){
   const s=getStep(order.step);
   const ph=getPhase(order.step);
   const isCash=order.orderType==="cash";
@@ -480,7 +505,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
           </div>
           <div style={{fontSize:11,color:T.grey,marginTop:2}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}</div>
         </div>
-        {isAdmin&&<div style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn><button onClick={onDelete} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"7px 12px",background:"#FEF2F2",color:"#B91C1C",border:"1px solid #FECACA",borderRadius:7,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{Ic.trash} Delete</button></div>}
+        {isAdmin&&!isReadOnly&&<div style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn><button onClick={onDelete} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"7px 12px",background:"#FEF2F2",color:"#B91C1C",border:"1px solid #FECACA",borderRadius:7,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{Ic.trash} Delete</button></div>}
       </div>
 
       {/* Phase progress card */}
@@ -497,7 +522,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
         <CardHdr>Order Information</CardHdr>
         <div style={{padding:"14px 16px"}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
-            {[!isCash&&["Merchant",order.merchant||"—"],!isCash&&["Agreement No.",order.agreementNumber||"—"],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.knockOffDate&&["Knock-off Date",fDate(order.knockOffDate)]].filter(Boolean).map(([l,v])=>(
+            {[!isCash&&["Merchant",order.merchant||"—"],!isCash&&["Agreement No.",order.agreementNumber||"—"],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],order.supplierName&&["Supplier",order.supplierName],order.claimSentDate&&["Claim Sent Date",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off Date",fDate(order.knockOffDate)]].filter(Boolean).map(([l,v])=>(
               <InfoRow key={l} label={l} value={v}/>
             ))}
           </div>
@@ -547,7 +572,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
         </div>
         <div>
           <div style={{fontSize:10,fontWeight:700,color:T.grey,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>Required Action</div>
-          <ActionPanel order={order} isAdmin={isAdmin} onUpdate={onUpdate} allOrders={allOrders}/>
+          {isReadOnly?<div style={{background:T.bg,borderRadius:9,padding:"14px 16px",border:`1px solid ${T.border}`,fontSize:12,color:T.grey,fontStyle:"italic"}}>View only — actions disabled for this viewer.</div>:<ActionPanel order={order} isAdmin={isAdmin} onUpdate={onUpdate} allOrders={allOrders}/>}
         </div>
       </div>
     </div>
@@ -556,7 +581,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
 
 // ── Order Form ─────────────────────────────────────────────────────────────
 function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList}){
-  const empty={phoneModel:"",branch:userBranch||"KM",merchant:"Aeon",agreementNumber:"",customerName:"",salesAgentId:"",salesAgentName:"",aeonApprovalDate:"",financePrice:"",deposit:"",stampingFee:"",agreementFee:"",retailPrice:"",stockStatus:"stock_request",orderType:"ccm",depositPaymentDate:"",depositSlip:null};
+  const empty={phoneModel:"",branch:userBranch||"KM",merchant:"Aeon",agreementNumber:"",customerName:"",salesAgentId:"",salesAgentName:"",aeonApprovalDate:"",financePrice:"",deposit:"",stampingFee:"",agreementFee:"",monthlyInstallment:"",retailPrice:"",stockStatus:"stock_request",orderType:"ccm",depositPaymentDate:"",depositSlip:null};
   const [f,setF]=useState(order?{...order}:empty);
   const [slipFile,setSlipFile]=useState(null);
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -627,6 +652,7 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
             {inp("stampingFee","Stamping Fee (RM)","number",true)}
             {inp("agreementFee","Agreement Fee (RM)","number",true)}
             {inp("deposit","Deposit (RM)","number",true)}
+            {inp("monthlyInstallment","Monthly Installment (RM)","number",false)}
           </>}
           {isCash&&<>
             <Sec title="Cash Order"/>
@@ -687,8 +713,66 @@ function BatchArchive({orders,onSave,onClose}){
   );
 }
 
+// ── Alert helpers ─────────────────────────────────────────────────────────
+function daysSince(dateStr){
+  if(!dateStr)return null;
+  const d=new Date(dateStr);const now=new Date();
+  return Math.floor((now-d)/(1000*60*60*24));
+}
+
+function getOrderAlerts(orders,userBranch=null){
+  const myOrders=orders.filter(o=>o.step<13&&(!userBranch||o.branch===userBranch));
+  const alerts=[];
+  // Alert 1: Ordered >7 days with no Arrived HQ (step still 2)
+  myOrders.filter(o=>o.step===2&&o.orderDate).forEach(o=>{
+    const days=daysSince(o.orderDate);
+    if(days>=7)alerts.push({type:"overdue_order",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,invoiceNo:o.invoiceNo,days,msg:`Ordered ${days} days ago — not yet arrived at HQ`});
+  });
+  // Alert 2: Approval date 31-60 days (warning), 61-90 days (urgent) for steps 6-11
+  myOrders.filter(o=>o.aeonApprovalDate&&o.step>=6&&o.step<=11).forEach(o=>{
+    const days=daysSince(o.aeonApprovalDate);
+    if(days>=61&&days<=90)alerts.push({type:"approval_urgent",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,invoiceNo:o.invoiceNo,days,msg:`Approval date ${days} days ago — URGENT`});
+    else if(days>=31&&days<=60)alerts.push({type:"approval_warning",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,invoiceNo:o.invoiceNo,days,msg:`Approval date ${days} days ago — action needed`});
+  });
+  return alerts;
+}
+
+function AlertBanner({alerts,onClickOrder}){
+  if(!alerts.length)return null;
+  const urgent=alerts.filter(a=>a.type==="approval_urgent"||a.type==="overdue_order");
+  const warning=alerts.filter(a=>a.type==="approval_warning");
+  return(
+    <div style={{marginBottom:16,display:"flex",flexDirection:"column",gap:8}}>
+      {urgent.length>0&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:9,padding:"10px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+          <span style={{color:"#B91C1C"}}>{Ic.alert}</span>
+          <span style={{fontSize:11,fontWeight:800,color:"#B91C1C",textTransform:"uppercase",letterSpacing:"0.06em"}}>Urgent Attention Required ({urgent.length})</span>
+        </div>
+        {urgent.map((a,i)=>(
+          <div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",borderRadius:6,background:"rgba(255,255,255,.6)",marginBottom:4,cursor:onClickOrder?"pointer":"default",border:"1px solid #FECACA"}}>
+            <div><span style={{fontSize:11,fontWeight:700,color:"#B91C1C"}}>{a.phoneModel}</span><span style={{fontSize:10,color:"#B91C1C",marginLeft:6}}>{a.customerName} · {a.branch}</span></div>
+            <span style={{fontSize:10,color:"#B91C1C",fontWeight:600,whiteSpace:"nowrap"}}>{a.msg}</span>
+          </div>
+        ))}
+      </div>}
+      {warning.length>0&&<div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:9,padding:"10px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+          <span style={{color:"#92400E"}}>{Ic.alert}</span>
+          <span style={{fontSize:11,fontWeight:800,color:"#92400E",textTransform:"uppercase",letterSpacing:"0.06em"}}>Approval Date Warning ({warning.length})</span>
+        </div>
+        {warning.map((a,i)=>(
+          <div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",borderRadius:6,background:"rgba(255,255,255,.6)",marginBottom:4,cursor:onClickOrder?"pointer":"default",border:"1px solid #FDE68A"}}>
+            <div><span style={{fontSize:11,fontWeight:700,color:"#92400E"}}>{a.phoneModel}</span><span style={{fontSize:10,color:"#92400E",marginLeft:6}}>{a.customerName} · {a.branch}</span></div>
+            <span style={{fontSize:10,color:"#92400E",fontWeight:600,whiteSpace:"nowrap"}}>{a.msg}</span>
+          </div>
+        ))}
+      </div>}
+    </div>
+  );
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────
-export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList=[]}){
+export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList=[],isReadOnly=false}){
   const [orders,setOrders]=useState([]);
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState(()=>sessionStorage.getItem("orderView")||"list");
@@ -698,6 +782,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [filterBranch,setFilterBranch]=useState("ALL");
   const [search,setSearch]=useState("");
   const [showArchive,setShowArchive]=useState(false);
+  const [upfrontReportDate,setUpfrontReportDate]=useState(nowDate());
+  const [claimReportDate,setClaimReportDate]=useState(nowDate());
 
   useEffect(()=>{loadData(ORDER_KEY).then(d=>{setOrders(Array.isArray(d)?d:[]);setLoading(false);});},[]);
 
@@ -714,7 +800,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
   if(view==="detail"&&selected){
     const live=orders.find(o=>o.id===selected.id)||selected;
-    return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowArchive(false)}/>}</>;
+    return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowArchive(false)}/>}</>;
   }
   if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
@@ -724,14 +810,39 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   return(
     <div>
       {showArchive&&<BatchArchive orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowArchive(false)}/>}
+      <AlertBanner alerts={getOrderAlerts(activeOrders,userBranch)} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
+      {isAdmin&&!isReadOnly&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:18}}>
+        <div style={{...cardSt}}>
+          <CardHdr>{Ic.download} Upfront Payment Report</CardHdr>
+          <div style={{padding:"12px 14px"}}>
+            <div style={{fontSize:11,color:T.grey,marginBottom:8}}>By payment date · sorted by invoice no.</div>
+            <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+              <div style={{flex:1}}><L>Payment Date</L><I type="date" value={upfrontReportDate} onChange={e=>setUpfrontReportDate(e.target.value)}/></div>
+              <PBtn onClick={()=>downloadUpfrontReport(orders,upfrontReportDate)} style={{flexShrink:0}}>{Ic.download} Download</PBtn>
+            </div>
+            <button onClick={()=>downloadUpfrontReport(orders,"")} style={{marginTop:6,fontSize:11,color:T.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline"}}>Download all dates</button>
+          </div>
+        </div>
+        <div style={{...cardSt}}>
+          <CardHdr>{Ic.download} Claim Sent Report</CardHdr>
+          <div style={{padding:"12px 14px"}}>
+            <div style={{fontSize:11,color:T.grey,marginBottom:8}}>By claim sent date · sorted by invoice no.</div>
+            <div style={{display:"flex",gap:8,alignItems:"flex-end"}}>
+              <div style={{flex:1}}><L>Claim Sent Date</L><I type="date" value={claimReportDate} onChange={e=>setClaimReportDate(e.target.value)}/></div>
+              <PBtn onClick={()=>downloadClaimReport(orders,claimReportDate)} style={{flexShrink:0}}>{Ic.download} Download</PBtn>
+            </div>
+            <button onClick={()=>downloadClaimReport(orders,"")} style={{marginTop:6,fontSize:11,color:T.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline"}}>Download all dates</button>
+          </div>
+        </div>
+      </div>}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10}}>
         <div>
           <div style={{fontSize:16,fontWeight:800,color:T.navy}}>Order Tracking</div>
           <div style={{fontSize:11,color:T.grey,marginTop:2}}>{activeOrders.length} active · {completedCount} completed</div>
         </div>
         <div style={{display:"flex",gap:8}}>
-          {isAdmin&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
-          <PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>
+          {isAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
+          {!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
         </div>
       </div>
 
