@@ -463,9 +463,16 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin})
         </div>
       </div>
 
-      {/* Two-column layout */}
+      {/* Two-column layout: left=timeline, right=info+action */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
-        {/* Left: info cards */}
+        {/* Left: tracking timeline */}
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div style={cardStyle}>
+            <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`,background:T.bg}}><div style={{fontSize:11,fontWeight:700,color:T.navy,textTransform:"uppercase",letterSpacing:"0.06em"}}>Tracking Timeline</div></div>
+            <div style={{padding:"14px 16px"}}><Timeline order={order}/></div>
+          </div>
+        </div>
+        {/* Right: order info + action */}
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div style={cardStyle}>
             <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`,background:T.bg}}><div style={{fontSize:11,fontWeight:700,color:T.navy,textTransform:"uppercase",letterSpacing:"0.06em"}}>Order Information</div></div>
@@ -509,16 +516,9 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin})
               ))}
             </div>
           </div>}
-        </div>
-        {/* Right: action + timeline */}
-        <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div>
             <div style={{fontSize:10,fontWeight:700,color:T.grey,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>Required Action</div>
             <ActionPanel order={order} isAdmin={isAdmin} onUpdate={onUpdate}/>
-          </div>
-          <div style={cardStyle}>
-            <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`,background:T.bg}}><div style={{fontSize:11,fontWeight:700,color:T.navy,textTransform:"uppercase",letterSpacing:"0.06em"}}>Tracking Timeline</div></div>
-            <div style={{padding:"14px 16px"}}><Timeline order={order}/></div>
           </div>
         </div>
       </div>
@@ -535,8 +535,13 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
   const isCash=f.orderType==="cash";
   const isReady=f.stockStatus==="ready";
   const branchSRs=(srList||[]).filter(s=>s.branch===(userBranch||f.branch));
+  const requiredFields=["phoneModel","customerName"];
+  const requiredCCM=["merchant","financePrice","stampingFee","agreementFee","deposit"];
+  const requiredCash=["retailPrice","deposit"];
+  const allRequired=[...requiredFields,...(isCash?requiredCash:requiredCCM)];
+  const missingFields=allRequired.filter(k=>!f[k]?.toString().trim());
   const submit=async()=>{
-    if(!f.phoneModel||!f.customerName){alert("Phone model and customer name required.");return;}
+    if(missingFields.length>0){alert(`Please fill in all required fields:\n${missingFields.map(k=>({phoneModel:"Phone Model",customerName:"Customer Name",merchant:"Merchant",financePrice:"Finance Price",stampingFee:"Stamping Fee",agreementFee:"Agreement Fee",deposit:"Deposit",retailPrice:"Retail Price"})[k]||k).join("\n")}`);return;}
     let depositSlip=f.depositSlip||null;
     if(slipFile)depositSlip=await readFile(slipFile);
     const initStep=isReady?4:1;
@@ -576,8 +581,8 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
       <div style={{...cardStyle,marginBottom:14}}>
         <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`,background:T.bg}}><div style={{fontSize:11,fontWeight:700,color:T.navy,textTransform:"uppercase",letterSpacing:"0.06em"}}>Basic Information</div></div>
         <div style={{padding:"14px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <div><Lbl req>Phone Model / Item</Lbl><Inp value={f.phoneModel} onChange={e=>set("phoneModel",e.target.value)}/></div>
-          <div><Lbl req>Customer Name</Lbl><Inp value={f.customerName} onChange={e=>set("customerName",e.target.value)}/></div>
+          <div><Lbl req>Phone Model / Item</Lbl><Inp value={f.phoneModel} onChange={e=>set("phoneModel",e.target.value)} style={{borderColor:!f.phoneModel&&missingFields.includes("phoneModel")?"#FECACA":""}}/></div>
+          <div><Lbl req>Customer Name</Lbl><Inp value={f.customerName} onChange={e=>set("customerName",e.target.value)} style={{borderColor:!f.customerName&&missingFields.includes("customerName")?"#FECACA":""}}/></div>
           <div><Lbl>Branch</Lbl><Sel value={f.branch} onChange={e=>set("branch",e.target.value)} disabled={!isAdmin&&!!userBranch}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}</Sel></div>
           <div><Lbl>Sales Agent</Lbl>{branchSRs.length>0?<Sel value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</Sel>:<Inp value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder="Agent ID"/>}</div>
         </div>
@@ -589,10 +594,10 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
           <div><Lbl>Merchant</Lbl><Sel value={f.merchant} onChange={e=>set("merchant",e.target.value)}>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</Sel></div>
           <div><Lbl>Agreement No.</Lbl><Inp value={f.agreementNumber} onChange={e=>set("agreementNumber",e.target.value)}/></div>
           <div><Lbl>Aeon Approval Date</Lbl><Inp type="date" value={f.aeonApprovalDate} onChange={e=>set("aeonApprovalDate",e.target.value)}/></div>
-          <div><Lbl>Finance Price (RM)</Lbl><Inp type="number" value={f.financePrice} onChange={e=>set("financePrice",e.target.value)}/></div>
-          <div><Lbl>Stamping Fee (RM)</Lbl><Inp type="number" value={f.stampingFee} onChange={e=>set("stampingFee",e.target.value)}/></div>
-          <div><Lbl>Agreement Fee (RM)</Lbl><Inp type="number" value={f.agreementFee} onChange={e=>set("agreementFee",e.target.value)}/></div>
-          <div><Lbl>Deposit (RM)</Lbl><Inp type="number" value={f.deposit} onChange={e=>set("deposit",e.target.value)}/></div>
+          <div><Lbl req>Finance Price (RM)</Lbl><Inp type="number" value={f.financePrice} onChange={e=>set("financePrice",e.target.value)} style={{borderColor:!f.financePrice&&missingFields.includes("financePrice")?"#FECACA":""}}/></div>
+          <div><Lbl req>Stamping Fee (RM)</Lbl><Inp type="number" value={f.stampingFee} onChange={e=>set("stampingFee",e.target.value)}/></div>
+          <div><Lbl req>Agreement Fee (RM)</Lbl><Inp type="number" value={f.agreementFee} onChange={e=>set("agreementFee",e.target.value)}/></div>
+          <div><Lbl req>Deposit (RM)</Lbl><Inp type="number" value={f.deposit} onChange={e=>set("deposit",e.target.value)}/></div>
         </div>
       </div>}
       {/* Cash */}
@@ -600,14 +605,15 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
         <div style={{padding:"10px 16px",borderBottom:`1px solid ${T.border}`,background:T.bg}}><div style={{fontSize:11,fontWeight:700,color:T.navy,textTransform:"uppercase",letterSpacing:"0.06em"}}>Cash Order Details</div></div>
         <div style={{padding:"14px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div><Lbl>Retail Price (RM)</Lbl><Inp type="number" value={f.retailPrice} onChange={e=>set("retailPrice",e.target.value)}/></div>
-          <div><Lbl>Deposit (RM)</Lbl><Inp type="number" value={f.deposit} onChange={e=>set("deposit",e.target.value)}/></div>
+          <div><Lbl req>Deposit (RM)</Lbl><Inp type="number" value={f.deposit} onChange={e=>set("deposit",e.target.value)}/></div>
           <div><Lbl>Deposit Payment Date</Lbl><Inp type="date" value={f.depositPaymentDate} onChange={e=>set("depositPaymentDate",e.target.value)}/></div>
           <div><Lbl>Deposit Payment Slip</Lbl><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setSlipFile(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{(slipFile||f.depositSlip)&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>Attached: {slipFile?.name||f.depositSlip?.name}</div>}</div>
         </div>
       </div>}
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
         <GhostBtn onClick={onCancel}>Cancel</GhostBtn>
-        <PrimaryBtn onClick={submit}>{isReady?"Submit & Dispatch":"Submit Order Request"}</PrimaryBtn>
+        {missingFields.length>0&&!order&&<div style={{padding:"8px 12px",background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:7,fontSize:11,color:"#92400E",display:"flex",alignItems:"center",gap:6,marginBottom:10}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Fill all required fields to submit.</div>}
+        <PrimaryBtn onClick={submit} disabled={!order&&missingFields.length>0}>{isReady?"Submit & Dispatch":"Submit Order Request"}</PrimaryBtn>
       </div>
     </div>
   );
@@ -657,15 +663,14 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       </div>
 
       {/* Phase stat cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:20}}>
         {stats.map(ph=>(
-          <div key={ph.id} onClick={()=>setFilterPhase(filterPhase===ph.id?"all":ph.id)} style={{...cardStyle,padding:"14px 16px",cursor:"pointer",borderColor:filterPhase===ph.id?T.navy:T.border,borderWidth:filterPhase===ph.id?2:1,transition:"all .15s"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-              <div style={{width:28,height:28,borderRadius:7,background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",color:T.navy}}>{PHASE_ICONS[ph.id]}</div>
-              <div style={{fontSize:10,fontWeight:700,color:T.grey,textTransform:"uppercase",letterSpacing:"0.05em"}}>{ph.label}</div>
+          <div key={ph.id} onClick={()=>setFilterPhase(filterPhase===ph.id?"all":ph.id)} style={{...cardStyle,padding:"12px 14px",cursor:"pointer",borderColor:filterPhase===ph.id?T.navy:T.border,borderWidth:filterPhase===ph.id?2:1,transition:"all .15s",display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:36,height:36,borderRadius:8,background:filterPhase===ph.id?T.navy:T.bg,display:"flex",alignItems:"center",justifyContent:"center",color:filterPhase===ph.id?"#fff":T.navy,flexShrink:0}}>{PHASE_ICONS[ph.id]}</div>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:11,fontWeight:700,color:T.grey,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ph.label}</div>
+              <div style={{fontSize:22,fontWeight:800,color:T.navy,lineHeight:1}}>{ph.count}</div>
             </div>
-            <div style={{fontSize:24,fontWeight:800,color:T.navy}}>{ph.count}</div>
-            <div style={{fontSize:10,color:T.grey,marginTop:2}}>order{ph.count!==1?"s":""}</div>
           </div>
         ))}
       </div>
