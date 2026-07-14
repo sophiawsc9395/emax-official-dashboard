@@ -716,8 +716,13 @@ function BatchArchive({orders,onSave,onClose}){
 // ── Alert helpers ─────────────────────────────────────────────────────────
 function daysSince(dateStr){
   if(!dateStr)return null;
-  const d=new Date(dateStr);const now=new Date();
-  return Math.floor((now-d)/(1000*60*60*24));
+  // Parse as local date (avoid UTC midnight vs local time offset issues)
+  const parts=dateStr.split('-');
+  const d=new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
+  const now=new Date();
+  // Zero out time on now for clean day diff
+  const nowDay=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  return Math.floor((nowDay-d)/(1000*60*60*24));
 }
 
 function getOrderAlerts(orders,userBranch=null){
@@ -731,18 +736,32 @@ function getOrderAlerts(orders,userBranch=null){
   // Alert 2: Approval date 31-60 days (warning), 61-90 days (urgent) for steps 6-11
   myOrders.filter(o=>o.aeonApprovalDate&&o.step>=1&&o.step<=12).forEach(o=>{
     const days=daysSince(o.aeonApprovalDate);
-    if(days>=61&&days<=90)alerts.push({type:"approval_urgent",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,invoiceNo:o.invoiceNo,days,msg:`Approval date ${days} days ago — URGENT`});
-    else if(days>=31&&days<=60)alerts.push({type:"approval_warning",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,invoiceNo:o.invoiceNo,days,msg:`Approval date ${days} days ago — action needed`});
+    if(days>=91)alerts.push({type:"approval_expired",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,invoiceNo:o.invoiceNo,days,msg:`Approval EXPIRED — ${days} days ago`});
+    else if(days>=61)alerts.push({type:"approval_urgent",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,invoiceNo:o.invoiceNo,days,msg:`Approval date ${days} days ago — URGENT`});
+    else if(days>=31)alerts.push({type:"approval_warning",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,invoiceNo:o.invoiceNo,days,msg:`Approval date ${days} days ago — action needed`});
   });
   return alerts;
 }
 
 function AlertBanner({alerts,onClickOrder}){
   if(!alerts.length)return null;
+  const expired=alerts.filter(a=>a.type==="approval_expired");
   const urgent=alerts.filter(a=>a.type==="approval_urgent"||a.type==="overdue_order");
   const warning=alerts.filter(a=>a.type==="approval_warning");
   return(
     <div style={{marginBottom:16,display:"flex",flexDirection:"column",gap:8}}>
+      {expired.length>0&&<div style={{background:"#1A0000",border:"1px solid #7F1D1D",borderRadius:9,padding:"10px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+          <span style={{color:"#FCA5A5"}}>{Ic.alert}</span>
+          <span style={{fontSize:11,fontWeight:800,color:"#FCA5A5",textTransform:"uppercase",letterSpacing:"0.06em"}}>Approval EXPIRED ({expired.length})</span>
+        </div>
+        {expired.map((a,i)=>(
+          <div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 10px",borderRadius:6,background:"rgba(255,255,255,.07)",marginBottom:4,cursor:onClickOrder?"pointer":"default",border:"1px solid #7F1D1D"}}>
+            <div><span style={{fontSize:11,fontWeight:700,color:"#FCA5A5"}}>{a.phoneModel}</span><span style={{fontSize:10,color:"#FCA5A5",marginLeft:6}}>{a.customerName} · {a.branch}</span></div>
+            <span style={{fontSize:10,color:"#FCA5A5",fontWeight:600,whiteSpace:"nowrap"}}>{a.msg}</span>
+          </div>
+        ))}
+      </div>}
       {urgent.length>0&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:9,padding:"10px 14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
           <span style={{color:"#B91C1C"}}>{Ic.alert}</span>
