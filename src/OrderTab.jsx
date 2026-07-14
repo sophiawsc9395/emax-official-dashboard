@@ -139,7 +139,6 @@ function InfoCell({label,value}){return<div style={{minWidth:0}}><div style={{fo
 function PhaseBar({step,order,dark=false}){
   const mxS=order?maxStep(order):12;
   const pct=Math.round(((Math.min(step,mxS)-1)/(mxS-1))*100);
-  const ph=getPhase(step);
   return(
     <div>
       <div style={{display:"flex",alignItems:"flex-start",gap:0,marginBottom:12}}>
@@ -153,7 +152,7 @@ function PhaseBar({step,order,dark=false}){
               {i<arr.length-1&&<div style={{flex:1,height:2,background:done?(dark?"rgba(255,255,255,.7)":C.navy):(dark?"rgba(255,255,255,.15)":"#E4EAF2"),margin:"0 3px",transition:"background .3s"}}/>}
             </div>
             <div style={{marginTop:5,paddingLeft:1}}>
-              <div style={{fontSize:9,fontWeight:700,color:dark?(active?"#FFD500":done?"rgba(255,255,255,.7)":"rgba(255,255,255,.35)"):(active?ph.color:done?C.textMid:C.textLight),textTransform:"uppercase",letterSpacing:"0.04em",lineHeight:1.2}}>{p.label}</div>
+              <div style={{fontSize:9,fontWeight:700,color:dark?(active?"#FFD500":done?"rgba(255,255,255,.7)":"rgba(255,255,255,.35)"):(active?C.blue:done?C.textMid:C.textLight),textTransform:"uppercase",letterSpacing:"0.04em",lineHeight:1.2}}>{p.label}</div>
             </div>
           </div>;
         })}
@@ -162,7 +161,7 @@ function PhaseBar({step,order,dark=false}){
         <div style={{height:"100%",width:`${pct}%`,background:dark?"linear-gradient(90deg,#FFD500,#FFF176)":`linear-gradient(90deg,${C.blue},${C.blueBright})`,borderRadius:2,transition:"width .5s cubic-bezier(.4,0,.2,1)"}}/>
       </div>
       <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:10,color:C.textLight}}>
-        <span style={{color:dark?"rgba(255,255,255,.5)":C.textLight}}>Step {step} of {mxS}</span><span style={{fontWeight:700,color:dark?"#FFD500":(ph?.color||C.blue)}}>{pct}%</span>
+        <span style={{color:dark?"rgba(255,255,255,.5)":C.textLight}}>Step {step} of {mxS}</span><span style={{fontWeight:700,color:dark?"#FFD500":C.blue}}>{pct}%</span>
       </div>
     </div>
   );
@@ -177,69 +176,41 @@ function isPendingBranchAction(order){
 function StepBadge({order,step}){
   const s2=step!=null?step:order?.step;
   const ph=getPhase(s2),s=getStep(s2);
-  if(order?.cancelled)return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:20,fontSize:10,fontWeight:700,background:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA",whiteSpace:"nowrap"}}>Cancelled</span>;
-  if(order&&isPendingBranchAction(order))return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:20,fontSize:10,fontWeight:700,background:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA",whiteSpace:"nowrap"}}>Pending Branch Action</span>;
+  if(order?.cancelled)return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:"#FEF2F2",color:"#B91C1C",border:"1px solid #FECACA",whiteSpace:"nowrap"}}>Cancelled</span>;
+  if(order&&isPendingBranchAction(order))return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:"#FEF2F2",color:"#B91C1C",border:"1px solid #FECACA",whiteSpace:"nowrap"}}>Pending Branch Action</span>;
   if(!ph)return null;
-  return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:20,fontSize:10,fontWeight:700,background:ph.bg,color:ph.color,border:`1px solid ${ph.color}30`,whiteSpace:"nowrap"}}>{s.label}</span>;
+  return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:C.surface,color:C.navy,border:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{s.label}</span>;
 }
 
 /* ── Timeline ─────────────────────────────────────────────────────────── */
-function Timeline({order,isAdmin,onUpdate}){
+function Timeline({order}){
   const cur=order.step;
   const isReady=order.stockStatus==="ready";
   const visSteps=getVisibleSteps(order);
   let lastPh=null;
-  const [editIdx,setEditIdx]=useState(null);
-  const [eDate,setEDate]=useState("");
-  const [eTime,setETime]=useState("");
-  const [eRemark,setERemark]=useState("");
-  const canEdit=isAdmin&&!!onUpdate;
-  const startEdit=(histIdx,h)=>{setEditIdx(histIdx);setEDate(h.date||"");setETime(h.time||"");setERemark(h.remark||h.verificationRemark||h.returnRemark||"");};
-  const saveEdit=async()=>{
-    const newHist=(order.history||[]).map((h,idx)=>{
-      if(idx!==editIdx)return h;
-      const upd={...h,date:eDate,time:eTime};
-      if("remark" in h||eRemark)upd.remark=eRemark;
-      else if("verificationRemark" in h)upd.verificationRemark=eRemark;
-      else if("returnRemark" in h)upd.returnRemark=eRemark;
-      return upd;
-    });
-    await onUpdate({...order,history:newHist});
-    setEditIdx(null);
-  };
   return<div>{visSteps.map((s,i)=>{
     const isAutoReady=isReady&&[2,3].includes(s.step);
     const done=cur>s.step||isAutoReady;
     const active=cur===s.step&&!isAutoReady;
-    const histIdx=(order.history||[]).map((h,idx)=>({h,idx})).filter(x=>x.h.step===s.step).slice(-1)[0];
-    const hist=histIdx?.h;
+    const hist=(order.history||[]).filter(h=>h.step===s.step).slice(-1)[0];
     const ph=getPhase(s.step),showPh=ph&&ph.id!==lastPh;
     if(ph)lastPh=ph.id;
-    const isEditing=canEdit&&hist&&editIdx===histIdx.idx;
     return<div key={s.step}>
-      {showPh&&<div style={{fontSize:9,fontWeight:800,color:C.navy,textTransform:"uppercase",letterSpacing:"0.08em",padding:"8px 0 5px 36px",marginTop:i>0?8:0,borderBottom:`1px solid ${C.border}`,marginBottom:5,display:"flex",alignItems:"center",gap:5}}><span style={{color:C.navy}}>{PHASE_ICONS[ph.id]}</span>{ph.label}</div>}
+      {showPh&&<div style={{fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.08em",padding:"8px 0 5px 36px",marginTop:i>0?8:0,borderBottom:`1px solid ${C.border}`,marginBottom:5,display:"flex",alignItems:"center",gap:5}}><span style={{color:C.textLight}}>{PHASE_ICONS[ph.id]}</span>{ph.label}</div>}
       <div style={{display:"flex",position:"relative"}}>
-        {i<visSteps.length-1&&<div style={{position:"absolute",left:11,top:24,width:1,height:"calc(100% + 2px)",background:done?`${ph?.color}40`:C.border,zIndex:0}}/>}
+        {i<visSteps.length-1&&<div style={{position:"absolute",left:11,top:24,width:1,height:"calc(100% + 2px)",background:done?C.navy+"30":C.border,zIndex:0}}/>}
         <div style={{flexShrink:0,width:22,height:22,borderRadius:"50%",background:done?C.navy:active?C.blue:C.surface,border:`2px solid ${done?C.navy:active?C.blue:C.border}`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,marginRight:10,marginTop:1,color:"#fff",transition:"all .2s"}}>
           {done?Ic.check:active?<div style={{width:6,height:6,borderRadius:"50%",background:"#fff"}}/>:<span style={{fontSize:8,fontWeight:700,color:C.textLight}}>{s.step}</span>}
         </div>
         <div style={{flex:1,paddingBottom:i<visSteps.length-1?11:0,paddingTop:1}}>
           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
             <span style={{fontSize:12,fontWeight:done||active?600:400,color:done||active?C.text:"#9CA3AF"}}>{s.label}</span>
-            {isAutoReady&&<span style={{background:C.surface,color:C.textLight,padding:"1px 7px",borderRadius:20,fontSize:9,fontWeight:600,border:`1px solid ${C.border}`}}>Auto</span>}
-            {active&&<span style={{background:"#FEF9C3",color:"#92400E",padding:"1px 7px",borderRadius:20,fontSize:9,fontWeight:700,border:"1px solid #FDE68A"}}>Current</span>}
-            {hist?.date&&!isEditing&&<span style={{fontSize:10,color:C.textLight}}>{fDT(hist.date,hist.time)}</span>}
-            {canEdit&&hist&&!isEditing&&<button onClick={()=>startEdit(histIdx.idx,hist)} style={{background:"none",border:"none",cursor:"pointer",color:C.textLight,padding:2,display:"inline-flex"}} title="Edit entry">{Ic.edit}</button>}
+            {isAutoReady&&<span style={{background:C.surface,color:C.textLight,padding:"1px 7px",borderRadius:4,fontSize:9,fontWeight:600,border:`1px solid ${C.border}`}}>Auto</span>}
+            {active&&<span style={{background:C.surface,color:C.blue,padding:"1px 7px",borderRadius:4,fontSize:9,fontWeight:700,border:`1px solid ${C.border}`}}>Current</span>}
+            {hist?.date&&<span style={{fontSize:10,color:C.textLight}}>{fDT(hist.date,hist.time)}</span>}
           </div>
-          {isEditing?<div style={{marginTop:4,background:"#FFFBEB",borderRadius:7,padding:"8px 10px",border:"1px solid #FDE68A"}}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:6}}>
-              <div><L>Date</L><I type="date" value={eDate} onChange={e=>setEDate(e.target.value)}/></div>
-              <div><L>Time</L><I type="time" value={eTime} onChange={e=>setETime(e.target.value)}/></div>
-            </div>
-            <div style={{marginBottom:6}}><L>Remark</L><I value={eRemark} onChange={e=>setERemark(e.target.value)}/></div>
-            <div style={{display:"flex",gap:6,justifyContent:"flex-end"}}><GBtn onClick={()=>setEditIdx(null)} style={{padding:"5px 10px"}}>Cancel</GBtn><PBtn onClick={saveEdit} style={{padding:"5px 10px"}}>Save</PBtn></div>
-          </div>:hist&&<div style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid}}>
-            {hist.orderDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Order Date: {fDate(hist.orderDate)}{isAdmin&&hist.supplierName?` · ${hist.supplierName}`:""}</div>}
+          {hist&&<div style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid}}>
+            {hist.orderDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Order Date: {fDate(hist.orderDate)}{hist.supplierName?` · ${hist.supplierName}`:""}</div>}
             {hist.remark&&<div style={{marginBottom:2,color:C.textMid}}>Remark: {hist.remark}</div>}
             {hist.invoiceNo&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Invoice: {hist.invoiceNo}</div>}
             {hist.claimSentDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Claim Sent: {fDate(hist.claimSentDate)}</div>}
@@ -610,8 +581,8 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
           <span style={{fontSize:14,fontWeight:800,color:C.navy}}>{order.phoneModel}</span>
           <StepBadge order={order}/>
-          {order.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:C.blue,background:"#EFF6FF",padding:"2px 8px",borderRadius:4,border:"1px solid #BFDBFE",display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>Ready Stock</span>}
-          {isCash?<span style={{fontSize:9,fontWeight:700,color:"#15803D",background:"#F0FDF4",padding:"2px 8px",borderRadius:4,border:"1px solid #BBF7D0",display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>Cash</span>:<span style={{fontSize:9,fontWeight:700,color:C.blue,background:"#EFF6FF",padding:"2px 8px",borderRadius:4,border:"1px solid #BFDBFE",display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:5,height:5,borderRadius:"50%",background:"currentColor",flexShrink:0}}/>CCM</span>}
+          {order.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>Ready Stock</span>}
+          {isCash?<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>Cash</span>:<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>CCM</span>}
         </div>
         <div style={{fontSize:11,color:C.textLight,marginTop:3}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}</div>
       </div>
@@ -663,7 +634,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,alignItems:"start"}}>
       <div style={card}>
         <SecHdr icon={Ic.calendar}>Tracking Timeline</SecHdr>
-        <div style={{padding:"14px 16px"}}><Timeline order={order} isAdmin={isAdmin} onUpdate={!isReadOnly?onUpdate:null}/></div>
+        <div style={{padding:"14px 16px"}}><Timeline order={order}/></div>
       </div>
       <div>
         {order.cancelled?<div style={{...card,padding:"16px"}}>
