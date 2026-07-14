@@ -12,22 +12,23 @@ const PHASES=[
   {id:"billing",label:"Billing",steps:[6,7,8],color:"#B45309",bg:"#FFFBEB"},
   {id:"agreement_hq",label:"Agreement → HQ",steps:[9,10],color:"#0891B2",bg:"#ECFEFF"},
   {id:"unclaimed",label:"Unclaimed",steps:[11],color:"#DC2626",bg:"#FEF2F2"},
-  {id:"claimed",label:"Claimed",steps:[12],color:"#15803D",bg:"#F0FDF4"},
+  {id:"claimed",label:"Claimed",steps:[12,13],color:"#15803D",bg:"#F0FDF4"},
 ];
 const STEPS=[
   {step:1,label:"New Order Request",desc:"Order submitted by branch.",who:"branch",phase:"stock"},
   {step:2,label:"Ordered",desc:"Purchase order placed with supplier.",who:"admin",phase:"stock",needsOrderDate:true,needsRemark:true},
-  {step:3,label:"Arrived HQ",desc:"Item received at HQ.",who:"admin",phase:"stock"},
+  {step:3,label:"Arrived HQ",desc:"Item received at HQ.",who:"admin",phase:"stock",needsFiles:[{key:"claimToPurchaser",label:"Claim to Purchaser File"}]},
   {step:4,label:"Dispatched to Branch",desc:"Item dispatched from HQ.",who:"admin",phase:"transfer",needsFiles:[{key:"consignment",label:"Consignment Note"},{key:"stockTransfer",label:"Stock Transfer PDF"}]},
   {step:5,label:"Arrived Branch",desc:"Branch confirms receipt.",who:"branch",phase:"transfer"},
   {step:6,label:"Billing Request",desc:"Submit billing request form.",who:"branch",phase:"billing",needsBillingForm:true},
   {step:7,label:"Billed",desc:"Admin completes billing with invoice.",who:"admin",phase:"billing",needsInvoiceNo:true,needsFiles:[{key:"invoice",label:"Sales Invoice PDF"}]},
-  {step:8,label:"Customer Collection",desc:"Customer collects device and payment received.",who:"admin",phase:"billing",needsFiles:[{key:"collectionProof",label:"Collection Proof"},{key:"paymentProof",label:"Payment Proof"}]},
+  {step:8,label:"Customer Collection",desc:"Customer collects device and payment received.",who:"both",phase:"billing",needsFiles:[{key:"collectionProof",label:"Collection Proof"},{key:"paymentProof",label:"Payment Proof"},{key:"balanceSlip",label:"Balance Payment Slip (if short paid)",optional:true}]},
   {step:9,label:"Collection Verified",desc:"HQ verifies collection and upfront payment.",who:"admin",phase:"agreement_hq",needsVerification:true},
   {step:10,label:"Agreement Checklist",desc:"Branch completes agreement checklist.",who:"both",phase:"agreement_hq",needsChecklist:true},
   {step:11,label:"Agreement at HQ",desc:"HQ receives original signed agreement.",who:"admin",phase:"unclaimed",canReverse:true},
-  {step:12,label:"Claimed",desc:"Claim released. Enter claim sent date and knock-off date.",who:"admin",phase:"claimed"},
-  {step:13,label:"Completed",desc:"Order completed and archived.",who:"admin",phase:"claimed"},
+  {step:12,label:"Claimed",desc:"Claim sent out to merchant.",who:"admin",phase:"claimed"},
+  {step:13,label:"Claim Released",desc:"Knock-off date is set in bulk from the dashboard, then mark as complete.",who:"admin",phase:"claimed"},
+  {step:14,label:"Completed",desc:"Order completed and archived.",who:"admin",phase:"claimed"},
 ];
 const CHECKLIST_ITEMS=["Aeon Application Form (3 pages)","Invoice","Result List","Notice 1 — Application (2 pages × 2 sets)","Notice 2 — Approval (8 pages)","Agreement (16 pages)","IC Copy","AutoDebit Form (Personal Account)","Bank Proof (Personal Account)"];
 
@@ -40,12 +41,8 @@ function getVisibleSteps(order){
     const base=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9];
     return STEPS.filter(s=>base.includes(s.step));
   }
-  // CCM: all 1-12
-  if(isReady){
-    // Show 1-4 as collapsed (auto), then 4-12
-    return STEPS.filter(s=>s.step<=12);
-  }
-  return STEPS.filter(s=>s.step<=12);
+  // CCM: all 1-13 (14=Completed is archived, shown separately)
+  return STEPS.filter(s=>s.step<=13);
 }
 
 // Returns the "next" step number for a given order
@@ -54,16 +51,16 @@ function nextStepNum(order){
   const isReady=order.stockStatus==="ready";
   const cur=order.step;
   if(isCash){
-    const seq=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,13]; // 13=completed for cash
+    const seq=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,14]; // 14=completed for cash
     const idx=seq.indexOf(cur);
     return idx>=0&&idx<seq.length-1?seq[idx+1]:null;
   }
-  return cur<12?cur+1:null;
+  return cur<13?cur+1:null; // step 13 (Claim Released) advances via bulk knock-off + manual complete, not generic "next"
 }
 
 // Max step for progress calculation
 function maxStep(order){
-  return order.orderType==="cash"?9:12;
+  return order.orderType==="cash"?9:13;
 }
 
 const fRM=(n=0)=>"RM "+((parseFloat(n)||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2}));
@@ -203,6 +200,8 @@ function Timeline({order}){
           </div>
           {hist&&<div style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid}}>
             {hist.orderDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Order Date: {fDate(hist.orderDate)}{hist.supplierName?` · ${hist.supplierName}`:""}</div>}
+            {(hist.poNumber||hist.purchaserName)&&<div style={{marginBottom:2,color:C.textMid}}>{hist.poNumber?`PO: ${hist.poNumber}`:""}{hist.poNumber&&hist.purchaserName?" · ":""}{hist.purchaserName?`Purchaser: ${hist.purchaserName}`:""}</div>}
+            {hist.cancelledDate&&<div style={{marginBottom:2,color:"#DC2626",fontWeight:600}}>Supplier Cancelled — {fDate(hist.cancelledDate)}</div>}
             {hist.remark&&<div style={{marginBottom:2,color:C.textMid}}>Remark: {hist.remark}</div>}
             {hist.invoiceNo&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Invoice: {hist.invoiceNo}</div>}
             {hist.claimSentDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Claim Sent: {fDate(hist.claimSentDate)}</div>}
@@ -255,9 +254,19 @@ function BillingForm({order,onSubmit,onCancel}){
 }
 
 /* ── Checklist Form ───────────────────────────────────────────────────── */
-function ChecklistForm({onSubmit,onCancel,issueItems=[]}){
+function ChecklistForm({onSubmit,onCancel,issueItems=[],existingFile}){
   const [items,setItems]=useState(CHECKLIST_ITEMS.map(name=>({name,checked:false,issue:issueItems.includes(name)})));
+  const [file,setFile]=useState(null);
+  const [saving,setSaving]=useState(false);
   const allChecked=items.every(x=>x.checked);
+  const submit=async()=>{
+    if(!allChecked)return;
+    setSaving(true);
+    let consignmentNote=existingFile||null;
+    if(file)consignmentNote=await readFile(file);
+    onSubmit(items,consignmentNote);
+    setSaving(false);
+  };
   return<div style={{...card,marginBottom:16}}>
     <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px"}}><div style={{fontWeight:800,fontSize:14,color:"#fff"}}>Agreement Checklist</div><div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginTop:2}}>Tick all items before sending to HQ</div></div>
     <div style={{padding:16}}>
@@ -265,8 +274,13 @@ function ChecklistForm({onSubmit,onCancel,issueItems=[]}){
         <div style={{width:18,height:18,borderRadius:4,background:item.checked?C.navy:"#fff",border:`2px solid ${item.checked?C.navy:item.issue?"#EF4444":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",transition:"all .15s"}}>{item.checked&&Ic.check}</div>
         <span style={{fontSize:12,fontWeight:item.checked?600:400,color:item.issue&&!item.checked?"#DC2626":item.checked?"#15803D":C.textMid}}>{item.name}{item.issue&&!item.checked&&<span style={{fontSize:10,marginLeft:7,fontWeight:700,color:"#DC2626"}}> ⚠ Flagged</span>}</span>
       </div>)}
+      <div style={{marginTop:6,marginBottom:6}}>
+        <L>Consignment Note (Branch → HQ)</L>
+        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFile(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>
+        {(file||existingFile)&&<div style={{fontSize:10,color:"#15803D",marginTop:2,fontWeight:600}}>✓ {file?.name||existingFile?.name}</div>}
+      </div>
       {!allChecked&&<div style={{padding:"8px 12px",background:"#FFFBEB",borderRadius:8,border:"1px solid #FDE68A",fontSize:11,color:"#92400E",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} All items must be ticked to proceed.</div>}
-      <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:12}}><GBtn onClick={onCancel}>{Ic.chevL} Back</GBtn><PBtn onClick={()=>allChecked&&onSubmit(items)} disabled={!allChecked}>Submit Checklist</PBtn></div>
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:12}}><GBtn onClick={onCancel}>{Ic.chevL} Back</GBtn><PBtn onClick={submit} disabled={!allChecked||saving}>{saving?"Saving…":"Submit Checklist"}</PBtn></div>
     </div>
   </div>;
 }
@@ -305,8 +319,11 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const [invoiceNo,setInvoiceNo]=useState("");
   const [orderDate,setOrderDate]=useState(nowDate());
   const [supplierName,setSupplierName]=useState("");
+  const [poNumber,setPoNumber]=useState("");
+  const [purchaserName,setPurchaserName]=useState("");
+  const [showShortPayment,setShowShortPayment]=useState(false);
+  const [shortPayRemark,setShortPayRemark]=useState("");
   const [claimSentDate,setClaimSentDate]=useState(nowDate());
-  const [knockOffDate,setKnockOffDate]=useState(nowDate());
   const [files,setFiles]=useState({});
   const [collection,setCollection]=useState(false);
   const [payment,setPayment]=useState(false);
@@ -320,54 +337,70 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const [showChecklist,setShowChecklist]=useState(false);
   const [showReturn,setShowReturn]=useState(false);
   const [returnRemark,setReturnRemark]=useState("");
-  const [returnItems,setReturnItems]=useState(CHECKLIST_ITEMS.map(n=>({name:n,issue:false})));
+  const [returnItems,setReturnItems]=useState(()=>(order.checklistItems&&order.checklistItems.length?order.checklistItems:CHECKLIST_ITEMS.map(n=>({name:n,checked:false}))).map(x=>({name:x.name,checked:!!x.checked,issue:false})));
   const upfront=calcUpfront(order);
 
   if(step===12&&!isCash){
     return<div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={card}>
-        <SecHdr icon={Ic.checkCircle}>Claimed — Enter Dates</SecHdr>
+        <SecHdr icon={Ic.checkCircle}>Claimed</SecHdr>
         <div style={{padding:"14px 16px"}}>
-          <div style={{background:"#F0FDF4",borderRadius:8,padding:"10px 12px",border:"1px solid #BBF7D0",marginBottom:14,display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#15803D",fontWeight:600}}>{Ic.checkCircle} Claim released. Record claim sent and knock-off dates to complete.</div>
-          {order.claimSentDate?<div style={{fontSize:12,marginBottom:8}}><span style={{color:C.textLight,fontWeight:600}}>Claim Sent: </span>{fDate(order.claimSentDate)}</div>:<div style={{marginBottom:10}}><L req>Claim Sent Out to Merchant Date</L><I type="date" value={claimSentDate} onChange={e=>setClaimSentDate(e.target.value)}/></div>}
-          {order.knockOffDate?<div style={{fontSize:12,marginBottom:12}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Date: </span>{fDate(order.knockOffDate)}</div>:<div style={{marginBottom:12}}><L req>Knock-off Date</L><I type="date" value={knockOffDate} onChange={e=>setKnockOffDate(e.target.value)}/></div>}
-          {(!order.knockOffDate||!order.claimSentDate)&&<PBtn onClick={async()=>{setSaving(true);const sd=claimSentDate||order.claimSentDate,kd=knockOffDate||order.knockOffDate;const h={step:12,date:nowDate(),time:nowTime(),note:"Claim sent and knock-off recorded",claimSentDate:sd,knockOffDate:kd};await onUpdate({...order,claimSentDate:sd,knockOffDate:kd,history:[...(order.history||[]),h]});setSaving(false);}} disabled={saving||(!claimSentDate&&!order.claimSentDate)} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Save Dates"}</PBtn>}
-          {order.knockOffDate&&isAdmin&&<><Divider/><DBtn onClick={async()=>{if(!confirm("Move to Completed?"))return;setSaving(true);const h={step:13,date:nowDate(),time:nowTime(),note:"Completed and archived"};await onUpdate({...order,step:13,history:[...(order.history||[]),h]});setSaving(false);}} style={{width:"100%",justifyContent:"center"}}>{Ic.trash} Mark as Completed</DBtn></>}
+          <div style={{background:"#F0FDF4",borderRadius:8,padding:"10px 12px",border:"1px solid #BBF7D0",marginBottom:14,display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#15803D",fontWeight:600}}>{Ic.checkCircle} Record the date this claim was sent out to the merchant to advance to Claim Released.</div>
+          <div style={{marginBottom:12}}><L req>Claim Sent Out to Merchant Date</L><I type="date" value={claimSentDate} onChange={e=>setClaimSentDate(e.target.value)}/></div>
+          <PBtn onClick={async()=>{setSaving(true);const h={step:13,date:nowDate(),time:nowTime(),note:"Claim sent out to merchant",claimSentDate};await onUpdate({...order,step:13,claimSentDate,history:[...(order.history||[]),h]});setSaving(false);}} disabled={saving||!claimSentDate} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Confirm Claim Sent"} {!saving&&Ic.chevR}</PBtn>
         </div>
       </div>
-      {isAdmin&&<ReportCard allOrders={allOrders} reportDate={reportDate} setReportDate={setReportDate}/>}
     </div>;
   }
-  if(step===13)return<div style={{background:"#F0FDF4",borderRadius:12,padding:"16px",border:"1px solid #BBF7D0",display:"flex",alignItems:"center",gap:10}}>{Ic.checkCircle}<div><div style={{fontWeight:700,fontSize:14,color:"#15803D"}}>Order Completed</div><div style={{fontSize:11,color:"#166534",marginTop:2}}>Knock-off: {fDate(order.knockOffDate)}</div></div></div>;
+  if(step===13&&!isCash){
+    return<div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div style={card}>
+        <SecHdr icon={Ic.checkCircle}>Claim Released</SecHdr>
+        <div style={{padding:"14px 16px"}}>
+          <div style={{fontSize:12,marginBottom:10}}><span style={{color:C.textLight,fontWeight:600}}>Claim Sent: </span>{fDate(order.claimSentDate)}</div>
+          {order.knockOffDate
+            ?<div style={{fontSize:12,marginBottom:12}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Date: </span>{fDate(order.knockOffDate)}</div>
+            :<div style={{background:"#FFFBEB",borderRadius:8,padding:"10px 12px",border:"1px solid #FDE68A",marginBottom:12,fontSize:12,color:"#92400E",display:"flex",alignItems:"center",gap:8}}>{Ic.alertCircle} Knock-off date not set. Use "Set Knock-off Date" (bulk action) on the dashboard to assign it to this invoice.</div>}
+          {order.knockOffDate&&isAdmin&&<DBtn onClick={async()=>{if(!confirm("Move to Completed?"))return;setSaving(true);const h={step:14,date:nowDate(),time:nowTime(),note:"Completed and archived"};await onUpdate({...order,step:14,history:[...(order.history||[]),h]});setSaving(false);}} style={{width:"100%",justifyContent:"center"}}>{Ic.trash} Mark as Completed</DBtn>}
+        </div>
+      </div>
+    </div>;
+  }
+  if(step===14)return<div style={{background:"#F0FDF4",borderRadius:12,padding:"16px",border:"1px solid #BBF7D0",display:"flex",alignItems:"center",gap:10}}>{Ic.checkCircle}<div><div style={{fontWeight:700,fontSize:14,color:"#15803D"}}>Order Completed</div><div style={{fontSize:11,color:"#166534",marginTop:2}}>Knock-off: {fDate(order.knockOffDate)}</div></div></div>;
   if(!nextDef)return null;
-  const branchOk=isAdmin||[5,6,10].includes(nextDef.step);
+  const branchOk=isAdmin||[5,6,8,10].includes(nextDef.step);
 
   if(nextDef.step===6&&branchOk){
+    const approvalDays=!isCash?daysSince(order.aeonApprovalDate):null;
+    const approvalBlocked=!isCash&&approvalDays!==null&&approvalDays>60;
+    if(approvalBlocked)return<ActionBox icon={Ic.alertCircle} title="Billing Request Blocked">
+      <div style={{padding:"10px 12px",background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,fontSize:12,color:"#DC2626",fontWeight:600,display:"flex",alignItems:"center",gap:8}}>{Ic.alertCircle} Cannot proceed to Billing Request — Aeon Approval Date was {approvalDays} days ago (limit: 60 days). Please resolve with HQ before submitting billing.</div>
+    </ActionBox>;
     if(showBilling)return<BillingForm order={order} onCancel={()=>setShowBilling(false)} onSubmit={async d=>{setSaving(true);const h={step:6,date:nowDate(),time:nowTime(),note:"Billing Request",billingData:d};await onUpdate({...order,step:6,billingData:d,history:[...(order.history||[]),h]});setSaving(false);setShowBilling(false);}}/>;
     return<ActionBox icon={Ic.clipboard} title="Billing Request" desc="Complete the billing form to advance."><PBtn onClick={()=>setShowBilling(true)} style={{width:"100%",justifyContent:"center"}}>Open Billing Form {Ic.chevR}</PBtn></ActionBox>;
   }
   if(nextDef.step===10){
     const lastReturn=(order.history||[]).filter(h=>h.issueItems).slice(-1)[0];
-    if(showChecklist)return<ChecklistForm issueItems={lastReturn?.issueItems||[]} onCancel={()=>setShowChecklist(false)} onSubmit={async items=>{setSaving(true);const h={step:10,date:nowDate(),time:nowTime(),note:"Checklist Completed",checklistItems:items};await onUpdate({...order,step:10,checklistItems:items,history:[...(order.history||[]),h]});setSaving(false);setShowChecklist(false);}}/>;
+    if(showChecklist)return<ChecklistForm issueItems={lastReturn?.issueItems||[]} existingFile={order.consignmentNoteFile} onCancel={()=>setShowChecklist(false)} onSubmit={async(items,consignmentNote)=>{setSaving(true);const h={step:10,date:nowDate(),time:nowTime(),note:"Checklist Completed",checklistItems:items,files:consignmentNote?{consignmentNote}:undefined};await onUpdate({...order,step:10,checklistItems:items,consignmentNoteFile:consignmentNote||order.consignmentNoteFile,history:[...(order.history||[]),h]});setSaving(false);setShowChecklist(false);}}/>;
     return<ActionBox icon={Ic.clipboard} title="Agreement Checklist" desc="Complete checklist before sending to HQ."><PBtn onClick={()=>setShowChecklist(true)} style={{width:"100%",justifyContent:"center"}}>Open Checklist {Ic.chevR}</PBtn></ActionBox>;
   }
 
   const advance=async()=>{
     setSaving(true);
     const rf={};for(const[k,f] of Object.entries(files))if(f)rf[k]=await readFile(f);
-    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,totalDue:isCash?calcCashDue(order):upfront.total,paymentMethod:payMethod}:{})};
+    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,totalDue:isCash?calcCashDue(order):upfront.total,paymentMethod:payMethod}:{})};
     const updated={...order,step:nextDef.step,history:[...(order.history||[]),h]};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
-    if(isCash&&nextDef.step===13){updated.step=13;}
-    if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;}
+    if(isCash&&nextDef.step===14){updated.step=14;}
+    if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;if(poNumber)updated.poNumber=poNumber;if(purchaserName)updated.purchaserName=purchaserName;}
     if(nextDef.needsInvoiceNo)updated.invoiceNo=invoiceNo;
-    await onUpdate(updated);setSaving(false);setRemark("");setInvoiceNo("");setFiles({});setVerRemark("");setCollection(false);setPayment(false);
+    await onUpdate(updated);setSaving(false);setRemark("");setInvoiceNo("");setFiles({});setVerRemark("");setCollection(false);setPayment(false);setPoNumber("");setPurchaserName("");
   };
   const ok=()=>{
     if(!branchOk)return false;
     if(nextDef.needsOrderDate&&isAdmin&&!orderDate)return false;
     if(nextDef.needsInvoiceNo&&isAdmin&&!invoiceNo.trim())return false;
-    if(nextDef.needsFiles){const req=(nextDef.needsFiles||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof"));if(isAdmin&&req.some(f=>!files[f.key]))return false;}
+    if(nextDef.needsFiles){const req=(nextDef.needsFiles||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof"));if(req.some(f=>!files[f.key]))return false;}
     return true;
   };
 
@@ -377,15 +410,25 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
         {nextDef.needsOrderDate&&isAdmin&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
           <div><L req>Order Date</L><I type="date" value={orderDate} onChange={e=>setOrderDate(e.target.value)}/></div>
           <div><L>Supplier Name</L><I value={supplierName} onChange={e=>setSupplierName(e.target.value)} placeholder="Supplier name…"/></div>
+          <div><L>PO Number</L><I value={poNumber} onChange={e=>setPoNumber(e.target.value)} placeholder="PO number…"/></div>
+          <div><L>Purchaser Name</L><I value={purchaserName} onChange={e=>setPurchaserName(e.target.value)} placeholder="Purchaser name…"/></div>
         </div>}
         {nextDef.needsRemark&&isAdmin&&<div style={{marginBottom:12}}><L>Remark / ETA / Order Details</L><TX value={remark} onChange={e=>setRemark(e.target.value)} rows={2} placeholder="ETA, order reference, notes…"/></div>}
         {nextDef.needsInvoiceNo&&isAdmin&&<>
-          <div style={{marginBottom:12}}><L req>Sales Invoice Number</L><I value={invoiceNo} onChange={e=>setInvoiceNo(e.target.value)} placeholder="INV-2026-0001"/></div>
-          {!isCash&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
-            <div style={{...lbl,marginBottom:8}}>Customer Upfront Payment Breakdown</div>
-            {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",fontWeight:800,color:C.navy}}><span>Total Upfront</span><span>{fRM(upfront.total)}</span></div>
+          {order.billingData&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
+            <div style={{...lbl,marginBottom:8}}>Billing Request Details (submitted by branch)</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12,color:C.textMid}}>
+              <div><b style={{color:C.text}}>Customer:</b> {order.billingData.customerFullName||"—"}</div>
+              <div><b style={{color:C.text}}>IC:</b> {order.billingData.customerIC||"—"}</div>
+              <div><b style={{color:C.text}}>HP:</b> {order.billingData.customerHP||"—"}</div>
+              <div><b style={{color:C.text}}>Item Code:</b> {order.billingData.itemCode||"—"}</div>
+              <div><b style={{color:C.text}}>IMEI:</b> {order.billingData.imeiSerial||"—"}</div>
+              <div><b style={{color:C.text}}>Billing Date:</b> {fDate(order.billingData.billingDate)}</div>
+              <div style={{gridColumn:"1/-1"}}><b style={{color:C.text}}>Email:</b> {order.billingData.customerEmail||"—"}</div>
+              <div style={{gridColumn:"1/-1"}}><b style={{color:C.text}}>Address:</b> {order.billingData.customerAddress?`${order.billingData.customerAddress}, ${order.billingData.customerPostCode} ${order.billingData.customerCity}`:"—"}</div>
+            </div>
           </div>}
+          <div style={{marginBottom:12}}><L req>Sales Invoice Number</L><I value={invoiceNo} onChange={e=>setInvoiceNo(e.target.value)} placeholder="INV-2026-0001"/></div>
         </>}
         {nextDef.needsVerification&&isAdmin&&<div style={{marginBottom:12}}>
           <div style={{...lbl,marginBottom:8}}>Verification Checklist</div>
@@ -401,30 +444,50 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           </div>
           <div><L>Remark</L><I value={verRemark} onChange={e=>setVerRemark(e.target.value)} placeholder="Verification notes…"/></div>
         </div>}
-        {nextDef.needsFiles&&isAdmin&&nextDef.needsFiles.filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional})=><div key={key} style={{marginBottom:12}}><L req={!optional}>{label}{optional?" (optional)":""}</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,[key]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>{files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files[key].name}</div>}</div>)}
+        {nextDef.step===8&&!isCash&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
+          <div style={{...lbl,marginBottom:8}}>Customer Upfront Payment Breakdown</div>
+          {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",fontWeight:800,color:C.navy}}><span>Total Upfront</span><span>{fRM(upfront.total)}</span></div>
+        </div>}
+        {nextDef.needsFiles&&nextDef.needsFiles.filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional})=><div key={key} style={{marginBottom:12}}><L req={!optional}>{label}{optional?" (optional)":""}</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,[key]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>{files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files[key].name}</div>}</div>)}
         {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
         <PBtn onClick={advance} disabled={!ok()||saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":`Confirm: ${nextDef.label}`} {!saving&&Ic.chevR}</PBtn>
       </>}
     </ActionBox>
-    {step===11&&isAdmin&&(!showReturn
-      ?<DBtn onClick={()=>setShowReturn(true)} style={{width:"100%",justifyContent:"center"}}>{Ic.rotate} Return Agreement to Branch</DBtn>
+    {step===3&&isAdmin&&<DBtn onClick={async()=>{if(!confirm("Mark this order as cancelled by the supplier and return it to New Order Request?"))return;setSaving(true);const cd=nowDate();const h={step:1,date:nowDate(),time:nowTime(),note:"Supplier Cancelled Order",cancelledDate:cd,reversedFrom:3};await onUpdate({...order,step:1,cancelledDate:cd,history:[...(order.history||[]),h]});setSaving(false);}} style={{width:"100%",justifyContent:"center"}}>{Ic.rotate} Supplier Cancelled Order</DBtn>}
+    {step===9&&isAdmin&&(!showShortPayment
+      ?<DBtn onClick={()=>setShowShortPayment(true)} style={{width:"100%",justifyContent:"center"}}>{Ic.rotate} Short Payment</DBtn>
       :<div style={card}>
-        <SecHdr icon={Ic.rotate}><span style={{color:"#DC2626"}}>Return Agreement to Branch</span></SecHdr>
+        <SecHdr icon={Ic.rotate}><span style={{color:"#DC2626"}}>Short Payment — Return to Collection</span></SecHdr>
         <div style={{padding:"14px 16px"}}>
-          <div style={{marginBottom:12}}><L req>Return Remark</L><TX value={returnRemark} onChange={e=>setReturnRemark(e.target.value)} rows={2} placeholder="Reason for returning…" style={{borderColor:"#FECACA"}}/></div>
-          <div style={{...lbl,marginBottom:8}}>Mark Problematic Items</div>
+          <div style={{marginBottom:12}}><L req>Remark</L><TX value={shortPayRemark} onChange={e=>setShortPayRemark(e.target.value)} rows={2} placeholder="Describe the shortfall…" style={{borderColor:"#FECACA"}}/></div>
+          <div style={{display:"flex",gap:8}}>
+            <GBtn onClick={()=>setShowShortPayment(false)} style={{flex:1,justifyContent:"center"}}>Cancel</GBtn>
+            <DBtn onClick={async()=>{if(!shortPayRemark.trim()){alert("Remark required.");return;}setSaving(true);const h={step:8,date:nowDate(),time:nowTime(),note:"Short Payment",verificationRemark:shortPayRemark,reversedFrom:9};await onUpdate({...order,step:8,history:[...(order.history||[]),h]});setSaving(false);setShowShortPayment(false);setShortPayRemark("");}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Confirm Short Payment"}</DBtn>
+          </div>
+        </div>
+      </div>
+    )}
+    {step===11&&isAdmin&&(!showReturn
+      ?<DBtn onClick={()=>setShowReturn(true)} style={{width:"100%",justifyContent:"center"}}>{Ic.rotate} Pending Branch Action</DBtn>
+      :<div style={card}>
+        <SecHdr icon={Ic.rotate}><span style={{color:"#DC2626"}}>Pending Branch Action</span></SecHdr>
+        <div style={{padding:"14px 16px"}}>
+          <div style={{marginBottom:12}}><L req>Remark</L><TX value={returnRemark} onChange={e=>setReturnRemark(e.target.value)} rows={2} placeholder="Reason for returning…" style={{borderColor:"#FECACA"}}/></div>
+          <div style={{...lbl,marginBottom:8}}>Agreement Checklist (as submitted — flag failed items)</div>
           {returnItems.map((item,i)=><div key={i} onClick={()=>setReturnItems(p=>p.map((x,j)=>j===i?{...x,issue:!x.issue}:x))} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:7,background:item.issue?"#FEF2F2":C.surface,border:`1px solid ${item.issue?"#FECACA":C.border}`,marginBottom:5,cursor:"pointer"}}>
+            <span style={{fontSize:10,fontWeight:700,color:item.checked?"#15803D":"#DC2626",flexShrink:0,width:12}}>{item.checked?"✓":"✗"}</span>
             <div style={{width:16,height:16,borderRadius:3,background:item.issue?"#DC2626":"#fff",border:`2px solid ${item.issue?"#DC2626":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{item.issue&&Ic.x}</div>
             <span style={{fontSize:12,color:item.issue?"#DC2626":C.textMid}}>{item.name}</span>
           </div>)}
           <div style={{display:"flex",gap:8,marginTop:12}}>
             <GBtn onClick={()=>setShowReturn(false)} style={{flex:1,justifyContent:"center"}}>Cancel</GBtn>
-            <DBtn onClick={async()=>{if(!returnRemark.trim()){alert("Remark required.");return;}setSaving(true);const issues=returnItems.filter(x=>x.issue).map(x=>x.name);const h={step:10,date:nowDate(),time:nowTime(),note:"Returned — Issues",returnRemark,issueItems:issues,reversedFrom:11};await onUpdate({...order,step:10,history:[...(order.history||[]),h]});setSaving(false);setShowReturn(false);setReturnRemark("");}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Return to Branch"}</DBtn>
+            <DBtn onClick={async()=>{if(!returnRemark.trim()){alert("Remark required.");return;}setSaving(true);const issues=returnItems.filter(x=>x.issue).map(x=>x.name);const h={step:10,date:nowDate(),time:nowTime(),note:"Pending Branch Action",returnRemark,issueItems:issues,reversedFrom:11};await onUpdate({...order,step:10,history:[...(order.history||[]),h]});setSaving(false);setShowReturn(false);setReturnRemark("");}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Confirm Pending Action"}</DBtn>
           </div>
         </div>
       </div>
     )}
-    {step>=9&&isAdmin&&<ReportCard allOrders={allOrders} reportDate={reportDate} setReportDate={setReportDate}/>}
+    {(step===9||step===10)&&isAdmin&&<ReportCard allOrders={allOrders} reportDate={reportDate} setReportDate={setReportDate}/>}
   </div>;
 }
 
@@ -455,7 +518,7 @@ function ReportCard({allOrders,reportDate,setReportDate}){
 /* ── Order Detail ─────────────────────────────────────────────────────── */
 function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,allOrders,isReadOnly}){
   const s=getStep(order.step),ph=getPhase(order.step),isCash=order.orderType==="cash";
-  const upfront=order.billingData&&order.step>=7?calcUpfront(order):null;
+  const upfront=order.billingData&&order.step>=8?calcUpfront(order):null;
   return<div className="fade-in">
     {/* Top bar */}
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,flexWrap:"wrap"}}>
@@ -482,7 +545,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <div style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.fileText}>Order Information</SecHdr>
       <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:12}}>
-        {[!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],order.supplierName&&["Supplier",order.supplierName],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)]].filter(Boolean).map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
+        {[!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],order.supplierName&&["Supplier",order.supplierName],order.poNumber&&["PO Number",order.poNumber],order.purchaserName&&["Purchaser",order.purchaserName],order.cancelledDate&&["Cancelled Date",fDate(order.cancelledDate)],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)]].filter(Boolean).map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
       </div>
       {order.adminRemark&&<div style={{padding:"8px 16px",borderTop:`1px solid ${C.border}`,background:"#FFFBEB"}}><div style={{fontSize:10,color:"#92400E",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Admin Remark</div><div style={{fontSize:12,color:"#78350F"}}>{order.adminRemark}</div></div>}
     </div>
@@ -501,7 +564,8 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     {order.billingData&&<div style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.card}>Billing Details</SecHdr>
       <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:10}}>
-        {[["Billing Date",fDate(order.billingData.billingDate)],["Customer IC",order.billingData.customerIC],["HP",order.billingData.customerHP],["Email",order.billingData.customerEmail],["IMEI",order.billingData.imeiSerial],["Item Code",order.billingData.itemCode],["Cash Price",fRM(order.billingData.cashPriceOnListing)],["Monthly",fRM(order.billingData.monthlyInstallment)]].filter(([,v])=>v&&v!=="RM 0.00").map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
+        {[["Billing Date",fDate(order.billingData.billingDate)],["Customer IC",order.billingData.customerIC],["HP",order.billingData.customerHP],["IMEI",order.billingData.imeiSerial],["Item Code",order.billingData.itemCode],["Cash Price",fRM(order.billingData.cashPriceOnListing)],["Monthly",fRM(order.billingData.monthlyInstallment)]].filter(([,v])=>v&&v!=="RM 0.00").map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
+        {order.billingData.customerEmail&&<div style={{gridColumn:"1/-1"}}><InfoCell label="Email" value={order.billingData.customerEmail}/></div>}
         {order.billingData.customerAddress&&<div style={{gridColumn:"1/-1"}}><InfoCell label="Address" value={`${order.billingData.customerAddress}, ${order.billingData.customerPostCode} ${order.billingData.customerCity}`}/></div>}
       </div>
     </div>}
@@ -621,13 +685,13 @@ function daysSince(dateStr){
   return Math.floor((nowDay-d)/(1000*60*60*24));
 }
 function getOrderAlerts(orders,userBranch=null){
-  const myOrders=orders.filter(o=>o.step<13&&(!userBranch||o.branch===userBranch));
+  const myOrders=orders.filter(o=>o.step<14&&(!userBranch||o.branch===userBranch));
   const alerts=[];
   myOrders.filter(o=>o.step===2&&o.orderDate).forEach(o=>{
     const days=daysSince(o.orderDate);
     if(days>=7)alerts.push({type:"overdue_order",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Ordered ${days} days ago — not yet arrived at HQ`});
   });
-  myOrders.filter(o=>o.aeonApprovalDate&&o.step>=1&&o.step<=12).forEach(o=>{
+  myOrders.filter(o=>o.aeonApprovalDate&&o.step>=1&&o.step<=13).forEach(o=>{
     const days=daysSince(o.aeonApprovalDate);
     if(days>=91)alerts.push({type:"approval_expired",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval EXPIRED — ${days} days ago`});
     else if(days>=61)alerts.push({type:"approval_urgent",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval ${days} days ago — URGENT`});
@@ -656,7 +720,7 @@ function AlertBanner({alerts,onClickOrder}){
 
 /* ── Batch Archive ────────────────────────────────────────────────────── */
 function BatchArchive({orders,onSave,onClose}){
-  const completed=orders.filter(o=>o.step===13);
+  const completed=orders.filter(o=>o.step===14);
   const [sel,setSel]=useState(new Set());
   return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
@@ -684,6 +748,38 @@ function BatchArchive({orders,onSave,onClose}){
   </div>;
 }
 
+/* ── Bulk Knock-off ────────────────────────────────────────────────────── */
+function BulkKnockOff({orders,onSave,onClose}){
+  const released=orders.filter(o=>o.step===13&&!o.knockOffDate);
+  const [sel,setSel]=useState(new Set());
+  const [date,setDate]=useState(nowDate());
+  return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
+      <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
+        <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.calendar} Set Knock-off Date (Bulk)</div>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+      </div>
+      <div style={{padding:16,overflowY:"auto",flex:1}}>
+        {released.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No invoices pending knock-off.</div>:<>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{fontSize:12,color:C.textLight}}>{released.length} pending</div>
+            <button onClick={()=>setSel(sel.size===released.length?new Set():new Set(released.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===released.length?"Deselect All":"Select All"}</button>
+          </div>
+          <div style={{marginBottom:12}}><L req>Knock-off Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+          {released.map(o=><div key={o.id} onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer"}}>
+            <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#15803D":"#fff",border:`2px solid ${sel.has(o.id)?"#15803D":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
+            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>{o.phoneModel} · {o.customerName}</div><div style={{fontSize:10,color:C.textLight}}>{shortId(o.id)} · {o.branch} · Invoice: {o.invoiceNo||"—"}</div></div>
+          </div>)}
+        </>}
+      </div>
+      <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <GBtn onClick={onClose}>Cancel</GBtn>
+        <PBtn onClick={async()=>{if(!sel.size||!date)return;const updated=orders.map(o=>sel.has(o.id)?{...o,knockOffDate:date,history:[...(o.history||[]),{step:13,date:nowDate(),time:nowTime(),note:"Knock-off date set (bulk)",knockOffDate:date}]}:o);await onSave(updated);onClose();}} disabled={!sel.size||!date}>{Ic.calendar} Set Knock-off ({sel.size})</PBtn>
+      </div>
+    </div>
+  </div>;
+}
+
 /* ── Main export ──────────────────────────────────────────────────────── */
 export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList=[],isReadOnly=false}){
   const [orders,setOrders]=useState([]);
@@ -695,6 +791,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [filterBranch,setFilterBranch]=useState("ALL");
   const [search,setSearch]=useState("");
   const [showArchive,setShowArchive]=useState(false);
+  const [showBulkKnockoff,setShowBulkKnockoff]=useState(false);
   const [upfrontDate,setUpfrontDate]=useState(nowDate());
   const [claimDate,setClaimDate]=useState(nowDate());
 
@@ -704,8 +801,10 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const saveOrder=async o=>{const list=orders.find(x=>x.id===o.id)?orders.map(x=>x.id===o.id?o:x):[...orders,o];await save(list);nav("detail",o);};
   const deleteOrder=async id=>{if(!confirm("Delete this order?"))return;await save(orders.filter(x=>x.id!==id));nav("list");};
 
-  const activeOrders=orders.filter(o=>o.step!==13&&(!userBranch||o.branch===userBranch));
-  const filtered=activeOrders.filter(o=>(filterPhase==="all"||getPhase(o.step)?.id===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id);
+  const activeOrders=orders.filter(o=>o.step!==14&&(!userBranch||o.branch===userBranch));
+  const completedOrders=orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch));
+  const viewingCompleted=filterPhase==="completed";
+  const filtered=(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||getPhase(o.step)?.id===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id);
 
   if(loading)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading orders…</div>;
 
@@ -716,11 +815,12 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
   const phaseCounts=PHASES.reduce((acc,ph)=>{acc[ph.id]=activeOrders.filter(o=>ph.steps.includes(o.step)).length;return acc;},{});
-  const completedCount=orders.filter(o=>o.step===13&&(!userBranch||o.branch===userBranch)).length;
+  const completedCount=orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)).length;
   const alerts=getOrderAlerts(activeOrders,userBranch);
 
   return<div className="fade-in">
     {showArchive&&<BatchArchive orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowArchive(false)}/>}
+    {showBulkKnockoff&&<BulkKnockOff orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowBulkKnockoff(false)}/>}
 
     {/* Page header */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18,flexWrap:"wrap",gap:10}}>
@@ -729,6 +829,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         <div style={{fontSize:11,color:C.textLight,marginTop:2}}>{activeOrders.length} active · {completedCount} completed</div>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {isAdmin&&!isReadOnly&&orders.some(o=>o.step===13&&!o.knockOffDate)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
         {isAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
         {!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
       </div>
@@ -752,7 +853,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       </div>
     </div>}
 
-    {/* Phase KPI cards — 2×2 grid */}
+    {/* Phase KPI cards — 2×2 grid + Completed */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
       {PHASES.map(ph=>{
         const count=phaseCounts[ph.id]||0,active=filterPhase===ph.id;
@@ -764,6 +865,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
           </div>
         </div>;
       })}
+      {isAdmin&&<div onClick={()=>setFilterPhase(viewingCompleted?"all":"completed")} style={{...card,padding:"12px 14px",cursor:"pointer",border:`${viewingCompleted?2:1}px solid ${viewingCompleted?"#15803D":C.border}`,transition:"all .15s",display:"flex",alignItems:"center",gap:12,gridColumn:"1/-1"}}>
+        <div style={{width:36,height:36,borderRadius:9,background:viewingCompleted?"#15803D":"#F0FDF4",display:"flex",alignItems:"center",justifyContent:"center",color:viewingCompleted?"#fff":"#15803D",flexShrink:0,transition:"all .15s"}}>{Ic.checkCircle}</div>
+        <div style={{minWidth:0}}>
+          <div style={{fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:2}}>Completed</div>
+          <div style={{fontSize:22,fontWeight:800,color:viewingCompleted?"#15803D":C.navy,lineHeight:1}}>{completedCount}</div>
+        </div>
+      </div>}
     </div>
 
     {/* Search + filter */}
@@ -777,13 +885,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       ?<div style={{...card,padding:"44px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>{search||filterPhase!=="all"||filterBranch!=="ALL"?"No orders match your filter.":"No orders yet. Click New Order to get started."}</div>
       :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:12}}>
         {filtered.map(o=>{
-          const s=getStep(o.step),ph=getPhase(o.step),pct=Math.round(((Math.min(o.step,12)-1)/11)*100);
+          const s=getStep(o.step),ph=getPhase(o.step),mxS=maxStep(o),pct=Math.round(((Math.min(o.step,mxS)-1)/(mxS-1))*100);
           const alert=getOrderAlerts([o])[0];
           return<div key={o.id} onClick={()=>nav("detail",o)} className="card" style={{cursor:"pointer",overflow:"hidden",transition:"box-shadow .2s,transform .2s"}}
             onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 16px rgba(10,22,40,.10)";e.currentTarget.style.transform="translateY(-1px)";}}
             onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)";e.currentTarget.style.transform="none";}}>
             {/* Gradient header strip */}
-            <div style={{background:o.step===12||o.step===13?`linear-gradient(135deg,#14532D,#166534)`:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"12px 14px"}}>
+            <div style={{background:o.step>=12?`linear-gradient(135deg,#14532D,#166534)`:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"12px 14px"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                 <div>
                   <div style={{display:"flex",gap:4,marginBottom:5,flexWrap:"wrap"}}>
