@@ -128,8 +128,8 @@ function DBtn({children,onClick,style={}}){
 
 /* ── Section header matching dashboard style ─────────────────────────── */
 function SecHdr({icon,children,right}){
-  return<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",borderBottom:`1px solid ${C.border}`,background:C.surface,borderLeft:`3px solid ${C.blue}`}}>
-    <div style={{display:"flex",alignItems:"center",gap:7,fontSize:11,fontWeight:700,color:C.text,textTransform:"uppercase",letterSpacing:"0.07em"}}>{icon&&<span style={{color:C.blue}}>{icon}</span>}{children}</div>
+  return<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
+    <div style={{display:"flex",alignItems:"center",gap:7,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>{icon&&<span style={{color:"rgba(255,255,255,.85)"}}>{icon}</span>}{children}</div>
     {right&&<div>{right}</div>}
   </div>;
 }
@@ -1036,10 +1036,10 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
     {/* Report downloads — admin only, footer */}
     {isAdmin&&!isReadOnly&&<div style={{...card,marginTop:24}}>
-      <div onClick={()=>setReportsExpanded(p=>!p)} style={{cursor:"pointer",userSelect:"none"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{color:C.blue}}>{Ic.download}</span><span style={{fontSize:12,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Reports</span></div>
-          <span style={{color:C.textLight,transition:"transform .15s",transform:reportsExpanded?"rotate(180deg)":"none"}}>{Ic.chevDown}</span>
+      <div onClick={()=>setReportsExpanded(p=>!p)} style={{cursor:"pointer",userSelect:"none",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{color:"rgba(255,255,255,.85)"}}>{Ic.download}</span><span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Reports</span></div>
+          <span style={{color:"rgba(255,255,255,.85)",transition:"transform .15s",transform:reportsExpanded?"rotate(180deg)":"none"}}>{Ic.chevDown}</span>
         </div>
       </div>
       {reportsExpanded&&<div style={{padding:"0 16px 16px",borderTop:`1px solid ${C.border}`}}>
