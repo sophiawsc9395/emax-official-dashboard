@@ -808,23 +808,23 @@ function renderSummaryCard(){
     <div class="field" style="margin-top:14px;"><label>Surcharge (RM)</label><input type="number" step="0.01" id="sum_surcharge" value="${d.surcharge}"></div>
 
     <div class="field-row">
-      <div class="field"><label>Total Sales (auto — from Daily Sales Report)</label><input type="text" disabled id="sum_grabTotalDisplay"></div>
+      <div class="field"><label>GrabFood Total Sales (auto — from Daily Sales Report)</label><input type="text" disabled id="sum_grabTotalDisplay"></div>
       <div class="field"><label>SST (RM)</label><input type="number" step="0.01" id="sum_grabSst" value="${d.grabFoodSst}"></div>
     </div>
-    <div class="field"><label>Net Sales (auto)</label><input type="text" disabled id="sum_grabNet"></div>
+    <div class="field"><label>GrabFood Sales (Auto)</label><input type="text" disabled id="sum_grabNet"></div>
 
     <div class="field-row">
-      <div class="field"><label>Total Sales (auto — from Daily Sales Report)</label><input type="text" disabled id="sum_fpTotalDisplay"></div>
+      <div class="field"><label>FoodPanda Total Sales (auto — from Daily Sales Report)</label><input type="text" disabled id="sum_fpTotalDisplay"></div>
       <div class="field"><label>SST (RM)</label><input type="number" step="0.01" id="sum_fpSst" value="${d.foodPandaSst}"></div>
     </div>
-    <div class="field"><label>Net Sales (auto)</label><input type="text" disabled id="sum_fpNet"></div>
+    <div class="field"><label>FoodPanda Sales (Auto)</label><input type="text" disabled id="sum_fpNet"></div>
 
     <div class="field" style="margin-top:14px;"><label>SST (RM)</label><input type="number" step="0.01" id="sum_sst" value="${d.sst}"></div>
 
     <div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:14px 0 6px;">Aisolove</div>
     <div class="field"><label>Amount (RM)</label><input type="number" step="0.01" id="sum_aisolove" value="${d.aisolove}"></div>
 
-    <div class="field" style="margin-top:14px;"><label>Autocount Sales (auto — Total Sales − Surcharge − SST)</label><input type="text" disabled id="sum_autocount"></div>
+    <div class="field" style="margin-top:14px;"><label>Autocount Sales (auto — Net Sales − GrabFood Sales − FoodPanda Sales − Surcharge − SST)</label><input type="text" disabled id="sum_autocount"></div>
   `;
   card.appendChild(ff);
 
@@ -853,8 +853,7 @@ function renderSummaryCard(){
     ff.querySelector('#sum_cashNet').value = 'RM ' + fmt(cashNet);
     ff.querySelector('#sum_grabNet').value = 'RM ' + fmt(grabNet);
     ff.querySelector('#sum_fpNet').value = 'RM ' + fmt(fpNet);
-    const dailyTotalSales = num(sr.cash)+num(sr.card)+num(sr.qr);
-    const autocountSales = dailyTotalSales - num(d.surcharge) - grabNet - fpNet - num(d.sst);
+    const autocountSales = cashNet - grabNet - fpNet - num(d.surcharge) - num(d.sst);
     ff.querySelector('#sum_autocount').value = 'RM ' + fmt(autocountSales);
     const total = cashNet + num(d.surcharge) + grabNet + fpNet + num(d.sst) + num(d.aisolove);
     totalRow.querySelector('.tval').textContent = 'RM ' + fmt(total);
@@ -1271,15 +1270,17 @@ function buildPhotoHTML(){
         const d = currentData.sections.summary;
         const sr = currentData.sections.salesReport || {};
         const cashNet = num(d.cashSalesTotal) - num(d.cashSalesDiscount);
-        const grabNet = 0;
-        const fpNet = 0;
+        const grabTotal = currentCompany==='dojo' ? (num(sr.grabfood)||0) : 0;
+        const fpTotal = currentCompany==='dojo' ? (num(sr.foodpanda)||0) : 0;
+        const grabNet = grabTotal - num(d.grabFoodSst);
+        const fpNet = fpTotal - num(d.foodPandaSst);
         const grandT = cashNet + num(d.surcharge) + grabNet + fpNet + num(d.sst) + num(d.aisolove);
-        const dailyTotalSales = num(sr.cash)+num(sr.card)+num(sr.qr);
-        const autocountSales = dailyTotalSales - num(d.surcharge) - grabNet - fpNet - num(d.sst);
+        const autocountSales = cashNet - grabNet - fpNet - num(d.surcharge) - num(d.sst);
         const rows = [
           {label:'Cash Sales (Total − Discount)', amount:cashNet},
           {label:'Surcharge', amount:d.surcharge},
-
+          {label:'GrabFood Sales (Auto)', amount:grabNet},
+          {label:'FoodPanda Sales (Auto)', amount:fpNet},
           {label:'SST', amount:d.sst},
           {label:'Aisolove', amount:d.aisolove},
           {label:'Autocount Sales (auto)', amount:autocountSales},
