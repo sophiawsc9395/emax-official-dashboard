@@ -1,7 +1,7 @@
 import {useState,useEffect,useRef,useMemo,useCallback} from "react";
-import {loadData,saveData} from "./storage/index.js";
+import {listOrders,getOrderHistory,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
+import OrderMigration from "./OrderMigration.jsx";
 
-const ORDER_KEY="emax_v5_orders";
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 const MERCHANTS=["Aeon","JCL","Chailease"];
 const PAYMENT_METHODS=["RHB","Public Bank"];
@@ -72,15 +72,17 @@ const fDT=(date,time)=>date?(time?`${fDate(date)} ${time}`:fDate(date)):"—";
 const getStep=n=>STEPS.find(s=>s.step===n)||STEPS[0];
 const getPhase=step=>PHASES.find(p=>p.steps.includes(step));
 const shortId=id=>id?("ORD-"+String(id).slice(-6).toUpperCase()):"";
-const readFile=f=>new Promise((res,rej)=>{
+// Reads a picked File, compresses it if it's an image, and UPLOADS it to
+// Supabase Storage — returns {name, path} (never base64). `orderId` scopes
+// the storage path; every call site below has an order (existing or
+// freshly-id'd) in scope.
+const readFile=(f,orderId)=>new Promise((res,rej)=>{
   if(!f.type||!f.type.startsWith("image/")){
-    // Non-image (e.g. PDF) — read as-is, nothing we can safely compress client-side.
-    const r=new FileReader();r.onload=()=>res({name:f.name,data:r.result});r.onerror=rej;r.readAsDataURL(f);
+    // Non-image (e.g. PDF) — upload as-is, nothing we can safely compress client-side.
+    uploadOrderFile(orderId,f,f.name).then(res).catch(rej);
     return;
   }
-  // Image — downscale + re-encode as JPEG to keep the saved payload small (large camera
-  // photos were causing the whole orders record to exceed the save size limit, which
-  // failed silently and made uploads look "lost" on refresh).
+  // Image — downscale + re-encode as JPEG before upload to keep Storage usage small.
   const img=new Image();
   const url=URL.createObjectURL(f);
   img.onload=()=>{
@@ -90,14 +92,17 @@ const readFile=f=>new Promise((res,rej)=>{
     const canvas=document.createElement("canvas");
     canvas.width=w;canvas.height=h;
     canvas.getContext("2d").drawImage(img,0,0,w,h);
-    const data=canvas.toDataURL("image/jpeg",0.75);
-    URL.revokeObjectURL(url);
-    res({name:f.name.replace(/\.(png|jpe?g|webp|heic|heif)$/i,"")+".jpg",data});
+    canvas.toBlob(blob=>{
+      URL.revokeObjectURL(url);
+      if(!blob){rej(new Error("Image compression failed"));return;}
+      const name=f.name.replace(/\.(png|jpe?g|webp|heic|heif)$/i,"")+".jpg";
+      uploadOrderFile(orderId,blob,name).then(res).catch(rej);
+    },"image/jpeg",0.75);
   };
   img.onerror=()=>{
     URL.revokeObjectURL(url);
-    // Fallback: if it can't be decoded as an image for some reason, store as-is.
-    const r=new FileReader();r.onload=()=>res({name:f.name,data:r.result});r.onerror=rej;r.readAsDataURL(f);
+    // Fallback: if it can't be decoded as an image for some reason, upload as-is.
+    uploadOrderFile(orderId,f,f.name).then(res).catch(rej);
   };
   img.src=url;
 });
@@ -197,11 +202,15 @@ function PhaseBar({step,order,dark=false}){
 /* ── Phase + Step badge ───────────────────────────────────────────────── */
 function isPendingBranchAction(order){
   if(order.step!==10)return false;
+  // Header-level flag, kept in sync server-side on every history write —
+  // works on list cards (header only) and the hydrated detail order alike.
+  if(order.pendingBranchAction!==undefined)return!!order.pendingBranchAction;
   const last=(order.history||[]).filter(h=>h.issueItems||h.checklistItems).slice(-1)[0];
   return!!(last&&last.issueItems);
 }
 function isShortPaymentPending(order){
   if(order.step!==8)return false;
+  if(order.shortPaymentPending!==undefined)return!!order.shortPaymentPending;
   const last=(order.history||[]).filter(h=>h.shortPayment||h.collectionChecked!==undefined).slice(-1)[0];
   return!!(last&&last.shortPayment);
 }
@@ -257,8 +266,8 @@ function Timeline({order,isAdmin}){
     {hist.checklistItems&&<div style={{fontSize:10,color:C.textMid}}>{hist.checklistItems.filter(x=>x.checked).length}/{hist.checklistItems.length} checklist items</div>}
     {hist.agreementConsignmentNo&&<div style={{marginTop:2,color:C.navy,fontWeight:600,fontSize:11}}>Consignment Note No.: {hist.agreementConsignmentNo}</div>}
     {hist.collectionChecked!==undefined&&<div style={{fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"✓":"✗"} Phone Collection · </>}{hist.paymentChecked?"✓":"✗"} Payment verified</div>}
-    {hist.files&&Object.entries(hist.files).filter(([k])=>isAdmin||k!=="claimToPurchaser").flatMap(([k,f])=>f?(Array.isArray(f)?f.map((ff,i)=>[k,ff]):[[k,f]]):[]).map(([k,f],i)=>f&&<a key={k+i} href={f.data} download={f.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} {FILE_LABELS[k]?`${FILE_LABELS[k]}: `:""}{f.name}</a>)}
-    {s.step===1&&order.orderType==="cash"&&order.depositSlip&&<a href={order.depositSlip.data} download={order.depositSlip.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} Deposit Payment Slip — {order.depositSlip.name}</a>}
+    {hist.files&&Object.entries(hist.files).filter(([k])=>isAdmin||k!=="claimToPurchaser").flatMap(([k,f])=>f?(Array.isArray(f)?f.map((ff,i)=>[k,ff]):[[k,f]]):[]).map(([k,f],i)=>f&&<a key={k+i} href={f.url||f.data} target={f.url?"_blank":undefined} rel={f.url?"noopener noreferrer":undefined} download={f.url?undefined:f.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} {FILE_LABELS[k]?`${FILE_LABELS[k]}: `:""}{f.name}</a>)}
+    {s.step===1&&order.orderType==="cash"&&order.depositSlip&&<a href={order.depositSlip.url||order.depositSlip.data} target={order.depositSlip.url?"_blank":undefined} rel={order.depositSlip.url?"noopener noreferrer":undefined} download={order.depositSlip.url?undefined:order.depositSlip.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} Deposit Payment Slip — {order.depositSlip.name}</a>}
   </div>;
   return<div>{visSteps.map((s,i)=>{
     const isAutoReady=isReady&&s.step===2;
@@ -297,7 +306,7 @@ function BillingForm({order,onSubmit,onCancel}){
   const isCashOrder=order.orderType==="cash";
   const REQUIRED=["billingDate","customerFullName","customerIC","customerHP","customerEmail","customerAddress","customerPostCode","customerCity","itemCode","imeiSerial",...(isCashOrder?[]:["cashPriceOnListing","monthlyInstallment"])];
   const missing=REQUIRED.filter(k=>!f[k]?.toString().trim());
-  const submit=async()=>{if(missing.length)return;setSaving(true);const data={...f};for(const[k,file] of Object.entries(fls))if(file)data[k]=await readFile(file);onSubmit(data);setSaving(false);};
+  const submit=async()=>{if(missing.length)return;setSaving(true);const data={...f};for(const[k,file] of Object.entries(fls))if(file)data[k]=await readFile(file,order.id);onSubmit(data);setSaving(false);};
   const row=(k,l,t="text",req=false,full=false)=><div key={k} style={full?{gridColumn:"1/-1"}:{}}>
     <L req={req}>{l}</L>
     <I type={t} value={f[k]||""} onChange={e=>set(k,e.target.value)} style={req&&!f[k]?.toString().trim()?{borderColor:"#FECACA"}:{}}/>
@@ -370,11 +379,11 @@ function downloadReport(orders,type,dateFilter,merchantFilter){
   const isAgreementReceived=type==="agreementReceived";
   orders=merchantFilter&&merchantFilter!=="all"?orders.filter(o=>o.merchant===merchantFilter):orders;
   const filtered=orders.filter(o=>{
-    if(isAgreementReceived){const h=(o.history||[]).find(h=>h.step===11);return o.step===11&&(!dateFilter||h?.date===dateFilter);}
-    if(isCompleted){const h=(o.history||[]).find(h=>h.step===14);return o.step===14&&(!dateFilter||h?.date===dateFilter);}
+    if(isAgreementReceived){const d=o.stepDates?.["11"]?.date;return o.step===11&&(!dateFilter||d===dateFilter);}
+    if(isCompleted){const d=o.stepDates?.["14"]?.date;return o.step===14&&(!dateFilter||d===dateFilter);}
     if(isKnockoff) return o.knockOffDate&&(!dateFilter||o.knockOffDate===dateFilter);
     if(isClaim) return o.claimSentDate&&(!dateFilter||o.claimSentDate===dateFilter)&&o.step>=12;
-    const h=(o.history||[]).find(h=>h.step===9);
+    const h=o.lastVerification;
     return h&&h.upfrontPaymentDate&&(!dateFilter||h.upfrontPaymentDate===dateFilter);
   }).sort((a,b)=>(a.invoiceNo||"").localeCompare(b.invoiceNo||""));
   if(!filtered.length){alert(`No records found${dateFilter?` for ${fDate(dateFilter)}`:""}.`);return;}
@@ -384,7 +393,7 @@ function downloadReport(orders,type,dateFilter,merchantFilter){
     rows=filtered.map((o,i)=>{const due=calcAmountDueByMerchant(o);total1+=due;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>RM ${due.toFixed(2)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="7"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
   } else if(isCompleted){
-    rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;const h=(o.history||[]).find(h=>h.step===14);total1+=ka;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>${fDate(o.claimSentDate)}</td><td>${fDate(o.knockOffDate)}</td><td>RM ${ka.toFixed(2)}</td><td>${fDT(h?.date,h?.time)}</td></tr>`;}).join("");
+    rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;const h=o.stepDates?.["14"];total1+=ka;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>${fDate(o.claimSentDate)}</td><td>${fDate(o.knockOffDate)}</td><td>RM ${ka.toFixed(2)}</td><td>${fDT(h?.date,h?.time)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="9"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td></tr>`;
   } else if(isKnockoff){
     rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;total1+=ka;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>${fDate(o.knockOffDate)}</td><td>RM ${ka.toFixed(2)}</td></tr>`;}).join("");
@@ -393,7 +402,7 @@ function downloadReport(orders,type,dateFilter,merchantFilter){
     rows=filtered.map((o,i)=>{const due=calcAmountDueByMerchant(o);total1+=due;return`<tr><td>${i+1}</td><td>${fDate(o.claimSentDate)}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>RM ${due.toFixed(2)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="8"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
   } else {
-    rows=filtered.map((o,i)=>{const h=(o.history||[]).filter(h=>h.step===9).slice(-1)[0];const up=calcUpfront(o);const monthly=parseFloat(o.billingData?.monthlyInstallment||o.monthlyInstallment)||0;const actualReceipt=(parseFloat(h?.paymentProofAmount)||0)+(parseFloat(h?.secondPaymentAmount)||0);total1+=up.total;total2+=monthly;total3+=actualReceipt;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${fDate(h?.upfrontPaymentDate)}</td><td>RM ${up.total.toFixed(2)}</td><td>RM ${monthly.toFixed(2)}</td><td>RM ${(up.total+monthly).toFixed(2)}</td><td>RM ${actualReceipt.toFixed(2)}</td><td>${h?.paymentMethod||"—"}</td><td>${h?.verificationRemark||"—"}</td></tr>`;}).join("");
+    rows=filtered.map((o,i)=>{const h=o.lastVerification;const up=calcUpfront(o);const monthly=parseFloat(o.billingData?.monthlyInstallment||o.monthlyInstallment)||0;const actualReceipt=(parseFloat(h?.paymentProofAmount)||0)+(parseFloat(h?.secondPaymentAmount)||0);total1+=up.total;total2+=monthly;total3+=actualReceipt;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${fDate(h?.upfrontPaymentDate)}</td><td>RM ${up.total.toFixed(2)}</td><td>RM ${monthly.toFixed(2)}</td><td>RM ${(up.total+monthly).toFixed(2)}</td><td>RM ${actualReceipt.toFixed(2)}</td><td>${h?.paymentMethod||"—"}</td><td>${h?.verificationRemark||"—"}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="7"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td><td><b>RM ${(total1+total2).toFixed(2)}</b></td><td><b>RM ${total3.toFixed(2)}</b></td><td colspan="2"></td></tr>`;
   }
   const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":"Upfront Payment Report";
@@ -430,7 +439,7 @@ function BillingDetailsCard({billingData:bd,isCash,title="Billing Request Detail
     </div>
     <div style={{...lbl,margin:"10px 0 6px"}}>Uploaded Files</div>
     <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-      {fileKeys.map(([k,l])=>bd[k]&&<a key={k} href={bd[k].data} download={bd[k].name} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"4px 10px",borderRadius:5,fontWeight:600,border:"1px solid #C7D2E3"}}>{Ic.download} {l}</a>)}
+      {fileKeys.map(([k,l])=>bd[k]&&<a key={k} href={bd[k].url||bd[k].data} target={bd[k].url?"_blank":undefined} rel={bd[k].url?"noopener noreferrer":undefined} download={bd[k].url?undefined:bd[k].name} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"4px 10px",borderRadius:5,fontWeight:600,border:"1px solid #C7D2E3"}}>{Ic.download} {l}</a>)}
       {!hasFiles&&<span style={{fontSize:11,color:C.textLight,fontStyle:"italic"}}>No files uploaded.</span>}
     </div>
   </div>;
@@ -552,7 +561,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
 
   const advance=async()=>{
     setSaving(true);
-    const rf={};for(const[k,f] of Object.entries(files)){if(!f)continue;rf[k]=Array.isArray(f)?await Promise.all(f.map(readFile)):await readFile(f);}
+    const rf={};for(const[k,f] of Object.entries(files)){if(!f)continue;rf[k]=Array.isArray(f)?await Promise.all(f.map(x=>readFile(x,order.id))):await readFile(f,order.id);}
     const totalBytes=Object.values(rf).reduce((sum,fl)=>sum+(Array.isArray(fl)?fl.reduce((s2,x)=>s2+(x?.data?.length||0),0):(fl?.data?.length||0)),0);
     if(totalBytes>4*1024*1024){
       alert("One or more of these files is too large to save (even after compression). Please use a smaller file — for PDFs, try re-exporting or scanning at a lower resolution — then try again.");
@@ -601,7 +610,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <L req>Upload Balance Payment Proof</L>
           <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,balancePaymentProof:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>
           {files.balancePaymentProof&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files.balancePaymentProof.name}</div>}
-          <PBtn onClick={async()=>{if(!files.balancePaymentProof)return;setSaving(true);const f=await readFile(files.balancePaymentProof);const h={step:9,date:nowDate(),time:nowTime(),note:"Balance payment proof uploaded",shortPaymentProofUpload:true,files:{balancePaymentProof:f}};await onUpdate({...order,history:[...(order.history||[]),h]});setSaving(false);setFiles(p=>({...p,balancePaymentProof:null}));}} disabled={!files.balancePaymentProof||saving} style={{width:"100%",justifyContent:"center",marginTop:8}}>{saving?"Saving…":"Submit Balance Payment Proof"}</PBtn>
+          <PBtn onClick={async()=>{if(!files.balancePaymentProof)return;setSaving(true);const f=await readFile(files.balancePaymentProof,order.id);const h={step:9,date:nowDate(),time:nowTime(),note:"Balance payment proof uploaded",shortPaymentProofUpload:true,files:{balancePaymentProof:f}};await onUpdate({...order,history:[...(order.history||[]),h]});setSaving(false);setFiles(p=>({...p,balancePaymentProof:null}));}} disabled={!files.balancePaymentProof||saving} style={{width:"100%",justifyContent:"center",marginTop:8}}>{saving?"Saving…":"Submit Balance Payment Proof"}</PBtn>
         </div>}
         {nextDef.needsVerification&&isAdmin&&<div style={{marginBottom:12}}>
           <div style={{...lbl,marginBottom:8}}>Verification Checklist</div>
@@ -817,11 +826,12 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
   const missingSlip=isCash&&!slipFile&&!f.depositSlip;
   const submit=async()=>{
     if(missing.length||missingSlip){alert("Please fill in all required fields.");return;}
+    const id=order?.id||Date.now().toString();
     let depositSlip=f.depositSlip||null;
-    if(slipFile)depositSlip=await readFile(slipFile);
+    if(slipFile)depositSlip=await readFile(slipFile,id);
     const initStep=isReady?3:1;
     const initHist=isReady?[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"},{step:2,date:nowDate(),time:nowTime(),note:"Ready stock"},{step:3,date:nowDate(),time:nowTime(),note:"Arrived HQ"}]:[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"}];
-    onSave({...f,depositSlip,id:order?.id||Date.now().toString(),step:order?.step||initStep,history:order?.history||initHist});
+    onSave({...f,depositSlip,id,step:order?.step||initStep,history:order?.history||initHist});
   };
   // row() helper — uses module-level FormField (no focus loss)
   const row=(k,l,t="text",req=false)=>(<FormField key={k} label={l} req={req}><I type={t} value={f[k]||""} onChange={e=>set(k,e.target.value)} style={req&&missing.includes(k)?{borderColor:"#FECACA"}:{}}/></FormField>);
@@ -928,7 +938,7 @@ function AlertBanner({alerts,onClickOrder}){
 }
 
 /* ── Batch Archive ────────────────────────────────────────────────────── */
-function BatchArchive({orders,onSave,onClose}){
+function BatchArchive({orders,onDelete,onClose}){
   const completed=orders.filter(o=>o.step===14);
   const [sel,setSel]=useState(new Set());
   return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -951,7 +961,7 @@ function BatchArchive({orders,onSave,onClose}){
       </div>
       <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,justifyContent:"flex-end"}}>
         <GBtn onClick={onClose}>Cancel</GBtn>
-        <DBtn onClick={async()=>{if(!sel.size)return;if(!confirm(`Remove ${sel.size} completed order(s) permanently?`))return;await onSave(orders.filter(o=>!sel.has(o.id)));onClose();}} disabled={!sel.size}>{Ic.trash} Remove {sel.size>0?`(${sel.size})`:""}</DBtn>
+        <DBtn onClick={async()=>{if(!sel.size)return;if(!confirm(`Remove ${sel.size} completed order(s) permanently?`))return;await onDelete([...sel]);onClose();}} disabled={!sel.size}>{Ic.trash} Remove {sel.size>0?`(${sel.size})`:""}</DBtn>
       </div>
     </div>
   </div>;
@@ -995,7 +1005,7 @@ function BulkDispatch({orders,onSave,onClose}){
         {sel.size>0&&!bothFilled&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in both the consignment note number and stock transfer number.</div>}
         <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
           <GBtn onClick={onClose}>Cancel</GBtn>
-          <PBtn onClick={async()=>{if(!sel.size||!bothFilled)return;const updated=orders.map(o=>sel.has(o.id)?{...o,step:4,consignmentNo,stockTransferNo,history:[...(o.history||[]),{step:4,date:nowDate(),time:nowTime(),note:"Dispatched to Branch (bulk)",consignmentNo,stockTransferNo}]}:o);await onSave(updated);onClose();}} disabled={!sel.size||!bothFilled}>{Ic.truck} Dispatch ({sel.size})</PBtn>
+          <PBtn onClick={async()=>{if(!sel.size||!bothFilled)return;const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,step:4,consignmentNo,stockTransferNo,history:[{step:4,date:nowDate(),time:nowTime(),note:"Dispatched to Branch (bulk)",consignmentNo,stockTransferNo}]}));const ok=await onSave(changed);if(ok)onClose();}} disabled={!sel.size||!bothFilled}>{Ic.truck} Dispatch ({sel.size})</PBtn>
         </div>
       </div>
     </div>
@@ -1039,7 +1049,7 @@ function BulkClaimSent({orders,onSave,onClose}){
         {sel.size>0&&!allNotesFilled&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the consignment note number for every selected order.</div>}
         <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
           <GBtn onClick={onClose}>Cancel</GBtn>
-          <PBtn onClick={async()=>{if(!sel.size||!date||!allNotesFilled)return;const updated=orders.map(o=>sel.has(o.id)?{...o,step:13,claimSentDate:date,claimConsignmentNo:consignmentNos[o.id],history:[...(o.history||[]),{step:12,date:nowDate(),time:nowTime(),note:"Claim sent out to merchant (bulk)",claimSentDate:date,consignmentNo:consignmentNos[o.id]}]}:o);await onSave(updated);onClose();}} disabled={!sel.size||!date||!allNotesFilled}>{Ic.checkCircle} Set Claim Sent ({sel.size})</PBtn>
+          <PBtn onClick={async()=>{if(!sel.size||!date||!allNotesFilled)return;const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,step:13,claimSentDate:date,claimConsignmentNo:consignmentNos[o.id],history:[{step:12,date:nowDate(),time:nowTime(),note:"Claim sent out to merchant (bulk)",claimSentDate:date,consignmentNo:consignmentNos[o.id]}]}));const ok=await onSave(changed);if(ok)onClose();}} disabled={!sel.size||!date||!allNotesFilled}>{Ic.checkCircle} Set Claim Sent ({sel.size})</PBtn>
         </div>
       </div>
     </div>
@@ -1081,7 +1091,7 @@ function BulkKnockOff({orders,onSave,onClose}){
         {sel.size>0&&!allAmountsFilled&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the knock-off amount for every selected invoice.</div>}
         <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
           <GBtn onClick={onClose}>Cancel</GBtn>
-          <PBtn onClick={async()=>{if(!sel.size||!date||!allAmountsFilled)return;const updated=orders.map(o=>sel.has(o.id)?{...o,knockOffDate:date,knockOffAmount:amounts[o.id],history:[...(o.history||[]),{step:13,date:nowDate(),time:nowTime(),note:"Knock-off date set (bulk)",knockOffDate:date,knockOffAmount:amounts[o.id]}]}:o);await onSave(updated);onClose();}} disabled={!sel.size||!date||!allAmountsFilled}>{Ic.calendar} Set Knock-off ({sel.size})</PBtn>
+          <PBtn onClick={async()=>{if(!sel.size||!date||!allAmountsFilled)return;const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,knockOffDate:date,knockOffAmount:amounts[o.id],history:[{step:13,date:nowDate(),time:nowTime(),note:"Knock-off date set (bulk)",knockOffDate:date,knockOffAmount:amounts[o.id]}]}));const ok=await onSave(changed);if(ok)onClose();}} disabled={!sel.size||!date||!allAmountsFilled}>{Ic.calendar} Set Knock-off ({sel.size})</PBtn>
         </div>
       </div>
     </div>
@@ -1111,22 +1121,74 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [agreementReceivedReportDate,setAgreementReceivedReportDate]=useState(nowDate());
   const [reportMerchant,setReportMerchant]=useState("all");
   const [reportsExpanded,setReportsExpanded]=useState(false);
+  // Fully hydrated + signed order (header + history, with every {name,path}
+  // Storage ref resolved to a short-lived signed URL) — fetched lazily, one
+  // entry per order opened in Detail. The list/board never touches this.
+  const [detailCache,setDetailCache]=useState({});
+  const [showMigration,setShowMigration]=useState(false);
 
-  useEffect(()=>{loadData(ORDER_KEY).then(d=>{setOrders(Array.isArray(d)?d:[]);setLoading(false);});},[]);
+  // Headers only — no history, no files. This is the ONLY query the list/board
+  // view needs, regardless of how many years of tracking events pile up.
+  // Branch viewers pass userBranch so the filter happens in the DB query
+  // itself, not after downloading every branch's headers.
+  const refreshList=useCallback(()=>listOrders(userBranch).then(d=>{setOrders(d);setLoading(false);}),[userBranch]);
+  useEffect(()=>{refreshList();},[refreshList]);
+
   const nav=(v,sel=null)=>{setView(v);setSelected(sel);sessionStorage.setItem("orderView",v);sessionStorage.setItem("orderSelected",sel?JSON.stringify(sel):"null");};
-  const save=async list=>{
-    const prev=orders;
-    setOrders(list);
-    const result=await saveData(ORDER_KEY,list);
-    if(!result?.ok){
-      setOrders(prev);
+
+  const hydrateOrder=useCallback(async id=>{
+    const [header,hist]=await Promise.all([getOrder(id),getOrderHistory(id)]);
+    const signed=await signOrderFiles({...(header||{}),history:hist});
+    setDetailCache(p=>({...p,[id]:signed}));
+    return signed;
+  },[]);
+
+  // Full timeline + signed file links are fetched once per order, on demand,
+  // only when its Detail page is opened — never as part of the list/board load.
+  useEffect(()=>{
+    if(view==="detail"&&selected&&!detailCache[selected.id])hydrateOrder(selected.id);
+  },[view,selected,detailCache,hydrateOrder]);
+
+  // o = full order object (header fields + its complete, already-appended history array).
+  // Diffs against what we last knew about this one order and writes ONLY the new
+  // history row(s) + this order's own header row — never touches any other order.
+  const saveOrder=async o=>{
+    const oldFull=detailCache[o.id];
+    const result=await reconcile(oldFull?[oldFull]:[],[o]);
+    if(!result.ok){
       alert("Save failed — your changes were NOT saved. This usually happens when an uploaded file is too large. Please try a smaller file (compress the photo or PDF) and try again.");
       return false;
     }
+    const signed=await hydrateOrder(o.id);
+    const{history:_h,...headerOnly}=signed;
+    setOrders(p=>p.some(x=>x.id===headerOnly.id)?p.map(x=>x.id===headerOnly.id?headerOnly:x):[headerOnly,...p]);
+    nav("detail",signed);
     return true;
   };
-  const saveOrder=async o=>{const list=orders.find(x=>x.id===o.id)?orders.map(x=>x.id===o.id?o:x):[...orders,o];const ok=await save(list);if(ok)nav("detail",o);return ok;};
-  const deleteOrder=async id=>{if(!confirm("Delete this order?"))return;await save(orders.filter(x=>x.id!==id));nav("list");};
+  const deleteOrder=async id=>{
+    if(!confirm("Delete this order?"))return;
+    const result=await apiDeleteOrder(id);
+    if(!result?.ok){alert("Delete failed. Please try again.");return;}
+    setOrders(p=>p.filter(x=>x.id!==id));
+    setDetailCache(p=>{const n={...p};delete n[id];return n;});
+    nav("list");
+  };
+  // Bulk actions build only the CHANGED subset (header fields + the single new
+  // history entry each) — reconcile() then writes just those rows, and we
+  // refresh the (lightweight, header-only) list once afterwards.
+  const bulkSave=async newSubset=>{
+    const oldSubset=newSubset.map(o=>orders.find(x=>x.id===o.id)).filter(Boolean);
+    const result=await reconcile(oldSubset,newSubset);
+    if(!result.ok){alert("Bulk update failed — please try again.");return false;}
+    await refreshList();
+    return true;
+  };
+  const bulkDelete=async ids=>{
+    const result=await apiDeleteOrders(ids);
+    if(!result?.ok){alert("Delete failed — please try again.");return false;}
+    await refreshList();
+    return true;
+  };
 
   const activeOrders=useMemo(()=>orders.filter(o=>o.step!==14&&(!userBranch||o.branch===userBranch)),[orders,userBranch]);
   const completedOrders=useMemo(()=>orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)),[orders,userBranch]);
@@ -1140,16 +1202,18 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   if(loading)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading orders…</div>;
 
   if(view==="detail"&&selected){
-    const live=orders.find(o=>o.id===selected.id)||selected;
-    return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowArchive(false)}/>}</>;
+    const live=detailCache[selected.id];
+    if(!live)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading order…</div>;
+    return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
   }
   if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
   return<div className="fade-in">
-    {showArchive&&<BatchArchive orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowArchive(false)}/>}
-    {showBulkDispatch&&<BulkDispatch orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowBulkDispatch(false)}/>}
-    {showBulkClaimSent&&<BulkClaimSent orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowBulkClaimSent(false)}/>}
-    {showBulkKnockoff&&<BulkKnockOff orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowBulkKnockoff(false)}/>}
+    {showMigration&&<OrderMigration onClose={()=>{setShowMigration(false);refreshList();}}/>}
+    {showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}
+    {showBulkDispatch&&<BulkDispatch orders={orders} onSave={bulkSave} onClose={()=>setShowBulkDispatch(false)}/>}
+    {showBulkClaimSent&&<BulkClaimSent orders={orders} onSave={bulkSave} onClose={()=>setShowBulkClaimSent(false)}/>}
+    {showBulkKnockoff&&<BulkKnockOff orders={orders} onSave={bulkSave} onClose={()=>setShowBulkKnockoff(false)}/>}
 
     {/* Page header */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,paddingBottom:16,borderBottom:`1px solid ${C.border}`,flexWrap:"wrap",gap:10}}>
@@ -1162,6 +1226,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         {isAdmin&&!isReadOnly&&orders.some(o=>o.step===12)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Claim Sent Date</GBtn>}
         {isAdmin&&!isReadOnly&&orders.some(o=>o.step===13&&!o.knockOffDate)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
         {isAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
+        {isAdmin&&!isReadOnly&&<GBtn onClick={()=>setShowMigration(true)}>{Ic.rotate} Migrate Legacy Orders</GBtn>}
         {!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
       </div>
     </div>
@@ -1239,15 +1304,20 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
                 <div style={{flex:1,height:3,background:C.border,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:o.step>=12?"#15803D":C.navy,borderRadius:2}}/></div>
                 <span style={{fontSize:9,color:C.textLight,flexShrink:0}}>{o.salesAgentName||o.salesAgentId||"—"}</span>
               </div>
-              {(order=>{ const lh=(o.history||[]).slice(-1)[0]; return lh?.date&&<div style={{fontSize:10,color:C.textLight,marginTop:5}}>Updated {fDT(lh.date,lh.time)}</div>; })()}
+              {o.lastHistoryDate&&<div style={{fontSize:10,color:C.textLight,marginTop:5}}>Updated {fDT(o.lastHistoryDate,o.lastHistoryTime)}</div>}
             </div>
           </div>;
         })}
       </div>
     }
 
+    {/* One-time legacy blob → ERP tables migration — admin only */}
+    {isAdmin&&!isReadOnly&&<div style={{display:"flex",justifyContent:"flex-end",marginTop:20}}>
+      <button onClick={()=>setShowMigration(true)} style={{fontSize:11,color:C.textLight,background:"none",border:`1px dashed ${C.border}`,borderRadius:7,padding:"6px 12px",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Migrate Legacy Orders → New Schema</button>
+    </div>}
+
     {/* Report downloads — admin only, footer */}
-    {isAdmin&&!isReadOnly&&<div style={{...card,marginTop:24}}>
+    {isAdmin&&!isReadOnly&&<div style={{...card,marginTop:12}}>
       <div onClick={()=>setReportsExpanded(p=>!p)} style={{cursor:"pointer",userSelect:"none",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px"}}>
           <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{color:"rgba(255,255,255,.85)"}}>{Ic.download}</span><span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Reports</span></div>
