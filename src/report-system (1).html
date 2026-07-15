@@ -1246,13 +1246,14 @@ function buildPhotoHTML(){
         inner += html;
       } else if(sec==='rto'){
         const d = currentData.sections.rto;
+        const pendingList = (d.pendingMonths&&d.pendingMonths.length?d.pendingMonths:(d.pendingMonth?[{month:d.pendingMonth,count:d.pendingCount,amount:d.pendingAmount}]:[]));
         const rows = [
           {label:'Total Contract Value', amount:d.contractValue},
           {label:'Device DTP', amount:d.deviceDTP},
           {label:'Expected Total Profit', amount:d.expectedProfit},
           {label:'Collected Payment', amount:d.collectedPayment},
           {label:'Balance to Receive', amount:num(d.contractValue)-num(d.collectedPayment)},
-          {label:`Pending Collection - ${d.pendingMonth||''} (${d.pendingCount||0})`, amount:d.pendingAmount},
+          ...pendingList.filter(pm=>pm.month||pm.amount).map(pm=>({label:`Pending Collection - ${pm.month||''} (${pm.count||0})`, amount:pm.amount})),
           {label:`Next Month Collection - ${d.nextMonthLabel||''}`, amount:d.nextMonthAmount},
         ];
         inner += photoSectionTable('Rent-to-Own (RTO)', rows, 'BALANCE TO RECEIVE', num(d.contractValue)-num(d.collectedPayment));
