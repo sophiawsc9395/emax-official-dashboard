@@ -1112,6 +1112,10 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const completedOrders=useMemo(()=>orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)),[orders,userBranch]);
   const viewingCompleted=filterPhase==="completed";
   const filtered=useMemo(()=>(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||getPhase(o.step)?.id===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,completedOrders,activeOrders,filterPhase,filterBranch,search]);
+  const phaseCounts=useMemo(()=>PHASES.reduce((acc,ph)=>{acc[ph.id]=activeOrders.filter(o=>ph.steps.includes(o.step)).length;return acc;},{}),[activeOrders]);
+  const completedCount=orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)).length;
+  const alerts=useMemo(()=>getOrderAlerts(activeOrders,userBranch),[activeOrders,userBranch]);
+  const alertsByOrderId=useMemo(()=>{const m={};alerts.forEach(a=>{if(!m[a.orderId])m[a.orderId]=a;});return m;},[alerts]);
 
   if(loading)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading orders…</div>;
 
@@ -1120,11 +1124,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowArchive(false)}/>}</>;
   }
   if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
-
-  const phaseCounts=useMemo(()=>PHASES.reduce((acc,ph)=>{acc[ph.id]=activeOrders.filter(o=>ph.steps.includes(o.step)).length;return acc;},{}),[activeOrders]);
-  const completedCount=orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)).length;
-  const alerts=useMemo(()=>getOrderAlerts(activeOrders,userBranch),[activeOrders,userBranch]);
-  const alertsByOrderId=useMemo(()=>{const m={};alerts.forEach(a=>{if(!m[a.orderId])m[a.orderId]=a;});return m;},[alerts]);
 
   return<div className="fade-in">
     {showArchive&&<BatchArchive orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowArchive(false)}/>}
