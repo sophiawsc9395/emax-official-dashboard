@@ -241,6 +241,7 @@ function Timeline({order,isAdmin}){
             {hist.orderDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Order Date: {fDate(hist.orderDate)}{hist.supplierName?` · ${hist.supplierName}`:""}</div>}
             {hist.poNumber&&<div style={{marginBottom:2,color:C.textMid}}>PO Number: {hist.poNumber}</div>}
             {isAdmin&&hist.purchaserName&&<div style={{marginBottom:2,color:C.textMid}}>Purchaser: {hist.purchaserName}</div>}
+            {hist.cancelledDate&&<div style={{marginBottom:2,color:"#DC2626",fontWeight:700}}>Supplier Cancelled — {fDate(hist.cancelledDate)}{hist.reversedTo?` · Returned to ${getStep(hist.reversedTo)?.label||"New Order Request"}`:""}</div>}
             {hist.remark&&<div style={{marginBottom:2,color:C.textMid}}>Remark: {hist.remark}</div>}
             {hist.invoiceNo&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Invoice: {hist.invoiceNo}</div>}
             {hist.claimSentDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Claim Sent: {fDate(hist.claimSentDate)}</div>}
@@ -457,6 +458,12 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const advance=async()=>{
     setSaving(true);
     const rf={};for(const[k,f] of Object.entries(files))if(f)rf[k]=await readFile(f);
+    const totalBytes=Object.values(rf).reduce((sum,fl)=>sum+(fl?.data?.length||0),0);
+    if(totalBytes>4*1024*1024){
+      alert("One or more of these files is too large to save (even after compression). Please use a smaller file — for PDFs, try re-exporting or scanning at a lower resolution — then try again.");
+      setSaving(false);
+      return;
+    }
     const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,totalDue:isCash?calcCashDue(order):upfront.total,paymentMethod:payMethod}:{})};
     const updated={...order,step:nextDef.step,history:[...(order.history||[]),h]};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
@@ -468,7 +475,6 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const ok=()=>{
     if(!branchOk)return false;
     if(nextDef.needsOrderDate&&isAdmin&&(!orderDate||!supplierName.trim()||!poNumber.trim()||!purchaserName.trim()))return false;
-    if(nextDef.needsRemark&&isAdmin&&!remark.trim())return false;
     if(nextDef.needsInvoiceNo&&isAdmin&&!invoiceNo.trim())return false;
     if(nextDef.needsFiles){const req=(nextDef.needsFiles||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof"));if(branchOk&&req.some(f=>!files[f.key]))return false;}
     return true;
@@ -483,7 +489,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div><L req>PO Number</L><I value={poNumber} onChange={e=>setPoNumber(e.target.value)} placeholder="PO number…" style={!poNumber.trim()?{borderColor:"#FECACA"}:{}}/></div>
           {isAdmin&&<div><L req>Purchaser Name</L><I value={purchaserName} onChange={e=>setPurchaserName(e.target.value)} placeholder="Purchaser name…" style={!purchaserName.trim()?{borderColor:"#FECACA"}:{}}/></div>}
         </div>}
-        {nextDef.needsRemark&&isAdmin&&<div style={{marginBottom:12}}><L req>Remark / ETA / Order Details</L><TX value={remark} onChange={e=>setRemark(e.target.value)} rows={2} placeholder="ETA, order reference, notes…" style={!remark.trim()?{borderColor:"#FECACA"}:{}}/></div>}
+        {nextDef.needsRemark&&isAdmin&&<div style={{marginBottom:12}}><L>Remark / ETA / Order Details (optional)</L><TX value={remark} onChange={e=>setRemark(e.target.value)} rows={5} placeholder="ETA, order reference, notes…" style={{borderRadius:12}}/></div>}
         {nextDef.needsInvoiceNo&&isAdmin&&<>
           {order.billingData&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
             <div style={{...lbl,marginBottom:8}}>Billing Request Details (as submitted)</div>
@@ -545,7 +551,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
         <PBtn onClick={advance} disabled={!ok()||saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":`Confirm: ${nextDef.label}`} {!saving&&Ic.chevR}</PBtn>
       </>}
     </ActionBox>
-    {step===2&&isAdmin&&!order.cancelled&&<DBtn onClick={async()=>{const reason=prompt("Reason for supplier cancellation (optional):")||"";if(!confirm("Mark this order as Supplier Cancelled?"))return;setSaving(true);const h={step:order.step,date:nowDate(),time:nowTime(),note:"Supplier Cancelled",cancelled:true,remark:reason||undefined};await onUpdate({...order,cancelled:true,cancelledReason:reason,history:[...(order.history||[]),h]});setSaving(false);}} style={{width:"100%",justifyContent:"center"}}>{Ic.x} Supplier Cancelled Order</DBtn>}
+    {step===2&&isAdmin&&<DBtn onClick={async()=>{const reason=prompt("Reason for supplier cancellation (optional):")||"";if(!confirm("Mark this order as Supplier Cancelled and return it to New Order Request?"))return;setSaving(true);const cd=nowDate();const h={step:2,date:nowDate(),time:nowTime(),note:"Supplier Cancelled",cancelledDate:cd,remark:reason||undefined,reversedTo:1};await onUpdate({...order,step:1,history:[...(order.history||[]),h]});setSaving(false);}} style={{width:"100%",justifyContent:"center"}}>{Ic.x} Supplier Cancelled Order</DBtn>}
     {step===9&&isAdmin&&(!showShortPayment
       ?<DBtn onClick={()=>setShowShortPayment(true)} style={{width:"100%",justifyContent:"center"}}>{Ic.rotate} Short Payment</DBtn>
       :<div style={card}>
