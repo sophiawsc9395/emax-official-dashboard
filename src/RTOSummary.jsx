@@ -1,7 +1,5 @@
 import {useState,useEffect,useRef} from "react";
-import {loadData} from "./storage/index.js";
-
-const RTO_KEY="emax_v5_rto_customers";
+import {listCustomers,getPaymentsForCustomers} from "./storage/rtoApi.js";
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
@@ -267,7 +265,13 @@ function RTOSummaryInner({customers,branchMeta}){
 export default function RTOSummary({branchMeta}){
   const [customers,setCustomers]=useState([]);
   const [loading,setLoading]=useState(true);
-  useEffect(()=>{loadData(RTO_KEY).then(d=>{setCustomers(d||[]);setLoading(false);});},[]);
+  useEffect(()=>{
+    listCustomers().then(async headers=>{
+      const paymentsById=await getPaymentsForCustomers(headers.map(c=>c.id));
+      setCustomers(headers.map(c=>({...c,payments:paymentsById[c.id]||{}})));
+      setLoading(false);
+    });
+  },[]);
   if(loading)return<div style={{padding:40,textAlign:"center",color:"#8A96A8",fontFamily:"Inter,sans-serif"}}>Loading RTO data…</div>;
   return <RTOSummaryInner customers={customers} branchMeta={branchMeta}/>;
 }

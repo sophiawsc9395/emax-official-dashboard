@@ -151,6 +151,99 @@ create policy "Allow authenticated access to order-files"
   using (bucket_id = 'order-files')
   with check (bucket_id = 'order-files');
 
+-- ─── Rent-to-Own (ERP rewrite) ────────────────────────────────────────────────
+-- Replaces the old single-blob "emax_v5_rto_customers" row in app_storage.
+-- Same problem as orders had: every payment tick rewrote every customer's
+-- entire record. Split into:
+--   - `rto_customers`  one row per customer (header + denormalized paid_count/
+--                      total_received so the list view never needs payments)
+--   - `rto_payments`   one row per scheduled month, upserted individually —
+--                      marking one payment writes ONE row, not the whole list.
+
+create table if not exists public.rto_customers (
+  id text primary key
+);
+
+alter table public.rto_customers add column if not exists member_id text;
+alter table public.rto_customers add column if not exists name text;
+alter table public.rto_customers add column if not exists branch text;
+alter table public.rto_customers add column if not exists contact_number text;
+alter table public.rto_customers add column if not exists sales_invoice_date text;
+alter table public.rto_customers add column if not exists tenure int;
+alter table public.rto_customers add column if not exists monthly_installment numeric;
+alter table public.rto_customers add column if not exists finance_price numeric;
+alter table public.rto_customers add column if not exists agreement_fee numeric;
+alter table public.rto_customers add column if not exists stamping_fee numeric;
+alter table public.rto_customers add column if not exists cost numeric;
+alter table public.rto_customers add column if not exists auto_debit_month int;
+alter table public.rto_customers add column if not exists auto_debit_year int;
+-- Denormalized aggregates, kept in sync by the app on every payment write —
+-- lets the customer list/cards and portfolio totals render without ever
+-- joining or fetching the payments table.
+alter table public.rto_customers add column if not exists paid_count int not null default 0;
+alter table public.rto_customers add column if not exists total_received numeric not null default 0;
+alter table public.rto_customers add column if not exists data jsonb not null default '{}'::jsonb;
+alter table public.rto_customers add column if not exists created_at timestamptz not null default now();
+alter table public.rto_customers add column if not exists updated_at timestamptz not null default now();
+
+create index if not exists idx_rto_customers_branch on public.rto_customers (branch);
+
+drop trigger if exists trg_rto_customers_touch_updated_at on public.rto_customers;
+create trigger trg_rto_customers_touch_updated_at
+  before update on public.rto_customers
+  for each row execute function public.touch_updated_at();
+
+create table if not exists public.rto_payments (
+  id bigserial primary key
+);
+
+alter table public.rto_payments add column if not exists customer_id text;
+alter table public.rto_payments add column if not exists sched_key text;
+alter table public.rto_payments add column if not exists paid boolean not null default false;
+alter table public.rto_payments add column if not exists amount numeric;
+alter table public.rto_payments add column if not exists pay_date text;
+alter table public.rto_payments add column if not exists inv_opened boolean not null default false;
+alter table public.rto_payments add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'rto_payments_customer_id_fkey'
+  ) then
+    alter table public.rto_payments
+      add constraint rto_payments_customer_id_fkey
+      foreign key (customer_id) references public.rto_customers(id) on delete cascade;
+  end if;
+end $$;
+
+-- One row per (customer, scheduled month) — this is the upsert target that
+-- lets "mark paid" touch exactly one row instead of the whole customer list.
+create unique index if not exists idx_rto_payments_customer_sched on public.rto_payments (customer_id, sched_key);
+
+drop trigger if exists trg_rto_payments_touch_updated_at on public.rto_payments;
+create trigger trg_rto_payments_touch_updated_at
+  before update on public.rto_payments
+  for each row execute function public.touch_updated_at();
+
+alter table public.rto_customers enable row level security;
+alter table public.rto_payments enable row level security;
+
+drop policy if exists "Allow authenticated full access" on public.rto_customers;
+create policy "Allow authenticated full access"
+  on public.rto_customers
+  for all
+  to authenticated
+  using (true)
+  with check (true);
+
+drop policy if exists "Allow authenticated full access" on public.rto_payments;
+create policy "Allow authenticated full access"
+  on public.rto_payments
+  for all
+  to authenticated
+  using (true)
+  with check (true);
+
 -- ─── Supabase Auth ───────────────────────────────────────────────────────────
 -- No SQL needed here — Supabase Auth is built-in.
 -- Create user accounts via Supabase Dashboard → Authentication → Users → Add user.

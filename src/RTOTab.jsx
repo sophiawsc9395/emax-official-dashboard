@@ -1,7 +1,7 @@
 import {useState,useEffect,useRef,useMemo} from "react";
-import {loadData,saveData} from "./storage/index.js";
+import {listCustomers,getCustomerPayments,getPaymentsForCustomers,saveCustomer as apiSaveCustomer,deleteCustomer as apiDeleteCustomer,updatePayment as apiUpdatePayment} from "./storage/rtoApi.js";
+import RTOMigration from "./RTOMigration.jsx";
 
-const RTO_KEY="emax_v5_rto_customers";
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
@@ -504,37 +504,82 @@ export default function RTOTab({branchMeta}){
   const [selectedId,setSelectedId]=useState(null);
   const [filterBranch,setFilterBranch]=useState("ALL");
   const [search,setSearch]=useState("");
+  const [showMigration,setShowMigration]=useState(false);
+  // Full {schedKey:{paid,amount,date,invOpened}} maps, fetched lazily — one
+  // entry per customer whose detail panel has been opened. The list/cards
+  // never touch this; paidCount/totalReceived are denormalized on the header.
+  const [paymentsCache,setPaymentsCache]=useState({});
+  // Full payments for EVERY customer, fetched once (batched, one query) only
+  // when the Portfolio Summary view is opened — never on the list/board load.
+  const [summaryCustomers,setSummaryCustomers]=useState(null);
+  const [summaryLoading,setSummaryLoading]=useState(false);
+
+  // Headers only — no payments. This is the ONLY query the customer list/
+  // cards need, regardless of how many months of payment history pile up.
+  const refreshList=()=>listCustomers().then(d=>{setCustomers(d);setLoading(false);});
+  useEffect(()=>{refreshList();},[]);
 
   useEffect(()=>{
-    loadData(RTO_KEY).then(d=>{setCustomers(d||[]);setLoading(false);});
-  },[]);
+    if(selectedId&&!paymentsCache[selectedId]){
+      getCustomerPayments(selectedId).then(p=>setPaymentsCache(prev=>({...prev,[selectedId]:p})));
+    }
+  },[selectedId,paymentsCache]);
 
-  const save=async(list)=>{setCustomers(list);await saveData(RTO_KEY,list);};
+  useEffect(()=>{
+    if(view==="summary"&&!summaryCustomers&&!summaryLoading){
+      setSummaryLoading(true);
+      getPaymentsForCustomers(customers.map(c=>c.id)).then(byId=>{
+        setSummaryCustomers(customers.map(c=>({...c,payments:byId[c.id]||{}})));
+        setSummaryLoading(false);
+      });
+    }
+  },[view,customers,summaryCustomers,summaryLoading]);
 
   const saveCustomer=async(c)=>{
-    const list=customers.find(x=>x.id===c.id)?customers.map(x=>x.id===c.id?c:x):[...customers,c];
-    await save(list);setShowForm(false);setEditCustomer(null);
+    const result=await apiSaveCustomer(c);
+    if(!result.ok){alert("Save failed — please try again.");return;}
+    setCustomers(p=>p.some(x=>x.id===c.id)?p.map(x=>x.id===c.id?{...x,...c}:x):[...p,{...c,paidCount:0,totalReceived:0}]);
+    setSummaryCustomers(null); // stale — refetch next time the summary is opened
+    setShowForm(false);setEditCustomer(null);
     if(!selectedId)setSelectedId(c.id);
   };
 
   const deleteCustomer=async(id)=>{
     if(!confirm("Remove this customer?"))return;
-    const list=customers.filter(x=>x.id!==id);
-    await save(list);if(selectedId===id)setSelectedId(null);
+    const result=await apiDeleteCustomer(id);
+    if(!result.ok){alert("Delete failed. Please try again.");return;}
+    setCustomers(p=>p.filter(x=>x.id!==id));
+    setPaymentsCache(p=>{const n={...p};delete n[id];return n;});
+    setSummaryCustomers(null);
+    if(selectedId===id)setSelectedId(null);
   };
 
+  // Marks ONE scheduled month — writes a single rto_payments row plus this
+  // customer's two denormalized aggregate columns. Never touches any other
+  // customer's data, unlike the old blob save which rewrote everyone.
   const updatePayment=async(customerId,schedKey,payData)=>{
-    const list=customers.map(c=>c.id===customerId?{...c,payments:{...c.payments,[schedKey]:payData}}:c);
-    await save(list);
+    const customer=customers.find(c=>c.id===customerId);
+    const newPayments={...(paymentsCache[customerId]||{}),[schedKey]:payData};
+    const schedule=genSchedule(customer);
+    const paidCount=schedule.filter(s=>newPayments[s.key]?.paid).length;
+    const totalReceived=schedule.filter(s=>newPayments[s.key]?.paid).reduce((sum,s)=>sum+(newPayments[s.key]?.amount||s.amount),0);
+    const result=await apiUpdatePayment(customerId,schedKey,payData,{paidCount,totalReceived});
+    if(!result.ok){alert("Save failed — please try again.");return;}
+    setPaymentsCache(p=>({...p,[customerId]:newPayments}));
+    setCustomers(p=>p.map(c=>c.id===customerId?{...c,paidCount,totalReceived}:c));
+    setSummaryCustomers(null);
   };
 
   const filtered=customers.filter(c=>(filterBranch==="ALL"||c.branch===filterBranch)&&(!search||c.name.toLowerCase().includes(search.toLowerCase())||c.memberId.toLowerCase().includes(search.toLowerCase())));
-  const selected=customers.find(c=>c.id===selectedId);
+  const selectedHeader=customers.find(c=>c.id===selectedId);
+  const selectedPaymentsReady=selectedId&&paymentsCache[selectedId]!==undefined;
+  const selected=selectedHeader&&selectedPaymentsReady?{...selectedHeader,payments:paymentsCache[selectedId]}:null;
 
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
 
   return(
     <div className="fade-in">
+      {showMigration&&<RTOMigration onClose={()=>{setShowMigration(false);refreshList();}}/>}
       {/* Page header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,paddingBottom:16,borderBottom:`1px solid ${C.border}`,flexWrap:"wrap",gap:10}}>
         <div>
@@ -542,11 +587,12 @@ export default function RTOTab({branchMeta}){
           <div style={{fontSize:12,color:C.textLight,marginTop:4}}>{customers.length} customer{customers.length===1?"":"s"} on record</div>
         </div>
         <div style={{display:"flex",gap:8}}>
+          <GBtn onClick={()=>setShowMigration(true)}>Migrate Legacy Customers</GBtn>
           <GBtn onClick={()=>setView(view==="list"?"summary":"list")} style={view==="summary"?{background:C.navy,color:"#fff",border:`1.5px solid ${C.navy}`}:{}}>{view==="list"?"View Portfolio Summary":"Back to Customer List"}</GBtn>
         </div>
       </div>
 
-      {view==="summary"&&<RTOSummary customers={customers} branchMeta={branchMeta}/>}
+      {view==="summary"&&(summaryCustomers?<RTOSummary customers={summaryCustomers} branchMeta={branchMeta}/>:<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading portfolio summary…</div>)}
 
       {view==="list"&&<div className="rto-grid">
         {/* Left: customer list */}
@@ -563,8 +609,8 @@ export default function RTOTab({branchMeta}){
             {filtered.length===0&&<div style={{...card,textAlign:"center",padding:"24px 16px",color:C.textLight,fontSize:12}}>No customers yet.</div>}
             {filtered.map(c=>{
               const schedule=genSchedule(c);
-              const paidCount=schedule.filter(s=>c.payments?.[s.key]?.paid).length;
-              const totalReceived=schedule.filter(s=>c.payments?.[s.key]?.paid).reduce((sum,s)=>sum+(c.payments[s.key]?.amount||s.amount),0);
+              const paidCount=c.paidCount||0;
+              const totalReceived=c.totalReceived||0;
               const totalContract=(parseInt(c.tenure)||0)*(parseFloat(c.monthlyInstallment)||0);
               const outstanding=totalContract-totalReceived;
               const isFullyPaid=outstanding<=0&&schedule.length>0;
@@ -603,7 +649,8 @@ export default function RTOTab({branchMeta}){
         <div>
           {showForm&&<CustomerForm initial={editCustomer} branchMeta={branchMeta} onSave={saveCustomer} onCancel={()=>{setShowForm(false);setEditCustomer(null);}}/>}
           {!showForm&&selected&&<PaymentSchedule customer={selected} onUpdate={(key,data)=>updatePayment(selected.id,key,data)}/>}
-          {!showForm&&!selected&&<div style={{...card,textAlign:"center",padding:"60px 20px",color:C.textLight,fontSize:13}}>Select a customer to view their payment schedule and summary.</div>}
+          {!showForm&&!selected&&selectedId&&<div style={{...card,textAlign:"center",padding:"60px 20px",color:C.textLight,fontSize:13}}>Loading payment schedule…</div>}
+          {!showForm&&!selected&&!selectedId&&<div style={{...card,textAlign:"center",padding:"60px 20px",color:C.textLight,fontSize:13}}>Select a customer to view their payment schedule and summary.</div>}
         </div>
       </div>}
     </div>
