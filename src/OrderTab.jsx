@@ -164,19 +164,20 @@ function InfoCell({label,value,nowrap}){return<div style={{minWidth:0}}><div sty
 function PhaseBar({step,order,dark=false}){
   const mxS=order?maxStep(order):12;
   const pct=Math.round(((Math.min(step,mxS)-1)/(mxS-1))*100);
+  const curPhase=getPhase(step);
   return(
     <div>
-      <div style={{display:"flex",alignItems:"flex-start",gap:0,marginBottom:12}}>
+      <div className="pb-row">
         {(order?.orderType==="cash"?PHASES.filter(p=>["stock","transfer","billing","agreement_hq"].includes(p.id)):PHASES).map((p,i,arr)=>{
           const maxS=Math.max(...p.steps),done=step>maxS,active=p.steps.includes(step);
           return<div key={p.id} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-start"}}>
             <div style={{display:"flex",alignItems:"center",width:"100%"}}>
-              <div style={{width:24,height:24,borderRadius:"50%",background:done?(dark?"rgba(255,255,255,.9)":C.navy):active?C.blue:(dark?"rgba(255,255,255,.1)":"#E4EAF2"),border:`2px solid ${done?(dark?"rgba(255,255,255,.7)":C.navy):active?C.blue:(dark?"rgba(255,255,255,.2)":"#E4EAF2")}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:dark&&done?"#0A1628":"#fff",transition:"all .2s"}}>
+              <div className="pb-circle" style={{width:24,height:24,borderRadius:"50%",background:done?(dark?"rgba(255,255,255,.9)":C.navy):active?C.blue:(dark?"rgba(255,255,255,.1)":"#E4EAF2"),border:`2px solid ${done?(dark?"rgba(255,255,255,.7)":C.navy):active?C.blue:(dark?"rgba(255,255,255,.2)":"#E4EAF2")}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:dark&&done?"#0A1628":"#fff",transition:"all .2s"}}>
                 {done?Ic.check:active?<div style={{width:7,height:7,borderRadius:"50%",background:"#fff"}}/>:<span style={{fontSize:8,fontWeight:700,color:dark?"rgba(255,255,255,.35)":C.textLight}}>{i+1}</span>}
               </div>
               {i<arr.length-1&&<div style={{flex:1,height:2,background:done?(dark?"rgba(255,255,255,.7)":C.navy):(dark?"rgba(255,255,255,.15)":"#E4EAF2"),margin:"0 3px",transition:"background .3s"}}/>}
             </div>
-            <div style={{marginTop:5,paddingLeft:1}}>
+            <div className="pb-label" style={{marginTop:5,paddingLeft:1}}>
               <div style={{fontSize:9,fontWeight:700,color:dark?(active?"#FFD500":done?"rgba(255,255,255,.7)":"rgba(255,255,255,.35)"):(active?C.blue:done?C.textMid:C.textLight),textTransform:"uppercase",letterSpacing:"0.04em",lineHeight:1.2}}>{p.label}</div>
             </div>
           </div>;
@@ -186,7 +187,7 @@ function PhaseBar({step,order,dark=false}){
         <div style={{height:"100%",width:`${pct}%`,background:dark?"linear-gradient(90deg,#FFD500,#FFF176)":`linear-gradient(90deg,${C.blue},${C.blueBright})`,borderRadius:2,transition:"width .5s cubic-bezier(.4,0,.2,1)"}}/>
       </div>
       <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:10,color:C.textLight}}>
-        <span style={{color:dark?"rgba(255,255,255,.5)":C.textLight}}>Step {step} of {mxS}</span><span style={{fontWeight:700,color:dark?"#FFD500":C.blue}}>{pct}%</span>
+        <span style={{color:dark?"rgba(255,255,255,.5)":C.textLight}}>Step {step} of {mxS}{curPhase?` — ${curPhase.label}`:""}</span><span style={{fontWeight:700,color:dark?"#FFD500":C.blue}}>{pct}%</span>
       </div>
     </div>
   );
@@ -668,9 +669,9 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
   const s=getStep(order.step),ph=getPhase(order.step),isCash=order.orderType==="cash";
   return<div className="fade-in">
     {/* Top bar */}
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <GBtn onClick={onBack}>{Ic.chevL} Back</GBtn>
-      <div style={{flex:1,minWidth:0}}>
+    <div className="detail-topbar">
+      <div className="detail-topbar-back"><GBtn onClick={onBack}>{Ic.chevL} Back</GBtn></div>
+      <div className="detail-topbar-title">
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
           <span style={{fontSize:14,fontWeight:800,color:C.navy}}>{order.phoneModel}</span>
           <StepBadge order={order}/>
@@ -679,7 +680,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
         </div>
         <div style={{fontSize:11,color:C.textLight,marginTop:3}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}</div>
       </div>
-      {isAdmin&&!isReadOnly&&<div style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn><DBtn onClick={onDelete}>{Ic.trash} Delete</DBtn></div>}
+      {isAdmin&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn><DBtn onClick={onDelete}>{Ic.trash} Delete</DBtn></div>}
     </div>
 
     {order.cancelled&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"12px 16px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
@@ -715,7 +716,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
 
 
     {/* Two-col: timeline | action */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,alignItems:"start"}}>
+    <div className="detail-grid">
       <div style={card}>
         <SecHdr icon={Ic.calendar}>Tracking Timeline</SecHdr>
         <div style={{padding:"14px 16px"}}><Timeline order={order} isAdmin={isAdmin}/></div>
