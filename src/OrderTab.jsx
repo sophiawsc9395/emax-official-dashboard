@@ -17,7 +17,7 @@ const PHASES=[
 const STEPS=[
   {step:1,label:"New Order Request",desc:"Order submitted by branch.",who:"branch",phase:"stock"},
   {step:2,label:"Ordered",desc:"Purchase order placed with supplier.",who:"admin",phase:"stock",needsOrderDate:true,needsRemark:true},
-  {step:3,label:"Arrived HQ",desc:"Item received at HQ.",who:"admin",phase:"stock"},
+  {step:3,label:"Arrived HQ",desc:"Item received at HQ.",who:"admin",phase:"stock",needsFiles:[{key:"claimToPurchaser",label:"Claim Release to Purchaser File"}]},
   {step:4,label:"Dispatched to Branch",desc:"Item dispatched from HQ.",who:"admin",phase:"transfer",needsFiles:[{key:"consignment",label:"Consignment Note"},{key:"stockTransfer",label:"Stock Transfer PDF"}]},
   {step:5,label:"Arrived Branch",desc:"Branch confirms receipt.",who:"branch",phase:"transfer"},
   {step:6,label:"Billing Request",desc:"Submit billing request form.",who:"branch",phase:"billing",needsBillingForm:true},
@@ -74,7 +74,35 @@ const fDT=(date,time)=>date?(time?`${fDate(date)} ${time}`:fDate(date)):"—";
 const getStep=n=>STEPS.find(s=>s.step===n)||STEPS[0];
 const getPhase=step=>PHASES.find(p=>p.steps.includes(step));
 const shortId=id=>id?("ORD-"+String(id).slice(-6).toUpperCase()):"";
-const readFile=f=>new Promise(res=>{const r=new FileReader();r.onload=()=>res({name:f.name,data:r.result});r.readAsDataURL(f);});
+const readFile=f=>new Promise((res,rej)=>{
+  if(!f.type||!f.type.startsWith("image/")){
+    // Non-image (e.g. PDF) — read as-is, nothing we can safely compress client-side.
+    const r=new FileReader();r.onload=()=>res({name:f.name,data:r.result});r.onerror=rej;r.readAsDataURL(f);
+    return;
+  }
+  // Image — downscale + re-encode as JPEG to keep the saved payload small (large camera
+  // photos were causing the whole orders record to exceed the save size limit, which
+  // failed silently and made uploads look "lost" on refresh).
+  const img=new Image();
+  const url=URL.createObjectURL(f);
+  img.onload=()=>{
+    const MAX=1600;
+    let{width:w,height:h}=img;
+    if(w>MAX||h>MAX){const s=MAX/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+    const canvas=document.createElement("canvas");
+    canvas.width=w;canvas.height=h;
+    canvas.getContext("2d").drawImage(img,0,0,w,h);
+    const data=canvas.toDataURL("image/jpeg",0.75);
+    URL.revokeObjectURL(url);
+    res({name:f.name.replace(/\.(png|jpe?g|webp|heic|heif)$/i,"")+".jpg",data});
+  };
+  img.onerror=()=>{
+    URL.revokeObjectURL(url);
+    // Fallback: if it can't be decoded as an image for some reason, store as-is.
+    const r=new FileReader();r.onload=()=>res({name:f.name,data:r.result});r.onerror=rej;r.readAsDataURL(f);
+  };
+  img.src=url;
+});
 const calcUpfront=o=>{const a=parseFloat(o.agreementFee)||0,s=parseFloat(o.stampingFee)||0,d=parseFloat(o.deposit)||0;return{a,s,d,total:a+s+d};};
 const calcCashDue=o=>(parseFloat(o.retailPrice)||0)-(parseFloat(o.deposit)||0);
 
@@ -133,7 +161,7 @@ function SecHdr({icon,children,right}){
     {right&&<div>{right}</div>}
   </div>;
 }
-function InfoCell({label,value}){return<div style={{minWidth:0}}><div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2,fontWeight:600}}>{label}</div><div style={{fontSize:12,fontWeight:600,color:C.text,wordBreak:"break-word",overflowWrap:"anywhere"}}>{value||"—"}</div></div>;}
+function InfoCell({label,value,nowrap}){return<div style={{minWidth:0}}><div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2,fontWeight:600}}>{label}</div><div style={nowrap?{fontSize:12,fontWeight:600,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}:{fontSize:12,fontWeight:600,color:C.text,wordBreak:"break-word",overflowWrap:"anywhere"}} title={nowrap?value:undefined}>{value||"—"}</div></div>;}
 
 /* ── Phase Progress Bar ───────────────────────────────────────────────── */
 function PhaseBar({step,order,dark=false}){
@@ -183,7 +211,7 @@ function StepBadge({order,step}){
 }
 
 /* ── Timeline ─────────────────────────────────────────────────────────── */
-function Timeline({order}){
+function Timeline({order,isAdmin}){
   const cur=order.step;
   const isReady=order.stockStatus==="ready";
   const visSteps=getVisibleSteps(order);
@@ -211,6 +239,8 @@ function Timeline({order}){
           </div>
           {hist&&<div style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid}}>
             {hist.orderDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Order Date: {fDate(hist.orderDate)}{hist.supplierName?` · ${hist.supplierName}`:""}</div>}
+            {hist.poNumber&&<div style={{marginBottom:2,color:C.textMid}}>PO Number: {hist.poNumber}</div>}
+            {isAdmin&&hist.purchaserName&&<div style={{marginBottom:2,color:C.textMid}}>Purchaser: {hist.purchaserName}</div>}
             {hist.remark&&<div style={{marginBottom:2,color:C.textMid}}>Remark: {hist.remark}</div>}
             {hist.invoiceNo&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Invoice: {hist.invoiceNo}</div>}
             {hist.claimSentDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Claim Sent: {fDate(hist.claimSentDate)}</div>}
@@ -354,6 +384,8 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const [invoiceNo,setInvoiceNo]=useState("");
   const [orderDate,setOrderDate]=useState(nowDate());
   const [supplierName,setSupplierName]=useState("");
+  const [poNumber,setPoNumber]=useState("");
+  const [purchaserName,setPurchaserName]=useState("");
   const [claimSentDate,setClaimSentDate]=useState(nowDate());
   const [knockOffDate,setKnockOffDate]=useState(nowDate());
   const [knockOffAmount,setKnockOffAmount]=useState("");
@@ -425,17 +457,18 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const advance=async()=>{
     setSaving(true);
     const rf={};for(const[k,f] of Object.entries(files))if(f)rf[k]=await readFile(f);
-    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,totalDue:isCash?calcCashDue(order):upfront.total,paymentMethod:payMethod}:{})};
+    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,totalDue:isCash?calcCashDue(order):upfront.total,paymentMethod:payMethod}:{})};
     const updated={...order,step:nextDef.step,history:[...(order.history||[]),h]};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
     if(isCash&&nextDef.step===13){updated.step=13;}
-    if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;}
+    if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;if(poNumber)updated.poNumber=poNumber;if(purchaserName)updated.purchaserName=purchaserName;}
     if(nextDef.needsInvoiceNo)updated.invoiceNo=invoiceNo;
-    await onUpdate(updated);setSaving(false);setRemark("");setInvoiceNo("");setFiles({});setVerRemark("");setCollection(false);setPayment(false);
+    const ok=await onUpdate(updated);setSaving(false);if(ok!==false){setRemark("");setInvoiceNo("");setFiles({});setVerRemark("");setCollection(false);setPayment(false);setPoNumber("");setPurchaserName("");}
   };
   const ok=()=>{
     if(!branchOk)return false;
-    if(nextDef.needsOrderDate&&isAdmin&&!orderDate)return false;
+    if(nextDef.needsOrderDate&&isAdmin&&(!orderDate||!supplierName.trim()||!poNumber.trim()||!purchaserName.trim()))return false;
+    if(nextDef.needsRemark&&isAdmin&&!remark.trim())return false;
     if(nextDef.needsInvoiceNo&&isAdmin&&!invoiceNo.trim())return false;
     if(nextDef.needsFiles){const req=(nextDef.needsFiles||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof"));if(branchOk&&req.some(f=>!files[f.key]))return false;}
     return true;
@@ -446,9 +479,11 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
       {!branchOk?<div style={{fontSize:12,color:C.textLight,fontStyle:"italic",padding:"2px 0"}}>Waiting for admin to process this step.</div>:<>
         {nextDef.needsOrderDate&&isAdmin&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
           <div><L req>Order Date</L><I type="date" value={orderDate} onChange={e=>setOrderDate(e.target.value)}/></div>
-          <div><L>Supplier Name</L><I value={supplierName} onChange={e=>setSupplierName(e.target.value)} placeholder="Supplier name…"/></div>
+          <div><L req>Supplier Name</L><I value={supplierName} onChange={e=>setSupplierName(e.target.value)} placeholder="Supplier name…" style={!supplierName.trim()?{borderColor:"#FECACA"}:{}}/></div>
+          <div><L req>PO Number</L><I value={poNumber} onChange={e=>setPoNumber(e.target.value)} placeholder="PO number…" style={!poNumber.trim()?{borderColor:"#FECACA"}:{}}/></div>
+          {isAdmin&&<div><L req>Purchaser Name</L><I value={purchaserName} onChange={e=>setPurchaserName(e.target.value)} placeholder="Purchaser name…" style={!purchaserName.trim()?{borderColor:"#FECACA"}:{}}/></div>}
         </div>}
-        {nextDef.needsRemark&&isAdmin&&<div style={{marginBottom:12}}><L>Remark / ETA / Order Details</L><TX value={remark} onChange={e=>setRemark(e.target.value)} rows={2} placeholder="ETA, order reference, notes…"/></div>}
+        {nextDef.needsRemark&&isAdmin&&<div style={{marginBottom:12}}><L req>Remark / ETA / Order Details</L><TX value={remark} onChange={e=>setRemark(e.target.value)} rows={2} placeholder="ETA, order reference, notes…" style={!remark.trim()?{borderColor:"#FECACA"}:{}}/></div>}
         {nextDef.needsInvoiceNo&&isAdmin&&<>
           {order.billingData&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
             <div style={{...lbl,marginBottom:8}}>Billing Request Details (as submitted)</div>
@@ -603,7 +638,9 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <div style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.fileText}>Order Information</SecHdr>
       <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:12}}>
-        {[order.customerIC&&["Customer IC",order.customerIC],order.customerHP&&["Customer HP",order.customerHP],order.customerEmail&&["Customer Email",order.customerEmail],order.customerAddress&&["Address",`${order.customerAddress}${order.customerPostCode?`, ${order.customerPostCode}`:""}${order.customerCity?` ${order.customerCity}`:""}`],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],isAdmin&&order.supplierName&&["Supplier",order.supplierName],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
+        {[order.customerIC&&["Customer IC",order.customerIC],order.customerHP&&["Customer HP",order.customerHP],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],isAdmin&&order.supplierName&&["Supplier",order.supplierName],isAdmin&&order.poNumber&&["PO Number",order.poNumber],isAdmin&&order.purchaserName&&["Purchaser Name",order.purchaserName],order.customerPostCode&&["Postcode",order.customerPostCode],order.customerCity&&["City",order.customerCity],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
+        {order.customerEmail&&<div style={{gridColumn:"1/-1"}}><InfoCell label="Customer Email" value={order.customerEmail} nowrap/></div>}
+        {order.customerAddress&&<div style={{gridColumn:"1/-1"}}><InfoCell label="Address" value={order.customerAddress} nowrap/></div>}
       </div>
       {order.adminRemark&&<div style={{padding:"8px 16px",borderTop:`1px solid ${C.border}`,background:"#FFFBEB"}}><div style={{fontSize:10,color:"#92400E",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Admin Remark</div><div style={{fontSize:12,color:"#78350F"}}>{order.adminRemark}</div></div>}
     </div>
@@ -634,7 +671,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,alignItems:"start"}}>
       <div style={card}>
         <SecHdr icon={Ic.calendar}>Tracking Timeline</SecHdr>
-        <div style={{padding:"14px 16px"}}><Timeline order={order}/></div>
+        <div style={{padding:"14px 16px"}}><Timeline order={order} isAdmin={isAdmin}/></div>
       </div>
       <div>
         {order.cancelled?<div style={{...card,padding:"16px"}}>
@@ -670,10 +707,11 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
   const isCash=f.orderType==="cash",isReady=f.stockStatus==="ready";
   const branchSRs=(srList||[]).filter(s=>s.branch===(userBranch||f.branch));
-  const REQUIRED=["phoneModel","customerName",...(isCash?["retailPrice","deposit"]:["financePrice","stampingFee","agreementFee","deposit"])];
+  const REQUIRED=["phoneModel","customerName","salesAgentId","customerIC","customerEmail","customerHP","customerAddress","customerPostCode","customerCity",...(isCash?["retailPrice","deposit","depositPaymentDate"]:["merchant","agreementNumber","aeonApprovalDate","financePrice","stampingFee","agreementFee","deposit","monthlyInstallment"])];
   const missing=REQUIRED.filter(k=>!f[k]?.toString().trim());
+  const missingSlip=isCash&&!slipFile&&!f.depositSlip;
   const submit=async()=>{
-    if(missing.length){alert("Please fill in all required fields.");return;}
+    if(missing.length||missingSlip){alert("Please fill in all required fields.");return;}
     let depositSlip=f.depositSlip||null;
     if(slipFile)depositSlip=await readFile(slipFile);
     const initStep=isReady?4:1;
@@ -705,35 +743,35 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
     <FormCard title="Basic Information">
       {row("phoneModel","Phone Model / Item","text",true)}
       {row("customerName","Customer Name","text",true)}
-      <div><L>Branch</L><SEL value={f.branch} onChange={e=>set("branch",e.target.value)} disabled={!isAdmin&&!!userBranch}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}</SEL></div>
-      <div><L>Sales Agent</L>{branchSRs.length>0?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>:<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder="Agent ID"/>}</div>
+      <div><L req>Branch</L><SEL value={f.branch} onChange={e=>set("branch",e.target.value)} disabled={!isAdmin&&!!userBranch}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}</SEL></div>
+      <div><L req>Sales Agent</L>{branchSRs.length>0?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}} style={missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>:<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder="Agent ID" style={missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}}/>}</div>
     </FormCard>
     <FormCard title="Customer Details">
-      {row("customerIC","Customer IC")}
-      {row("customerEmail","Customer Email Address","email")}
-      {row("customerHP","Customer HP No.")}
-      {row("customerAddress","Address")}
-      {row("customerPostCode","Postcode")}
-      {row("customerCity","City")}
+      {row("customerIC","Customer IC","text",true)}
+      {row("customerEmail","Customer Email Address","email",true)}
+      {row("customerHP","Customer HP No.","text",true)}
+      {row("customerAddress","Address","text",true)}
+      {row("customerPostCode","Postcode","text",true)}
+      {row("customerCity","City","text",true)}
     </FormCard>
     {!isCash&&<FormCard title="CCM / Financing Details">
-      <div><L>Merchant</L><SEL value={f.merchant} onChange={e=>set("merchant",e.target.value)}>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
-      {row("agreementNumber","Agreement No.")}
-      {row("aeonApprovalDate","Aeon Approval Date","date")}
+      <div><L req>Merchant</L><SEL value={f.merchant} onChange={e=>set("merchant",e.target.value)}>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
+      {row("agreementNumber","Agreement No.","text",true)}
+      {row("aeonApprovalDate","Aeon Approval Date","date",true)}
       {row("financePrice","Finance Price (RM)","number",true)}
       {row("stampingFee","Stamping Fee (RM)","number",true)}
       {row("agreementFee","Agreement Fee (RM)","number",true)}
       {row("deposit","Deposit (RM)","number",true)}
-      {row("monthlyInstallment","Monthly Installment (RM)","number")}
+      {row("monthlyInstallment","Monthly Installment (RM)","number",true)}
     </FormCard>}
     {isCash&&<FormCard title="Cash Order Details">
       {row("retailPrice","Retail Price (RM)","number",true)}
       {row("deposit","Deposit (RM)","number",true)}
-      {row("depositPaymentDate","Deposit Payment Date","date")}
-      <div><L>Deposit Payment Slip</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setSlipFile(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{(slipFile||f.depositSlip)&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {slipFile?.name||f.depositSlip?.name}</div>}</div>
+      {row("depositPaymentDate","Deposit Payment Date","date",true)}
+      <div><L req>Deposit Payment Slip</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setSlipFile(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{(slipFile||f.depositSlip)&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {slipFile?.name||f.depositSlip?.name}</div>}{!slipFile&&!f.depositSlip&&<div style={{fontSize:10,color:"#DC2626",marginTop:3}}>Required</div>}</div>
     </FormCard>}
-    {missing.length>0&&!order&&<div style={{padding:"9px 12px",background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:8,fontSize:11,color:"#92400E",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill all required fields to submit.</div>}
-    <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><GBtn onClick={onCancel}>Cancel</GBtn><PBtn onClick={submit} disabled={!order&&missing.length>0}>{isReady?"Submit & Dispatch":"Submit Order Request"}</PBtn></div>
+    {(missing.length>0||missingSlip)&&!order&&<div style={{padding:"9px 12px",background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:8,fontSize:11,color:"#92400E",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill all required fields to submit.</div>}
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><GBtn onClick={onCancel}>Cancel</GBtn><PBtn onClick={submit} disabled={!order&&(missing.length>0||missingSlip)}>{isReady?"Submit & Dispatch":"Submit Order Request"}</PBtn></div>
   </div>;
 }
 
@@ -914,8 +952,18 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
   useEffect(()=>{loadData(ORDER_KEY).then(d=>{setOrders(Array.isArray(d)?d:[]);setLoading(false);});},[]);
   const nav=(v,sel=null)=>{setView(v);setSelected(sel);sessionStorage.setItem("orderView",v);sessionStorage.setItem("orderSelected",sel?JSON.stringify(sel):"null");};
-  const save=async list=>{setOrders(list);await saveData(ORDER_KEY,list);};
-  const saveOrder=async o=>{const list=orders.find(x=>x.id===o.id)?orders.map(x=>x.id===o.id?o:x):[...orders,o];await save(list);nav("detail",o);};
+  const save=async list=>{
+    const prev=orders;
+    setOrders(list);
+    const result=await saveData(ORDER_KEY,list);
+    if(!result?.ok){
+      setOrders(prev);
+      alert("Save failed — your changes were NOT saved. This usually happens when an uploaded file is too large. Please try a smaller file (compress the photo or PDF) and try again.");
+      return false;
+    }
+    return true;
+  };
+  const saveOrder=async o=>{const list=orders.find(x=>x.id===o.id)?orders.map(x=>x.id===o.id?o:x):[...orders,o];const ok=await save(list);if(ok)nav("detail",o);return ok;};
   const deleteOrder=async id=>{if(!confirm("Delete this order?"))return;await save(orders.filter(x=>x.id!==id));nav("list");};
 
   const activeOrders=orders.filter(o=>o.step!==13&&(!userBranch||o.branch===userBranch));

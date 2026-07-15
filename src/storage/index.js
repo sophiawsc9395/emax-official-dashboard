@@ -49,16 +49,18 @@ export async function saveData(key, value) {
     // null/undefined = delete the row (used by PDF delete)
     if (value === null || value === undefined) {
       const { error } = await supabase.from(TABLE).delete().eq('key', key)
-      if (error) console.error('saveData delete error:', key, error)
-      return
+      if (error) { console.error('saveData delete error:', key, error); return { ok: false, error } }
+      return { ok: true }
     }
     // Always stringify before storing — value column is text
     const { error } = await supabase
       .from(TABLE)
       .upsert({ key, value: JSON.stringify(value) }, { onConflict: 'key' })
-    if (error) console.error('saveData error:', key, error)
+    if (error) { console.error('saveData error:', key, error); return { ok: false, error } }
+    return { ok: true }
   } catch (e) {
     console.error('saveData exception:', key, e)
+    return { ok: false, error: e }
   }
 }
 
