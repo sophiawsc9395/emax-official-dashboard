@@ -253,7 +253,7 @@ function Timeline({order,isAdmin}){
     {hist.issueItems?.length>0&&<div style={{marginBottom:2,color:C.textMid,fontSize:10}}>Issues: {hist.issueItems.join(" · ")}</div>}
     {hist.checklistItems&&<div style={{fontSize:10,color:C.textMid}}>{hist.checklistItems.filter(x=>x.checked).length}/{hist.checklistItems.length} checklist items</div>}
     {hist.agreementConsignmentNo&&<div style={{marginTop:2,color:C.navy,fontWeight:600,fontSize:11}}>Consignment Note No.: {hist.agreementConsignmentNo}</div>}
-    {hist.collectionChecked!==undefined&&<div style={{fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"✓":"✗"} Collection · </>}{hist.paymentChecked?"✓":"✗"} Payment verified</div>}
+    {hist.collectionChecked!==undefined&&<div style={{fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"✓":"✗"} Phone Collection · </>}{hist.paymentChecked?"✓":"✗"} Payment verified</div>}
     {hist.files&&Object.entries(hist.files).filter(([k])=>isAdmin||k!=="claimToPurchaser").flatMap(([k,f])=>f?(Array.isArray(f)?f.map((ff,i)=>[`${k}-${i}`,ff]):[[k,f]]):[]).map(([k,f])=>f&&<a key={k} href={f.data} download={f.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} {f.name}</a>)}
     {s.step===1&&order.orderType==="cash"&&order.depositSlip&&<a href={order.depositSlip.data} download={order.depositSlip.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} Deposit Payment Slip — {order.depositSlip.name}</a>}
   </div>;
@@ -569,7 +569,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
         </>}
         {nextDef.needsVerification&&isAdmin&&<div style={{marginBottom:12}}>
           <div style={{...lbl,marginBottom:8}}>Verification Checklist</div>
-          {(isCash?[[payment,setPayment,"Payment Proof verified"]]:[[collection,setCollection,"Customer Collection Proof verified"],[payment,setPayment,"Upfront Payment Proof verified"]]).map(([val,setter,label],i)=><div key={i} onClick={()=>setter(!val)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:8,background:val?"#F0FDF4":C.surface,border:`1px solid ${val?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer",transition:"all .15s"}}>
+          {(isCash?[[payment,setPayment,"Payment Proof verified"]]:[[collection,setCollection,"Phone Collection Proof verified"],[payment,setPayment,"Upfront Payment Proof verified"]]).map(([val,setter,label],i)=><div key={i} onClick={()=>setter(!val)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:8,background:val?"#F0FDF4":C.surface,border:`1px solid ${val?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer",transition:"all .15s"}}>
             <div style={{width:18,height:18,borderRadius:4,background:val?C.navy:"#fff",border:`2px solid ${val?C.navy:"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",transition:"all .15s"}}>{val&&Ic.check}</div>
             <span style={{fontSize:12,color:val?"#15803D":C.text,fontWeight:val?600:400}}>{label}</span>
           </div>)}
