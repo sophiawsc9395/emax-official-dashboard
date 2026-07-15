@@ -20,6 +20,126 @@ function isMissingTableError(error) {
   return error?.code === '42P01' || /relation .*orders.* does not exist/i.test(error?.message || '')
 }
 
+function applyCommonFilters(query, { branch = 'ALL', userBranch = null, steps = null, completed = false, search = '' } = {}) {
+  const effectiveBranch = userBranch || (branch !== 'ALL' ? branch : null)
+  if (effectiveBranch) query = query.eq('branch', effectiveBranch)
+
+  if (Array.isArray(steps) && steps.length) query = query.in('step', steps)
+  else if (completed) query = query.eq('step', 14)
+  else query = query.neq('step', 14)
+
+  const term = String(search || '').trim().replace(/[(),%]/g, ' ')
+  if (term) {
+    query = query.or(
+      `customer_name.ilike.%${term}%,phone_model.ilike.%${term}%,agreement_number.ilike.%${term}%`
+    )
+  }
+
+  return query
+}
+
+export async function loadOrdersPage({
+  page = 1,
+  pageSize = 25,
+  branch = 'ALL',
+  userBranch = null,
+  steps = null,
+  completed = false,
+  search = '',
+} = {}) {
+  const from = Math.max(0, (page - 1) * pageSize)
+  const to = from + pageSize - 1
+
+  let query = supabase
+    .from(ORDERS_TABLE)
+    .select('data', { count: 'exact' })
+
+  query = applyCommonFilters(query, { branch, userBranch, steps, completed, search })
+
+  const { data, error, count } = await query
+    .order('updated_at', { ascending: false })
+    .range(from, to)
+
+  if (error) {
+    if (isMissingTableError(error)) {
+      console.warn('Orders table is not created yet. Falling back to legacy app_storage data.')
+      const legacy = await loadData(LEGACY_ORDER_KEY, true)
+      const list = Array.isArray(legacy) ? legacy : []
+      return { orders: list.slice(from, to + 1), count: list.length, legacy: true }
+    }
+    console.error('loadOrdersPage error:', error)
+    return { orders: [], count: 0, error }
+  }
+
+  return {
+    orders: (data ?? []).map(row => row.data).filter(Boolean),
+    count: count ?? 0,
+  }
+}
+
+export async function loadOrderById(id) {
+  const { data, error } = await supabase
+    .from(ORDERS_TABLE)
+    .select('data')
+    .eq('id', String(id))
+    .maybeSingle()
+
+  if (error) {
+    console.error('loadOrderById error:', error)
+    return null
+  }
+
+  return data?.data ?? null
+}
+
+export async function loadOrdersForAction({ userBranch = null, branch = 'ALL', steps = null, completed = false, search = '' } = {}) {
+  let query = supabase.from(ORDERS_TABLE).select('data')
+  query = applyCommonFilters(query, { branch, userBranch, steps, completed, search })
+
+  const { data, error } = await query.order('updated_at', { ascending: false })
+  if (error) {
+    console.error('loadOrdersForAction error:', error)
+    return []
+  }
+  return (data ?? []).map(row => row.data).filter(Boolean)
+}
+
+async function countWithFilters(filters = {}) {
+  let query = supabase.from(ORDERS_TABLE).select('id', { count: 'exact', head: true })
+  query = applyCommonFilters(query, filters)
+  const { count, error } = await query
+  if (error) {
+    console.error('count orders error:', error)
+    return 0
+  }
+  return count ?? 0
+}
+
+export async function loadOrderCounts({ userBranch = null } = {}) {
+  const phaseSteps = {
+    stock: [1, 2, 3],
+    transfer: [4, 5],
+    billing: [6, 7, 8, 9],
+    agreement_hq: [10],
+    unclaimed: [11],
+    claimed: [12, 13],
+  }
+
+  const entries = await Promise.all(
+    Object.entries(phaseSteps).map(async ([key, steps]) => [
+      key,
+      await countWithFilters({ userBranch, steps }),
+    ])
+  )
+
+  const completed = await countWithFilters({ userBranch, completed: true })
+  const phaseCounts = Object.fromEntries(entries)
+  const active = Object.values(phaseCounts).reduce((sum, value) => sum + value, 0)
+
+  return { phaseCounts, active, completed }
+}
+
+// Kept for reports and migration tools that deliberately need the whole dataset.
 export async function loadOrders() {
   const { data, error } = await supabase
     .from(ORDERS_TABLE)
@@ -28,7 +148,6 @@ export async function loadOrders() {
 
   if (error) {
     if (isMissingTableError(error)) {
-      console.warn('Orders table is not created yet. Falling back to legacy app_storage data.')
       const legacy = await loadData(LEGACY_ORDER_KEY, true)
       return Array.isArray(legacy) ? legacy : []
     }
@@ -38,14 +157,11 @@ export async function loadOrders() {
 
   if (data?.length) return data.map(row => row.data).filter(Boolean)
 
-  // One-time automatic migration from the old giant JSON record.
   const legacy = await loadData(LEGACY_ORDER_KEY, true)
   if (!Array.isArray(legacy) || legacy.length === 0) return []
 
   const result = await upsertOrders(legacy)
-  if (!result.ok) return legacy
-
-  return legacy
+  return result.ok ? legacy : legacy
 }
 
 export async function upsertOrder(order) {
@@ -95,7 +211,6 @@ export async function deleteOrderRow(id) {
   return { ok: true }
 }
 
-// Used by bulk actions. Only changed rows are uploaded; removed rows are deleted.
 export async function syncOrders(previousOrders, nextOrders) {
   const previousById = new Map(previousOrders.map(order => [String(order.id), order]))
   const nextById = new Map(nextOrders.map(order => [String(order.id), order]))

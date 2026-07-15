@@ -1,5 +1,5 @@
 import {useState,useEffect,useRef,useMemo,useCallback} from "react";
-import {loadOrders,syncOrders} from "./storage/orders.js";
+import {loadOrdersPage,loadOrdersForAction,loadOrderCounts,upsertOrder,deleteOrderRow,syncOrders} from "./storage/orders.js";
 
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 const MERCHANTS=["Aeon","JCL","Chailease"];
@@ -1111,42 +1111,85 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [reportMerchant,setReportMerchant]=useState("all");
   const [reportsExpanded,setReportsExpanded]=useState(false);
   const [page,setPage]=useState(1);
+  const [totalOrders,setTotalOrders]=useState(0);
+  const [counts,setCounts]=useState({phaseCounts:{},active:0,completed:0});
+  const [bulkOrders,setBulkOrders]=useState([]);
   const PAGE_SIZE=25;
+  const viewingCompleted=filterPhase==="completed";
+  const selectedSteps=filterPhase!=="all"&&!viewingCompleted?(PHASES.find(p=>p.id===filterPhase)?.steps||null):null;
 
-  useEffect(()=>{
-    let mounted=true;
-    loadOrders().then(d=>{
-      if(!mounted)return;
-      setOrders(Array.isArray(d)?d:[]);
-      setLoading(false);
-    });
-    return()=>{mounted=false;};
-  },[]);
+  const refreshCounts=useCallback(async()=>{
+    const next=await loadOrderCounts({userBranch});
+    setCounts(next);
+  },[userBranch]);
+
+  const refreshPage=useCallback(async()=>{
+    setLoading(true);
+    const result=await loadOrdersPage({page,pageSize:PAGE_SIZE,branch:filterBranch,userBranch,steps:selectedSteps,completed:viewingCompleted,search});
+    setOrders(result.orders||[]);
+    setTotalOrders(result.count||0);
+    setLoading(false);
+  },[page,filterBranch,userBranch,filterPhase,viewingCompleted,search]);
+
+  useEffect(()=>{refreshPage();},[refreshPage]);
+  useEffect(()=>{refreshCounts();},[refreshCounts]);
+  useEffect(()=>{setPage(1);},[filterPhase,filterBranch,search]);
+
   const nav=(v,sel=null)=>{setView(v);setSelected(sel);sessionStorage.setItem("orderView",v);sessionStorage.setItem("orderSelected",sel?JSON.stringify(sel):"null");};
-  const save=async list=>{
-    const prev=orders;
-    setOrders(list);
-    const result=await syncOrders(prev,list);
+
+  const saveOrder=async o=>{
+    const result=await upsertOrder(o);
     if(!result?.ok){
-      setOrders(prev);
       alert("Save failed — your changes were NOT saved. This usually happens when an uploaded file is too large. Please try a smaller file (compress the photo or PDF) and try again.");
       return false;
     }
+    setOrders(current=>current.map(x=>String(x.id)===String(o.id)?o:x));
+    setSelected(o);
+    await refreshCounts();
+    nav("detail",o);
     return true;
   };
-  const saveOrder=async o=>{const list=orders.find(x=>x.id===o.id)?orders.map(x=>x.id===o.id?o:x):[...orders,o];const ok=await save(list);if(ok)nav("detail",o);return ok;};
-  const deleteOrder=async id=>{if(!confirm("Delete this order?"))return;await save(orders.filter(x=>x.id!==id));nav("list");};
 
-  const activeOrders=useMemo(()=>orders.filter(o=>o.step!==14&&(!userBranch||o.branch===userBranch)),[orders,userBranch]);
-  const completedOrders=useMemo(()=>orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)),[orders,userBranch]);
-  const viewingCompleted=filterPhase==="completed";
-  const filtered=useMemo(()=>(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||getPhase(o.step)?.id===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,completedOrders,activeOrders,filterPhase,filterBranch,search]);
-  useEffect(()=>{setPage(1);},[filterPhase,filterBranch,search,showArchive]);
-  const totalPages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
+  const deleteOrder=async id=>{
+    if(!confirm("Delete this order?"))return;
+    const result=await deleteOrderRow(id);
+    if(!result?.ok){alert("Delete failed. Please try again.");return;}
+    nav("list");
+    await Promise.all([refreshPage(),refreshCounts()]);
+  };
+
+  const openBulk=async(type)=>{
+    setLoading(true);
+    const cfg=type==="archive"?{completed:true}:type==="dispatch"?{steps:[3]}:type==="claim"?{steps:[12]}:{steps:[13]};
+    const list=await loadOrdersForAction({...cfg,userBranch});
+    setBulkOrders(list);
+    if(type==="archive")setShowArchive(true);
+    if(type==="dispatch")setShowBulkDispatch(true);
+    if(type==="claim")setShowBulkClaimSent(true);
+    if(type==="knockoff")setShowBulkKnockoff(true);
+    setLoading(false);
+  };
+
+  const saveBulk=async list=>{
+    const result=await syncOrders(bulkOrders,list);
+    if(!result?.ok){alert("Bulk update failed. Please try again.");return false;}
+    setBulkOrders(list);
+    await Promise.all([refreshPage(),refreshCounts()]);
+    return true;
+  };
+
+  const downloadServerReport=async(type,date)=>{
+    const src=await loadOrdersForAction({userBranch,completed:type==="completed"});
+    downloadReport(src,type,date,reportMerchant);
+  };
+
+  const activeOrders=useMemo(()=>orders.filter(o=>o.step!==14),[orders]);
+  const filtered=orders;
+  const totalPages=Math.max(1,Math.ceil(totalOrders/PAGE_SIZE));
   useEffect(()=>{if(page>totalPages)setPage(totalPages);},[page,totalPages]);
-  const pagedOrders=useMemo(()=>filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE),[filtered,page]);
-  const phaseCounts=useMemo(()=>PHASES.reduce((acc,ph)=>{acc[ph.id]=activeOrders.filter(o=>ph.steps.includes(o.step)).length;return acc;},{}),[activeOrders]);
-  const completedCount=orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)).length;
+  const pagedOrders=orders;
+  const phaseCounts=counts.phaseCounts||{};
+  const completedCount=counts.completed||0;
   const alerts=useMemo(()=>getOrderAlerts(activeOrders,userBranch),[activeOrders,userBranch]);
   const alertsByOrderId=useMemo(()=>{const m={};alerts.forEach(a=>{if(!m[a.orderId])m[a.orderId]=a;});return m;},[alerts]);
 
@@ -1154,27 +1197,27 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
   if(view==="detail"&&selected){
     const live=orders.find(o=>o.id===selected.id)||selected;
-    return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowArchive(false)}/>}</>;
+    return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={bulkOrders} onSave={saveBulk} onClose={()=>setShowArchive(false)}/>}</>;
   }
   if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
   return<div className="fade-in">
-    {showArchive&&<BatchArchive orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowArchive(false)}/>}
-    {showBulkDispatch&&<BulkDispatch orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowBulkDispatch(false)}/>}
-    {showBulkClaimSent&&<BulkClaimSent orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowBulkClaimSent(false)}/>}
-    {showBulkKnockoff&&<BulkKnockOff orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowBulkKnockoff(false)}/>}
+    {showArchive&&<BatchArchive orders={bulkOrders} onSave={saveBulk} onClose={()=>setShowArchive(false)}/>}
+    {showBulkDispatch&&<BulkDispatch orders={bulkOrders} onSave={saveBulk} onClose={()=>setShowBulkDispatch(false)}/>}
+    {showBulkClaimSent&&<BulkClaimSent orders={bulkOrders} onSave={saveBulk} onClose={()=>setShowBulkClaimSent(false)}/>}
+    {showBulkKnockoff&&<BulkKnockOff orders={bulkOrders} onSave={saveBulk} onClose={()=>setShowBulkKnockoff(false)}/>}
 
     {/* Page header */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,paddingBottom:16,borderBottom:`1px solid ${C.border}`,flexWrap:"wrap",gap:10}}>
       <div>
         <div style={{fontSize:19,fontWeight:800,color:C.navy,letterSpacing:"-0.01em"}}>Order Tracking</div>
-        <div style={{fontSize:12,color:C.textLight,marginTop:4}}>{activeOrders.length} active · {completedCount} completed</div>
+        <div style={{fontSize:12,color:C.textLight,marginTop:4}}>{counts.active||0} active · {completedCount} completed</div>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        {isAdmin&&!isReadOnly&&orders.some(o=>o.step===3)&&<GBtn onClick={()=>setShowBulkDispatch(true)}>{Ic.truck} Dispatch to Branch</GBtn>}
-        {isAdmin&&!isReadOnly&&orders.some(o=>o.step===12)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Claim Sent Date</GBtn>}
-        {isAdmin&&!isReadOnly&&orders.some(o=>o.step===13&&!o.knockOffDate)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
-        {isAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
+        {isAdmin&&!isReadOnly&&(phaseCounts.stock||0)>0&&<GBtn onClick={()=>openBulk("dispatch")}>{Ic.truck} Dispatch to Branch</GBtn>}
+        {isAdmin&&!isReadOnly&&(phaseCounts.claimed||0)>0&&<GBtn onClick={()=>openBulk("claim")}>{Ic.checkCircle} Set Claim Sent Date</GBtn>}
+        {isAdmin&&!isReadOnly&&(phaseCounts.claimed||0)>0&&<GBtn onClick={()=>openBulk("knockoff")}>{Ic.calendar} Set Knock-off Date</GBtn>}
+        {isAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>openBulk("archive")}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
         {!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
       </div>
     </div>
@@ -1259,9 +1302,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       </div>
     }
 
-    {filtered.length>PAGE_SIZE&&<div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:10,marginTop:16,flexWrap:"wrap"}}>
+    {totalOrders>PAGE_SIZE&&<div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:10,marginTop:16,flexWrap:"wrap"}}>
       <GBtn onClick={()=>setPage(p=>Math.max(1,p-1))} style={page===1?{opacity:.45,pointerEvents:"none"}:{}}>{Ic.chevL} Previous</GBtn>
-      <span style={{fontSize:11,fontWeight:700,color:C.textMid}}>Page {page} of {totalPages} · {filtered.length} orders</span>
+      <span style={{fontSize:11,fontWeight:700,color:C.textMid}}>Page {page} of {totalPages} · {totalOrders} orders</span>
       <GBtn onClick={()=>setPage(p=>Math.min(totalPages,p+1))} style={page===totalPages?{opacity:.45,pointerEvents:"none"}:{}}>Next {Ic.chevR}</GBtn>
     </div>}
 
@@ -1279,8 +1322,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
           {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,activeOrders],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,activeOrders],["Claim Submitted","claim",claimDate,setClaimDate,activeOrders],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,activeOrders],["Completed","completed",completedReportDate,setCompletedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src],i)=><div key={type} style={{display:"flex",alignItems:"flex-end",gap:10,padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none",flexWrap:"wrap"}}>
             <div style={{flex:1,minWidth:140,fontSize:12,fontWeight:700,color:C.text}}>{label} Report</div>
             <div style={{flex:1,minWidth:130}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-            <PBtn onClick={()=>downloadReport(src,type,date,reportMerchant)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
-            <button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",flexShrink:0}}>All dates</button>
+            <PBtn onClick={()=>downloadServerReport(type,date)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
+            <button onClick={()=>downloadServerReport(type,"")} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",flexShrink:0}}>All dates</button>
           </div>)}
         </div>
       </div>}
