@@ -568,6 +568,16 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
         {nextDef.needsInvoiceNo&&isAdmin&&<>
           <div style={{marginBottom:12}}><L req>Sales Invoice Number</L><I value={invoiceNo} onChange={e=>setInvoiceNo(e.target.value)} placeholder="INV-2026-0001"/></div>
         </>}
+        {step===8&&<div style={{marginBottom:12}}>
+          <div style={{...lbl,marginBottom:8}}>Upload New Payment Slip (if correcting a short payment)</div>
+          {getStep(8).needsFiles.filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional,multiple})=><div key={key} style={{marginBottom:10}}>
+            <L>{label}{optional?" (optional)":""}{multiple?" (multiple allowed)":""}</L>
+            <input type="file" multiple={!!multiple} accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,[key]:multiple?[...(p[key]||[]),...Array.from(e.target.files)]:(e.target.files[0]||null)}))} style={{fontSize:11,width:"100%"}}/>
+            {multiple?(files[key]||[]).length>0&&<div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>
+              {files[key].map((f,i)=><div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:10,color:"#15803D",fontWeight:600,background:"#F0FDF4",padding:"3px 8px",borderRadius:5}}><span>✓ {f.name}</span><button type="button" onClick={()=>setFiles(p=>({...p,[key]:p[key].filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",color:"#DC2626",cursor:"pointer",fontSize:12,fontWeight:700,padding:0}}>✕</button></div>)}
+            </div>:files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files[key].name}</div>}
+          </div>)}
+        </div>}
         {nextDef.needsVerification&&isAdmin&&<div style={{marginBottom:12}}>
           <div style={{...lbl,marginBottom:8}}>Verification Checklist</div>
           {(isCash?[[payment,setPayment,"Payment Proof verified"]]:[[collection,setCollection,"Phone Collection Proof verified"],[payment,setPayment,"Upfront Payment Proof verified"]]).map(([val,setter,label],i)=><div key={i} onClick={()=>setter(!val)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:8,background:val?"#F0FDF4":C.surface,border:`1px solid ${val?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer",transition:"all .15s"}}>
