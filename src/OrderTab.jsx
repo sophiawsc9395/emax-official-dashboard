@@ -606,16 +606,6 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
         </div>;})}
         {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
         <PBtn onClick={advance} disabled={!ok()||saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":`Confirm: ${nextDef.label}`} {!saving&&Ic.chevR}</PBtn>
-        {nextDef.needsVerification&&isAdmin&&(!showShortPayment
-          ?<DBtn onClick={()=>setShowShortPayment(true)} style={{width:"100%",justifyContent:"center",marginTop:8}}>{Ic.rotate} Short Payment</DBtn>
-          :<div style={{marginTop:10}}>
-            <div style={{marginBottom:8}}><L req>Reason / Remark</L><TX value={shortPayRemark} onChange={e=>setShortPayRemark(e.target.value)} rows={3} placeholder="Describe the shortfall…" style={{borderColor:"#FECACA",resize:"none",width:"100%",boxSizing:"border-box",borderRadius:12}}/></div>
-            <div style={{display:"flex",gap:8}}>
-              <GBtn onClick={()=>setShowShortPayment(false)} style={{flex:1,justifyContent:"center"}}>Cancel</GBtn>
-              <DBtn onClick={async()=>{if(!shortPayRemark.trim()){alert("Remark required.");return;}setSaving(true);const h={step:9,date:nowDate(),time:nowTime(),note:"Short Payment — Balance Payment Needed",verificationRemark:shortPayRemark,shortPayment:true,reversedFrom:9};await onUpdate({...order,history:[...(order.history||[]),h]});setSaving(false);setShowShortPayment(false);setShortPayRemark("");}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Confirm Short Payment"}</DBtn>
-            </div>
-          </div>
-        )}
       </>}
     </ActionBox>
     {step===2&&isAdmin&&<DBtn onClick={async()=>{const reason=prompt("Reason for supplier cancellation (optional):")||"";if(!confirm("Mark this order as Supplier Cancelled and return it to New Order Request?"))return;setSaving(true);const cd=nowDate();const h={step:2,date:nowDate(),time:nowTime(),note:"Supplier Cancelled",cancelledDate:cd,remark:reason||undefined,reversedTo:1};await onUpdate({...order,step:1,history:[...(order.history||[]),h]});setSaving(false);}} style={{width:"100%",justifyContent:"center"}}>{Ic.x} Supplier Cancelled Order</DBtn>}
@@ -627,7 +617,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div style={{marginBottom:12}}><L req>Reason / Remark</L><TX value={shortPayRemark} onChange={e=>setShortPayRemark(e.target.value)} rows={3} placeholder="Describe the shortfall…" style={{borderColor:"#FECACA",resize:"none",width:"100%",boxSizing:"border-box",borderRadius:12}}/></div>
           <div style={{display:"flex",gap:8}}>
             <GBtn onClick={()=>setShowShortPayment(false)} style={{flex:1,justifyContent:"center"}}>Cancel</GBtn>
-            <DBtn onClick={async()=>{if(!shortPayRemark.trim()){alert("Remark required.");return;}setSaving(true);const h={step:9,date:nowDate(),time:nowTime(),note:"Short Payment — Balance Payment Needed",verificationRemark:shortPayRemark,shortPayment:true,reversedFrom:9};await onUpdate({...order,step:8,history:[...(order.history||[]),h]});setSaving(false);setShowShortPayment(false);setShortPayRemark("");}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Confirm Short Payment"}</DBtn>
+            <DBtn onClick={async()=>{if(!shortPayRemark.trim()){alert("Remark required.");return;}setSaving(true);const h={step:9,date:nowDate(),time:nowTime(),note:"Short Payment — Balance Payment Needed",verificationRemark:shortPayRemark,shortPayment:true,reversedFrom:9};const ok=await onUpdate({...order,step:8,history:[...(order.history||[]),h]});setSaving(false);if(ok!==false){setShowShortPayment(false);setShortPayRemark("");alert("Order returned to Customer Collection. Branch can now upload the new payment slip.");}}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Confirm Short Payment"}</DBtn>
           </div>
         </div>
       </div>
