@@ -242,7 +242,7 @@ function Timeline({order,isAdmin}){
     {hist.totalUpfrontPayment!==undefined&&<div style={{marginBottom:2,color:C.navy,fontWeight:800}}>Total Upfront Payment: {fRM(hist.totalUpfrontPayment)}</div>}
     {hist.returnRemark&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Returned: {hist.returnRemark}</div>}
     {hist.billingData&&<div style={{marginTop:6}}><BillingDetailsCard billingData={hist.billingData} isCash={order.orderType==="cash"} title="Billing Request Details"/></div>}
-    {s.step===8&&order.orderType!=="cash"&&<div style={{marginTop:6,background:C.white,borderRadius:7,padding:"8px 10px",border:`1px solid ${C.border}`}}>
+    {s.step===8&&order.orderType!=="cash"&&!hist.shortPaymentProofUpload&&<div style={{marginTop:6,background:C.white,borderRadius:7,padding:"8px 10px",border:`1px solid ${C.border}`}}>
       <div style={{fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Upfront Payment Breakdown</div>
       {(()=>{const up=calcUpfront(order);const monthly=parseFloat(order.billingData?.monthlyInstallment)||0;return<>
         {[["Agreement Fee",up.a],["Stamping Fee",up.s],["Deposit",up.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
@@ -574,7 +574,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <L req>Upload Balance Payment Proof</L>
           <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,balancePaymentProof:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>
           {files.balancePaymentProof&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files.balancePaymentProof.name}</div>}
-          <PBtn onClick={async()=>{if(!files.balancePaymentProof)return;setSaving(true);const f=await readFile(files.balancePaymentProof);const h={step:8,date:nowDate(),time:nowTime(),note:"Balance payment proof uploaded",files:{balancePaymentProof:f}};await onUpdate({...order,history:[...(order.history||[]),h]});setSaving(false);setFiles(p=>({...p,balancePaymentProof:null}));}} disabled={!files.balancePaymentProof||saving} style={{width:"100%",justifyContent:"center",marginTop:8}}>{saving?"Saving…":"Submit Balance Payment Proof"}</PBtn>
+          <PBtn onClick={async()=>{if(!files.balancePaymentProof)return;setSaving(true);const f=await readFile(files.balancePaymentProof);const h={step:8,date:nowDate(),time:nowTime(),note:"Balance payment proof uploaded",shortPaymentProofUpload:true,files:{balancePaymentProof:f}};await onUpdate({...order,history:[...(order.history||[]),h]});setSaving(false);setFiles(p=>({...p,balancePaymentProof:null}));}} disabled={!files.balancePaymentProof||saving} style={{width:"100%",justifyContent:"center",marginTop:8}}>{saving?"Saving…":"Submit Balance Payment Proof"}</PBtn>
         </div>}
         {nextDef.needsVerification&&isAdmin&&<div style={{marginBottom:12}}>
           <div style={{...lbl,marginBottom:8}}>Verification Checklist</div>
