@@ -576,8 +576,8 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,margin:"10px 0"}}>
             <div><L req>{isCash?"Balance Payment Date":"Upfront Payment Date"}</L><I type="date" value={upfrontDate} onChange={e=>setUpfrontDate(e.target.value)}/></div>
             <div><L>Payment Method</L><SEL value={payMethod} onChange={e=>setPayMethod(e.target.value)}>{PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
-            <div><L>{isCash?"Balance Payment Amount (RM)":"Upfront 2 (First Monthly Installment, RM)"}</L>{isCash?<I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)}/>:<div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600,cursor:"not-allowed"}}>{fRM(upfrontMonthly)}</div>}</div>
             {isCash?<div><L>Total Due (auto: Retail − Deposit)</L><div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600}}>{fRM(calcCashDue(order))}</div></div>:<div><L>Upfront 1 (Subtotal, RM)</L><div style={{...inp,background:C.surface,color:C.textLight}}>{fRM(upfront.total)}</div></div>}
+            <div><L>{isCash?"Balance Payment Amount (RM)":"Upfront 2 (Monthly, RM)"}</L>{isCash?<I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)}/>:<div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600,cursor:"not-allowed"}}>{fRM(upfrontMonthly)}</div>}</div>
             {!isCash&&<div style={{gridColumn:"1/-1"}}><L>Total Upfront Payment (RM)</L><div style={{...inp,background:C.navy,color:"#fff",fontWeight:800}}>{fRM(upfront.total+(parseFloat(upfrontMonthly)||0))}</div></div>}
           </div>
           <div><L>Remark</L><I value={verRemark} onChange={e=>setVerRemark(e.target.value)} placeholder="Verification notes…"/></div>
