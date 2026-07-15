@@ -66,6 +66,10 @@ const CSS = `
   .detail-topbar-title{order:3;flex-basis:100%;}
   .detail-topbar-actions{order:2;}
   .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;}
+  .rto-grid{display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start;}
+  @media (max-width:768px){
+    .rto-grid{grid-template-columns:1fr;}
+  }
   .pb-row{display:flex;align-items:flex-start;gap:0;margin-bottom:12px;}
   .pb-label{font-size:9px;}
   @media (max-width:640px){
