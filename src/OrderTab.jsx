@@ -18,7 +18,7 @@ const STEPS=[
   {step:1,label:"New Order Request",desc:"Order submitted by branch.",who:"branch",phase:"stock"},
   {step:2,label:"Ordered",desc:"Purchase order placed with supplier.",who:"admin",phase:"stock",needsOrderDate:true,needsRemark:true},
   {step:3,label:"Arrived HQ",desc:"Item received at HQ.",who:"admin",phase:"stock",needsFiles:[{key:"claimToPurchaser",label:"Claim Release to Purchaser File"}]},
-  {step:4,label:"Dispatched to Branch",desc:"Item dispatched from HQ.",who:"admin",phase:"transfer",needsFiles:[{key:"consignment",label:"Consignment Note"},{key:"stockTransfer",label:"Stock Transfer PDF"}]},
+  {step:4,label:"Dispatched to Branch",desc:"Item dispatched from HQ.",who:"admin",phase:"transfer",needsTransferNumbers:true},
   {step:5,label:"Arrived Branch",desc:"Branch confirms receipt.",who:"branch",phase:"transfer"},
   {step:6,label:"Billing Request",desc:"Submit billing request form.",who:"branch",phase:"billing",needsBillingForm:true},
   {step:7,label:"Billed",desc:"Admin completes billing with invoice.",who:"admin",phase:"billing",needsInvoiceNo:true,needsFiles:[{key:"invoice",label:"Sales Invoice PDF"}]},
@@ -224,6 +224,8 @@ function Timeline({order,isAdmin}){
     {hist.cancelledDate&&<div style={{marginBottom:2,color:"#DC2626",fontWeight:700}}>Supplier Cancelled — {fDate(hist.cancelledDate)}{hist.reversedTo?` · Returned to ${getStep(hist.reversedTo)?.label||"New Order Request"}`:""}</div>}
     {hist.remark&&<div style={{marginBottom:2,color:C.textMid}}>Remark: {hist.remark}</div>}
     {hist.invoiceNo&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Invoice: {hist.invoiceNo}</div>}
+    {hist.consignmentNo&&<div style={{marginBottom:2,color:C.textMid}}>Consignment Note No.: {hist.consignmentNo}</div>}
+    {hist.stockTransferNo&&<div style={{marginBottom:2,color:C.textMid}}>Stock Transfer No.: {hist.stockTransferNo}</div>}
     {hist.claimSentDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Claim Sent: {fDate(hist.claimSentDate)}</div>}
     {hist.knockOffDate&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off: {fDate(hist.knockOffDate)}</div>}
     {hist.knockOffAmount&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off Amount: {fRM(hist.knockOffAmount)}</div>}
@@ -234,7 +236,7 @@ function Timeline({order,isAdmin}){
     {hist.issueItems?.length>0&&<div style={{marginBottom:2,color:C.textMid,fontSize:10}}>Issues: {hist.issueItems.join(" · ")}</div>}
     {hist.checklistItems&&<div style={{fontSize:10,color:C.textMid}}>{hist.checklistItems.filter(x=>x.checked).length}/{hist.checklistItems.length} checklist items</div>}
     {hist.collectionChecked!==undefined&&<div style={{fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"✓":"✗"} Collection · </>}{hist.paymentChecked?"✓":"✗"} Payment verified</div>}
-    {hist.files&&Object.entries(hist.files).map(([k,f])=>f&&<a key={k} href={f.data} download={f.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} {f.name}</a>)}
+    {hist.files&&Object.entries(hist.files).filter(([k])=>isAdmin||k!=="claimToPurchaser").map(([k,f])=>f&&<a key={k} href={f.data} download={f.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} {f.name}</a>)}
     {s.step===1&&order.orderType==="cash"&&order.depositSlip&&<a href={order.depositSlip.data} download={order.depositSlip.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} Deposit Payment Slip — {order.depositSlip.name}</a>}
   </div>;
   return<div>{visSteps.map((s,i)=>{
@@ -267,7 +269,7 @@ function Timeline({order,isAdmin}){
 
 /* ── Billing Form ─────────────────────────────────────────────────────── */
 function BillingForm({order,onSubmit,onCancel}){
-  const [f,setF]=useState(order.billingData||{billingDate:nowDate(),customerFullName:order.customerName||"",customerIC:order.customerIC||"",customerHP:order.customerHP||"",customerAddress:order.customerAddress||"",customerPostCode:order.customerPostCode||"",customerCity:order.customerCity||"",customerEmail:order.customerEmail||"",itemCode:"",imeiSerial:"",freeGiftItemCode:"",freeGiftItemName:"",cashPriceOnListing:"",monthlyInstallment:order.monthlyInstallment||"",agreementNumber:order.agreementNumber||"",agreementFee:order.agreementFee||"",stampingFee:order.stampingFee||"",deposit:order.deposit||""});
+  const [f,setF]=useState(order.billingData||{billingDate:nowDate(),customerFullName:order.customerName||"",customerIC:order.customerIC||"",customerHP:order.customerHP||"",customerAddress:order.customerAddress||"",customerPostCode:order.customerPostCode||"",customerCity:order.customerCity||"",customerEmail:order.customerEmail||"",itemCode:"",imeiSerial:"",freeGiftItemCode:"",freeGiftItemName:"",freeGiftSerialNo:"",cashPriceOnListing:order.orderType==="cash"?"":(order.financePrice||""),monthlyInstallment:order.monthlyInstallment||"",agreementNumber:order.agreementNumber||"",agreementFee:order.agreementFee||"",stampingFee:order.stampingFee||"",deposit:order.deposit||""});
   const [fls,setFls]=useState({});
   const [saving,setSaving]=useState(false);
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -279,17 +281,21 @@ function BillingForm({order,onSubmit,onCancel}){
     <L req={req}>{l}</L>
     <I type={t} value={f[k]||""} onChange={e=>set(k,e.target.value)} style={req&&!f[k]?.toString().trim()?{borderColor:"#FECACA"}:{}}/>
   </div>;
+  const lockedRow=(k,l,t="text",full=false)=><div key={k} style={full?{gridColumn:"1/-1"}:{}}>
+    <L>{l}</L>
+    <I type={t} value={f[k]||""} disabled style={{background:C.surface,color:C.textMid,cursor:"not-allowed"}}/>
+  </div>;
   const sec=t=><div style={{gridColumn:"1/-1",fontSize:10,fontWeight:700,color:C.blue,textTransform:"uppercase",letterSpacing:"0.07em",paddingTop:4,borderBottom:`1px solid ${C.border}`,paddingBottom:6}}>{t}</div>;
   return<div style={{...card,marginBottom:16}}>
-    <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px"}}><div style={{fontWeight:800,fontSize:14,color:"#fff"}}>Billing Request Form</div><div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginTop:2}}>All marked fields are required</div></div>
+    <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px"}}><div style={{fontWeight:800,fontSize:14,color:"#fff"}}>Billing Request Form</div><div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginTop:2}}>Prefilled fields are locked from the original order — new fields marked * are required</div></div>
     <div style={{padding:18}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-        {sec("Billing Info")}{row("billingDate","Billing Date","date",true)}{row("agreementNumber","Agreement Number")}
-        {sec("Customer Details")}{row("customerFullName","Customer Full Name","text",true)}{row("customerIC","Customer IC No.","text",true)}{row("customerHP","HP Number","tel",true)}{row("customerEmail","Email","email",true)}{row("customerAddress","Address","text",true,true)}{row("customerPostCode","Post Code","text",true)}{row("customerCity","City","text",true)}
-        {sec("Item Details")}{row("itemCode","Item Code","text",true)}{row("imeiSerial","IMEI / Serial No.","text",true)}{row("freeGiftItemCode","Free Gift Item Code")}{row("freeGiftItemName","Free Gift Item Name")}
-        {order.orderType!=="cash"&&row("cashPriceOnListing","Cash Price on Result Listing (RM)","number",true)}
-        {order.orderType!=="cash"&&row("monthlyInstallment","Monthly Installment (RM)","number",true)}
-        {sec("Charges")}{row("agreementFee","Agreement Fee (RM)","number")}{row("stampingFee","Stamping Fee (RM)","number")}{row("deposit","Deposit (RM)","number")}<div/>
+        {sec("Billing Info")}{row("billingDate","Billing Date","date",true)}{lockedRow("agreementNumber","Agreement Number")}
+        {sec("Customer Details (from order — locked)")}{lockedRow("customerFullName","Customer Full Name")}{lockedRow("customerIC","Customer IC No.")}{lockedRow("customerHP","HP Number")}{lockedRow("customerEmail","Email")}{lockedRow("customerAddress","Address","text",true)}{lockedRow("customerPostCode","Post Code")}{lockedRow("customerCity","City")}
+        {sec("Item Details")}{row("itemCode","Item Code","text",true)}{row("imeiSerial","IMEI / Serial No.","text",true)}{row("freeGiftItemCode","Free Gift Item Code")}{row("freeGiftItemName","Free Gift Item Name")}{row("freeGiftSerialNo","Free Gift Serial No.")}
+        {order.orderType!=="cash"&&lockedRow("cashPriceOnListing","Cash Price on Result Listing (RM) — from Finance Price","number")}
+        {order.orderType!=="cash"&&lockedRow("monthlyInstallment","Monthly Installment (RM)","number")}
+        {sec("Charges (from order — locked)")}{lockedRow("agreementFee","Agreement Fee (RM)","number")}{lockedRow("stampingFee","Stamping Fee (RM)","number")}{lockedRow("deposit","Deposit (RM)","number")}<div/>
         {sec("File Uploads")}
         {(isCashOrder?[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false]]:[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false],["resultListFile","Result Listing File",true],["agreementFile","Agreement File",true]]).map(([k,l,req])=><div key={k}><L req={req}>{l}</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFls(p=>({...p,[k]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>{(fls[k]||f[k])&&<div style={{fontSize:10,color:"#15803D",marginTop:2,fontWeight:600}}>✓ {fls[k]?.name||f[k]?.name}</div>}</div>)}
       </div>
@@ -388,6 +394,8 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const [orderDate,setOrderDate]=useState(nowDate());
   const [supplierName,setSupplierName]=useState("");
   const [poNumber,setPoNumber]=useState("");
+  const [consignmentNo,setConsignmentNo]=useState("");
+  const [stockTransferNo,setStockTransferNo]=useState("");
   const [purchaserName,setPurchaserName]=useState("");
   const [claimSentDate,setClaimSentDate]=useState(nowDate());
   const [knockOffDate,setKnockOffDate]=useState(nowDate());
@@ -466,18 +474,20 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
       setSaving(false);
       return;
     }
-    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,totalDue:isCash?calcCashDue(order):upfront.total,paymentMethod:payMethod}:{})};
+    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,totalDue:isCash?calcCashDue(order):upfront.total,paymentMethod:payMethod}:{})};
     const updated={...order,step:nextDef.step,history:[...(order.history||[]),h]};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
     if(isCash&&nextDef.step===13){updated.step=13;}
     if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;if(poNumber)updated.poNumber=poNumber;if(purchaserName)updated.purchaserName=purchaserName;}
+    if(nextDef.needsTransferNumbers){updated.consignmentNo=consignmentNo;updated.stockTransferNo=stockTransferNo;}
     if(nextDef.needsInvoiceNo)updated.invoiceNo=invoiceNo;
-    const ok=await onUpdate(updated);setSaving(false);if(ok!==false){setRemark("");setInvoiceNo("");setFiles({});setVerRemark("");setCollection(false);setPayment(false);setPoNumber("");setPurchaserName("");}
+    const ok=await onUpdate(updated);setSaving(false);if(ok!==false){setRemark("");setInvoiceNo("");setFiles({});setVerRemark("");setCollection(false);setPayment(false);setPoNumber("");setPurchaserName("");setConsignmentNo("");setStockTransferNo("");}
   };
   const ok=()=>{
     if(!branchOk)return false;
     if(nextDef.needsOrderDate&&isAdmin&&(!orderDate||!supplierName.trim()||!poNumber.trim()||!purchaserName.trim()))return false;
     if(nextDef.needsInvoiceNo&&isAdmin&&!invoiceNo.trim())return false;
+    if(nextDef.needsTransferNumbers&&branchOk&&(!consignmentNo.trim()||!stockTransferNo.trim()))return false;
     if(nextDef.needsFiles){const req=(nextDef.needsFiles||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof"));if(branchOk&&req.some(f=>!files[f.key]))return false;}
     return true;
   };
@@ -491,7 +501,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div><L req>PO Number</L><I value={poNumber} onChange={e=>setPoNumber(e.target.value)} placeholder="PO number…" style={!poNumber.trim()?{borderColor:"#FECACA"}:{}}/></div>
           {isAdmin&&<div><L req>Purchaser Name</L><I value={purchaserName} onChange={e=>setPurchaserName(e.target.value)} placeholder="Purchaser name…" style={!purchaserName.trim()?{borderColor:"#FECACA"}:{}}/></div>}
         </div>}
-        {nextDef.needsRemark&&isAdmin&&<div style={{marginBottom:12}}><L>Remark / ETA / Order Details (optional)</L><TX value={remark} onChange={e=>setRemark(e.target.value)} rows={5} placeholder="ETA, order reference, notes…" style={{borderRadius:12}}/></div>}
+        {nextDef.needsRemark&&isAdmin&&<div style={{marginBottom:12}}><L>Remark / ETA / Order Details (optional)</L><TX value={remark} onChange={e=>setRemark(e.target.value)} rows={5} placeholder="ETA, order reference, notes…" style={{borderRadius:12,resize:"none",width:"100%",boxSizing:"border-box"}}/></div>}
         {nextDef.needsInvoiceNo&&isAdmin&&<>
           {order.billingData&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
             <div style={{...lbl,marginBottom:8}}>Billing Request Details (as submitted)</div>
@@ -504,7 +514,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
               <div style={{gridColumn:"1/-1"}}><b style={{color:C.text}}>Address:</b> {order.billingData.customerAddress?`${order.billingData.customerAddress}, ${order.billingData.customerPostCode} ${order.billingData.customerCity}`:"—"}</div>
               <div><b style={{color:C.text}}>Item Code:</b> {order.billingData.itemCode||"—"}</div>
               <div><b style={{color:C.text}}>IMEI / Serial No.:</b> {order.billingData.imeiSerial||"—"}</div>
-              {(order.billingData.freeGiftItemCode||order.billingData.freeGiftItemName)&&<div style={{gridColumn:"1/-1"}}><b style={{color:C.text}}>Free Gift:</b> {order.billingData.freeGiftItemCode||"—"} {order.billingData.freeGiftItemName?`· ${order.billingData.freeGiftItemName}`:""}</div>}
+              {(order.billingData.freeGiftItemCode||order.billingData.freeGiftItemName)&&<div style={{gridColumn:"1/-1"}}><b style={{color:C.text}}>Free Gift:</b> {order.billingData.freeGiftItemCode||"—"} {order.billingData.freeGiftItemName?`· ${order.billingData.freeGiftItemName}`:""}{order.billingData.freeGiftSerialNo?` · Serial: ${order.billingData.freeGiftSerialNo}`:""}</div>}
               {order.billingData.agreementNumber&&<div><b style={{color:C.text}}>Agreement Number:</b> {order.billingData.agreementNumber}</div>}
               {!isCash&&<div><b style={{color:C.text}}>Cash Price on Listing:</b> {fRM(order.billingData.cashPriceOnListing)}</div>}
               {!isCash&&<div><b style={{color:C.text}}>Monthly Installment:</b> {fRM(order.billingData.monthlyInstallment)}</div>}
@@ -547,6 +557,10 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Subtotal (Upfront Charges)</span><span>{fRM(upfront.total)}</span></div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>First Monthly Instalment</span><span style={{fontWeight:600}}>{fRM(order.billingData?.monthlyInstallment||order.monthlyInstallment)}</span></div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",fontWeight:800,color:C.navy}}><span>Total Payable Upon Collection</span><span>{fRM(upfront.total+(parseFloat(order.billingData?.monthlyInstallment||order.monthlyInstallment)||0))}</span></div>
+        </div>}
+        {nextDef.needsTransferNumbers&&branchOk&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+          <div><L req>Consignment Note Number</L><I value={consignmentNo} onChange={e=>setConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!consignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
+          <div><L req>Stock Transfer Number</L><I value={stockTransferNo} onChange={e=>setStockTransferNo(e.target.value)} placeholder="Stock transfer no…" style={!stockTransferNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
         </div>}
         {nextDef.needsFiles&&branchOk&&nextDef.needsFiles.filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional})=><div key={key} style={{marginBottom:12}}><L req={!optional}>{label}{optional?" (optional)":""}</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,[key]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>{files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files[key].name}</div>}</div>)}
         {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
@@ -645,11 +659,12 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     {/* Order info summary */}
     <div style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.fileText}>Order Information</SecHdr>
-      <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:12}}>
-        {[order.customerIC&&["Customer IC",order.customerIC],order.customerHP&&["Customer HP",order.customerHP],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],isAdmin&&order.supplierName&&["Supplier",order.supplierName],isAdmin&&order.poNumber&&["PO Number",order.poNumber],isAdmin&&order.purchaserName&&["Purchaser Name",order.purchaserName],order.customerPostCode&&["Postcode",order.customerPostCode],order.customerCity&&["City",order.customerCity],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
-        {order.customerEmail&&<div style={{gridColumn:"1/-1"}}><InfoCell label="Customer Email" value={order.customerEmail} nowrap/></div>}
-        {order.customerAddress&&<div style={{gridColumn:"1/-1"}}><InfoCell label="Address" value={order.customerAddress} nowrap/></div>}
-      </div>
+      <table style={{width:"100%",borderCollapse:"collapse"}}><tbody>
+        {[order.customerIC&&["Customer IC",order.customerIC],order.customerHP&&["Customer HP",order.customerHP],order.customerEmail&&["Customer Email",order.customerEmail,true],order.customerAddress&&["Address",order.customerAddress,true],order.customerPostCode&&["Postcode",order.customerPostCode],order.customerCity&&["City",order.customerCity],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],["Deposit",fRM(order.deposit)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],isAdmin&&order.supplierName&&["Supplier",order.supplierName],isAdmin&&order.poNumber&&["PO Number",order.poNumber],isAdmin&&order.purchaserName&&["Purchaser Name",order.purchaserName],order.consignmentNo&&["Consignment Note No.",order.consignmentNo],order.stockTransferNo&&["Stock Transfer No.",order.stockTransferNo],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v,nowrap],i)=><tr key={l} style={{background:i%2?C.surface:C.white}}>
+          <td style={{padding:"8px 16px",fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,whiteSpace:"nowrap",borderBottom:`1px solid ${C.border}`,width:"38%"}}>{l}</td>
+          <td style={{padding:"8px 16px",fontSize:12,color:C.text,fontWeight:600,borderBottom:`1px solid ${C.border}`,...(nowrap?{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:0}:{wordBreak:"break-word"})}} title={nowrap?v:undefined}>{v||"—"}</td>
+        </tr>)}
+      </tbody></table>
       {order.adminRemark&&<div style={{padding:"8px 16px",borderTop:`1px solid ${C.border}`,background:"#FFFBEB"}}><div style={{fontSize:10,color:"#92400E",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Admin Remark</div><div style={{fontSize:12,color:"#78350F"}}>{order.adminRemark}</div></div>}
     </div>
 
