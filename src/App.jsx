@@ -72,6 +72,8 @@ const CSS = `
     .detail-topbar-title{order:3;flex-basis:100%;}
     .detail-topbar-actions{order:2;}
     .detail-grid{grid-template-columns:1fr;}
+  }
+  @media (max-width:480px){
     .pb-label{display:none;}
     .pb-circle{width:18px!important;height:18px!important;}
   }
