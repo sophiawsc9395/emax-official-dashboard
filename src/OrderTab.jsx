@@ -233,6 +233,7 @@ function Timeline({order,isAdmin}){
     {hist.upfrontPaymentDate&&<div style={{marginBottom:2,color:C.textMid}}>Payment Date: {fDate(hist.upfrontPaymentDate)} · {hist.paymentMethod}</div>}
     {hist.monthlyInstallment&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>{order.orderType==="cash"?"Balance Payment Amount":"1st Monthly Installment"}: {fRM(hist.monthlyInstallment)}{hist.totalDue?` · Total Due: ${fRM(hist.totalDue)}`:""}</div>}
     {hist.returnRemark&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Returned: {hist.returnRemark}</div>}
+    {hist.billingData&&<div style={{marginTop:6}}><BillingDetailsCard billingData={hist.billingData} isCash={order.orderType==="cash"} title="Billing Request Details"/></div>}
     {hist.issueItems?.length>0&&<div style={{marginBottom:2,color:C.textMid,fontSize:10}}>Issues: {hist.issueItems.join(" · ")}</div>}
     {hist.checklistItems&&<div style={{fontSize:10,color:C.textMid}}>{hist.checklistItems.filter(x=>x.checked).length}/{hist.checklistItems.length} checklist items</div>}
     {hist.collectionChecked!==undefined&&<div style={{fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"✓":"✗"} Collection · </>}{hist.paymentChecked?"✓":"✗"} Payment verified</div>}
@@ -384,6 +385,39 @@ function downloadReport(orders,type,dateFilter,merchantFilter){
 }
 
 /* ── Action Panel ─────────────────────────────────────────────────────── */
+function BillingDetailsCard({billingData:bd,isCash,title="Billing Request Details (as submitted)"}){
+  if(!bd)return null;
+  const rows=[["Billing Date",fDate(bd.billingDate)],["Customer Name",bd.customerFullName],["Customer IC",bd.customerIC],["HP Number",bd.customerHP],["Item Code",bd.itemCode],["IMEI / Serial No.",bd.imeiSerial],bd.agreementNumber&&["Agreement Number",bd.agreementNumber],!isCash&&["Cash Price on Listing",fRM(bd.cashPriceOnListing)],!isCash&&["Monthly Installment",fRM(bd.monthlyInstallment)],bd.agreementFee&&["Agreement Fee",fRM(bd.agreementFee)],bd.stampingFee&&["Stamping Fee",fRM(bd.stampingFee)],bd.deposit&&["Deposit",fRM(bd.deposit)]].filter(Boolean);
+  const fileKeys=[["deviceSerialImg","Device Serial No. Image"],["freeGiftSerialImg","Free Gift Serial No. Image"],["resultListFile","Result Listing File"],["agreementFile","Agreement File"]];
+  const hasFiles=fileKeys.some(([k])=>bd[k]);
+  return<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
+    <div style={{...lbl,marginBottom:4}}>{title}</div>
+    <div className="order-info-grid">
+      {rows.map(([l,v])=><div key={l} style={{padding:"6px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+        <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
+        <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}</div>
+      </div>)}
+      {bd.customerEmail&&<div className="oi-full" style={{padding:"6px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+        <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Email</div>
+        <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{bd.customerEmail}</div>
+      </div>}
+      {bd.customerAddress&&<div className="oi-full" style={{padding:"6px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+        <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Address{(bd.customerPostCode||bd.customerCity)?` (${[bd.customerPostCode,bd.customerCity].filter(Boolean).join(", ")})`:""}</div>
+        <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{bd.customerAddress}</div>
+      </div>}
+      {(bd.freeGiftItemCode||bd.freeGiftItemName)&&<div className="oi-full" style={{padding:"6px 0",minWidth:0}}>
+        <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Free Gift</div>
+        <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{bd.freeGiftItemCode||"—"}{bd.freeGiftItemName?` · ${bd.freeGiftItemName}`:""}{bd.freeGiftSerialNo?` · Serial: ${bd.freeGiftSerialNo}`:""}</div>
+      </div>}
+    </div>
+    <div style={{...lbl,margin:"10px 0 6px"}}>Uploaded Files</div>
+    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+      {fileKeys.map(([k,l])=>bd[k]&&<a key={k} href={bd[k].data} download={bd[k].name} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"4px 10px",borderRadius:5,fontWeight:600,border:"1px solid #C7D2E3"}}>{Ic.download} {l}</a>)}
+      {!hasFiles&&<span style={{fontSize:11,color:C.textLight,fontStyle:"italic"}}>No files uploaded.</span>}
+    </div>
+  </div>;
+}
+
 function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const step=order.step;
   const isCash=order.orderType==="cash";
@@ -503,31 +537,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
         </div>}
         {nextDef.needsRemark&&isAdmin&&<div style={{marginBottom:12}}><L>Remark / ETA / Order Details (optional)</L><TX value={remark} onChange={e=>setRemark(e.target.value)} rows={5} placeholder="ETA, order reference, notes…" style={{borderRadius:12,resize:"none",width:"100%",boxSizing:"border-box"}}/></div>}
         {nextDef.needsInvoiceNo&&isAdmin&&<>
-          {order.billingData&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
-            <div style={{...lbl,marginBottom:8}}>Billing Request Details (as submitted)</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:12,color:C.textMid,marginBottom:10}}>
-              <div><b style={{color:C.text}}>Billing Date:</b> {fDate(order.billingData.billingDate)}</div>
-              <div><b style={{color:C.text}}>Customer Name:</b> {order.billingData.customerFullName||"—"}</div>
-              <div><b style={{color:C.text}}>Customer IC:</b> {order.billingData.customerIC||"—"}</div>
-              <div><b style={{color:C.text}}>HP Number:</b> {order.billingData.customerHP||"—"}</div>
-              <div style={{gridColumn:"1/-1"}}><b style={{color:C.text}}>Email:</b> {order.billingData.customerEmail||"—"}</div>
-              <div style={{gridColumn:"1/-1"}}><b style={{color:C.text}}>Address:</b> {order.billingData.customerAddress?`${order.billingData.customerAddress}, ${order.billingData.customerPostCode} ${order.billingData.customerCity}`:"—"}</div>
-              <div><b style={{color:C.text}}>Item Code:</b> {order.billingData.itemCode||"—"}</div>
-              <div><b style={{color:C.text}}>IMEI / Serial No.:</b> {order.billingData.imeiSerial||"—"}</div>
-              {(order.billingData.freeGiftItemCode||order.billingData.freeGiftItemName)&&<div style={{gridColumn:"1/-1"}}><b style={{color:C.text}}>Free Gift:</b> {order.billingData.freeGiftItemCode||"—"} {order.billingData.freeGiftItemName?`· ${order.billingData.freeGiftItemName}`:""}{order.billingData.freeGiftSerialNo?` · Serial: ${order.billingData.freeGiftSerialNo}`:""}</div>}
-              {order.billingData.agreementNumber&&<div><b style={{color:C.text}}>Agreement Number:</b> {order.billingData.agreementNumber}</div>}
-              {!isCash&&<div><b style={{color:C.text}}>Cash Price on Listing:</b> {fRM(order.billingData.cashPriceOnListing)}</div>}
-              {!isCash&&<div><b style={{color:C.text}}>Monthly Installment:</b> {fRM(order.billingData.monthlyInstallment)}</div>}
-              {order.billingData.agreementFee&&<div><b style={{color:C.text}}>Agreement Fee:</b> {fRM(order.billingData.agreementFee)}</div>}
-              {order.billingData.stampingFee&&<div><b style={{color:C.text}}>Stamping Fee:</b> {fRM(order.billingData.stampingFee)}</div>}
-              {order.billingData.deposit&&<div><b style={{color:C.text}}>Deposit:</b> {fRM(order.billingData.deposit)}</div>}
-            </div>
-            <div style={{...lbl,marginBottom:6}}>Uploaded Files</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {[["deviceSerialImg","Device Serial No. Image"],["freeGiftSerialImg","Free Gift Serial No. Image"],["resultListFile","Result Listing File"],["agreementFile","Agreement File"]].map(([k,l])=>order.billingData[k]&&<a key={k} href={order.billingData[k].data} download={order.billingData[k].name} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"4px 10px",borderRadius:5,fontWeight:600,border:"1px solid #C7D2E3"}}>{Ic.download} {l}</a>)}
-              {!["deviceSerialImg","freeGiftSerialImg","resultListFile","agreementFile"].some(k=>order.billingData[k])&&<span style={{fontSize:11,color:C.textLight,fontStyle:"italic"}}>No files uploaded.</span>}
-            </div>
-          </div>}
+          <BillingDetailsCard billingData={order.billingData} isCash={isCash}/>
           <div style={{marginBottom:12}}><L req>Sales Invoice Number</L><I value={invoiceNo} onChange={e=>setInvoiceNo(e.target.value)} placeholder="INV-2026-0001"/></div>
           {!isCash&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
             <div style={{...lbl,marginBottom:8}}>Upfront Payment Breakdown</div>
@@ -691,11 +701,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     {/* Billing details */}
     {order.billingData&&<div style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.card}>Billing Details</SecHdr>
-      <div style={{padding:"12px 16px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:10}}>
-        {[["Customer Name",order.billingData.customerFullName],["Billing Date",fDate(order.billingData.billingDate)],["Customer IC",order.billingData.customerIC],["HP",order.billingData.customerHP],["IMEI",order.billingData.imeiSerial],["Item Code",order.billingData.itemCode],["Agreement No.",order.billingData.agreementNumber],["Cash Price",fRM(order.billingData.cashPriceOnListing)],["Monthly",fRM(order.billingData.monthlyInstallment)],["Agreement Fee",fRM(order.billingData.agreementFee)],["Stamping Fee",fRM(order.billingData.stampingFee)],["Deposit",fRM(order.billingData.deposit)]].filter(([,v])=>v&&v!=="RM 0.00").map(([l,v])=><InfoCell key={l} label={l} value={v}/>)}
-        {order.billingData.customerEmail&&<div style={{gridColumn:"1/-1"}}><InfoCell label="Email" value={order.billingData.customerEmail}/></div>}
-        {order.billingData.customerAddress&&<div style={{gridColumn:"1/-1"}}><InfoCell label="Address" value={`${order.billingData.customerAddress}, ${order.billingData.customerPostCode} ${order.billingData.customerCity}`}/></div>}
-      </div>
+      <div style={{padding:"12px 16px"}}><BillingDetailsCard billingData={order.billingData} isCash={isCash} title="Submitted Billing Request"/></div>
     </div>}
 
     {/* Two-col: timeline | action */}
