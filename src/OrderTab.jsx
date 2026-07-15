@@ -551,7 +551,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
     if(nextDef.needsOrderDate&&isAdmin&&(!orderDate||!supplierName.trim()||!poNumber.trim()||!purchaserName.trim()))return false;
     if(nextDef.needsInvoiceNo&&isAdmin&&!invoiceNo.trim())return false;
     if(nextDef.needsTransferNumbers&&branchOk&&(!consignmentNo.trim()||!stockTransferNo.trim()))return false;
-    if(nextDef.needsFiles){const req=(nextDef.needsFiles||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof"));if(branchOk&&req.some(f=>f.multiple?!(files[f.key]?.length):!files[f.key]))return false;}
+    if(nextDef.needsFiles){const priorFiles=new Set((order.history||[]).filter(h=>h.step===nextDef.step).flatMap(h=>Object.keys(h.files||{})));const req=(nextDef.needsFiles||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof")&&!priorFiles.has(f.key));if(branchOk&&req.some(f=>f.multiple?!(files[f.key]?.length):!files[f.key]))return false;}
     return true;
   };
 
@@ -595,19 +595,21 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div><L req>Consignment Note Number</L><I value={consignmentNo} onChange={e=>setConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!consignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
           <div><L req>Stock Transfer Number</L><I value={stockTransferNo} onChange={e=>setStockTransferNo(e.target.value)} placeholder="Stock transfer no…" style={!stockTransferNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
         </div>}
-        {nextDef.needsFiles&&branchOk&&nextDef.needsFiles.filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional,multiple})=><div key={key} style={{marginBottom:12}}>
-          <L req={!optional}>{label}{optional?" (optional)":""}{multiple?" (multiple allowed)":""}</L>
+        {nextDef.needsFiles&&branchOk&&nextDef.needsFiles.filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional,multiple})=>{
+          const alreadyOnFile=!optional&&(order.history||[]).some(h=>h.step===nextDef.step&&h.files&&h.files[key]);
+          return<div key={key} style={{marginBottom:12}}>
+          <L req={!optional&&!alreadyOnFile}>{label}{optional?" (optional)":alreadyOnFile?" (already on file — re-upload only if there's a new one)":""}{multiple?" (multiple allowed)":""}</L>
           <input type="file" multiple={!!multiple} accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,[key]:multiple?[...(p[key]||[]),...Array.from(e.target.files)]:(e.target.files[0]||null)}))} style={{fontSize:11,width:"100%"}}/>
           {multiple?(files[key]||[]).length>0&&<div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>
             {files[key].map((f,i)=><div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:10,color:"#15803D",fontWeight:600,background:"#F0FDF4",padding:"3px 8px",borderRadius:5}}><span>✓ {f.name}</span><button type="button" onClick={()=>setFiles(p=>({...p,[key]:p[key].filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",color:"#DC2626",cursor:"pointer",fontSize:12,fontWeight:700,padding:0}}>✕</button></div>)}
           </div>:files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files[key].name}</div>}
-        </div>)}
+        </div>;})}
         {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
         <PBtn onClick={advance} disabled={!ok()||saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":`Confirm: ${nextDef.label}`} {!saving&&Ic.chevR}</PBtn>
         {nextDef.needsVerification&&isAdmin&&(!showShortPayment
           ?<DBtn onClick={()=>setShowShortPayment(true)} style={{width:"100%",justifyContent:"center",marginTop:8}}>{Ic.rotate} Short Payment</DBtn>
           :<div style={{marginTop:10}}>
-            <div style={{marginBottom:8}}><L req>Reason / Remark</L><TX value={shortPayRemark} onChange={e=>setShortPayRemark(e.target.value)} rows={2} placeholder="Describe the shortfall…" style={{borderColor:"#FECACA"}}/></div>
+            <div style={{marginBottom:8}}><L req>Reason / Remark</L><TX value={shortPayRemark} onChange={e=>setShortPayRemark(e.target.value)} rows={3} placeholder="Describe the shortfall…" style={{borderColor:"#FECACA",resize:"none",width:"100%",boxSizing:"border-box",borderRadius:12}}/></div>
             <div style={{display:"flex",gap:8}}>
               <GBtn onClick={()=>setShowShortPayment(false)} style={{flex:1,justifyContent:"center"}}>Cancel</GBtn>
               <DBtn onClick={async()=>{if(!shortPayRemark.trim()){alert("Remark required.");return;}setSaving(true);const h={step:9,date:nowDate(),time:nowTime(),note:"Short Payment — Balance Payment Needed",verificationRemark:shortPayRemark,shortPayment:true,reversedFrom:9};await onUpdate({...order,history:[...(order.history||[]),h]});setSaving(false);setShowShortPayment(false);setShortPayRemark("");}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Confirm Short Payment"}</DBtn>
@@ -622,7 +624,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
       :<div style={card}>
         <SecHdr icon={Ic.rotate}><span style={{color:"#DC2626"}}>Short Payment — Return to Collection</span></SecHdr>
         <div style={{padding:"14px 16px"}}>
-          <div style={{marginBottom:12}}><L req>Reason / Remark</L><TX value={shortPayRemark} onChange={e=>setShortPayRemark(e.target.value)} rows={2} placeholder="Describe the shortfall…" style={{borderColor:"#FECACA"}}/></div>
+          <div style={{marginBottom:12}}><L req>Reason / Remark</L><TX value={shortPayRemark} onChange={e=>setShortPayRemark(e.target.value)} rows={3} placeholder="Describe the shortfall…" style={{borderColor:"#FECACA",resize:"none",width:"100%",boxSizing:"border-box",borderRadius:12}}/></div>
           <div style={{display:"flex",gap:8}}>
             <GBtn onClick={()=>setShowShortPayment(false)} style={{flex:1,justifyContent:"center"}}>Cancel</GBtn>
             <DBtn onClick={async()=>{if(!shortPayRemark.trim()){alert("Remark required.");return;}setSaving(true);const h={step:9,date:nowDate(),time:nowTime(),note:"Short Payment — Balance Payment Needed",verificationRemark:shortPayRemark,shortPayment:true,reversedFrom:9};await onUpdate({...order,step:8,history:[...(order.history||[]),h]});setSaving(false);setShowShortPayment(false);setShortPayRemark("");}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Confirm Short Payment"}</DBtn>
