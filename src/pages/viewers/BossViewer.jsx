@@ -50,14 +50,12 @@ const CSS = `
   }
   .detail-topbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
   .detail-topbar-back{order:1;}
-  .detail-topbar-title{order:2;flex:1;min-width:0;}
-  .detail-topbar-actions{order:3;}
+  .detail-topbar-title{order:3;flex-basis:100%;}
+  .detail-topbar-actions{order:2;}
   .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;}
   .pb-row{display:flex;align-items:flex-start;gap:0;margin-bottom:12px;}
   .pb-label{font-size:9px;}
   @media (max-width:640px){
-    .detail-topbar-title{order:3;flex-basis:100%;}
-    .detail-topbar-actions{order:2;}
     .detail-grid{grid-template-columns:1fr;}
   }
   @media (max-width:480px){

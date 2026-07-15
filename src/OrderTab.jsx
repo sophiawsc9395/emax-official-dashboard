@@ -1,4 +1,4 @@
-import {useState,useEffect,useRef} from "react";
+import {useState,useEffect,useRef,useMemo,useCallback} from "react";
 import {loadData,saveData} from "./storage/index.js";
 
 const ORDER_KEY="emax_v5_orders";
@@ -259,7 +259,7 @@ function Timeline({order,isAdmin}){
     {s.step===1&&order.orderType==="cash"&&order.depositSlip&&<a href={order.depositSlip.data} download={order.depositSlip.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} Deposit Payment Slip — {order.depositSlip.name}</a>}
   </div>;
   return<div>{visSteps.map((s,i)=>{
-    const isAutoReady=isReady&&[2,3].includes(s.step);
+    const isAutoReady=isReady&&s.step===2;
     const done=cur>s.step||isAutoReady;
     const active=cur===s.step&&!isAutoReady;
     const histEntries=(order.history||[]).filter(h=>h.step===s.step);
@@ -309,12 +309,12 @@ function BillingForm({order,onSubmit,onCancel}){
     <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px"}}><div style={{fontWeight:800,fontSize:14,color:"#fff"}}>Billing Request Form</div><div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginTop:2}}>Prefilled fields are locked from the original order — new fields marked * are required</div></div>
     <div style={{padding:18}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-        {sec("Billing Info")}{row("billingDate","Billing Date","date",true)}{lockedRow("agreementNumber","Agreement Number")}
+        {sec("Billing Info")}{row("billingDate","Billing Date","date",true)}{!isCashOrder&&lockedRow("agreementNumber","Agreement Number")}
         {sec("Customer Details (from order — locked)")}{lockedRow("customerFullName","Customer Full Name")}{lockedRow("customerIC","Customer IC No.")}{lockedRow("customerHP","HP Number")}{lockedRow("customerEmail","Email")}{lockedRow("customerAddress","Address","text",true)}{lockedRow("customerPostCode","Post Code")}{lockedRow("customerCity","City")}
         {sec("Item Details")}{row("itemCode","Item Code","text",true)}{row("imeiSerial","IMEI / Serial No.","text",true)}{row("freeGiftItemCode","Free Gift Item Code")}{row("freeGiftItemName","Free Gift Item Name")}{row("freeGiftSerialNo","Free Gift Serial No.")}
         {order.orderType!=="cash"&&lockedRow("cashPriceOnListing","Cash Price on Result Listing (RM) — from Finance Price","number")}
         {order.orderType!=="cash"&&lockedRow("monthlyInstallment","Monthly Installment (RM)","number")}
-        {sec("Charges (from order — locked)")}{lockedRow("agreementFee","Agreement Fee (RM)","number")}{lockedRow("stampingFee","Stamping Fee (RM)","number")}{lockedRow("deposit","Deposit (RM)","number")}<div/>
+        {sec("Charges (from order — locked)")}{!isCashOrder&&lockedRow("agreementFee","Agreement Fee (RM)","number")}{!isCashOrder&&lockedRow("stampingFee","Stamping Fee (RM)","number")}{lockedRow("deposit","Deposit (RM)","number")}{!isCashOrder&&<div/>}
         {sec("File Uploads")}
         {(isCashOrder?[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false]]:[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false],["resultListFile","Result Listing File",true],["agreementFile","Agreement File",true]]).map(([k,l,req])=><div key={k}><L req={req}>{l}</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFls(p=>({...p,[k]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>{(fls[k]||f[k])&&<div style={{fontSize:10,color:"#15803D",marginTop:2,fontWeight:600}}>✓ {fls[k]?.name||f[k]?.name}</div>}</div>)}
       </div>
@@ -468,6 +468,22 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const [shortPayRemark,setShortPayRemark]=useState("");
   const upfront=calcUpfront(order);
 
+  if(step===4&&!order.consignmentNo&&!order.stockTransferNo){
+    return<div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div style={card}>
+        <SecHdr icon={Ic.truck}>Dispatched to Branch</SecHdr>
+        <div style={{padding:"14px 16px"}}>
+          <div style={{background:"#F0FDF4",borderRadius:8,padding:"10px 12px",border:"1px solid #BBF7D0",marginBottom:14,display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#15803D",fontWeight:600}}>{Ic.checkCircle} Ready stock order — fill in the Consignment Note No. and Stock Transfer No. for this dispatch.</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+            <div><L req>Consignment Note Number</L><I value={consignmentNo} onChange={e=>setConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!consignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
+            <div><L req>Stock Transfer Number</L><I value={stockTransferNo} onChange={e=>setStockTransferNo(e.target.value)} placeholder="Stock transfer no…" style={!stockTransferNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
+          </div>
+          <PBtn onClick={async()=>{if(!consignmentNo.trim()||!stockTransferNo.trim()){alert("Please fill in both numbers.");return;}setSaving(true);const h={step:4,date:nowDate(),time:nowTime(),note:"Dispatch details recorded",consignmentNo,stockTransferNo};await onUpdate({...order,consignmentNo,stockTransferNo,history:[...(order.history||[]),h]});setSaving(false);}} disabled={saving||!consignmentNo.trim()||!stockTransferNo.trim()} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Save Dispatch Details"}</PBtn>
+        </div>
+      </div>
+    </div>;
+  }
+
   if(step===12&&!isCash){
     return<div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={card}>
@@ -585,8 +601,8 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,margin:"10px 0"}}>
             <div><L req>{isCash?"Balance Payment Date":"Upfront Payment Date"}</L><I type="date" value={upfrontDate} onChange={e=>setUpfrontDate(e.target.value)}/></div>
             <div><L>Payment Method</L><SEL value={payMethod} onChange={e=>setPayMethod(e.target.value)}>{PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
-            {isCash?<div><L>Total Due (auto: Retail − Deposit)</L><div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600}}>{fRM(calcCashDue(order))}</div></div>:<div><L>Upfront 1 (Subtotal, RM)</L><div style={{...inp,background:C.surface,color:C.textLight}}>{fRM(upfront.total)}</div></div>}
-            <div><L>{isCash?"Balance Payment Amount (RM)":"Upfront 2 (Monthly, RM)"}</L>{isCash?<I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)}/>:<div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600,cursor:"not-allowed"}}>{fRM(upfrontMonthly)}</div>}</div>
+            {isCash?<div style={{gridColumn:"1/-1"}}><L>Total Due (auto: Retail − Deposit)</L><div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600}}>{fRM(calcCashDue(order))}</div></div>:<div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:4,whiteSpace:"nowrap"}}>Upfront 1 (Agreement + Stamping + Deposit)</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.surface,color:C.textLight,fontSize:13,fontWeight:600}}><span>Amount</span><span>{fRM(upfront.total)}</span></div></div>}
+            <div style={{gridColumn:"1/-1"}}>{isCash?<><L>Balance Payment Amount (RM)</L><I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)}/></>:<><div style={{fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:4,whiteSpace:"nowrap"}}>Upfront 2 (First Monthly Installment)</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.surface,color:C.textMid,fontSize:13,fontWeight:600,cursor:"not-allowed"}}><span>Amount</span><span>{fRM(upfrontMonthly)}</span></div></>}</div>
             {!isCash&&<div style={{gridColumn:"1/-1"}}><L>Total Upfront Payment (RM)</L><div style={{...inp,background:C.navy,color:"#fff",fontWeight:800}}>{fRM(upfront.total+(parseFloat(upfrontMonthly)||0))}</div></div>}
           </div>
           <div><L>Remark</L><I value={verRemark} onChange={e=>setVerRemark(e.target.value)} placeholder="Verification notes…"/></div>
@@ -614,6 +630,16 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
         </div>;})}
         {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
         {nextDef.needsVerification&&!isAdmin?<div style={{fontSize:12,color:C.textLight,fontStyle:"italic",padding:"6px 0"}}>Uploaded proof will be reviewed by admin to complete verification.</div>:<PBtn onClick={advance} disabled={!ok()||saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":`Confirm: ${nextDef.label}`} {!saving&&Ic.chevR}</PBtn>}
+        {nextDef.needsVerification&&isAdmin&&(!showShortPayment
+          ?<DBtn onClick={()=>setShowShortPayment(true)} style={{width:"100%",justifyContent:"center",marginTop:8}}>{Ic.rotate} Short Payment</DBtn>
+          :<div style={{marginTop:10}}>
+            <div style={{marginBottom:8}}><L req>Reason / Remark</L><TX value={shortPayRemark} onChange={e=>setShortPayRemark(e.target.value)} rows={3} placeholder="e.g. Payment slip amount does not match Total Upfront Payment…" style={{borderColor:"#FECACA",resize:"none",width:"100%",boxSizing:"border-box",borderRadius:12}}/></div>
+            <div style={{display:"flex",gap:8}}>
+              <GBtn onClick={()=>setShowShortPayment(false)} style={{flex:1,justifyContent:"center"}}>Cancel</GBtn>
+              <DBtn onClick={async()=>{if(!shortPayRemark.trim()){alert("Remark required.");return;}setSaving(true);const h={step:9,date:nowDate(),time:nowTime(),note:"Short Payment — Balance Payment Needed",verificationRemark:shortPayRemark,shortPayment:true};const ok=await onUpdate({...order,history:[...(order.history||[]),h]});setSaving(false);if(ok!==false){setShowShortPayment(false);setShortPayRemark("");alert("Short payment flagged. Branch can now upload the balance payment proof at Customer Collection.");}}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Confirm Short Payment"}</DBtn>
+            </div>
+          </div>
+        )}
       </>}
     </ActionBox>
     {step===2&&isAdmin&&<DBtn onClick={async()=>{const reason=prompt("Reason for supplier cancellation (optional):")||"";if(!confirm("Mark this order as Supplier Cancelled and return it to New Order Request?"))return;setSaving(true);const cd=nowDate();const h={step:2,date:nowDate(),time:nowTime(),note:"Supplier Cancelled",cancelledDate:cd,remark:reason||undefined,reversedTo:1};await onUpdate({...order,step:1,history:[...(order.history||[]),h]});setSaving(false);}} style={{width:"100%",justifyContent:"center"}}>{Ic.x} Supplier Cancelled Order</DBtn>}
@@ -773,8 +799,8 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
     if(missing.length||missingSlip){alert("Please fill in all required fields.");return;}
     let depositSlip=f.depositSlip||null;
     if(slipFile)depositSlip=await readFile(slipFile);
-    const initStep=isReady?4:1;
-    const initHist=isReady?[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"},{step:2,date:nowDate(),time:nowTime(),note:"Ready stock"},{step:3,date:nowDate(),time:nowTime(),note:"Arrived HQ"},{step:4,date:nowDate(),time:nowTime(),note:"Dispatching"}]:[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"}];
+    const initStep=isReady?3:1;
+    const initHist=isReady?[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"},{step:2,date:nowDate(),time:nowTime(),note:"Ready stock"},{step:3,date:nowDate(),time:nowTime(),note:"Arrived HQ"}]:[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"}];
     onSave({...f,depositSlip,id:order?.id||Date.now().toString(),step:order?.step||initStep,history:order?.history||initHist});
   };
   // row() helper — uses module-level FormField (no focus loss)
@@ -790,7 +816,7 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
         <div style={{display:"flex",gap:8}}>
           {[["stock_request","Stock Request"],["ready","Ready Stock"]].map(([v,l])=><button key={v} onClick={()=>set("stockStatus",v)} style={{flex:1,padding:"12px 8px",borderRadius:10,border:`2px solid ${f.stockStatus===v?C.navy:C.border}`,background:f.stockStatus===v?C.navy:C.white,color:f.stockStatus===v?"#fff":C.textMid,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",transition:"all .15s"}}>{l}</button>)}
         </div>
-        {isReady&&<div style={{fontSize:10,color:"#15803D",marginTop:5,fontWeight:600}}>Will skip to Step 4 — Dispatching</div>}
+        {isReady&&<div style={{fontSize:10,color:"#15803D",marginTop:5,fontWeight:600}}>Will skip to Step 3 — Arrived HQ</div>}
       </div>
       <div>
         <L req>Order Type</L>
@@ -1051,7 +1077,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [editOrder,setEditOrder]=useState(null);
   const [filterPhase,setFilterPhase]=useState("all");
   const [filterBranch,setFilterBranch]=useState("ALL");
+  const [searchInput,setSearchInput]=useState("");
   const [search,setSearch]=useState("");
+  useEffect(()=>{const t=setTimeout(()=>setSearch(searchInput),200);return()=>clearTimeout(t);},[searchInput]);
   const [showArchive,setShowArchive]=useState(false);
   const [showBulkDispatch,setShowBulkDispatch]=useState(false);
   const [showBulkClaimSent,setShowBulkClaimSent]=useState(false);
@@ -1080,10 +1108,10 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const saveOrder=async o=>{const list=orders.find(x=>x.id===o.id)?orders.map(x=>x.id===o.id?o:x):[...orders,o];const ok=await save(list);if(ok)nav("detail",o);return ok;};
   const deleteOrder=async id=>{if(!confirm("Delete this order?"))return;await save(orders.filter(x=>x.id!==id));nav("list");};
 
-  const activeOrders=orders.filter(o=>o.step!==14&&(!userBranch||o.branch===userBranch));
-  const completedOrders=orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch));
+  const activeOrders=useMemo(()=>orders.filter(o=>o.step!==14&&(!userBranch||o.branch===userBranch)),[orders,userBranch]);
+  const completedOrders=useMemo(()=>orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)),[orders,userBranch]);
   const viewingCompleted=filterPhase==="completed";
-  const filtered=(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||getPhase(o.step)?.id===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id);
+  const filtered=useMemo(()=>(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||getPhase(o.step)?.id===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,completedOrders,activeOrders,filterPhase,filterBranch,search]);
 
   if(loading)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading orders…</div>;
 
@@ -1093,9 +1121,10 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   }
   if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
-  const phaseCounts=PHASES.reduce((acc,ph)=>{acc[ph.id]=activeOrders.filter(o=>ph.steps.includes(o.step)).length;return acc;},{});
+  const phaseCounts=useMemo(()=>PHASES.reduce((acc,ph)=>{acc[ph.id]=activeOrders.filter(o=>ph.steps.includes(o.step)).length;return acc;},{}),[activeOrders]);
   const completedCount=orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)).length;
-  const alerts=getOrderAlerts(activeOrders,userBranch);
+  const alerts=useMemo(()=>getOrderAlerts(activeOrders,userBranch),[activeOrders,userBranch]);
+  const alertsByOrderId=useMemo(()=>{const m={};alerts.forEach(a=>{if(!m[a.orderId])m[a.orderId]=a;});return m;},[alerts]);
 
   return<div className="fade-in">
     {showArchive&&<BatchArchive orders={orders} onSave={async l=>{await save(l);}} onClose={()=>setShowArchive(false)}/>}
@@ -1150,7 +1179,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
     {/* Search + filter */}
     <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
-      <I placeholder="Search customer, model, agreement…" value={search} onChange={e=>setSearch(e.target.value)} style={{flex:2,minWidth:160}}/>
+      <I placeholder="Search customer, model, agreement…" value={searchInput} onChange={e=>setSearchInput(e.target.value)} style={{flex:2,minWidth:160}}/>
       {isAdmin&&<SEL value={filterBranch} onChange={e=>setFilterBranch(e.target.value)} style={{flex:1,minWidth:120}}><option value="ALL">All Branches</option>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b}</option>)}</SEL>}
     </div>
 
@@ -1160,7 +1189,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       :<div style={{display:"grid",gridTemplateColumns:"1fr",gap:12}}>
         {filtered.map(o=>{
           const s=getStep(o.step),ph=getPhase(o.step),mxS=maxStep(o),pct=Math.round(((Math.min(o.step,mxS)-1)/(mxS-1))*100);
-          const alert=getOrderAlerts([o])[0];
+          const alert=alertsByOrderId[o.id];
           return<div key={o.id} onClick={()=>nav("detail",o)} className="card" style={{cursor:"pointer",overflow:"hidden",transition:"box-shadow .2s,transform .2s"}}
             onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 16px rgba(10,22,40,.10)";e.currentTarget.style.transform="translateY(-1px)";}}
             onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)";e.currentTarget.style.transform="none";}}>
