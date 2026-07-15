@@ -405,23 +405,31 @@ function RTOSummary({customers,branchMeta}){
             </div>
             <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
               <thead><tr style={{background:C.surface}}>
-                {["Member ID","Customer","Phone","Branch","Amount Due"].map(h=>(
-                  <th key={h} style={{padding:"8px 14px",textAlign:h==="Amount Due"?"right":"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                {["Customer","Phone","Branch","Due Month","Amount Due","Outstanding","Note"].map(h=>(
+                  <th key={h} style={{padding:"8px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
                 {dueCusts.map((c,i)=>(
                   <tr key={c.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?C.white:C.surface}}>
-                    <td style={{padding:"9px 14px",fontSize:11,color:C.textLight}}>{c.memberId}</td>
-                    <td style={{padding:"9px 14px",fontWeight:700,color:C.text}}>{c.name}</td>
+                    <td style={{padding:"9px 14px"}}>
+                      <div style={{fontWeight:700,color:C.text,fontSize:12}}>{c.name}</div>
+                      <div style={{fontSize:10,color:C.textLight}}>{c.memberId}</div>
+                    </td>
                     <td style={{padding:"9px 14px",fontSize:11,color:C.textMid}}>{c.contactNumber||"—"}</td>
                     <td style={{padding:"9px 14px",fontSize:11,color:C.textMid}}>{c.branch}</td>
-                    <td style={{padding:"9px 14px",fontWeight:700,color:C.text,textAlign:"right",whiteSpace:"nowrap"}}>{fRM(c.currentDue.amount)}</td>
+                    <td style={{padding:"9px 14px"}}>
+                      <span style={{background:"#EEF1F7",color:C.blue,padding:"2px 7px",borderRadius:4,fontSize:10,fontWeight:600,border:"1px solid #C7D2E3"}}>{c.currentDue.label}</span>
+                    </td>
+                    <td style={{padding:"9px 14px",fontWeight:700,color:C.text,fontSize:12,whiteSpace:"nowrap"}}>{fRM(c.currentDue.amount)}</td>
+                    <td style={{padding:"9px 14px",fontSize:12,color:C.textMid,whiteSpace:"nowrap"}}>{fRM(c.outstanding)}</td>
+                    <td style={{padding:"9px 14px",fontSize:11,color:C.textLight,whiteSpace:"nowrap"}}>Due this month</td>
                   </tr>
                 ))}
                 <tr style={{borderTop:`2px solid ${C.border}`,background:C.surface}}>
                   <td colSpan={4} style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:C.navy}}>Total Due This Month</td>
-                  <td style={{padding:"9px 14px",fontWeight:800,fontSize:13,color:C.navy,textAlign:"right"}}>{fRM(totalDue)}</td>
+                  <td style={{padding:"9px 14px",fontWeight:800,fontSize:13,color:C.navy,whiteSpace:"nowrap"}}>{fRM(totalDue)}</td>
+                  <td colSpan={2}/>
                 </tr>
               </tbody>
             </table></div>

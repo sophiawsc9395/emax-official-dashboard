@@ -237,6 +237,8 @@ function Timeline({order,isAdmin}){
     {hist.shortPayment&&<div style={{marginBottom:2,color:"#DC2626",fontWeight:700}}>Short Payment — Balance Payment Needed</div>}
     {hist.verificationRemark&&<div style={{marginBottom:2,color:C.textMid}}>Note: {hist.verificationRemark}</div>}
     {hist.upfrontPaymentDate&&<div style={{marginBottom:2,color:C.textMid}}>{order.orderType==="cash"?"Balance Payment Date":"Upfront Payment Date"}: {fDate(hist.upfrontPaymentDate)} · {hist.paymentMethod}</div>}
+    {hist.paymentProofAmount&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Payment Proof Amount (Actual Receipt): {fRM(hist.paymentProofAmount)}</div>}
+    {hist.secondPaymentDate&&<div style={{marginBottom:2,color:"#92400E",fontWeight:600}}>2nd {order.orderType==="cash"?"Balance":"Upfront"} Payment: {fDate(hist.secondPaymentDate)} · {hist.secondPayMethod} · {fRM(hist.secondPaymentAmount)}</div>}
     {hist.monthlyInstallment&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>{order.orderType==="cash"?`Balance Payment Amount: ${fRM(hist.monthlyInstallment)}`:`Upfront 2 (First Monthly Installment): ${fRM(hist.monthlyInstallment)}`}</div>}
     {hist.totalDue!==undefined&&<div style={{marginBottom:2,color:C.textMid}}>{order.orderType==="cash"?`Total Due: ${fRM(hist.totalDue)}`:`Upfront 1 (Subtotal): ${fRM(hist.totalDue)}`}</div>}
     {hist.totalUpfrontPayment!==undefined&&<div style={{marginBottom:2,color:C.navy,fontWeight:800}}>Total Upfront Payment: {fRM(hist.totalUpfrontPayment)}</div>}
@@ -377,7 +379,7 @@ function downloadReport(orders,type,dateFilter,merchantFilter){
   }).sort((a,b)=>(a.invoiceNo||"").localeCompare(b.invoiceNo||""));
   if(!filtered.length){alert(`No records found${dateFilter?` for ${fDate(dateFilter)}`:""}.`);return;}
   const dateStr=dateFilter?fDate(dateFilter):"All Dates";
-  let rows="",total1=0,total2=0;
+  let rows="",total1=0,total2=0,total3=0;
   if(isAgreementReceived){
     rows=filtered.map((o,i)=>{const due=calcAmountDueByMerchant(o);total1+=due;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>RM ${due.toFixed(2)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="7"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
@@ -391,11 +393,11 @@ function downloadReport(orders,type,dateFilter,merchantFilter){
     rows=filtered.map((o,i)=>{const due=calcAmountDueByMerchant(o);total1+=due;return`<tr><td>${i+1}</td><td>${fDate(o.claimSentDate)}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>RM ${due.toFixed(2)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="8"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
   } else {
-    rows=filtered.map((o,i)=>{const h=(o.history||[]).find(h=>h.step===9);const up=calcUpfront(o);const monthly=parseFloat(o.billingData?.monthlyInstallment||o.monthlyInstallment)||0;total1+=up.total;total2+=monthly;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${fDate(h?.upfrontPaymentDate)}</td><td>RM ${up.total.toFixed(2)}</td><td>RM ${monthly.toFixed(2)}</td><td>RM ${(up.total+monthly).toFixed(2)}</td><td>${h?.paymentMethod||"—"}</td><td>${h?.verificationRemark||"—"}</td></tr>`;}).join("");
-    rows+=`<tr class="tot"><td colspan="7"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td><td><b>RM ${(total1+total2).toFixed(2)}</b></td><td colspan="2"></td></tr>`;
+    rows=filtered.map((o,i)=>{const h=(o.history||[]).filter(h=>h.step===9).slice(-1)[0];const up=calcUpfront(o);const monthly=parseFloat(o.billingData?.monthlyInstallment||o.monthlyInstallment)||0;const actualReceipt=(parseFloat(h?.paymentProofAmount)||0)+(parseFloat(h?.secondPaymentAmount)||0);total1+=up.total;total2+=monthly;total3+=actualReceipt;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${fDate(h?.upfrontPaymentDate)}</td><td>RM ${up.total.toFixed(2)}</td><td>RM ${monthly.toFixed(2)}</td><td>RM ${(up.total+monthly).toFixed(2)}</td><td>RM ${actualReceipt.toFixed(2)}</td><td>${h?.paymentMethod||"—"}</td><td>${h?.verificationRemark||"—"}</td></tr>`;}).join("");
+    rows+=`<tr class="tot"><td colspan="7"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td><td><b>RM ${(total1+total2).toFixed(2)}</b></td><td><b>RM ${total3.toFixed(2)}</b></td><td colspan="2"></td></tr>`;
   }
   const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":"Upfront Payment Report";
-  const heads=isAgreementReceived?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Amount Due by Merchant</th>":isCompleted?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Claim Sent Date</th><th>Knock-off Date</th><th>Knock-off Amount</th><th>Completed On</th>":isKnockoff?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Knock-off Date</th><th>Knock-off Amount</th>":isClaim?"<th>#</th><th>Date</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Amount Due by Merchant</th>":"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Payment Date</th><th>Upfront 1 (Agreement+Stamping+Deposit)</th><th>Upfront 2 (1st Monthly Installment)</th><th>Total Upfront Payment Upon Collection</th><th>Method</th><th>Remark</th>";
+  const heads=isAgreementReceived?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Amount Due by Merchant</th>":isCompleted?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Claim Sent Date</th><th>Knock-off Date</th><th>Knock-off Amount</th><th>Completed On</th>":isKnockoff?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Knock-off Date</th><th>Knock-off Amount</th>":isClaim?"<th>#</th><th>Date</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Amount Due by Merchant</th>":"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Payment Date</th><th>Upfront 1 (Agreement+Stamping+Deposit)</th><th>Upfront 2 (1st Monthly Installment)</th><th>Total Upfront Payment Upon Collection</th><th>Actual Receipt Amount</th><th>Method</th><th>Remark</th>";
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
   const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
 }
@@ -458,6 +460,10 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const [upfrontDate,setUpfrontDate]=useState(nowDate());
   const [upfrontMonthly,setUpfrontMonthly]=useState(order.billingData?.monthlyInstallment||order.monthlyInstallment||"");
   const [payMethod,setPayMethod]=useState(PAYMENT_METHODS[0]);
+  const [paymentProofAmount,setPaymentProofAmount]=useState("");
+  const [secondPaymentDate,setSecondPaymentDate]=useState(nowDate());
+  const [secondPayMethod,setSecondPayMethod]=useState(PAYMENT_METHODS[0]);
+  const [secondPaymentAmount,setSecondPaymentAmount]=useState("");
   const [saving,setSaving]=useState(false);
   const [showBilling,setShowBilling]=useState(false);
   const [showChecklist,setShowChecklist]=useState(false);
@@ -553,7 +559,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
       setSaving(false);
       return;
     }
-    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+(parseFloat(upfrontMonthly)||0),paymentMethod:payMethod}:{})};
+    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,paymentProofAmount:!isCash?paymentProofAmount:undefined,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+(parseFloat(upfrontMonthly)||0),paymentMethod:payMethod,...(isShortPaymentPending(order)?{secondPaymentDate,secondPayMethod,secondPaymentAmount}:{})}:{})};
     const updated={...order,step:nextDef.step,history:[...(order.history||[]),h]};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
     if(isCash&&nextDef.step===14){updated.step=14;}
@@ -568,6 +574,11 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
     if(nextDef.needsInvoiceNo&&isAdmin&&!invoiceNo.trim())return false;
     if(nextDef.needsTransferNumbers&&branchOk&&(!consignmentNo.trim()||!stockTransferNo.trim()))return false;
     if(nextDef.needsVerification&&!isAdmin)return false;
+    if(nextDef.needsVerification&&isAdmin){
+      if(!isCash&&!paymentProofAmount.toString().trim())return false;
+      if(isCash&&!upfrontMonthly.toString().trim())return false;
+      if(isShortPaymentPending(order)&&(!secondPaymentDate||!secondPaymentAmount.toString().trim()))return false;
+    }
     if(nextDef.needsFiles){const priorFiles=new Set((order.history||[]).filter(h=>h.step===nextDef.step).flatMap(h=>Object.keys(h.files||{})));const req=(nextDef.needsFiles||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof")&&!priorFiles.has(f.key));if(branchOk&&req.some(f=>f.multiple?!(files[f.key]?.length):!files[f.key]))return false;}
     return true;
   };
@@ -601,10 +612,19 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,margin:"10px 0"}}>
             <div><L req>{isCash?"Balance Payment Date":"Upfront Payment Date"}</L><I type="date" value={upfrontDate} onChange={e=>setUpfrontDate(e.target.value)}/></div>
             <div><L>Payment Method</L><SEL value={payMethod} onChange={e=>setPayMethod(e.target.value)}>{PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
+            {!isCash&&<div style={{gridColumn:"1/-1"}}><L req>Payment Proof Amount (RM)</L><I type="number" value={paymentProofAmount} onChange={e=>setPaymentProofAmount(e.target.value)} placeholder="Actual amount per payment slip…"/></div>}
             {isCash?<div style={{gridColumn:"1/-1"}}><L>Total Due (auto: Retail − Deposit)</L><div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600}}>{fRM(calcCashDue(order))}</div></div>:<div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:4,whiteSpace:"nowrap"}}>Upfront 1 (Agreement + Stamping + Deposit)</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.surface,color:C.textLight,fontSize:13,fontWeight:600}}><span>Amount</span><span>{fRM(upfront.total)}</span></div></div>}
-            <div style={{gridColumn:"1/-1"}}>{isCash?<><L>Balance Payment Amount (RM)</L><I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)}/></>:<><div style={{fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:4,whiteSpace:"nowrap"}}>Upfront 2 (First Monthly Installment)</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.surface,color:C.textMid,fontSize:13,fontWeight:600,cursor:"not-allowed"}}><span>Amount</span><span>{fRM(upfrontMonthly)}</span></div></>}</div>
+            <div style={{gridColumn:"1/-1"}}>{isCash?<><L req>Balance Payment Amount (RM)</L><I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)}/></>:<><div style={{fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:4,whiteSpace:"nowrap"}}>Upfront 2 (First Monthly Installment)</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.surface,color:C.textMid,fontSize:13,fontWeight:600,cursor:"not-allowed"}}><span>Amount</span><span>{fRM(upfrontMonthly)}</span></div></>}</div>
             {!isCash&&<div style={{gridColumn:"1/-1"}}><L>Total Upfront Payment (RM)</L><div style={{...inp,background:C.navy,color:"#fff",fontWeight:800}}>{fRM(upfront.total+(parseFloat(upfrontMonthly)||0))}</div></div>}
           </div>
+          {isShortPaymentPending(order)&&<div style={{background:"#FFFBEB",borderRadius:9,padding:"12px 14px",border:"1px solid #FDE68A",marginBottom:12}}>
+            <div style={{...lbl,marginBottom:8,color:"#92400E"}}>Second Payment Proof (Short Payment Correction)</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              <div><L req>{isCash?"2nd Balance Payment Date":"2nd Upfront Payment Date"}</L><I type="date" value={secondPaymentDate} onChange={e=>setSecondPaymentDate(e.target.value)}/></div>
+              <div><L>Payment Method</L><SEL value={secondPayMethod} onChange={e=>setSecondPayMethod(e.target.value)}>{PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
+              <div style={{gridColumn:"1/-1"}}><L req>{isCash?"2nd Balance Payment Amount (RM)":"2nd Payment Proof Amount (RM)"}</L><I type="number" value={secondPaymentAmount} onChange={e=>setSecondPaymentAmount(e.target.value)} placeholder="Additional amount received…"/></div>
+            </div>
+          </div>}
           <div><L>Remark</L><I value={verRemark} onChange={e=>setVerRemark(e.target.value)} placeholder="Verification notes…"/></div>
         </div>}
         {nextDef.step===8&&isAdmin&&!isCash&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
