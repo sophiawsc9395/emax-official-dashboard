@@ -54,10 +54,15 @@ const CSS = `
   .modal-overlay{position:fixed;inset:0;background:rgba(10,22,40,.65);backdrop-filter:blur(4px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
   tfoot td{white-space:nowrap!important;}
   thead th{white-space:nowrap!important;}
+  .order-info-card{container-type:inline-size;}
   .order-info-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:20px;}
   .order-info-grid .oi-full{grid-column:1/-1;}
   .order-info-grid .oi-value{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  @media (max-width:640px){
+  @container (max-width:420px){
+    .order-info-grid{grid-template-columns:1fr;}
+    .order-info-grid .oi-value{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word;}
+  }
+  @media (max-width:420px){
     .order-info-grid{grid-template-columns:1fr;}
     .order-info-grid .oi-value{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word;}
   }

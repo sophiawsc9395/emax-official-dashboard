@@ -404,7 +404,7 @@ function BillingDetailsCard({billingData:bd,isCash,title="Billing Request Detail
   const rows=[["Billing Date",fDate(bd.billingDate)],["Customer Name",bd.customerFullName],["Customer IC",bd.customerIC],["HP Number",bd.customerHP],["Item Code",bd.itemCode],["IMEI / Serial No.",bd.imeiSerial],bd.agreementNumber&&["Agreement Number",bd.agreementNumber],!isCash&&["Cash Price on Listing",fRM(bd.cashPriceOnListing)],!isCash&&["Monthly Installment",fRM(bd.monthlyInstallment)],bd.agreementFee&&["Agreement Fee",fRM(bd.agreementFee)],bd.stampingFee&&["Stamping Fee",fRM(bd.stampingFee)],bd.deposit&&["Deposit",fRM(bd.deposit)]].filter(Boolean);
   const fileKeys=[["deviceSerialImg","Device Serial No. Image"],["freeGiftSerialImg","Free Gift Serial No. Image"],["resultListFile","Result Listing File"],["agreementFile","Agreement File"]];
   const hasFiles=fileKeys.some(([k])=>bd[k]);
-  return<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
+  return<div className="order-info-card" style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
     <div style={{...lbl,marginBottom:4}}>{title}</div>
     <div className="order-info-grid">
       {rows.map(([l,v])=><div key={l} style={{padding:"6px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
@@ -693,7 +693,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     </div>
 
     {/* Order info summary */}
-    <div style={{...card,marginBottom:14}}>
+    <div className="order-info-card" style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.fileText}>Order Information</SecHdr>
       <div className="order-info-grid" style={{padding:"6px 16px 10px"}}>
         {[["Customer Name",order.customerName],order.customerIC&&["Customer IC",order.customerIC],["Device Name",order.phoneModel],order.customerHP&&["Customer HP",order.customerHP],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],["Deposit",fRM(order.deposit)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],order.supplierName&&["Supplier",isAdmin?order.supplierName:"—"],order.poNumber&&["PO Number",order.poNumber],order.purchaserName&&["Purchaser Name",isAdmin?order.purchaserName:"—"],order.consignmentNo&&["Consignment Note No.",order.consignmentNo],order.stockTransferNo&&["Stock Transfer No.",order.stockTransferNo],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
