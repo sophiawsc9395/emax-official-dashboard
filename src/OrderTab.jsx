@@ -12,7 +12,7 @@ const PHASES=[
   {id:"billing",label:"Billing",steps:[6,7,8,9],color:"#B45309",bg:"#FFFBEB"},
   {id:"agreement_hq",label:"Agreement Submission",steps:[10],color:"#0891B2",bg:"#ECFEFF"},
   {id:"unclaimed",label:"Agreement Received by HQ",steps:[11],color:"#DC2626",bg:"#FEF2F2"},
-  {id:"claimed",label:"Claimed",steps:[12],color:"#15803D",bg:"#F0FDF4"},
+  {id:"claimed",label:"Claimed",steps:[12,13],color:"#15803D",bg:"#F0FDF4"},
 ];
 const STEPS=[
   {step:1,label:"New Order Request",desc:"Order submitted by branch.",who:"branch",phase:"stock"},
@@ -22,12 +22,13 @@ const STEPS=[
   {step:5,label:"Arrived Branch",desc:"Branch confirms receipt.",who:"branch",phase:"transfer"},
   {step:6,label:"Billing Request",desc:"Submit billing request form.",who:"branch",phase:"billing",needsBillingForm:true},
   {step:7,label:"Billed",desc:"Admin completes billing with invoice.",who:"admin",phase:"billing",needsInvoiceNo:true,needsFiles:[{key:"invoice",label:"Sales Invoice PDF"}]},
-  {step:8,label:"Customer Collection",desc:"Customer collects device and payment received.",who:"admin",phase:"billing",needsFiles:[{key:"collectionProof",label:"Phone Collection Proof"},{key:"paymentProof",label:"Payment Proof"}]},
+  {step:8,label:"Customer Collection",desc:"Customer collects device and payment received.",who:"admin",phase:"billing",needsFiles:[{key:"collectionProof",label:"Phone Collection Proof",multiple:true},{key:"paymentProof",label:"Payment Proof"},{key:"balancePaymentProof",label:"Additional Balance Payment Proof",optional:true}]},
   {step:9,label:"Collection Verified",desc:"HQ verifies collection and upfront payment.",who:"admin",phase:"billing",needsVerification:true},
   {step:10,label:"Agreement Submission by Branch",desc:"Branch completes agreement checklist.",who:"both",phase:"agreement_hq",needsChecklist:true},
   {step:11,label:"Agreement Received by HQ",desc:"HQ receives original signed agreement.",who:"admin",phase:"unclaimed",canReverse:true},
-  {step:12,label:"Claim Submitted",desc:"Claim submitted to merchant. Enter claim sent date and knock-off date.",who:"admin",phase:"claimed"},
-  {step:13,label:"Claim Released",desc:"Order completed and archived.",who:"admin",phase:"claimed"},
+  {step:12,label:"Claim Submitted",desc:"Claim submitted to merchant.",who:"admin",phase:"claimed"},
+  {step:13,label:"Claim Released",desc:"Claim released by merchant. Enter knock-off date and amount.",who:"admin",phase:"claimed"},
+  {step:14,label:"Completed",desc:"Order completed and archived.",who:"admin",phase:"claimed"},
 ];
 const CHECKLIST_ITEMS=["Aeon Application Form (3 pages)","Invoice","Result List","Notice 1 — Application (2 pages × 2 sets)","Notice 2 — Approval (8 pages)","Agreement (16 pages)","IC Copy","AutoDebit Form (Personal Account)","Bank Proof (Personal Account)"];
 
@@ -40,12 +41,8 @@ function getVisibleSteps(order){
     const base=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9];
     return STEPS.filter(s=>base.includes(s.step));
   }
-  // CCM: all 1-12
-  if(isReady){
-    // Show 1-4 as collapsed (auto), then 4-12
-    return STEPS.filter(s=>s.step<=12);
-  }
-  return STEPS.filter(s=>s.step<=12);
+  // CCM: 1-13 (14=Completed is archived, shown separately)
+  return STEPS.filter(s=>s.step<=13);
 }
 
 // Returns the "next" step number for a given order
@@ -54,16 +51,16 @@ function nextStepNum(order){
   const isReady=order.stockStatus==="ready";
   const cur=order.step;
   if(isCash){
-    const seq=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,13]; // 13=completed for cash
+    const seq=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,14]; // 14=completed for cash
     const idx=seq.indexOf(cur);
     return idx>=0&&idx<seq.length-1?seq[idx+1]:null;
   }
-  return cur<12?cur+1:null;
+  return cur<13?cur+1:null;
 }
 
 // Max step for progress calculation
 function maxStep(order){
-  return order.orderType==="cash"?9:12;
+  return order.orderType==="cash"?9:13;
 }
 
 const fRM=(n=0)=>"RM "+((parseFloat(n)||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2}));
@@ -201,11 +198,17 @@ function isPendingBranchAction(order){
   const last=(order.history||[]).filter(h=>h.issueItems||h.checklistItems).slice(-1)[0];
   return!!(last&&last.issueItems);
 }
+function isShortPaymentPending(order){
+  if(order.step!==8)return false;
+  const last=(order.history||[]).filter(h=>h.shortPayment||h.collectionChecked!==undefined).slice(-1)[0];
+  return!!(last&&last.shortPayment);
+}
 function StepBadge({order,step}){
   const s2=step!=null?step:order?.step;
   const ph=getPhase(s2),s=getStep(s2);
   if(order?.cancelled)return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:"#FEF2F2",color:"#B91C1C",border:"1px solid #FECACA",whiteSpace:"nowrap"}}>Cancelled</span>;
   if(order&&isPendingBranchAction(order))return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:"#FEF2F2",color:"#B91C1C",border:"1px solid #FECACA",whiteSpace:"nowrap"}}>Pending Branch Action</span>;
+  if(order&&isShortPaymentPending(order))return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:"#FEF2F2",color:"#B91C1C",border:"1px solid #FECACA",whiteSpace:"nowrap"}}>Balance Payment Needed</span>;
   if(!ph)return null;
   return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:C.surface,color:C.navy,border:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{s.label}</span>;
 }
@@ -229,10 +232,11 @@ function Timeline({order,isAdmin}){
     {hist.claimSentDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Claim Sent: {fDate(hist.claimSentDate)}</div>}
     {hist.knockOffDate&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off: {fDate(hist.knockOffDate)}</div>}
     {hist.knockOffAmount&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off Amount: {fRM(hist.knockOffAmount)}</div>}
+    {hist.shortPayment&&<div style={{marginBottom:2,color:"#DC2626",fontWeight:700}}>Short Payment — Balance Payment Needed</div>}
     {hist.verificationRemark&&<div style={{marginBottom:2,color:C.textMid}}>Note: {hist.verificationRemark}</div>}
     {hist.upfrontPaymentDate&&<div style={{marginBottom:2,color:C.textMid}}>{order.orderType==="cash"?"Balance Payment Date":"Upfront Payment Date"}: {fDate(hist.upfrontPaymentDate)} · {hist.paymentMethod}</div>}
-    {hist.monthlyInstallment&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>{order.orderType==="cash"?`Balance Payment Amount: ${fRM(hist.monthlyInstallment)}`:`Upfront 2 — First Monthly Installment: ${fRM(hist.monthlyInstallment)}`}</div>}
-    {hist.totalDue!==undefined&&<div style={{marginBottom:2,color:C.textMid}}>{order.orderType==="cash"?`Total Due: ${fRM(hist.totalDue)}`:`Upfront 1 — Subtotal: ${fRM(hist.totalDue)}`}</div>}
+    {hist.monthlyInstallment&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>{order.orderType==="cash"?`Balance Payment Amount: ${fRM(hist.monthlyInstallment)}`:`Upfront 2 (First Monthly Installment): ${fRM(hist.monthlyInstallment)}`}</div>}
+    {hist.totalDue!==undefined&&<div style={{marginBottom:2,color:C.textMid}}>{order.orderType==="cash"?`Total Due: ${fRM(hist.totalDue)}`:`Upfront 1 (Subtotal): ${fRM(hist.totalDue)}`}</div>}
     {hist.totalUpfrontPayment!==undefined&&<div style={{marginBottom:2,color:C.navy,fontWeight:800}}>Total Upfront Payment: {fRM(hist.totalUpfrontPayment)}</div>}
     {hist.returnRemark&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Returned: {hist.returnRemark}</div>}
     {hist.billingData&&<div style={{marginTop:6}}><BillingDetailsCard billingData={hist.billingData} isCash={order.orderType==="cash"} title="Billing Request Details"/></div>}
@@ -240,15 +244,16 @@ function Timeline({order,isAdmin}){
       <div style={{fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Upfront Payment Breakdown</div>
       {(()=>{const up=calcUpfront(order);const monthly=parseFloat(order.billingData?.monthlyInstallment)||0;return<>
         {[["Agreement Fee",up.a],["Stamping Fee",up.s],["Deposit",up.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 1 — Subtotal</span><span>{fRM(up.total)}</span></div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 2 — First Monthly Installment</span><span>{fRM(monthly)}</span></div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 1 (Subtotal)</span><span>{fRM(up.total)}</span></div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 2 (First Monthly Installment)</span><span>{fRM(monthly)}</span></div>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0 0",borderTop:`2px solid ${C.navy}`,marginTop:4,color:C.navy,fontWeight:800}}><span>Total Upfront Payment Upon Collection</span><span>{fRM(up.total+monthly)}</span></div>
       </>;})()}
     </div>}
     {hist.issueItems?.length>0&&<div style={{marginBottom:2,color:C.textMid,fontSize:10}}>Issues: {hist.issueItems.join(" · ")}</div>}
     {hist.checklistItems&&<div style={{fontSize:10,color:C.textMid}}>{hist.checklistItems.filter(x=>x.checked).length}/{hist.checklistItems.length} checklist items</div>}
+    {hist.agreementConsignmentNo&&<div style={{marginTop:2,color:C.navy,fontWeight:600,fontSize:11}}>Consignment Note No.: {hist.agreementConsignmentNo}</div>}
     {hist.collectionChecked!==undefined&&<div style={{fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"✓":"✗"} Collection · </>}{hist.paymentChecked?"✓":"✗"} Payment verified</div>}
-    {hist.files&&Object.entries(hist.files).filter(([k])=>isAdmin||k!=="claimToPurchaser").map(([k,f])=>f&&<a key={k} href={f.data} download={f.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} {f.name}</a>)}
+    {hist.files&&Object.entries(hist.files).filter(([k])=>isAdmin||k!=="claimToPurchaser").flatMap(([k,f])=>f?(Array.isArray(f)?f.map((ff,i)=>[`${k}-${i}`,ff]):[[k,f]]):[]).map(([k,f])=>f&&<a key={k} href={f.data} download={f.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} {f.name}</a>)}
     {s.step===1&&order.orderType==="cash"&&order.depositSlip&&<a href={order.depositSlip.data} download={order.depositSlip.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} Deposit Payment Slip — {order.depositSlip.name}</a>}
   </div>;
   return<div>{visSteps.map((s,i)=>{
@@ -320,29 +325,27 @@ function BillingForm({order,onSubmit,onCancel}){
 /* ── Checklist Form ───────────────────────────────────────────────────── */
 function ChecklistForm({onSubmit,onCancel,issueItems=[]}){
   const [items,setItems]=useState(CHECKLIST_ITEMS.map(name=>({name,checked:false,issue:issueItems.includes(name)})));
-  const [noteFile,setNoteFile]=useState(null);
+  const [consignmentNo,setConsignmentNo]=useState("");
   const [saving,setSaving]=useState(false);
   const allChecked=items.every(x=>x.checked);
-  const canSubmit=allChecked&&!!noteFile;
+  const canSubmit=allChecked&&consignmentNo.trim();
   const submit=async()=>{
     if(!canSubmit)return;
     setSaving(true);
-    const consignmentNote=await readFile(noteFile);
-    onSubmit(items,consignmentNote);
+    onSubmit(items,consignmentNo);
   };
   return<div style={{...card,marginBottom:16}}>
-    <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px"}}><div style={{fontWeight:800,fontSize:14,color:"#fff"}}>Agreement Checklist</div><div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginTop:2}}>Tick all items and upload consignment note before sending to HQ</div></div>
+    <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px"}}><div style={{fontWeight:800,fontSize:14,color:"#fff"}}>Agreement Checklist</div><div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginTop:2}}>Tick all items and fill in the consignment note number before sending to HQ</div></div>
     <div style={{padding:16}}>
       {items.map((item,i)=><div key={i} onClick={()=>setItems(p=>p.map((x,j)=>j===i?{...x,checked:!x.checked}:x))} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:9,background:item.issue&&!item.checked?"#FEF2F2":item.checked?"#F0FDF4":C.surface,border:`1px solid ${item.issue&&!item.checked?"#FECACA":item.checked?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer",transition:"all .15s"}}>
         <div style={{width:18,height:18,borderRadius:4,background:item.checked?C.navy:"#fff",border:`2px solid ${item.checked?C.navy:item.issue?"#EF4444":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",transition:"all .15s"}}>{item.checked&&Ic.check}</div>
         <span style={{fontSize:12,fontWeight:item.checked?600:400,color:item.issue&&!item.checked?"#DC2626":item.checked?"#15803D":C.textMid}}>{item.name}{item.issue&&!item.checked&&<span style={{fontSize:10,marginLeft:7,fontWeight:700,color:"#DC2626"}}> ⚠ Flagged</span>}</span>
       </div>)}
-      <div style={{marginTop:10,marginBottom:4,padding:"10px 14px",borderRadius:9,background:noteFile?"#F0FDF4":C.surface,border:`1px solid ${noteFile?"#BBF7D0":C.border}`}}>
-        <L req>Consignment Note</L>
-        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setNoteFile(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>
-        {noteFile&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {noteFile.name}</div>}
+      <div style={{marginTop:10,marginBottom:4}}>
+        <L req>Consignment Note No.</L>
+        <I value={consignmentNo} onChange={e=>setConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!consignmentNo.trim()?{borderColor:"#FECACA"}:{}}/>
       </div>
-      {!canSubmit&&<div style={{padding:"8px 12px",background:"#FFFBEB",borderRadius:8,border:"1px solid #FDE68A",fontSize:11,color:"#92400E",marginBottom:12,marginTop:8,display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} {!allChecked?"All items must be ticked":"Consignment note must be uploaded"} before submitting.</div>}
+      {!canSubmit&&<div style={{padding:"8px 12px",background:"#FFFBEB",borderRadius:8,border:"1px solid #FDE68A",fontSize:11,color:"#92400E",marginBottom:12,marginTop:8,display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} {!allChecked?"All items must be ticked":"Consignment note number must be filled in"} before submitting.</div>}
       <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:12}}><GBtn onClick={onCancel}>{Ic.chevL} Back</GBtn><PBtn onClick={submit} disabled={!canSubmit||saving}>{saving?"Saving…":"Submit Checklist"}</PBtn></div>
     </div>
   </div>;
@@ -364,7 +367,7 @@ function downloadReport(orders,type,dateFilter,merchantFilter){
   orders=merchantFilter&&merchantFilter!=="all"?orders.filter(o=>o.merchant===merchantFilter):orders;
   const filtered=orders.filter(o=>{
     if(isAgreementReceived){const h=(o.history||[]).find(h=>h.step===11);return o.step===11&&(!dateFilter||h?.date===dateFilter);}
-    if(isCompleted){const h=(o.history||[]).find(h=>h.step===13);return o.step===13&&(!dateFilter||h?.date===dateFilter);}
+    if(isCompleted){const h=(o.history||[]).find(h=>h.step===14);return o.step===14&&(!dateFilter||h?.date===dateFilter);}
     if(isKnockoff) return o.knockOffDate&&(!dateFilter||o.knockOffDate===dateFilter);
     if(isClaim) return o.claimSentDate&&(!dateFilter||o.claimSentDate===dateFilter)&&o.step>=12;
     const h=(o.history||[]).find(h=>h.step===9);
@@ -377,7 +380,7 @@ function downloadReport(orders,type,dateFilter,merchantFilter){
     rows=filtered.map((o,i)=>{const due=calcAmountDueByMerchant(o);total1+=due;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>RM ${due.toFixed(2)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="7"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
   } else if(isCompleted){
-    rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;const h=(o.history||[]).find(h=>h.step===13);total1+=ka;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>${fDate(o.claimSentDate)}</td><td>${fDate(o.knockOffDate)}</td><td>RM ${ka.toFixed(2)}</td><td>${fDT(h?.date,h?.time)}</td></tr>`;}).join("");
+    rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;const h=(o.history||[]).find(h=>h.step===14);total1+=ka;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>${fDate(o.claimSentDate)}</td><td>${fDate(o.knockOffDate)}</td><td>RM ${ka.toFixed(2)}</td><td>${fDT(h?.date,h?.time)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="9"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td></tr>`;
   } else if(isKnockoff){
     rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;total1+=ka;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>${fDate(o.knockOffDate)}</td><td>RM ${ka.toFixed(2)}</td></tr>`;}).join("");
@@ -389,7 +392,7 @@ function downloadReport(orders,type,dateFilter,merchantFilter){
     rows=filtered.map((o,i)=>{const h=(o.history||[]).find(h=>h.step===9);const up=calcUpfront(o);const monthly=parseFloat(o.billingData?.monthlyInstallment||o.monthlyInstallment)||0;total1+=up.total;total2+=monthly;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${fDate(h?.upfrontPaymentDate)}</td><td>RM ${up.total.toFixed(2)}</td><td>RM ${monthly.toFixed(2)}</td><td>RM ${(up.total+monthly).toFixed(2)}</td><td>${h?.paymentMethod||"—"}</td><td>${h?.verificationRemark||"—"}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="7"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td><td><b>RM ${(total1+total2).toFixed(2)}</b></td><td colspan="2"></td></tr>`;
   }
-  const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Knock-off Report":isClaim?"Claim Submitted Report":"Upfront Payment Report";
+  const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":"Upfront Payment Report";
   const heads=isAgreementReceived?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Amount Due by Merchant</th>":isCompleted?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Claim Sent Date</th><th>Knock-off Date</th><th>Knock-off Amount</th><th>Completed On</th>":isKnockoff?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Knock-off Date</th><th>Knock-off Amount</th>":isClaim?"<th>#</th><th>Date</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Amount Due by Merchant</th>":"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Payment Date</th><th>Upfront 1 (Agreement+Stamping+Deposit)</th><th>Upfront 2 (1st Monthly Installment)</th><th>Total Upfront Payment Upon Collection</th><th>Method</th><th>Remark</th>";
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
   const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
@@ -443,6 +446,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const [stockTransferNo,setStockTransferNo]=useState("");
   const [purchaserName,setPurchaserName]=useState("");
   const [claimSentDate,setClaimSentDate]=useState(nowDate());
+  const [claimConsignmentNo,setClaimConsignmentNo]=useState("");
   const [knockOffDate,setKnockOffDate]=useState(nowDate());
   const [knockOffAmount,setKnockOffAmount]=useState("");
   const [files,setFiles]=useState({});
@@ -465,19 +469,31 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   if(step===12&&!isCash){
     return<div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={card}>
-        <SecHdr icon={Ic.checkCircle}>Claimed — Enter Dates</SecHdr>
+        <SecHdr icon={Ic.checkCircle}>Claim Submitted</SecHdr>
         <div style={{padding:"14px 16px"}}>
-          <div style={{background:"#F0FDF4",borderRadius:8,padding:"10px 12px",border:"1px solid #BBF7D0",marginBottom:14,display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#15803D",fontWeight:600}}>{Ic.checkCircle} Claim released. Record claim sent and knock-off dates to complete.</div>
-          {order.claimSentDate?<div style={{fontSize:12,marginBottom:8}}><span style={{color:C.textLight,fontWeight:600}}>Claim Sent: </span>{fDate(order.claimSentDate)}</div>:<div style={{marginBottom:10}}><L req>Claim Sent Out to Merchant Date</L><I type="date" value={claimSentDate} onChange={e=>setClaimSentDate(e.target.value)}/></div>}
-          {order.knockOffDate?<div style={{fontSize:12,marginBottom:12}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Date: </span>{fDate(order.knockOffDate)}</div>:<div style={{marginBottom:12}}><L req>Knock-off Date</L><I type="date" value={knockOffDate} onChange={e=>setKnockOffDate(e.target.value)}/></div>}
-          {order.knockOffAmount?<div style={{fontSize:12,marginBottom:12}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Amount: </span>{fRM(order.knockOffAmount)}</div>:<div style={{marginBottom:12}}><L>Knock-off Amount (RM)</L><I type="number" value={knockOffAmount} onChange={e=>setKnockOffAmount(e.target.value)}/></div>}
-          {(!order.knockOffDate||!order.claimSentDate)&&<PBtn onClick={async()=>{setSaving(true);const sd=claimSentDate||order.claimSentDate,kd=knockOffDate||order.knockOffDate,ka=knockOffAmount||order.knockOffAmount;const h={step:12,date:nowDate(),time:nowTime(),note:"Claim sent and knock-off recorded",claimSentDate:sd,knockOffDate:kd,knockOffAmount:ka||undefined};await onUpdate({...order,claimSentDate:sd,knockOffDate:kd,knockOffAmount:ka||order.knockOffAmount,history:[...(order.history||[]),h]});setSaving(false);}} disabled={saving||(!claimSentDate&&!order.claimSentDate)} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Save Dates"}</PBtn>}
-          {order.knockOffDate&&isAdmin&&<><Divider/><DBtn onClick={async()=>{if(!confirm("Move to Completed?"))return;setSaving(true);const h={step:13,date:nowDate(),time:nowTime(),note:"Completed and archived"};await onUpdate({...order,step:13,history:[...(order.history||[]),h]});setSaving(false);}} style={{width:"100%",justifyContent:"center"}}>{Ic.trash} Mark as Completed</DBtn></>}
+          <div style={{background:"#F0FDF4",borderRadius:8,padding:"10px 12px",border:"1px solid #BBF7D0",marginBottom:14,display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#15803D",fontWeight:600}}>{Ic.checkCircle} Record the claim sent date and consignment note number to proceed to Claim Released.</div>
+          <div style={{marginBottom:10}}><L req>Claim Sent Out to Merchant Date</L><I type="date" value={claimSentDate} onChange={e=>setClaimSentDate(e.target.value)}/></div>
+          <div style={{marginBottom:12}}><L req>Consignment Note No.</L><I value={claimConsignmentNo} onChange={e=>setClaimConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!claimConsignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
+          <PBtn onClick={async()=>{setSaving(true);const h={step:12,date:nowDate(),time:nowTime(),note:"Claim submitted to merchant",claimSentDate,consignmentNo:claimConsignmentNo};await onUpdate({...order,step:13,claimSentDate,claimConsignmentNo,history:[...(order.history||[]),h]});setSaving(false);}} disabled={saving||!claimSentDate||!claimConsignmentNo.trim()} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Confirm Claim Submitted"} {!saving&&Ic.chevR}</PBtn>
         </div>
       </div>
     </div>;
   }
-  if(step===13)return<div style={{background:"#F0FDF4",borderRadius:12,padding:"16px",border:"1px solid #BBF7D0",display:"flex",alignItems:"center",gap:10}}>{Ic.checkCircle}<div><div style={{fontWeight:700,fontSize:14,color:"#15803D"}}>Order Completed</div><div style={{fontSize:11,color:"#166534",marginTop:2}}>Knock-off: {fDate(order.knockOffDate)}</div></div></div>;
+  if(step===13&&!isCash){
+    return<div style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div style={card}>
+        <SecHdr icon={Ic.checkCircle}>Claim Released</SecHdr>
+        <div style={{padding:"14px 16px"}}>
+          <div style={{fontSize:12,marginBottom:10}}><span style={{color:C.textLight,fontWeight:600}}>Claim Sent: </span>{fDate(order.claimSentDate)}</div>
+          {order.knockOffDate?<div style={{fontSize:12,marginBottom:8}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Date: </span>{fDate(order.knockOffDate)}</div>:<div style={{marginBottom:10}}><L req>Knock-off Date</L><I type="date" value={knockOffDate} onChange={e=>setKnockOffDate(e.target.value)}/></div>}
+          {order.knockOffAmount?<div style={{fontSize:12,marginBottom:12}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Amount: </span>{fRM(order.knockOffAmount)}</div>:<div style={{marginBottom:12}}><L>Knock-off Amount (RM)</L><I type="number" value={knockOffAmount} onChange={e=>setKnockOffAmount(e.target.value)}/></div>}
+          {!order.knockOffDate&&<PBtn onClick={async()=>{setSaving(true);const h={step:13,date:nowDate(),time:nowTime(),note:"Knock-off recorded",knockOffDate,knockOffAmount:knockOffAmount||undefined};await onUpdate({...order,knockOffDate,knockOffAmount:knockOffAmount||undefined,history:[...(order.history||[]),h]});setSaving(false);}} disabled={saving||!knockOffDate} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Save Knock-off"}</PBtn>}
+          {order.knockOffDate&&isAdmin&&<><Divider/><DBtn onClick={async()=>{if(!confirm("Move to Completed?"))return;setSaving(true);const h={step:14,date:nowDate(),time:nowTime(),note:"Completed and archived"};await onUpdate({...order,step:14,history:[...(order.history||[]),h]});setSaving(false);}} style={{width:"100%",justifyContent:"center"}}>{Ic.trash} Mark as Completed</DBtn></>}
+        </div>
+      </div>
+    </div>;
+  }
+  if(step===14)return<div style={{background:"#F0FDF4",borderRadius:12,padding:"16px",border:"1px solid #BBF7D0",display:"flex",alignItems:"center",gap:10}}>{Ic.checkCircle}<div><div style={{fontWeight:700,fontSize:14,color:"#15803D"}}>Order Completed</div><div style={{fontSize:11,color:"#166534",marginTop:2}}>Knock-off: {fDate(order.knockOffDate)}</div></div></div>;
   if(!nextDef)return null;
   const branchOk=isAdmin||[5,6,8,10].includes(nextDef.step);
 
@@ -495,7 +511,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
     const lastReturn=(order.history||[]).filter(h=>h.issueItems).slice(-1)[0];
     const lastChecklist=(order.history||[]).filter(h=>h.checklistItems).slice(-1)[0];
     const pending=lastReturn&&(!lastChecklist||(order.history||[]).indexOf(lastReturn)>(order.history||[]).indexOf(lastChecklist));
-    if(showChecklist)return<ChecklistForm issueItems={lastReturn?.issueItems||[]} onCancel={()=>setShowChecklist(false)} onSubmit={async(items,consignmentNote)=>{setSaving(true);const h={step:10,date:nowDate(),time:nowTime(),note:"Checklist Completed",checklistItems:items,consignmentNote};await onUpdate({...order,step:10,checklistItems:items,history:[...(order.history||[]),h]});setSaving(false);setShowChecklist(false);}}/>;
+    if(showChecklist)return<ChecklistForm issueItems={lastReturn?.issueItems||[]} onCancel={()=>setShowChecklist(false)} onSubmit={async(items,consignmentNo)=>{setSaving(true);const h={step:10,date:nowDate(),time:nowTime(),note:"Checklist Completed",checklistItems:items,agreementConsignmentNo:consignmentNo};await onUpdate({...order,step:10,checklistItems:items,agreementConsignmentNo:consignmentNo,history:[...(order.history||[]),h]});setSaving(false);setShowChecklist(false);}}/>;
     return<div style={{display:"flex",flexDirection:"column",gap:12}}>
       {pending&&<div style={{...card}}>
         <SecHdr icon={Ic.alertCircle}><span style={{color:"#DC2626"}}>Rejected by HQ</span></SecHdr>
@@ -512,8 +528,8 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
 
   const advance=async()=>{
     setSaving(true);
-    const rf={};for(const[k,f] of Object.entries(files))if(f)rf[k]=await readFile(f);
-    const totalBytes=Object.values(rf).reduce((sum,fl)=>sum+(fl?.data?.length||0),0);
+    const rf={};for(const[k,f] of Object.entries(files)){if(!f)continue;rf[k]=Array.isArray(f)?await Promise.all(f.map(readFile)):await readFile(f);}
+    const totalBytes=Object.values(rf).reduce((sum,fl)=>sum+(Array.isArray(fl)?fl.reduce((s2,x)=>s2+(x?.data?.length||0),0):(fl?.data?.length||0)),0);
     if(totalBytes>4*1024*1024){
       alert("One or more of these files is too large to save (even after compression). Please use a smaller file — for PDFs, try re-exporting or scanning at a lower resolution — then try again.");
       setSaving(false);
@@ -522,7 +538,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
     const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+(parseFloat(upfrontMonthly)||0),paymentMethod:payMethod}:{})};
     const updated={...order,step:nextDef.step,history:[...(order.history||[]),h]};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
-    if(isCash&&nextDef.step===13){updated.step=13;}
+    if(isCash&&nextDef.step===14){updated.step=14;}
     if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;if(poNumber)updated.poNumber=poNumber;if(purchaserName)updated.purchaserName=purchaserName;}
     if(nextDef.needsTransferNumbers){updated.consignmentNo=consignmentNo;updated.stockTransferNo=stockTransferNo;}
     if(nextDef.needsInvoiceNo)updated.invoiceNo=invoiceNo;
@@ -533,7 +549,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
     if(nextDef.needsOrderDate&&isAdmin&&(!orderDate||!supplierName.trim()||!poNumber.trim()||!purchaserName.trim()))return false;
     if(nextDef.needsInvoiceNo&&isAdmin&&!invoiceNo.trim())return false;
     if(nextDef.needsTransferNumbers&&branchOk&&(!consignmentNo.trim()||!stockTransferNo.trim()))return false;
-    if(nextDef.needsFiles){const req=(nextDef.needsFiles||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof"));if(branchOk&&req.some(f=>!files[f.key]))return false;}
+    if(nextDef.needsFiles){const req=(nextDef.needsFiles||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof"));if(branchOk&&req.some(f=>f.multiple?!(files[f.key]?.length):!files[f.key]))return false;}
     return true;
   };
 
@@ -549,14 +565,6 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
         {nextDef.needsRemark&&isAdmin&&<div style={{marginBottom:12}}><L>Remark / ETA / Order Details (optional)</L><TX value={remark} onChange={e=>setRemark(e.target.value)} rows={5} placeholder="ETA, order reference, notes…" style={{borderRadius:12,resize:"none",width:"100%",boxSizing:"border-box"}}/></div>}
         {nextDef.needsInvoiceNo&&isAdmin&&<>
           <div style={{marginBottom:12}}><L req>Sales Invoice Number</L><I value={invoiceNo} onChange={e=>setInvoiceNo(e.target.value)} placeholder="INV-2026-0001"/></div>
-          {!isCash&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
-            <div style={{...lbl,marginBottom:8}}>Upfront Payment Breakdown</div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",padding:"3px 0",borderBottom:`1px solid ${C.border}`}}><span>Description</span><span>Amount</span></div>
-            {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",fontWeight:800,color:C.navy}}><span>Upfront 1 — Subtotal (Agreement + Stamping + Deposit)</span><span>{fRM(upfront.total)}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",borderTop:`1px solid ${C.border}`,marginTop:6,fontWeight:800,color:C.navy}}><span>Upfront 2 — First Monthly Installment</span><span>{fRM(order.billingData?.monthlyInstallment)}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",borderTop:`2px solid ${C.navy}`,marginTop:6,fontWeight:800,color:C.navy}}><span>Total Upfront Payment Upon Collection</span><span>{fRM(upfront.total+(parseFloat(order.billingData?.monthlyInstallment)||0))}</span></div>
-          </div>}
         </>}
         {nextDef.needsVerification&&isAdmin&&<div style={{marginBottom:12}}>
           <div style={{...lbl,marginBottom:8}}>Verification Checklist</div>
@@ -567,8 +575,8 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,margin:"10px 0"}}>
             <div><L req>{isCash?"Balance Payment Date":"Upfront Payment Date"}</L><I type="date" value={upfrontDate} onChange={e=>setUpfrontDate(e.target.value)}/></div>
             <div><L>Payment Method</L><SEL value={payMethod} onChange={e=>setPayMethod(e.target.value)}>{PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
-            <div><L>{isCash?"Balance Payment Amount (RM)":"Upfront 2 — First Monthly Installment (RM)"}</L><I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)}/></div>
-            {isCash?<div><L>Total Due (auto: Retail − Deposit)</L><div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600}}>{fRM(calcCashDue(order))}</div></div>:<div><L>Upfront 1 — Subtotal (RM)</L><div style={{...inp,background:C.surface,color:C.textLight}}>{fRM(upfront.total)}</div></div>}
+            <div><L>{isCash?"Balance Payment Amount (RM)":"Upfront 2 (First Monthly Installment, RM)"}</L>{isCash?<I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)}/>:<div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600,cursor:"not-allowed"}}>{fRM(upfrontMonthly)}</div>}</div>
+            {isCash?<div><L>Total Due (auto: Retail − Deposit)</L><div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600}}>{fRM(calcCashDue(order))}</div></div>:<div><L>Upfront 1 (Subtotal, RM)</L><div style={{...inp,background:C.surface,color:C.textLight}}>{fRM(upfront.total)}</div></div>}
             {!isCash&&<div style={{gridColumn:"1/-1"}}><L>Total Upfront Payment (RM)</L><div style={{...inp,background:C.navy,color:"#fff",fontWeight:800}}>{fRM(upfront.total+(parseFloat(upfrontMonthly)||0))}</div></div>}
           </div>
           <div><L>Remark</L><I value={verRemark} onChange={e=>setVerRemark(e.target.value)} placeholder="Verification notes…"/></div>
@@ -577,15 +585,21 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div style={{...lbl,marginBottom:8}}>Upfront Payment Breakdown</div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",padding:"3px 0",borderBottom:`1px solid ${C.border}`}}><span>Description</span><span>Amount</span></div>
           {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Upfront 1 — Subtotal (Agreement + Stamping + Deposit)</span><span>{fRM(upfront.total)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Upfront 2 — First Monthly Installment</span><span>{fRM(order.billingData?.monthlyInstallment||order.monthlyInstallment)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Upfront 1 (Subtotal — Agreement + Stamping + Deposit)</span><span>{fRM(upfront.total)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Upfront 2 (First Monthly Installment)</span><span>{fRM(order.billingData?.monthlyInstallment||order.monthlyInstallment)}</span></div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",borderTop:`2px solid ${C.navy}`,marginTop:6,fontWeight:800,color:C.navy}}><span>Total Upfront Payment Upon Collection</span><span>{fRM(upfront.total+(parseFloat(order.billingData?.monthlyInstallment||order.monthlyInstallment)||0))}</span></div>
         </div>}
         {nextDef.needsTransferNumbers&&branchOk&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
           <div><L req>Consignment Note Number</L><I value={consignmentNo} onChange={e=>setConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!consignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
           <div><L req>Stock Transfer Number</L><I value={stockTransferNo} onChange={e=>setStockTransferNo(e.target.value)} placeholder="Stock transfer no…" style={!stockTransferNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
         </div>}
-        {nextDef.needsFiles&&branchOk&&nextDef.needsFiles.filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional})=><div key={key} style={{marginBottom:12}}><L req={!optional}>{label}{optional?" (optional)":""}</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,[key]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>{files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files[key].name}</div>}</div>)}
+        {nextDef.needsFiles&&branchOk&&nextDef.needsFiles.filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional,multiple})=><div key={key} style={{marginBottom:12}}>
+          <L req={!optional}>{label}{optional?" (optional)":""}{multiple?" (multiple allowed)":""}</L>
+          <input type="file" multiple={!!multiple} accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,[key]:multiple?[...(p[key]||[]),...Array.from(e.target.files)]:(e.target.files[0]||null)}))} style={{fontSize:11,width:"100%"}}/>
+          {multiple?(files[key]||[]).length>0&&<div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>
+            {files[key].map((f,i)=><div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:10,color:"#15803D",fontWeight:600,background:"#F0FDF4",padding:"3px 8px",borderRadius:5}}><span>✓ {f.name}</span><button type="button" onClick={()=>setFiles(p=>({...p,[key]:p[key].filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",color:"#DC2626",cursor:"pointer",fontSize:12,fontWeight:700,padding:0}}>✕</button></div>)}
+          </div>:files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files[key].name}</div>}
+        </div>)}
         {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
         <PBtn onClick={advance} disabled={!ok()||saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":`Confirm: ${nextDef.label}`} {!saving&&Ic.chevR}</PBtn>
       </>}
@@ -599,7 +613,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div style={{marginBottom:12}}><L req>Reason / Remark</L><TX value={shortPayRemark} onChange={e=>setShortPayRemark(e.target.value)} rows={2} placeholder="Describe the shortfall…" style={{borderColor:"#FECACA"}}/></div>
           <div style={{display:"flex",gap:8}}>
             <GBtn onClick={()=>setShowShortPayment(false)} style={{flex:1,justifyContent:"center"}}>Cancel</GBtn>
-            <DBtn onClick={async()=>{if(!shortPayRemark.trim()){alert("Remark required.");return;}setSaving(true);const h={step:9,date:nowDate(),time:nowTime(),note:"Short Payment",verificationRemark:shortPayRemark,reversedFrom:9};await onUpdate({...order,step:8,history:[...(order.history||[]),h]});setSaving(false);setShowShortPayment(false);setShortPayRemark("");}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Confirm Short Payment"}</DBtn>
+            <DBtn onClick={async()=>{if(!shortPayRemark.trim()){alert("Remark required.");return;}setSaving(true);const h={step:9,date:nowDate(),time:nowTime(),note:"Short Payment — Balance Payment Needed",verificationRemark:shortPayRemark,shortPayment:true,reversedFrom:9};await onUpdate({...order,step:8,history:[...(order.history||[]),h]});setSaving(false);setShowShortPayment(false);setShortPayRemark("");}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Confirm Short Payment"}</DBtn>
           </div>
         </div>
       </div>
@@ -652,7 +666,6 @@ function ReportCard({allOrders,reportDate,setReportDate}){
 /* ── Order Detail ─────────────────────────────────────────────────────── */
 function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,allOrders,isReadOnly}){
   const s=getStep(order.step),ph=getPhase(order.step),isCash=order.orderType==="cash";
-  const upfront=order.billingData&&order.step>=7?calcUpfront(order):null;
   return<div className="fade-in">
     {/* Top bar */}
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16,flexWrap:"wrap"}}>
@@ -683,7 +696,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <div style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.fileText}>Order Information</SecHdr>
       <div className="order-info-grid" style={{padding:"6px 16px 10px"}}>
-        {[["Customer Name",order.customerName],order.customerIC&&["Customer IC",order.customerIC],["Device Name",order.phoneModel],order.customerHP&&["Customer HP",order.customerHP],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],["Deposit",fRM(order.deposit)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],isAdmin&&order.supplierName&&["Supplier",order.supplierName],isAdmin&&order.poNumber&&["PO Number",order.poNumber],isAdmin&&order.purchaserName&&["Purchaser Name",order.purchaserName],order.consignmentNo&&["Consignment Note No.",order.consignmentNo],order.stockTransferNo&&["Stock Transfer No.",order.stockTransferNo],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+        {[["Customer Name",order.customerName],order.customerIC&&["Customer IC",order.customerIC],["Device Name",order.phoneModel],order.customerHP&&["Customer HP",order.customerHP],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],["Deposit",fRM(order.deposit)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],order.supplierName&&["Supplier",isAdmin?order.supplierName:"—"],order.poNumber&&["PO Number",order.poNumber],order.purchaserName&&["Purchaser Name",isAdmin?order.purchaserName:"—"],order.consignmentNo&&["Consignment Note No.",order.consignmentNo],order.stockTransferNo&&["Stock Transfer No.",order.stockTransferNo],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
           <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}</div>
         </div>)}
@@ -699,17 +712,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
       {order.adminRemark&&<div style={{padding:"8px 16px",borderTop:`1px solid ${C.border}`,background:"#FFFBEB"}}><div style={{fontSize:10,color:"#92400E",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Admin Remark</div><div style={{fontSize:12,color:"#78350F"}}>{order.adminRemark}</div></div>}
     </div>
 
-    {/* Upfront breakdown */}
-    {upfront&&!isCash&&<div style={{...card,marginBottom:14}}>
-      <SecHdr icon={Ic.cash}>Upfront Payment Breakdown</SecHdr>
-      <div style={{padding:"10px 16px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",padding:"4px 0",borderBottom:`1px solid ${C.border}`}}><span>Description</span><span>Amount</span></div>
-        {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Upfront 1 — Subtotal (Agreement + Stamping + Deposit)</span><span>{fRM(upfront.total)}</span></div>
-        {order.billingData?.monthlyInstallment&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Upfront 2 — First Monthly Instalment</span><span>{fRM(order.billingData.monthlyInstallment)}</span></div>}
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 2px",borderTop:`2px solid ${C.navy}`,marginTop:2,fontWeight:800,color:C.navy}}><span>Total Upfront Payment Upon Collection</span><span>{fRM(upfront.total+(parseFloat(order.billingData?.monthlyInstallment)||0))}</span></div>
-      </div>
-    </div>}
+
 
     {/* Two-col: timeline | action */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,alignItems:"start"}}>
@@ -829,13 +832,13 @@ function daysSince(dateStr){
   return Math.floor((nowDay-d)/(1000*60*60*24));
 }
 function getOrderAlerts(orders,userBranch=null){
-  const myOrders=orders.filter(o=>o.step<13&&(!userBranch||o.branch===userBranch));
+  const myOrders=orders.filter(o=>o.step<14&&(!userBranch||o.branch===userBranch));
   const alerts=[];
   myOrders.filter(o=>o.step===2&&o.orderDate).forEach(o=>{
     const days=daysSince(o.orderDate);
     if(days>=7)alerts.push({type:"overdue_order",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Ordered ${days} days ago — not yet arrived at HQ`});
   });
-  myOrders.filter(o=>o.aeonApprovalDate&&o.step>=1&&o.step<=12).forEach(o=>{
+  myOrders.filter(o=>o.aeonApprovalDate&&o.step>=1&&o.step<=13).forEach(o=>{
     const days=daysSince(o.aeonApprovalDate);
     if(days>=91)alerts.push({type:"approval_expired",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval EXPIRED — ${days} days ago`});
     else if(days>=61)alerts.push({type:"approval_urgent",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval ${days} days ago — URGENT`});
@@ -868,7 +871,7 @@ function AlertBanner({alerts,onClickOrder}){
 
 /* ── Batch Archive ────────────────────────────────────────────────────── */
 function BatchArchive({orders,onSave,onClose}){
-  const completed=orders.filter(o=>o.step===13);
+  const completed=orders.filter(o=>o.step===14);
   const [sel,setSel]=useState(new Set());
   return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
@@ -902,7 +905,10 @@ function BulkClaimSent({orders,onSave,onClose}){
   const [sel,setSel]=useState(new Set());
   const [date,setDate]=useState(nowDate());
   const [search,setSearch]=useState("");
+  const [consignmentNos,setConsignmentNos]=useState({});
   const list=pending.filter(o=>!search||(o.invoiceNo||"").toLowerCase().includes(search.toLowerCase()));
+  const selectedList=pending.filter(o=>sel.has(o.id));
+  const allNotesFilled=selectedList.length>0&&selectedList.every(o=>(consignmentNos[o.id]||"").trim());
   return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
@@ -917,15 +923,21 @@ function BulkClaimSent({orders,onSave,onClose}){
             <button onClick={()=>setSel(sel.size===list.length?new Set():new Set(list.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===list.length&&list.length>0?"Deselect All":"Select All Shown"}</button>
           </div>
           <div style={{marginBottom:12}}><L req>Claim Sent Out to Merchant Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-          {list.map(o=><div key={o.id} onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer"}}>
-            <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#15803D":"#fff",border:`2px solid ${sel.has(o.id)?"#15803D":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
-            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>Invoice: {o.invoiceNo||"—"}</div><div style={{fontSize:10,color:C.textLight}}>{o.phoneModel} · {o.customerName} · {shortId(o.id)} · {o.branch}</div></div>
+          {list.map(o=><div key={o.id} style={{padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7}}>
+            <div onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginBottom:sel.has(o.id)?8:0}}>
+              <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#15803D":"#fff",border:`2px solid ${sel.has(o.id)?"#15803D":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
+              <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>Invoice: {o.invoiceNo||"—"}</div><div style={{fontSize:10,color:C.textLight}}>{o.phoneModel} · {o.customerName} · {shortId(o.id)} · {o.branch}</div></div>
+            </div>
+            {sel.has(o.id)&&<div onClick={e=>e.stopPropagation()}><L req>Consignment Note No.</L><I value={consignmentNos[o.id]||""} onChange={e=>setConsignmentNos(p=>({...p,[o.id]:e.target.value}))} placeholder="Consignment note no…" style={!(consignmentNos[o.id]||"").trim()?{borderColor:"#FECACA"}:{}}/></div>}
           </div>)}
         </>}
       </div>
-      <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,justifyContent:"flex-end"}}>
-        <GBtn onClick={onClose}>Cancel</GBtn>
-        <PBtn onClick={async()=>{if(!sel.size||!date)return;const updated=orders.map(o=>sel.has(o.id)?{...o,step:12,claimSentDate:date,history:[...(o.history||[]),{step:12,date:nowDate(),time:nowTime(),note:"Claim sent out to merchant (bulk)",claimSentDate:date}]}:o);await onSave(updated);onClose();}} disabled={!sel.size||!date}>{Ic.checkCircle} Set Claim Sent ({sel.size})</PBtn>
+      <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:8}}>
+        {sel.size>0&&!allNotesFilled&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the consignment note number for every selected order.</div>}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <GBtn onClick={onClose}>Cancel</GBtn>
+          <PBtn onClick={async()=>{if(!sel.size||!date||!allNotesFilled)return;const updated=orders.map(o=>sel.has(o.id)?{...o,step:13,claimSentDate:date,claimConsignmentNo:consignmentNos[o.id],history:[...(o.history||[]),{step:12,date:nowDate(),time:nowTime(),note:"Claim sent out to merchant (bulk)",claimSentDate:date,consignmentNo:consignmentNos[o.id]}]}:o);await onSave(updated);onClose();}} disabled={!sel.size||!date||!allNotesFilled}>{Ic.checkCircle} Set Claim Sent ({sel.size})</PBtn>
+        </div>
       </div>
     </div>
   </div>;
@@ -933,7 +945,7 @@ function BulkClaimSent({orders,onSave,onClose}){
 
 /* ── Bulk Knock-off ────────────────────────────────────────────────────── */
 function BulkKnockOff({orders,onSave,onClose}){
-  const released=orders.filter(o=>o.step===12&&o.claimSentDate&&!o.knockOffDate);
+  const released=orders.filter(o=>o.step===13&&!o.knockOffDate);
   const [sel,setSel]=useState(new Set());
   const [date,setDate]=useState(nowDate());
   const [amounts,setAmounts]=useState({});
@@ -966,7 +978,7 @@ function BulkKnockOff({orders,onSave,onClose}){
         {sel.size>0&&!allAmountsFilled&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the knock-off amount for every selected invoice.</div>}
         <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
           <GBtn onClick={onClose}>Cancel</GBtn>
-          <PBtn onClick={async()=>{if(!sel.size||!date||!allAmountsFilled)return;const updated=orders.map(o=>sel.has(o.id)?{...o,knockOffDate:date,knockOffAmount:amounts[o.id],history:[...(o.history||[]),{step:12,date:nowDate(),time:nowTime(),note:"Knock-off date set (bulk)",knockOffDate:date,knockOffAmount:amounts[o.id]}]}:o);await onSave(updated);onClose();}} disabled={!sel.size||!date||!allAmountsFilled}>{Ic.calendar} Set Knock-off ({sel.size})</PBtn>
+          <PBtn onClick={async()=>{if(!sel.size||!date||!allAmountsFilled)return;const updated=orders.map(o=>sel.has(o.id)?{...o,knockOffDate:date,knockOffAmount:amounts[o.id],history:[...(o.history||[]),{step:13,date:nowDate(),time:nowTime(),note:"Knock-off date set (bulk)",knockOffDate:date,knockOffAmount:amounts[o.id]}]}:o);await onSave(updated);onClose();}} disabled={!sel.size||!date||!allAmountsFilled}>{Ic.calendar} Set Knock-off ({sel.size})</PBtn>
         </div>
       </div>
     </div>
@@ -1010,8 +1022,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const saveOrder=async o=>{const list=orders.find(x=>x.id===o.id)?orders.map(x=>x.id===o.id?o:x):[...orders,o];const ok=await save(list);if(ok)nav("detail",o);return ok;};
   const deleteOrder=async id=>{if(!confirm("Delete this order?"))return;await save(orders.filter(x=>x.id!==id));nav("list");};
 
-  const activeOrders=orders.filter(o=>o.step!==13&&(!userBranch||o.branch===userBranch));
-  const completedOrders=orders.filter(o=>o.step===13&&(!userBranch||o.branch===userBranch));
+  const activeOrders=orders.filter(o=>o.step!==14&&(!userBranch||o.branch===userBranch));
+  const completedOrders=orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch));
   const viewingCompleted=filterPhase==="completed";
   const filtered=(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||getPhase(o.step)?.id===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id);
 
@@ -1024,7 +1036,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
   const phaseCounts=PHASES.reduce((acc,ph)=>{acc[ph.id]=activeOrders.filter(o=>ph.steps.includes(o.step)).length;return acc;},{});
-  const completedCount=orders.filter(o=>o.step===13&&(!userBranch||o.branch===userBranch)).length;
+  const completedCount=orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)).length;
   const alerts=getOrderAlerts(activeOrders,userBranch);
 
   return<div className="fade-in">
@@ -1040,7 +1052,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {isAdmin&&!isReadOnly&&orders.some(o=>o.step===12)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Claim Sent Date</GBtn>}
-        {isAdmin&&!isReadOnly&&orders.some(o=>o.step===12&&o.claimSentDate&&!o.knockOffDate)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
+        {isAdmin&&!isReadOnly&&orders.some(o=>o.step===13&&!o.knockOffDate)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
         {isAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
         {!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
       </div>
@@ -1087,17 +1099,17 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       ?<div style={{...card,padding:"44px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>{search||filterPhase!=="all"||filterBranch!=="ALL"?"No orders match your filter.":"No orders yet. Click New Order to get started."}</div>
       :<div style={{display:"grid",gridTemplateColumns:"1fr",gap:12}}>
         {filtered.map(o=>{
-          const s=getStep(o.step),ph=getPhase(o.step),pct=Math.round(((Math.min(o.step,12)-1)/11)*100);
+          const s=getStep(o.step),ph=getPhase(o.step),mxS=maxStep(o),pct=Math.round(((Math.min(o.step,mxS)-1)/(mxS-1))*100);
           const alert=getOrderAlerts([o])[0];
           return<div key={o.id} onClick={()=>nav("detail",o)} className="card" style={{cursor:"pointer",overflow:"hidden",transition:"box-shadow .2s,transform .2s"}}
             onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 16px rgba(10,22,40,.10)";e.currentTarget.style.transform="translateY(-1px)";}}
             onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)";e.currentTarget.style.transform="none";}}>
             {/* Header strip */}
-            <div style={{background:o.cancelled?`linear-gradient(135deg,#7F1D1D,#991B1B)`:o.step===12||o.step===13?`linear-gradient(135deg,#14532D,#166534)`:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 16px"}}>
+            <div style={{background:o.cancelled?`linear-gradient(135deg,#7F1D1D,#991B1B)`:o.step>=12?`linear-gradient(135deg,#14532D,#166534)`:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 16px"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
                 <div style={{minWidth:0,flex:1}}>
                   <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
-                    {o.cancelled?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Cancelled</span>:isPendingBranchAction(o)?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Pending Branch Action</span>:o.step===13?<span style={{fontSize:9,fontWeight:600,color:"#86EFAC",background:"rgba(255,255,255,.06)",border:"1px solid rgba(134,239,172,.4)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Completed</span>:ph&&<span style={{fontSize:9,fontWeight:600,color:"#fff",background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>{ph.label}</span>}
+                    {o.cancelled?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Cancelled</span>:isPendingBranchAction(o)?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Pending Branch Action</span>:isShortPaymentPending(o)?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Balance Payment Needed</span>:o.step===14?<span style={{fontSize:9,fontWeight:600,color:"#86EFAC",background:"rgba(255,255,255,.06)",border:"1px solid rgba(134,239,172,.4)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Completed</span>:ph&&<span style={{fontSize:9,fontWeight:600,color:"#fff",background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>{ph.label}</span>}
                     {o.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:600,color:"rgba(255,255,255,.75)",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Ready Stock</span>}
                     {o.orderType==="cash"?<span style={{fontSize:9,fontWeight:600,color:"rgba(255,255,255,.75)",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Cash</span>:<span style={{fontSize:9,fontWeight:600,color:"rgba(255,255,255,.75)",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>CCM</span>}
                   </div>
@@ -1137,7 +1149,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       {reportsExpanded&&<div style={{padding:"0 16px 16px",borderTop:`1px solid ${C.border}`}}>
         <div style={{padding:"14px 0 4px",maxWidth:260}}><L>Merchant</L><SEL value={reportMerchant} onChange={e=>setReportMerchant(e.target.value)}><option value="all">All Merchants</option>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
         <div style={{display:"flex",flexDirection:"column"}}>
-          {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,activeOrders],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,activeOrders],["Claim Submitted","claim",claimDate,setClaimDate,activeOrders],["Knock-off","knockoff",knockOffReportDate,setKnockOffReportDate,activeOrders],["Completed","completed",completedReportDate,setCompletedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src],i)=><div key={type} style={{display:"flex",alignItems:"flex-end",gap:10,padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none",flexWrap:"wrap"}}>
+          {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,activeOrders],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,activeOrders],["Claim Submitted","claim",claimDate,setClaimDate,activeOrders],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,activeOrders],["Completed","completed",completedReportDate,setCompletedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src],i)=><div key={type} style={{display:"flex",alignItems:"flex-end",gap:10,padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none",flexWrap:"wrap"}}>
             <div style={{flex:1,minWidth:140,fontSize:12,fontWeight:700,color:C.text}}>{label} Report</div>
             <div style={{flex:1,minWidth:130}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
             <PBtn onClick={()=>downloadReport(src,type,date,reportMerchant)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
