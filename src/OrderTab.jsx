@@ -1,7 +1,6 @@
 import {useState,useEffect,useRef,useMemo,useCallback} from "react";
-import {loadData,saveData} from "./storage/index.js";
+import {loadOrders,syncOrders} from "./storage/orders.js";
 
-const ORDER_KEY="emax_v5_orders";
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 const MERCHANTS=["Aeon","JCL","Chailease"];
 const PAYMENT_METHODS=["RHB","Public Bank"];
@@ -1111,13 +1110,23 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [agreementReceivedReportDate,setAgreementReceivedReportDate]=useState(nowDate());
   const [reportMerchant,setReportMerchant]=useState("all");
   const [reportsExpanded,setReportsExpanded]=useState(false);
+  const [page,setPage]=useState(1);
+  const PAGE_SIZE=25;
 
-  useEffect(()=>{loadData(ORDER_KEY).then(d=>{setOrders(Array.isArray(d)?d:[]);setLoading(false);});},[]);
+  useEffect(()=>{
+    let mounted=true;
+    loadOrders().then(d=>{
+      if(!mounted)return;
+      setOrders(Array.isArray(d)?d:[]);
+      setLoading(false);
+    });
+    return()=>{mounted=false;};
+  },[]);
   const nav=(v,sel=null)=>{setView(v);setSelected(sel);sessionStorage.setItem("orderView",v);sessionStorage.setItem("orderSelected",sel?JSON.stringify(sel):"null");};
   const save=async list=>{
     const prev=orders;
     setOrders(list);
-    const result=await saveData(ORDER_KEY,list);
+    const result=await syncOrders(prev,list);
     if(!result?.ok){
       setOrders(prev);
       alert("Save failed — your changes were NOT saved. This usually happens when an uploaded file is too large. Please try a smaller file (compress the photo or PDF) and try again.");
@@ -1132,6 +1141,10 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const completedOrders=useMemo(()=>orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)),[orders,userBranch]);
   const viewingCompleted=filterPhase==="completed";
   const filtered=useMemo(()=>(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||getPhase(o.step)?.id===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,completedOrders,activeOrders,filterPhase,filterBranch,search]);
+  useEffect(()=>{setPage(1);},[filterPhase,filterBranch,search,showArchive]);
+  const totalPages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
+  useEffect(()=>{if(page>totalPages)setPage(totalPages);},[page,totalPages]);
+  const pagedOrders=useMemo(()=>filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE),[filtered,page]);
   const phaseCounts=useMemo(()=>PHASES.reduce((acc,ph)=>{acc[ph.id]=activeOrders.filter(o=>ph.steps.includes(o.step)).length;return acc;},{}),[activeOrders]);
   const completedCount=orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)).length;
   const alerts=useMemo(()=>getOrderAlerts(activeOrders,userBranch),[activeOrders,userBranch]);
@@ -1206,7 +1219,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     {filtered.length===0
       ?<div style={{...card,padding:"44px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>{search||filterPhase!=="all"||filterBranch!=="ALL"?"No orders match your filter.":"No orders yet. Click New Order to get started."}</div>
       :<div style={{display:"grid",gridTemplateColumns:"1fr",gap:12}}>
-        {filtered.map(o=>{
+        {pagedOrders.map(o=>{
           const s=getStep(o.step),ph=getPhase(o.step),mxS=maxStep(o),pct=Math.round(((Math.min(o.step,mxS)-1)/(mxS-1))*100);
           const alert=alertsByOrderId[o.id];
           return<div key={o.id} onClick={()=>nav("detail",o)} className="card" style={{cursor:"pointer",overflow:"hidden",transition:"box-shadow .2s,transform .2s"}}
@@ -1245,6 +1258,12 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         })}
       </div>
     }
+
+    {filtered.length>PAGE_SIZE&&<div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:10,marginTop:16,flexWrap:"wrap"}}>
+      <GBtn onClick={()=>setPage(p=>Math.max(1,p-1))} style={page===1?{opacity:.45,pointerEvents:"none"}:{}}>{Ic.chevL} Previous</GBtn>
+      <span style={{fontSize:11,fontWeight:700,color:C.textMid}}>Page {page} of {totalPages} · {filtered.length} orders</span>
+      <GBtn onClick={()=>setPage(p=>Math.min(totalPages,p+1))} style={page===totalPages?{opacity:.45,pointerEvents:"none"}:{}}>Next {Ic.chevR}</GBtn>
+    </div>}
 
     {/* Report downloads — admin only, footer */}
     {isAdmin&&!isReadOnly&&<div style={{...card,marginTop:24}}>
