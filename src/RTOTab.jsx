@@ -1,6 +1,5 @@
 import {useState,useEffect,useRef,useMemo} from "react";
 import {listCustomers,getCustomerPayments,getPaymentsForCustomers,saveCustomer as apiSaveCustomer,deleteCustomer as apiDeleteCustomer,updatePayment as apiUpdatePayment} from "./storage/rtoApi.js";
-import RTOMigration from "./RTOMigration.jsx";
 
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -504,7 +503,6 @@ export default function RTOTab({branchMeta}){
   const [selectedId,setSelectedId]=useState(null);
   const [filterBranch,setFilterBranch]=useState("ALL");
   const [search,setSearch]=useState("");
-  const [showMigration,setShowMigration]=useState(false);
   // Full {schedKey:{paid,amount,date,invOpened}} maps, fetched lazily — one
   // entry per customer whose detail panel has been opened. The list/cards
   // never touch this; paidCount/totalReceived are denormalized on the header.
@@ -579,7 +577,6 @@ export default function RTOTab({branchMeta}){
 
   return(
     <div className="fade-in">
-      {showMigration&&<RTOMigration onClose={()=>{setShowMigration(false);refreshList();}}/>}
       {/* Page header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,paddingBottom:16,borderBottom:`1px solid ${C.border}`,flexWrap:"wrap",gap:10}}>
         <div>
@@ -587,7 +584,6 @@ export default function RTOTab({branchMeta}){
           <div style={{fontSize:12,color:C.textLight,marginTop:4}}>{customers.length} customer{customers.length===1?"":"s"} on record</div>
         </div>
         <div style={{display:"flex",gap:8}}>
-          <GBtn onClick={()=>setShowMigration(true)}>Migrate Legacy Customers</GBtn>
           <GBtn onClick={()=>setView(view==="list"?"summary":"list")} style={view==="summary"?{background:C.navy,color:"#fff",border:`1.5px solid ${C.navy}`}:{}}>{view==="list"?"View Portfolio Summary":"Back to Customer List"}</GBtn>
         </div>
       </div>

@@ -1,6 +1,5 @@
 import {useState,useEffect,useRef,useMemo,useCallback} from "react";
 import {listOrders,getOrderHistory,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
-import OrderMigration from "./OrderMigration.jsx";
 
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 const MERCHANTS=["Aeon","JCL","Chailease"];
@@ -1125,8 +1124,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   // Storage ref resolved to a short-lived signed URL) — fetched lazily, one
   // entry per order opened in Detail. The list/board never touches this.
   const [detailCache,setDetailCache]=useState({});
-  const [showMigration,setShowMigration]=useState(false);
-
   // Headers only — no history, no files. This is the ONLY query the list/board
   // view needs, regardless of how many years of tracking events pile up.
   // Branch viewers pass userBranch so the filter happens in the DB query
@@ -1209,7 +1206,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
   return<div className="fade-in">
-    {showMigration&&<OrderMigration onClose={()=>{setShowMigration(false);refreshList();}}/>}
     {showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}
     {showBulkDispatch&&<BulkDispatch orders={orders} onSave={bulkSave} onClose={()=>setShowBulkDispatch(false)}/>}
     {showBulkClaimSent&&<BulkClaimSent orders={orders} onSave={bulkSave} onClose={()=>setShowBulkClaimSent(false)}/>}
@@ -1226,7 +1222,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         {isAdmin&&!isReadOnly&&orders.some(o=>o.step===12)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Claim Sent Date</GBtn>}
         {isAdmin&&!isReadOnly&&orders.some(o=>o.step===13&&!o.knockOffDate)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
         {isAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
-        {isAdmin&&!isReadOnly&&<GBtn onClick={()=>setShowMigration(true)}>{Ic.rotate} Migrate Legacy Orders</GBtn>}
         {!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
       </div>
     </div>
@@ -1310,11 +1305,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         })}
       </div>
     }
-
-    {/* One-time legacy blob → ERP tables migration — admin only */}
-    {isAdmin&&!isReadOnly&&<div style={{display:"flex",justifyContent:"flex-end",marginTop:20}}>
-      <button onClick={()=>setShowMigration(true)} style={{fontSize:11,color:C.textLight,background:"none",border:`1px dashed ${C.border}`,borderRadius:7,padding:"6px 12px",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Migrate Legacy Orders → New Schema</button>
-    </div>}
 
     {/* Report downloads — admin only, footer */}
     {isAdmin&&!isReadOnly&&<div style={{...card,marginTop:12}}>
