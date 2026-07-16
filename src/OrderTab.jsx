@@ -41,8 +41,11 @@ function getVisibleSteps(order){
     const base=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9];
     return STEPS.filter(s=>base.includes(s.step));
   }
-  // CCM: 1-13 (14=Completed is archived, shown separately)
-  return STEPS.filter(s=>s.step<=13);
+  // CCM: 1-13 (14=Completed is archived, shown separately). Ready stock
+  // skips 2 (Ordered) and 3 (Arrived HQ) — there's nothing to order or wait
+  // to arrive when the phone is already sitting in stock.
+  const base=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,10,11,12,13];
+  return STEPS.filter(s=>base.includes(s.step));
 }
 
 // Returns the "next" step number for a given order
@@ -55,7 +58,9 @@ function nextStepNum(order){
     const idx=seq.indexOf(cur);
     return idx>=0&&idx<seq.length-1?seq[idx+1]:null;
   }
-  return cur<13?cur+1:null;
+  const seq=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,10,11,12,13];
+  const idx=seq.indexOf(cur);
+  return idx>=0&&idx<seq.length-1?seq[idx+1]:null;
 }
 
 // Max step for progress calculation
