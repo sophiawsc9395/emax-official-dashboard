@@ -245,9 +245,9 @@ function Timeline({order,isAdmin}){
     {hist.cancelledDate&&<div style={{marginBottom:2,color:"#DC2626",fontWeight:700}}>Supplier Cancelled — {fDate(hist.cancelledDate)}{hist.reversedTo?` · Returned to ${getStep(hist.reversedTo)?.label||"New Order Request"}`:""}</div>}
     {hist.remark&&<div style={{marginBottom:2,color:C.textMid}}>Remark: {hist.remark}</div>}
     {hist.invoiceNo&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Invoice: {hist.invoiceNo}</div>}
+    {hist.claimSentDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Claim Sent Out to Merchant Date: {fDate(hist.claimSentDate)}</div>}
     {hist.consignmentNo&&<div style={{marginBottom:2,color:C.textMid}}>Consignment Note No.: {hist.consignmentNo}</div>}
     {hist.stockTransferNo&&<div style={{marginBottom:2,color:C.textMid}}>Stock Transfer No.: {hist.stockTransferNo}</div>}
-    {hist.claimSentDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Claim Sent: {fDate(hist.claimSentDate)}</div>}
     {hist.knockOffDate&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off: {fDate(hist.knockOffDate)}</div>}
     {hist.knockOffAmount&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off Amount: {fRM(hist.knockOffAmount)}</div>}
     {hist.shortPayment&&<div style={{marginBottom:2,color:"#DC2626",fontWeight:700}}>Short Payment — Balance Payment Needed</div>}
@@ -436,7 +436,18 @@ function downloadReport(orders,type,dateFilter,merchantFilter){
     rows=filtered.map((o,i)=>{const h=getInstallmentEntry(o);const amt=parseFloat(h?.monthlyInstallment)||0;total1+=amt;return`<tr><td>${i+1}</td><td>${o.agreementNumber||"—"}</td><td>${o.customerName}</td><td><b>${o.invoiceNo||"—"}</b></td><td>RM ${amt.toFixed(2)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="4"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
   } else {
-    rows=filtered.map((o,i)=>{const h=o.lastVerification;const amt1=parseFloat(h?.paymentProofAmount)||0;const amt2=parseFloat(h?.secondPaymentAmount)||0;total1+=amt1;total2+=amt2;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>RM ${amt1.toFixed(2)}</td><td>${h?.paymentMethod||"—"}</td><td>${amt2?`RM ${amt2.toFixed(2)}`:"—"}</td><td>${amt2?(h?.secondPayMethod||"—"):"—"}</td></tr>`;}).join("");
+    rows=filtered.map((o,i)=>{
+      const h=o.lastVerification;
+      // Only show each amount if ITS OWN date matches the date this report is
+      // for — otherwise a short-payment's original date can leak an amount
+      // that belongs to a different day into this day's report.
+      const show1=!dateFilter||h?.upfrontPaymentDate===dateFilter;
+      const show2=!dateFilter||h?.secondPaymentDate===dateFilter;
+      const amt1=show1?parseFloat(h?.paymentProofAmount)||0:0;
+      const amt2=show2?parseFloat(h?.secondPaymentAmount)||0:0;
+      total1+=amt1;total2+=amt2;
+      return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${show1&&amt1?`RM ${amt1.toFixed(2)}`:"—"}</td><td>${show1?(h?.paymentMethod||"—"):"—"}</td><td>${show2&&amt2?`RM ${amt2.toFixed(2)}`:"—"}</td><td>${show2&&amt2?(h?.secondPayMethod||"—"):"—"}</td></tr>`;
+    }).join("");
     rows+=`<tr class="tot"><td colspan="2"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td></tr>`;
   }
   const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":"Upfront Payment Report";
@@ -976,6 +987,13 @@ function AlertBanner({alerts,onClickOrder}){
 }
 
 /* ── Batch Archive ────────────────────────────────────────────────────── */
+function downloadRemovalReport(list){
+  const dateStr=fDate(nowDate());
+  const rows=list.map((o,i)=>{const claim=calcClaimAmount(o);return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.branch}</td><td>${o.agreementNumber||"—"}</td><td>${o.customerName}</td><td>${o.phoneModel}</td><td>RM ${claim.toFixed(2)}</td></tr>`;}).join("");
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Removed Completed Orders — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>Removed Completed Orders Report</h1><h2>Removed on ${dateStr} · ${list.length} record${list.length!==1?"s":""} — this is the only remaining record of these orders</h2><table><thead><tr><th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Customer</th><th>Phone</th><th>Claim Amount</th></tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
+  const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
+}
+
 function BatchArchive({orders,onDelete,onClose}){
   const completed=orders.filter(o=>o.step===14);
   const [sel,setSel]=useState(new Set());
@@ -987,19 +1005,20 @@ function BatchArchive({orders,onDelete,onClose}){
       </div>
       <div style={{padding:16,overflowY:"auto",flex:1}}>
         {completed.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No completed orders yet.</div>:<>
+          <div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Removing is permanent. A report of the removed invoice numbers downloads automatically before deletion, since this is the last record of them.</div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
             <div style={{fontSize:12,color:C.textLight}}>{completed.length} completed</div>
             <button onClick={()=>setSel(sel.size===completed.length?new Set():new Set(completed.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===completed.length?"Deselect All":"Select All"}</button>
           </div>
           {completed.map(o=><div key={o.id} onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#FEF2F2":C.surface,border:`1px solid ${sel.has(o.id)?"#FECACA":C.border}`,marginBottom:7,cursor:"pointer"}}>
             <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#DC2626":"#fff",border:`2px solid ${sel.has(o.id)?"#DC2626":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
-            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>{o.phoneModel} · {o.customerName}</div><div style={{fontSize:10,color:C.textLight}}>{o.branch} · Knock-off: {fDate(o.knockOffDate)}</div></div>
+            <div style={{flex:1,fontSize:12,fontWeight:700,color:C.text}}>Invoice: {o.invoiceNo||"—"}</div>
           </div>)}
         </>}
       </div>
       <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",gap:8,justifyContent:"flex-end"}}>
         <GBtn onClick={onClose}>Cancel</GBtn>
-        <DBtn onClick={async()=>{if(!sel.size)return;if(!confirm(`Remove ${sel.size} completed order(s) permanently?`))return;await onDelete([...sel]);onClose();}} disabled={!sel.size}>{Ic.trash} Remove {sel.size>0?`(${sel.size})`:""}</DBtn>
+        <DBtn onClick={async()=>{if(!sel.size)return;if(!confirm(`Remove ${sel.size} completed order(s) permanently?`))return;const toRemove=completed.filter(o=>sel.has(o.id));downloadRemovalReport(toRemove);await onDelete([...sel]);onClose();}} disabled={!sel.size}>{Ic.trash} Remove {sel.size>0?`(${sel.size})`:""}</DBtn>
       </div>
     </div>
   </div>;
@@ -1475,7 +1494,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       {reportsExpanded&&<div style={{padding:"0 16px 16px",borderTop:`1px solid ${C.border}`}}>
         <div style={{padding:"14px 0 4px",maxWidth:260}}><L>Merchant</L><SEL value={reportMerchant} onChange={e=>setReportMerchant(e.target.value)}><option value="all">All Merchants</option>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
         <div style={{display:"flex",flexDirection:"column"}}>
-          {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,activeOrders],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,activeOrders],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,activeOrders],["Claim Submitted","claim",claimDate,setClaimDate,activeOrders],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,activeOrders],["Completed","completed",completedReportDate,setCompletedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src],i)=><div key={type} style={{display:"flex",alignItems:"flex-end",gap:10,padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none",flexWrap:"wrap"}}>
+          {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Completed","completed",completedReportDate,setCompletedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src],i)=><div key={type} style={{display:"flex",alignItems:"flex-end",gap:10,padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none",flexWrap:"wrap"}}>
             <div style={{flex:1,minWidth:140,fontSize:12,fontWeight:700,color:C.text}}>{label} Report</div>
             <div style={{flex:1,minWidth:130}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
             <PBtn onClick={()=>downloadReport(src,type,date,reportMerchant)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
