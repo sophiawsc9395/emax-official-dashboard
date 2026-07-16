@@ -1059,6 +1059,54 @@ function BulkClaimSent({orders,onSave,onClose}){
   </div>;
 }
 
+/* ── Bulk Agreement Submission (Consignment Note) ─────────────────────────
+   Lets branch batch several agreements together under ONE physical
+   consignment note — same idea as BulkDispatch, but for step 10 and
+   available to branch users too, not just admin. */
+function BulkAgreementSubmission({orders,onSave,onClose,userBranch}){
+  const pending=orders.filter(o=>!o.cancelled&&nextStepNum(o)===10&&(!userBranch||o.branch===userBranch));
+  const [sel,setSel]=useState(new Set());
+  const [search,setSearch]=useState("");
+  const [consignmentNo,setConsignmentNo]=useState("");
+  const list=pending.filter(o=>!search||(o.invoiceNo||"").toLowerCase().includes(search.toLowerCase())||o.customerName?.toLowerCase().includes(search.toLowerCase()));
+  const canSubmit=sel.size>0&&consignmentNo.trim();
+  return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{...card,width:"90%",maxWidth:560,maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
+      <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
+        <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.clipboard} Agreement Submission — Bulk Consignment Note</div>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+      </div>
+      <div style={{padding:16,overflowY:"auto",flex:1}}>
+        {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No orders awaiting Agreement Submission.</div>:<>
+          <div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Tick every order going out together in one consignment — the same Consignment Note No. is applied to all of them, and each order's standard agreement checklist is marked complete (no flagged issues).</div>
+          <div style={{marginBottom:10}}><I placeholder="Search by invoice number or customer…" value={search} onChange={e=>setSearch(e.target.value)}/></div>
+          <div style={{marginBottom:12}}><L req>Consignment Note No.</L><I value={consignmentNo} onChange={e=>setConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!consignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{fontSize:12,color:C.textLight}}>{list.length} shown</div>
+            <button onClick={()=>setSel(sel.size===list.length?new Set():new Set(list.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===list.length&&list.length>0?"Deselect All":"Select All Shown"}</button>
+          </div>
+          {list.map(o=><div key={o.id} onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer"}}>
+            <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#15803D":"#fff",border:`2px solid ${sel.has(o.id)?"#15803D":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>Invoice: {o.invoiceNo||"—"}</div><div style={{fontSize:10,color:C.textLight}}>{o.phoneModel} · {o.customerName} · {o.branch}</div></div>
+          </div>)}
+        </>}
+      </div>
+      <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:8}}>
+        {sel.size>0&&!consignmentNo.trim()&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the Consignment Note No. to continue.</div>}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <GBtn onClick={onClose}>Cancel</GBtn>
+          <PBtn onClick={async()=>{
+            if(!canSubmit)return;
+            const checklistItems=CHECKLIST_ITEMS.map(name=>({name,checked:true,issue:false}));
+            const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,step:10,checklistItems,agreementConsignmentNo:consignmentNo,history:[{step:10,date:nowDate(),time:nowTime(),note:"Agreement Checklist Completed (Bulk)",checklistItems,agreementConsignmentNo:consignmentNo}]}));
+            const ok=await onSave(changed);if(ok)onClose();
+          }} disabled={!canSubmit}>{Ic.clipboard} Submit ({sel.size})</PBtn>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
 /* ── Bulk Knock-off ────────────────────────────────────────────────────── */
 function BulkKnockOff({orders,onSave,onClose}){
   const released=orders.filter(o=>o.step===13&&!o.knockOffDate);
@@ -1262,6 +1310,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   useEffect(()=>{const t=setTimeout(()=>setSearch(searchInput),200);return()=>clearTimeout(t);},[searchInput]);
   const [showArchive,setShowArchive]=useState(false);
   const [showBulkDispatch,setShowBulkDispatch]=useState(false);
+  const [showBulkAgreement,setShowBulkAgreement]=useState(false);
   const [showBulkClaimSent,setShowBulkClaimSent]=useState(false);
   const [showBulkKnockoff,setShowBulkKnockoff]=useState(false);
   const [upfrontDate,setUpfrontDate]=useState(nowDate());
@@ -1359,6 +1408,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   return<div className="fade-in">
     {showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}
     {showBulkDispatch&&<BulkDispatch orders={orders} onSave={bulkSave} onClose={()=>setShowBulkDispatch(false)}/>}
+    {showBulkAgreement&&<BulkAgreementSubmission orders={orders} onSave={bulkSave} onClose={()=>setShowBulkAgreement(false)} userBranch={userBranch}/>}
     {showBulkClaimSent&&<BulkClaimSent orders={orders} onSave={bulkSave} onClose={()=>setShowBulkClaimSent(false)}/>}
     {showBulkKnockoff&&<BulkKnockOff orders={orders} onSave={bulkSave} onClose={()=>setShowBulkKnockoff(false)}/>}
 
@@ -1370,6 +1420,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {isAdmin&&!isReadOnly&&orders.some(o=>o.step===3)&&<GBtn onClick={()=>setShowBulkDispatch(true)}>{Ic.truck} Dispatch to Branch</GBtn>}
+        {!isReadOnly&&orders.some(o=>!o.cancelled&&nextStepNum(o)===10&&(!userBranch||o.branch===userBranch))&&<GBtn onClick={()=>setShowBulkAgreement(true)}>{Ic.clipboard} Agreement Submission (Bulk)</GBtn>}
         {isAdmin&&!isReadOnly&&orders.some(o=>o.step===12)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Claim Sent Date</GBtn>}
         {isAdmin&&!isReadOnly&&orders.some(o=>o.step===13&&!o.knockOffDate)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
         {isAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
