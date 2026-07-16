@@ -1115,7 +1115,7 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
   const startIdx=Math.max(0,Math.floor(bodyScrollTop/ROW_H)-OVERSCAN);
   const endIdx=Math.min(total,Math.ceil((bodyScrollTop+bodyVisibleH)/ROW_H)+OVERSCAN);
   const visible=orders.slice(startIdx,endIdx);
-  const MIN_W=880;
+  const MIN_W=640;
 
   return<div style={{...card,padding:0,overflow:"hidden"}}>
     {/* Single scroll container for both axes — header and rows share the same
@@ -1126,11 +1126,9 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
       <div style={{minWidth:MIN_W}}>
         <div style={{position:"sticky",top:0,zIndex:2,height:HEADER_H,boxSizing:"border-box",display:"flex",alignItems:"center",gap:10,padding:"0 14px",background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
           <div style={{width:8,flexShrink:0}}/>
-          <div style={{flex:1.6,minWidth:0}}>Order</div>
+          <div style={{flex:2.4,minWidth:0}}>Order</div>
           <div style={{flex:1.8,minWidth:0}}>Status</div>
-          <div style={{flex:1.4,minWidth:0}}>Progress</div>
-          <div style={{flex:1.4,minWidth:0}}>Step</div>
-          <div style={{flex:2.2,minWidth:0}}>Agent</div>
+          <div style={{flex:1.8,minWidth:0}}>Step</div>
           <div style={{width:100,flexShrink:0,textAlign:"right"}}>Updated</div>
         </div>
         <div style={{height:total*ROW_H,position:"relative"}}>
@@ -1149,19 +1147,19 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
               onMouseEnter={e=>{e.currentTarget.style.background="#EEF3FB";}}
               onMouseLeave={e=>{e.currentTarget.style.background=rowBg;}}>
               <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
-              <div style={{flex:1.6,minWidth:0}}>
+              <div style={{flex:2.4,minWidth:0}}>
                 <div style={{fontWeight:700,fontSize:12,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.phoneModel}</div>
+                <div style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
               </div>
               <div style={{flex:1.8,minWidth:0,display:"flex",flexWrap:"nowrap",gap:4,overflow:"hidden"}}>
                 {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
                 <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
                 <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
               </div>
-              <div style={{flex:1.4,minWidth:0,overflow:"hidden"}}>
+              <div style={{flex:1.8,minWidth:0,overflow:"hidden"}}>
                 <span style={{fontSize:9,fontWeight:700,color:progressColor,background:progressColor+"18",border:`1px solid ${progressColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{progressLabel}</span>
+                <div style={{fontSize:11,color:C.textMid,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:3}}>Step {o.step}/{mxS} · {s.label}</div>
               </div>
-              <div style={{flex:1.4,minWidth:0,fontSize:11,color:C.textMid,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>Step {o.step}/{mxS} · {s.label}</div>
-              <div style={{flex:2.2,minWidth:0,fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
               <div style={{width:100,flexShrink:0,textAlign:"right",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>
             </div>;
           })}
