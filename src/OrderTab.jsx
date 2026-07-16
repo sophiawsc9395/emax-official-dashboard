@@ -1103,8 +1103,19 @@ function BulkKnockOff({orders,onSave,onClose}){
    fall in (or just outside) the visible range, tracked via scrollTop.
    This is what actually fixes scroll performance at hundreds of orders —
    the DOM never holds more than ~30-40 rows regardless of list size. */
+function useIsMobile(){
+  const [isMobile,setIsMobile]=useState(typeof window!=="undefined"&&window.innerWidth<=760);
+  useEffect(()=>{
+    const onResize=()=>setIsMobile(window.innerWidth<=760);
+    window.addEventListener("resize",onResize);
+    return()=>window.removeEventListener("resize",onResize);
+  },[]);
+  return isMobile;
+}
+
 function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
-  const ROW_H=58;
+  const isMobile=useIsMobile();
+  const ROW_H=isMobile?148:76;
   const HEADER_H=34;
   const VIEWPORT_H=620;
   const OVERSCAN=8;
@@ -1115,21 +1126,28 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
   const startIdx=Math.max(0,Math.floor(bodyScrollTop/ROW_H)-OVERSCAN);
   const endIdx=Math.min(total,Math.ceil((bodyScrollTop+bodyVisibleH)/ROW_H)+OVERSCAN);
   const visible=orders.slice(startIdx,endIdx);
-  const MIN_W=640;
+  const MIN_W=isMobile?0:600;
+  const GAP=isMobile?8:6;
+  const PAD=isMobile?"0 12px":"0 10px";
+  // Line-clamp keeps rows bounded to a known max height (required for the
+  // absolute-positioned virtualization to stay correct) while still showing
+  // full wrapped sentences instead of a single-line "…" cutoff on mobile.
+  const clamp=n=>({display:"-webkit-box",WebkitLineClamp:n,WebkitBoxOrient:"vertical",overflow:"hidden"});
 
   return<div style={{...card,padding:0,overflow:"hidden"}}>
     {/* Single scroll container for both axes — header and rows share the same
         horizontal scroll position (header is sticky so it pins vertically
-        while still tracking horizontal swipe/scroll with the body). This is
-        what fixes the header/body desync on mobile swipe. */}
+        while still tracking horizontal swipe/scroll with the body). On
+        mobile there's no minWidth, so content wraps to fit and no
+        horizontal scroll is needed at all. */}
     <div onScroll={e=>setScrollTop(e.currentTarget.scrollTop)} style={{height:VIEWPORT_H,overflow:"auto",WebkitOverflowScrolling:"touch"}}>
       <div style={{minWidth:MIN_W}}>
-        <div style={{position:"sticky",top:0,zIndex:2,height:HEADER_H,boxSizing:"border-box",display:"flex",alignItems:"center",gap:10,padding:"0 14px",background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
+        <div style={{position:"sticky",top:0,zIndex:2,height:HEADER_H,boxSizing:"border-box",display:"flex",alignItems:"center",gap:GAP,padding:PAD,background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
           <div style={{width:8,flexShrink:0}}/>
-          <div style={{flex:2.4,minWidth:0}}>Order</div>
-          <div style={{flex:1.8,minWidth:0}}>Status</div>
-          <div style={{flex:1.8,minWidth:0}}>Step</div>
-          <div style={{width:100,flexShrink:0,textAlign:"right"}}>Updated</div>
+          <div style={{flex:2.2,minWidth:0}}>Order</div>
+          <div style={{flex:1.5,minWidth:0}}>Status</div>
+          <div style={{flex:2.3,minWidth:0}}>Step</div>
+          {!isMobile&&<div style={{width:88,flexShrink:0,textAlign:"right"}}>Updated</div>}
         </div>
         <div style={{height:total*ROW_H,position:"relative"}}>
           {visible.map((o,i)=>{
@@ -1141,26 +1159,30 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
             const ph=getPhase(o.step);
             const progressLabel=o.step===14?"Completed":ph?.label||"—";
             const progressColor=o.step===14?"#15803D":ph?.color||C.blue;
+            const showWho=!o.cancelled&&o.step!==14;
+            const whoLabel=s.who==="admin"?"Pending Admin Action":s.who==="branch"?"Pending Branch Action":s.who==="both"?"Pending Branch & Admin Action":"";
+            const detailText=showWho&&whoLabel?`${whoLabel} — ${s.desc}`:s.desc;
             const rowBg=idx%2===0?C.white:C.surface;
             return<div key={o.id} onClick={()=>onOpen(o)}
-              style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",gap:10,padding:"0 14px",borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer",overflow:"hidden"}}
+              style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",gap:GAP,padding:PAD,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer",overflow:"hidden"}}
               onMouseEnter={e=>{e.currentTarget.style.background="#EEF3FB";}}
               onMouseLeave={e=>{e.currentTarget.style.background=rowBg;}}>
               <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
-              <div style={{flex:2.4,minWidth:0}}>
+              <div style={{flex:2.2,minWidth:0}}>
                 <div style={{fontWeight:700,fontSize:12,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.phoneModel}</div>
-                <div style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
+                <div style={isMobile?{fontSize:10,color:C.textLight,...clamp(2)}:{fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
               </div>
-              <div style={{flex:1.8,minWidth:0,display:"flex",flexWrap:"nowrap",gap:4,overflow:"hidden"}}>
+              <div style={{flex:1.5,minWidth:0,display:"flex",flexWrap:isMobile?"wrap":"nowrap",gap:4,overflow:"hidden",maxHeight:isMobile?44:undefined}}>
                 {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
                 <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
                 <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
               </div>
-              <div style={{flex:1.8,minWidth:0,overflow:"hidden"}}>
+              <div style={{flex:2.3,minWidth:0,overflow:"hidden"}}>
                 <span style={{fontSize:9,fontWeight:700,color:progressColor,background:progressColor+"18",border:`1px solid ${progressColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{progressLabel}</span>
-                <div style={{fontSize:11,color:C.textMid,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:3}}>Step {o.step}/{mxS} · {s.label}</div>
+                <div style={isMobile?{fontSize:11,fontWeight:600,color:C.textMid,marginTop:3,...clamp(2)}:{fontSize:11,fontWeight:600,color:C.textMid,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:3}}>Step {o.step}/{mxS} · {s.label}</div>
+                <div style={isMobile?{fontSize:10,color:C.textLight,marginTop:2,...clamp(3)}:{fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:2}}>{detailText}</div>
               </div>
-              <div style={{width:100,flexShrink:0,textAlign:"right",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>
+              {!isMobile&&<div style={{width:88,flexShrink:0,textAlign:"right",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>}
             </div>;
           })}
         </div>
