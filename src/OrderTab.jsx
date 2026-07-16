@@ -48,19 +48,21 @@ function getVisibleSteps(order){
   return STEPS.filter(s=>base.includes(s.step));
 }
 
-// Returns the "next" step number for a given order
+// Returns the "next" step number for a given order. Uses "first sequence
+// step greater than current" rather than requiring an exact match in the
+// sequence — this way an order that's landed on a step outside its own
+// sequence (e.g. a Ready Stock order sitting at step 2/3, which doesn't
+// exist in the ready sequence at all) still gets a sensible next step
+// instead of silently returning null and showing no action panel at all.
 function nextStepNum(order){
   const isCash=order.orderType==="cash";
   const isReady=order.stockStatus==="ready";
   const cur=order.step;
-  if(isCash){
-    const seq=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,14]; // 14=completed for cash
-    const idx=seq.indexOf(cur);
-    return idx>=0&&idx<seq.length-1?seq[idx+1]:null;
-  }
-  const seq=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,10,11,12,13];
-  const idx=seq.indexOf(cur);
-  return idx>=0&&idx<seq.length-1?seq[idx+1]:null;
+  const seq=isCash
+    ?[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,14]
+    :[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,10,11,12,13];
+  const next=seq.find(n=>n>cur);
+  return next!==undefined?next:null;
 }
 
 // Max step for progress calculation
@@ -487,7 +489,8 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const [shortPayRemark,setShortPayRemark]=useState("");
   const upfront=calcUpfront(order);
 
-  if(step===4&&!order.consignmentNo&&!order.stockTransferNo){
+  const isReadyOrphaned=order.stockStatus==="ready"&&[2,3].includes(step);
+  if((step===4||isReadyOrphaned)&&!order.consignmentNo&&!order.stockTransferNo){
     return<div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={card}>
         <SecHdr icon={Ic.truck}>Dispatched to Branch</SecHdr>
@@ -497,7 +500,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
             <div><L req>Consignment Note Number</L><I value={consignmentNo} onChange={e=>setConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!consignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
             <div><L req>Stock Transfer Number</L><I value={stockTransferNo} onChange={e=>setStockTransferNo(e.target.value)} placeholder="Stock transfer no…" style={!stockTransferNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
           </div>
-          <PBtn onClick={async()=>{if(!consignmentNo.trim()||!stockTransferNo.trim()){alert("Please fill in both numbers.");return;}setSaving(true);const h={step:4,date:nowDate(),time:nowTime(),note:"Dispatch details recorded",consignmentNo,stockTransferNo};await onUpdate({...order,consignmentNo,stockTransferNo,history:[...(order.history||[]),h]});setSaving(false);}} disabled={saving||!consignmentNo.trim()||!stockTransferNo.trim()} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Save Dispatch Details"}</PBtn>
+          <PBtn onClick={async()=>{if(!consignmentNo.trim()||!stockTransferNo.trim()){alert("Please fill in both numbers.");return;}setSaving(true);const h={step:4,date:nowDate(),time:nowTime(),note:"Dispatch details recorded",consignmentNo,stockTransferNo};await onUpdate({...order,step:4,consignmentNo,stockTransferNo,history:[...(order.history||[]),h]});setSaving(false);}} disabled={saving||!consignmentNo.trim()||!stockTransferNo.trim()} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Save Dispatch Details"}</PBtn>
         </div>
       </div>
     </div>;
