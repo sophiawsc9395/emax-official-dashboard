@@ -250,13 +250,10 @@ function Timeline({order,isAdmin}){
     {hist.knockOffDate&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off: {fDate(hist.knockOffDate)}</div>}
     {hist.knockOffAmount&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off Amount: {fRM(hist.knockOffAmount)}</div>}
     {hist.shortPayment&&<div style={{marginBottom:2,color:"#DC2626",fontWeight:700}}>Short Payment — Balance Payment Needed</div>}
+    {hist.collectionChecked!==undefined&&<div style={{marginBottom:3,fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"✓":"✗"} Phone Collection · </>}{hist.paymentChecked?"✓":"✗"} Payment verified</div>}
+    {hist.upfrontPaymentDate&&(order.orderType==="cash"?hist.monthlyInstallment:hist.paymentProofAmount)&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>{order.orderType==="cash"?"Payment Amount":"Payment Proof Amount"} {fDate(hist.upfrontPaymentDate)} · {hist.paymentMethod} · {fRM(order.orderType==="cash"?hist.monthlyInstallment:hist.paymentProofAmount)}</div>}
+    {hist.secondPaymentDate&&<div style={{marginBottom:2,color:"#92400E",fontWeight:600}}>2nd Payment: {fDate(hist.secondPaymentDate)} · {hist.secondPayMethod} · {fRM(hist.secondPaymentAmount)}</div>}
     {hist.verificationRemark&&<div style={{marginBottom:2,color:C.textMid}}>Note: {hist.verificationRemark}</div>}
-    {hist.upfrontPaymentDate&&<div style={{marginBottom:2,color:C.textMid}}>{order.orderType==="cash"?"Balance Payment Date":"Upfront Payment Date"}: {fDate(hist.upfrontPaymentDate)} · {hist.paymentMethod}</div>}
-    {hist.paymentProofAmount&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Payment Proof Amount (Actual Receipt): {fRM(hist.paymentProofAmount)}</div>}
-    {hist.secondPaymentDate&&<div style={{marginBottom:2,color:"#92400E",fontWeight:600}}>2nd {order.orderType==="cash"?"Balance":"Upfront"} Payment: {fDate(hist.secondPaymentDate)} · {hist.secondPayMethod} · {fRM(hist.secondPaymentAmount)}</div>}
-    {hist.monthlyInstallment&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>{order.orderType==="cash"?`Balance Payment Amount: ${fRM(hist.monthlyInstallment)}`:`Upfront 2 (First Monthly Installment): ${fRM(hist.monthlyInstallment)}`}</div>}
-    {hist.totalDue!==undefined&&<div style={{marginBottom:2,color:C.textMid}}>{order.orderType==="cash"?`Total Due: ${fRM(hist.totalDue)}`:`Upfront 1 (Subtotal): ${fRM(hist.totalDue)}`}</div>}
-    {hist.totalUpfrontPayment!==undefined&&<div style={{marginBottom:2,color:C.navy,fontWeight:800}}>Total Upfront Payment: {fRM(hist.totalUpfrontPayment)}</div>}
     {hist.returnRemark&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Returned: {hist.returnRemark}</div>}
     {hist.billingData&&<div style={{marginTop:6}}><BillingDetailsCard billingData={hist.billingData} isCash={order.orderType==="cash"} title="Billing Request Details"/></div>}
     {s.step===8&&order.orderType!=="cash"&&!hist.shortPaymentProofUpload&&<div style={{marginTop:6,background:C.white,borderRadius:7,padding:"8px 10px",border:`1px solid ${C.border}`}}>
@@ -271,7 +268,6 @@ function Timeline({order,isAdmin}){
     {hist.issueItems?.length>0&&<div style={{marginBottom:2,color:C.textMid,fontSize:10}}>Issues: {hist.issueItems.join(" · ")}</div>}
     {hist.checklistItems&&<div style={{fontSize:10,color:C.textMid}}>{hist.checklistItems.filter(x=>x.checked).length}/{hist.checklistItems.length} checklist items</div>}
     {hist.agreementConsignmentNo&&<div style={{marginTop:2,color:C.navy,fontWeight:600,fontSize:11}}>Consignment Note No.: {hist.agreementConsignmentNo}</div>}
-    {hist.collectionChecked!==undefined&&<div style={{fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"✓":"✗"} Phone Collection · </>}{hist.paymentChecked?"✓":"✗"} Payment verified</div>}
     {hist.files&&Object.entries(hist.files).filter(([k])=>isAdmin||k!=="claimToPurchaser").flatMap(([k,f])=>f?(Array.isArray(f)?f.map((ff,i)=>[k,ff]):[[k,f]]):[]).map(([k,f],i)=>f&&<a key={k+i} href={f.url||f.data} target={f.url?"_blank":undefined} rel={f.url?"noopener noreferrer":undefined} download={f.url?undefined:f.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} {FILE_LABELS[k]?`${FILE_LABELS[k]}: `:""}{f.name}</a>)}
     {s.step===1&&order.orderType==="cash"&&order.depositSlip&&<a href={order.depositSlip.url||order.depositSlip.data} target={order.depositSlip.url?"_blank":undefined} rel={order.depositSlip.url?"noopener noreferrer":undefined} download={order.depositSlip.url?undefined:order.depositSlip.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} Deposit Payment Slip — {order.depositSlip.name}</a>}
   </div>;
@@ -1143,7 +1139,7 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
     // the NEXT step's definition, not the current one.
     const nextStepN=nextStepNum(o);
     const nextDef=nextStepN?getStep(nextStepN):null;
-    const whoText=nextDef?.who==="admin"?"Admin":nextDef?.who==="branch"?"Branch":nextDef?.who==="both"?"Branch & Admin":"";
+    const whoText=nextDef?.who==="admin"?"Admin":(nextDef?.who==="branch"||nextDef?.who==="both")?"Branch":"";
     const detailText=(!o.cancelled&&o.step!==14&&nextDef&&whoText)?`Waiting for ${whoText} to process: ${nextDef.desc}`:s.desc;
     return{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText};
   };
