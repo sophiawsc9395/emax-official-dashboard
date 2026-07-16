@@ -457,12 +457,14 @@ function downloadReport(orders,type,dateFilter,merchantFilter){
     rows+=`<tr class="tot"><td colspan="4"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
   } else if(isCashKnockoff){
     rows=filtered.map((o,i)=>{
-      const bal=getCashBalanceEntry(o);
-      const depositAmt=parseFloat(o.deposit)||0;
-      const balAmt=parseFloat(bal?.monthlyInstallment)||0;
-      const expected=(parseFloat(o.retailPrice)||0)-depositAmt;
+      const bal=getCashBalanceEntry(o); // already null if it doesn't match dateFilter
+      const depositOk=!dateFilter||o.depositPaymentDate===dateFilter;
+      const showExpected=!!bal||!dateFilter;
+      const depositAmt=depositOk?parseFloat(o.deposit)||0:0;
+      const balAmt=bal?parseFloat(bal.monthlyInstallment)||0:0;
+      const expected=showExpected?(parseFloat(o.retailPrice)||0)-(parseFloat(o.deposit)||0):0;
       total1+=balAmt;total2+=expected;
-      return`<tr><td>${i+1}</td><td>${o.phoneModel}</td><td>${o.branch}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${fDate(o.depositPaymentDate)}</td><td>${o.depositPaymentMethod||"—"}</td><td>RM ${depositAmt.toFixed(2)}</td><td>${bal?fDate(bal.date):"—"}</td><td>${bal?.paymentMethod||"—"}</td><td>RM ${balAmt.toFixed(2)}</td><td>RM ${expected.toFixed(2)}</td></tr>`;
+      return`<tr><td>${i+1}</td><td>${o.phoneModel}</td><td>${o.branch}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${depositOk?fDate(o.depositPaymentDate):"—"}</td><td>${depositOk?(o.depositPaymentMethod||"—"):"—"}</td><td>${depositOk?`RM ${depositAmt.toFixed(2)}`:"—"}</td><td>${bal?fDate(bal.date):"—"}</td><td>${bal?(bal.paymentMethod||"—"):"—"}</td><td>${bal?`RM ${balAmt.toFixed(2)}`:"—"}</td><td>${showExpected?`RM ${expected.toFixed(2)}`:"—"}</td></tr>`;
     }).join("");
     rows+=`<tr class="tot"><td colspan="9"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td></tr>`;
   } else {
