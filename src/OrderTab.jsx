@@ -375,42 +375,78 @@ function calcAmountDueByMerchant(o){
   const stampingFee=parseFloat(o.billingData?.stampingFee??o.stampingFee)||0;
   return cashPrice-deposit-agreementFee-stampingFee;
 }
+// Claim Amount = Finance Price − Deposit − Stamping Fee − Agreement Fee,
+// using the top-level order fields entered at order creation.
+function calcClaimAmount(o){
+  const financePrice=parseFloat(o.financePrice)||0;
+  const deposit=parseFloat(o.deposit)||0;
+  const stampingFee=parseFloat(o.stampingFee)||0;
+  const agreementFee=parseFloat(o.agreementFee)||0;
+  return financePrice-deposit-stampingFee-agreementFee;
+}
 function downloadReport(orders,type,dateFilter,merchantFilter){
   const isClaim=type==="claim";
   const isKnockoff=type==="knockoff";
   const isCompleted=type==="completed";
   const isAgreementReceived=type==="agreementReceived";
+  const isFirstInstallment=type==="firstInstallment";
   orders=merchantFilter&&merchantFilter!=="all"?orders.filter(o=>o.merchant===merchantFilter):orders;
+  // First Monthly Installment — based on the actual date admin ticked
+  // "Payment Verified" at step 9 (Collection Verified), not any typed date.
+  // An order can have more than one such tick over its life (e.g. a short
+  // payment redo), so we take the latest one that matches the filter date.
+  const getInstallmentEntry=o=>{
+    const entries=(o.history||[]).filter(h=>h.step===9&&h.paymentChecked&&h.monthlyInstallment!==undefined&&h.monthlyInstallment!==null&&h.monthlyInstallment!=="");
+    const matching=dateFilter?entries.filter(h=>h.date===dateFilter):entries;
+    return matching[matching.length-1];
+  };
   const filtered=orders.filter(o=>{
-    if(isAgreementReceived){const d=o.stepDates?.["11"]?.date;return o.step===11&&(!dateFilter||d===dateFilter);}
-    if(isCompleted){const d=o.stepDates?.["14"]?.date;return o.step===14&&(!dateFilter||d===dateFilter);}
-    if(isKnockoff) return o.knockOffDate&&(!dateFilter||o.knockOffDate===dateFilter);
-    if(isClaim) return o.claimSentDate&&(!dateFilter||o.claimSentDate===dateFilter)&&o.step>=12;
+    // Agreement Received — based on the actual date admin clicked "confirm
+    // agreement received by HQ" (stepDates records this the moment step 11
+    // is reached, regardless of what the order's current step is now).
+    if(isAgreementReceived){const d=o.stepDates?.["11"]?.date;return!!d&&(!dateFilter||d===dateFilter);}
+    // Completed — actual date the order was marked completed.
+    if(isCompleted){const d=o.stepDates?.["14"]?.date;return!!d&&(!dateFilter||d===dateFilter);}
+    // Claim Released — based on the knock-off date admin filled in.
+    if(isKnockoff)return o.knockOffDate&&(!dateFilter||o.knockOffDate===dateFilter);
+    // Claim Submitted — based on the claim-sent-to-merchant date admin filled in.
+    if(isClaim)return o.claimSentDate&&(!dateFilter||o.claimSentDate===dateFilter);
+    if(isFirstInstallment)return!!getInstallmentEntry(o);
+    // Upfront Payment — matches on EITHER the 1st or 2nd upfront payment date.
     const h=o.lastVerification;
-    return h&&h.upfrontPaymentDate&&(!dateFilter||h.upfrontPaymentDate===dateFilter);
+    return h&&(h.upfrontPaymentDate||h.secondPaymentDate)&&(!dateFilter||h.upfrontPaymentDate===dateFilter||h.secondPaymentDate===dateFilter);
   }).sort((a,b)=>(a.invoiceNo||"").localeCompare(b.invoiceNo||""));
   if(!filtered.length){alert(`No records found${dateFilter?` for ${fDate(dateFilter)}`:""}.`);return;}
   const dateStr=dateFilter?fDate(dateFilter):"All Dates";
-  let rows="",total1=0,total2=0,total3=0;
+  const merchantLabel=merchantFilter&&merchantFilter!=="all"?merchantFilter:"All Merchants";
+  let rows="",total1=0,total2=0;
   if(isAgreementReceived){
-    rows=filtered.map((o,i)=>{const due=calcAmountDueByMerchant(o);total1+=due;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>RM ${due.toFixed(2)}</td></tr>`;}).join("");
-    rows+=`<tr class="tot"><td colspan="7"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
-  } else if(isCompleted){
-    rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;const h=o.stepDates?.["14"];total1+=ka;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>${fDate(o.claimSentDate)}</td><td>${fDate(o.knockOffDate)}</td><td>RM ${ka.toFixed(2)}</td><td>${fDT(h?.date,h?.time)}</td></tr>`;}).join("");
-    rows+=`<tr class="tot"><td colspan="9"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td></tr>`;
-  } else if(isKnockoff){
-    rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;total1+=ka;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>${fDate(o.knockOffDate)}</td><td>RM ${ka.toFixed(2)}</td></tr>`;}).join("");
-    rows+=`<tr class="tot"><td colspan="8"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
+    rows=filtered.map((o,i)=>{const claim=calcClaimAmount(o);total1+=claim;const d=o.stepDates?.["11"]?.date;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.branch}</td><td>${o.agreementNumber||"—"}</td><td>${fDate(d)}</td><td>RM ${claim.toFixed(2)}</td></tr>`;}).join("");
+    rows+=`<tr class="tot"><td colspan="5"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
   } else if(isClaim){
-    rows=filtered.map((o,i)=>{const due=calcAmountDueByMerchant(o);total1+=due;return`<tr><td>${i+1}</td><td>${fDate(o.claimSentDate)}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${o.merchant||"—"}</td><td>RM ${due.toFixed(2)}</td></tr>`;}).join("");
-    rows+=`<tr class="tot"><td colspan="8"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
+    rows=filtered.map((o,i)=>{const claim=calcClaimAmount(o);total1+=claim;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.branch}</td><td>${o.agreementNumber||"—"}</td><td>${fDate(o.claimSentDate)}</td><td>RM ${claim.toFixed(2)}</td></tr>`;}).join("");
+    rows+=`<tr class="tot"><td colspan="5"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
+  } else if(isKnockoff){
+    rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;const claim=calcClaimAmount(o);total1+=ka;total2+=claim;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.agreementNumber||"—"}</td><td>RM ${ka.toFixed(2)}</td><td>RM ${claim.toFixed(2)}</td></tr>`;}).join("");
+    rows+=`<tr class="tot"><td colspan="3"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td></tr>`;
+  } else if(isCompleted){
+    rows=filtered.map((o,i)=>{const claim=calcClaimAmount(o);total1+=claim;const d=o.stepDates?.["14"]?.date;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.branch}</td><td>${o.agreementNumber||"—"}</td><td>${fDate(d)}</td><td>RM ${claim.toFixed(2)}</td></tr>`;}).join("");
+    rows+=`<tr class="tot"><td colspan="5"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
+  } else if(isFirstInstallment){
+    rows=filtered.map((o,i)=>{const h=getInstallmentEntry(o);const amt=parseFloat(h?.monthlyInstallment)||0;total1+=amt;return`<tr><td>${i+1}</td><td>${o.agreementNumber||"—"}</td><td>${o.customerName}</td><td><b>${o.invoiceNo||"—"}</b></td><td>RM ${amt.toFixed(2)}</td></tr>`;}).join("");
+    rows+=`<tr class="tot"><td colspan="4"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
   } else {
-    rows=filtered.map((o,i)=>{const h=o.lastVerification;const up=calcUpfront(o);const monthly=parseFloat(o.billingData?.monthlyInstallment||o.monthlyInstallment)||0;const actualReceipt=(parseFloat(h?.paymentProofAmount)||0)+(parseFloat(h?.secondPaymentAmount)||0);total1+=up.total;total2+=monthly;total3+=actualReceipt;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${shortId(o.id)}</td><td>${o.customerName}</td><td>${o.branch}</td><td>${o.phoneModel}</td><td>${fDate(h?.upfrontPaymentDate)}</td><td>RM ${up.total.toFixed(2)}</td><td>RM ${monthly.toFixed(2)}</td><td>RM ${(up.total+monthly).toFixed(2)}</td><td>RM ${actualReceipt.toFixed(2)}</td><td>${h?.paymentMethod||"—"}</td><td>${h?.verificationRemark||"—"}</td></tr>`;}).join("");
-    rows+=`<tr class="tot"><td colspan="7"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td><td><b>RM ${(total1+total2).toFixed(2)}</b></td><td><b>RM ${total3.toFixed(2)}</b></td><td colspan="2"></td></tr>`;
+    rows=filtered.map((o,i)=>{const h=o.lastVerification;const amt1=parseFloat(h?.paymentProofAmount)||0;const amt2=parseFloat(h?.secondPaymentAmount)||0;total1+=amt1;total2+=amt2;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>RM ${amt1.toFixed(2)}</td><td>${h?.paymentMethod||"—"}</td><td>${amt2?`RM ${amt2.toFixed(2)}`:"—"}</td><td>${amt2?(h?.secondPayMethod||"—"):"—"}</td></tr>`;}).join("");
+    rows+=`<tr class="tot"><td colspan="2"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td></tr>`;
   }
-  const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":"Upfront Payment Report";
-  const heads=isAgreementReceived?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Amount Due by Merchant</th>":isCompleted?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Claim Sent Date</th><th>Knock-off Date</th><th>Knock-off Amount</th><th>Completed On</th>":isKnockoff?"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Knock-off Date</th><th>Knock-off Amount</th>":isClaim?"<th>#</th><th>Date</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Merchant</th><th>Amount Due by Merchant</th>":"<th>#</th><th>Invoice No</th><th>Order ID</th><th>Customer</th><th>Branch</th><th>Phone</th><th>Payment Date</th><th>Upfront 1 (Agreement+Stamping+Deposit)</th><th>Upfront 2 (1st Monthly Installment)</th><th>Total Upfront Payment Upon Collection</th><th>Actual Receipt Amount</th><th>Method</th><th>Remark</th>";
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
+  const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":"Upfront Payment Report";
+  const heads=isAgreementReceived?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Approval Date</th><th>Claim Amount</th>"
+    :isCompleted?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Completed Date</th><th>Claim Amount</th>"
+    :isKnockoff?"<th>#</th><th>Invoice No</th><th>Agreement No</th><th>Knock-off Amount</th><th>Expected Claim Amount</th>"
+    :isClaim?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Claim Sent Date</th><th>Claim Amount</th>"
+    :isFirstInstallment?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th>"
+    :"<th>#</th><th>Invoice No</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Payment Proof Amount</th><th>2nd Method</th>";
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""} · Merchant: ${merchantLabel}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
   const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
 }
 
@@ -957,7 +993,7 @@ function BatchArchive({orders,onDelete,onClose}){
           </div>
           {completed.map(o=><div key={o.id} onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#FEF2F2":C.surface,border:`1px solid ${sel.has(o.id)?"#FECACA":C.border}`,marginBottom:7,cursor:"pointer"}}>
             <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#DC2626":"#fff",border:`2px solid ${sel.has(o.id)?"#DC2626":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
-            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>{o.phoneModel} · {o.customerName}</div><div style={{fontSize:10,color:C.textLight}}>{shortId(o.id)} · {o.branch} · Knock-off: {fDate(o.knockOffDate)}</div></div>
+            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>{o.phoneModel} · {o.customerName}</div><div style={{fontSize:10,color:C.textLight}}>{o.branch} · Knock-off: {fDate(o.knockOffDate)}</div></div>
           </div>)}
         </>}
       </div>
@@ -999,7 +1035,7 @@ function BulkDispatch({orders,onSave,onClose}){
           </div>
           {pending.map(o=><div key={o.id} onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F5F3FF":C.surface,border:`1px solid ${sel.has(o.id)?"#DDD6FE":C.border}`,marginBottom:7,cursor:"pointer"}}>
             <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#7C3AED":"#fff",border:`2px solid ${sel.has(o.id)?"#7C3AED":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
-            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>{o.phoneModel} · {o.customerName}</div><div style={{fontSize:10,color:C.textLight}}>{shortId(o.id)}</div></div>
+            <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>{o.phoneModel} · {o.customerName}</div><div style={{fontSize:10,color:C.textLight}}>{o.branch}</div></div>
           </div>)}
         </>}
       </div>
@@ -1272,6 +1308,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [knockOffReportDate,setKnockOffReportDate]=useState(nowDate());
   const [completedReportDate,setCompletedReportDate]=useState(nowDate());
   const [agreementReceivedReportDate,setAgreementReceivedReportDate]=useState(nowDate());
+  const [firstInstallmentReportDate,setFirstInstallmentReportDate]=useState(nowDate());
   const [reportMerchant,setReportMerchant]=useState("all");
   const [reportsExpanded,setReportsExpanded]=useState(false);
   // Fully hydrated + signed order (header + history, with every {name,path}
@@ -1438,7 +1475,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       {reportsExpanded&&<div style={{padding:"0 16px 16px",borderTop:`1px solid ${C.border}`}}>
         <div style={{padding:"14px 0 4px",maxWidth:260}}><L>Merchant</L><SEL value={reportMerchant} onChange={e=>setReportMerchant(e.target.value)}><option value="all">All Merchants</option>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
         <div style={{display:"flex",flexDirection:"column"}}>
-          {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,activeOrders],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,activeOrders],["Claim Submitted","claim",claimDate,setClaimDate,activeOrders],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,activeOrders],["Completed","completed",completedReportDate,setCompletedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src],i)=><div key={type} style={{display:"flex",alignItems:"flex-end",gap:10,padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none",flexWrap:"wrap"}}>
+          {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,activeOrders],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,activeOrders],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,activeOrders],["Claim Submitted","claim",claimDate,setClaimDate,activeOrders],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,activeOrders],["Completed","completed",completedReportDate,setCompletedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src],i)=><div key={type} style={{display:"flex",alignItems:"flex-end",gap:10,padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none",flexWrap:"wrap"}}>
             <div style={{flex:1,minWidth:140,fontSize:12,fontWeight:700,color:C.text}}>{label} Report</div>
             <div style={{flex:1,minWidth:130}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
             <PBtn onClick={()=>downloadReport(src,type,date,reportMerchant)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
