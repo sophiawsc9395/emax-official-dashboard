@@ -1012,7 +1012,7 @@ function BatchArchive({orders,onDelete,onClose}){
           </div>
           {completed.map(o=><div key={o.id} onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#FEF2F2":C.surface,border:`1px solid ${sel.has(o.id)?"#FECACA":C.border}`,marginBottom:7,cursor:"pointer"}}>
             <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#DC2626":"#fff",border:`2px solid ${sel.has(o.id)?"#DC2626":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
-            <div style={{flex:1,fontSize:12,fontWeight:700,color:C.text}}>Invoice: {o.invoiceNo||"—"}</div>
+            <div style={{flex:1,fontSize:12,fontWeight:700,color:C.text}}>{o.invoiceNo||"—"}</div>
           </div>)}
         </>}
       </div>
@@ -1325,7 +1325,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [upfrontDate,setUpfrontDate]=useState(nowDate());
   const [claimDate,setClaimDate]=useState(nowDate());
   const [knockOffReportDate,setKnockOffReportDate]=useState(nowDate());
-  const [completedReportDate,setCompletedReportDate]=useState(nowDate());
   const [agreementReceivedReportDate,setAgreementReceivedReportDate]=useState(nowDate());
   const [firstInstallmentReportDate,setFirstInstallmentReportDate]=useState(nowDate());
   const [reportMerchant,setReportMerchant]=useState("all");
@@ -1494,7 +1493,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       {reportsExpanded&&<div style={{padding:"0 16px 16px",borderTop:`1px solid ${C.border}`}}>
         <div style={{padding:"14px 0 4px",maxWidth:260}}><L>Merchant</L><SEL value={reportMerchant} onChange={e=>setReportMerchant(e.target.value)}><option value="all">All Merchants</option>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
         <div style={{display:"flex",flexDirection:"column"}}>
-          {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Completed","completed",completedReportDate,setCompletedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src],i)=><div key={type} style={{display:"flex",alignItems:"flex-end",gap:10,padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none",flexWrap:"wrap"}}>
+          {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src],i)=><div key={type} style={{display:"flex",alignItems:"flex-end",gap:10,padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none",flexWrap:"wrap"}}>
             <div style={{flex:1,minWidth:140,fontSize:12,fontWeight:700,color:C.text}}>{label} Report</div>
             <div style={{flex:1,minWidth:130}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
             <PBtn onClick={()=>downloadReport(src,type,date,reportMerchant)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
