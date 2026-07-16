@@ -1485,60 +1485,63 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
   const now = new Date();
   const defaultDay = days.includes(now.getDate())?now.getDate():days[days.length-1];
   const [selDay,setSelDay]         = useState(defaultDay);
-  const [selBranch,setSelBranch]   = useState(BRANCH_ORDER[0]);
   const [saving,setSaving]         = useState(false);
   const [saved,setSaved]           = useState(false);
   const [localInputs,setLocalInputs] = useState({});
+  const [repairInput,setRepairInput] = useState(0); // single company-wide figure for this day
 
   const dateKey = `${selDay}/${month}/${year}`;
-  const bSRs = srList.filter(s=>s.branch===selBranch&&srVisibleInMonth(s,month,year));
+  const visibleSRs = srList.filter(s=>srVisibleInMonth(s,month,year));
 
-  // Load data whenever day or branch changes
+  // Load every branch's data for this date in one go.
   useEffect(()=>{
     const d = records[dateKey]||{};
     const init = {};
-    srList.filter(s=>s.branch===selBranch).forEach(sr=>{
+    visibleSRs.forEach(sr=>{
       init[sr.id]={walkin:d[sr.id]?.walkin||0, aeon:d[sr.id]?.aeon||0};
     });
-    init[`BM_${selBranch}`]={unalloc:d[`BM_${selBranch}`]?.unalloc||0};
-    init[`REPAIR_${selBranch}`]=0;
+    BRANCH_ORDER.forEach(b=>{
+      init[`BM_${b}`]={unalloc:d[`BM_${b}`]?.unalloc||0};
+    });
     setLocalInputs(init);
-    // Load repair from repair storage
+    // Repair & Service is one company-wide figure per day (same store the
+    // Repair tab reads/writes — kept as a plain number, not per-branch).
     const repKey=`emax_v5_repair_${year}_${month}`;
     (async()=>{
       try{
         const rd=await loadData(repKey)||{};
-        setLocalInputs(p=>({...p,[`REPAIR_${selBranch}`]:rd[selDay]||0}));
-      }catch{}
+        setRepairInput(rd[selDay]||0);
+      }catch{setRepairInput(0);}
     })();
-  },[selDay,selBranch,month,year]);
+  },[selDay,month,year]);
 
   const set=(id,field,val)=>setLocalInputs(p=>({...p,[id]:{...p[id],[field]:parseFloat(val)||0}}));
-  const setRepair=(val)=>setLocalInputs(p=>({...p,[`REPAIR_${selBranch}`]:parseFloat(val)||0}));
 
   const save=async()=>{
     setSaving(true);
     const nr={...records};
     if(!nr[dateKey])nr[dateKey]={};
-    bSRs.forEach(sr=>{
+    visibleSRs.forEach(sr=>{
       if(!nr[dateKey][sr.id])nr[dateKey][sr.id]={walkin:0,aeon:0,repair:0};
       nr[dateKey][sr.id].walkin=localInputs[sr.id]?.walkin||0;
       nr[dateKey][sr.id].aeon=localInputs[sr.id]?.aeon||0;
     });
-    const bmKey=`BM_${selBranch}`;
-    if(!nr[dateKey][bmKey])nr[dateKey][bmKey]={walkin:0,aeon:0,unalloc:0};
-    nr[dateKey][bmKey].unalloc=localInputs[bmKey]?.unalloc||0;
+    BRANCH_ORDER.forEach(b=>{
+      const bmKey=`BM_${b}`;
+      if(!nr[dateKey][bmKey])nr[dateKey][bmKey]={walkin:0,aeon:0,unalloc:0};
+      nr[dateKey][bmKey].unalloc=localInputs[bmKey]?.unalloc||0;
+    });
     await saveData(recordsKey,nr);
     // Auto-snapshot current SR statuses for this month
     const snapKey=`emax_v5_status_${year}_${month}`;
     const existingSnap=await loadData(snapKey)||{};
     srList.forEach(sr=>{if(!existingSnap[sr.id])existingSnap[sr.id]={status:sr.status,active:true};});
     await saveData(snapKey,existingSnap);
+    // Repair — single company-wide figure for this day
     const repairStoreKey=`emax_v5_repair_${year}_${month}`;
     try{
       const rd=await loadData(repairStoreKey)||{};
-      const repVal=localInputs[`REPAIR_${selBranch}`]||0;
-      if(repVal>0)rd[selDay]=repVal; else delete rd[selDay];
+      if(repairInput>0)rd[selDay]=repairInput; else delete rd[selDay];
       await saveData(repairStoreKey,rd);
       if(onRepairSave)onRepairSave();
     }catch{}
@@ -1549,7 +1552,7 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
   // NumInput keeps own string state so typing is smooth (no float re-parse mid-keystroke)
   const NumInput=({value,onChange,accent="#E4EAF2"})=>{
     const [str,setStr]=useState(value===0?"":String(value));
-    // Sync if parent value changes (e.g. switching day/branch)
+    // Sync if parent value changes (e.g. switching day)
     const prev=useRef(value);
     useEffect(()=>{
       if(prev.current!==value){
@@ -1577,8 +1580,12 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
     />;
   };
 
-  const branchDayTotal=bSRs.reduce((s,sr)=>s+(localInputs[sr.id]?.walkin||0)+(localInputs[sr.id]?.aeon||0),0)
-    +(localInputs[`BM_${selBranch}`]?.unalloc||0);
+  const branchDayTotal=(b)=>{
+    const bSRs=visibleSRs.filter(s=>s.branch===b);
+    return bSRs.reduce((s,sr)=>s+(localInputs[sr.id]?.walkin||0)+(localInputs[sr.id]?.aeon||0),0)
+      +(localInputs[`BM_${b}`]?.unalloc||0);
+  };
+  const companyDayTotal=BRANCH_ORDER.reduce((s,b)=>s+branchDayTotal(b),0);
 
   const TH=(label,color="rgba(255,255,255,.7)")=>(
     <th style={{padding:"10px 14px",fontWeight:700,fontSize:10,color,textTransform:"uppercase",letterSpacing:"0.06em",whiteSpace:"nowrap",textAlign:label==="Walk In (RM)"||label==="Invoice (RM)"||label==="Day Total"?"right":"left"}}>{label}</th>
@@ -1588,17 +1595,17 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
     {/* Header */}
     <div style={{background:"#0A1628",borderRadius:12,padding:"14px 20px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
       <div>
-        <h2 style={{fontWeight:800,fontSize:14,color:"#fff",margin:0}}>Daily Entry</h2>
-        <p style={{fontSize:11,color:"rgba(255,255,255,.45)",margin:0,marginTop:2}}>Enter figures — auto-posts to Monthly Report</p>
+        <h2 style={{fontWeight:800,fontSize:14,color:"#fff",margin:0}}>Daily Entry — All Branches</h2>
+        <p style={{fontSize:11,color:"rgba(255,255,255,.45)",margin:0,marginTop:2}}>Enter every branch's figures for one date, then save once — auto-posts to Monthly Report</p>
       </div>
       <button onClick={save} disabled={saving}
         style={{padding:"9px 24px",border:"none",borderRadius:8,cursor:saving?"wait":"pointer",fontWeight:700,fontSize:13,fontFamily:"Inter,sans-serif",
           background:saved?"#00C896":"linear-gradient(135deg,#1E6FDB,#2D85F0)",color:"#fff",transition:"all .2s"}}>
-        {saved?"Saved!":saving?"Saving...":"Save to Monthly Report"}
+        {saved?"Saved!":saving?"Saving...":"Save All to Monthly Report"}
       </button>
     </div>
 
-    {/* Day + Branch selectors */}
+    {/* Day selector */}
     <div style={{display:"flex",gap:12,marginBottom:14,flexWrap:"wrap",alignItems:"flex-end"}}>
       <div>
         <label style={{display:"block",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>Date</label>
@@ -1606,108 +1613,116 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
           {days.map(d=><option key={d} value={d}>{d}/{month}/{year}</option>)}
         </select>
       </div>
-      <div>
-        <label style={{display:"block",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>Branch</label>
-        <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-          {BRANCH_ORDER.map(b=>(
-            <button key={b} onClick={()=>setSelBranch(b)} style={{padding:"6px 12px",border:"none",cursor:"pointer",borderRadius:6,fontWeight:700,fontSize:11,fontFamily:"Inter,sans-serif",
-              background:selBranch===b?"#0A1628":"#fff",color:selBranch===b?"#fff":"#4A5568",
-              outline:selBranch===b?"none":"1px solid #E4EAF2",transition:"all .15s"}}>
-              {b}
-            </button>
-          ))}
-        </div>
+      {/* Quick jump to a branch section further down the page */}
+      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+        {BRANCH_ORDER.map(b=>(
+          <a key={b} href={`#daily-entry-${b}`} style={{padding:"6px 12px",borderRadius:6,fontWeight:700,fontSize:11,fontFamily:"Inter,sans-serif",
+            background:"#fff",color:"#4A5568",outline:"1px solid #E4EAF2",textDecoration:"none",display:"inline-block"}}>
+            {b}
+          </a>
+        ))}
       </div>
     </div>
 
-    {/* Day total */}
-    <div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:8,padding:"8px 14px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12}}>
-      <span style={{color:"#1E40AF",fontWeight:600}}>Branch Day Total — {selDay}/{month}/{year}</span>
-      <span style={{fontWeight:800,color:"#1E6FDB",fontSize:14}}>{fRM(branchDayTotal)}</span>
+    {/* Company-wide day total */}
+    <div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:8,padding:"8px 14px",marginBottom:20,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12}}>
+      <span style={{color:"#1E40AF",fontWeight:600}}>Company Day Total — {selDay}/{month}/{year}</span>
+      <span style={{fontWeight:800,color:"#1E6FDB",fontSize:14}}>{fRM(companyDayTotal)}</span>
     </div>
 
-    {/* Entry table */}
-    <div className="card" style={{overflow:"hidden"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-        <thead>
-          <tr style={{background:"#0A1628"}}>
-            {TH("SR / Entry")}
-            {TH("Type")}
-            {TH("Walk In (RM)","#60AAFF")}
-            {TH("Invoice (RM)","#A78BFA")}
-            {TH("Day Total")}
-          </tr>
-        </thead>
-        <tbody>
-          {bSRs.map((sr,i)=>{
-            const wi=localInputs[sr.id]?.walkin||0;
-            const ae=localInputs[sr.id]?.aeon||0;
-            const dt=wi+ae;
-            return <tr key={sr.id} style={{borderBottom:"1px solid #E4EAF2",background:i%2===0?"#fff":"#F7F9FC"}}>
-              <td style={{padding:"8px 16px"}}>
-                <div style={{fontWeight:700,color:"#0A1628"}}>{sr.canon}</div>
-                <div style={{fontSize:10,color:"#8A96A8",marginTop:1}}><StatusTag status={sr.status}/></div>
-              </td>
-              <td style={{padding:"8px 16px"}}>
-                <TypeTag type={sr.type}/>
-              </td>
-              <td style={{padding:"6px 10px"}}>
-                <NumInput value={wi} onChange={v=>set(sr.id,"walkin",v)}/>
-              </td>
-              <td style={{padding:"6px 10px"}}>
-                <NumInput value={ae} onChange={v=>set(sr.id,"aeon",v)}/>
-              </td>
-              <td style={{padding:"8px 14px",textAlign:"right",fontWeight:dt>0?700:400,color:dt>0?"#0A1628":"#CDD5E0"}}>{dt>0?fRM(dt):"—"}</td>
-            </tr>;
-          })}
+    {/* One section per branch */}
+    {BRANCH_ORDER.map(b=>{
+      const bSRs=visibleSRs.filter(s=>s.branch===b);
+      const dayTotal=branchDayTotal(b);
+      return <div key={b} id={`daily-entry-${b}`} style={{marginBottom:24,scrollMarginTop:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <div style={{fontWeight:800,fontSize:13,color:"#0A1628"}}>{b} — {branchMeta[b]?.name||b}</div>
+          <div style={{fontSize:12,fontWeight:700,color:dayTotal>0?"#1E6FDB":"#8A96A8"}}>{fRM(dayTotal)}</div>
+        </div>
+        <div className="card" style={{overflow:"hidden"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead>
+              <tr style={{background:"#0A1628"}}>
+                {TH("SR / Entry")}
+                {TH("Type")}
+                {TH("Walk In (RM)","#60AAFF")}
+                {TH("Invoice (RM)","#A78BFA")}
+                {TH("Day Total")}
+              </tr>
+            </thead>
+            <tbody>
+              {bSRs.length===0&&<tr><td colSpan={5} style={{padding:"14px 16px",color:"#8A96A8",fontSize:12}}>No active SRs for {b} this month.</td></tr>}
+              {bSRs.map((sr,i)=>{
+                const wi=localInputs[sr.id]?.walkin||0;
+                const ae=localInputs[sr.id]?.aeon||0;
+                const dt=wi+ae;
+                return <tr key={sr.id} style={{borderBottom:"1px solid #E4EAF2",background:i%2===0?"#fff":"#F7F9FC"}}>
+                  <td style={{padding:"8px 16px"}}>
+                    <div style={{fontWeight:700,color:"#0A1628"}}>{sr.canon}</div>
+                    <div style={{fontSize:10,color:"#8A96A8",marginTop:1}}><StatusTag status={sr.status}/></div>
+                  </td>
+                  <td style={{padding:"8px 16px"}}>
+                    <TypeTag type={sr.type}/>
+                  </td>
+                  <td style={{padding:"6px 10px"}}>
+                    <NumInput value={wi} onChange={v=>set(sr.id,"walkin",v)}/>
+                  </td>
+                  <td style={{padding:"6px 10px"}}>
+                    <NumInput value={ae} onChange={v=>set(sr.id,"aeon",v)}/>
+                  </td>
+                  <td style={{padding:"8px 14px",textAlign:"right",fontWeight:dt>0?700:400,color:dt>0?"#0A1628":"#CDD5E0"}}>{dt>0?fRM(dt):"—"}</td>
+                </tr>;
+              })}
 
-          {/* BM Unallocated */}
-          <tr style={{borderBottom:"2px solid #E4EAF2",background:"#F0FDF4"}}>
-            <td style={{padding:"8px 16px"}}>
-              <div style={{fontWeight:700,color:"#052E20"}}>Branch Manager</div>
-              <div style={{fontSize:10,color:"#166534",marginTop:1}}>Unallocated Profit</div>
-            </td>
-            <td style={{padding:"8px 16px"}}>
-              <span style={{background:"#DCFCE7",color:"#15803D",padding:"2px 9px",borderRadius:20,fontSize:10,fontWeight:600}}>BM</span>
-            </td>
-            <td style={{padding:"6px 10px"}}>
-              <NumInput value={localInputs[`BM_${selBranch}`]?.unalloc||0} onChange={v=>set(`BM_${selBranch}`,"unalloc",v)} accent="#BBF7D0"/>
-            </td>
-            <td style={{padding:"8px 14px",textAlign:"right",color:"#CDD5E0"}}>—</td>
-            <td style={{padding:"8px 14px",textAlign:"right",fontWeight:700,color:"#052E20"}}>
-              {(localInputs[`BM_${selBranch}`]?.unalloc||0)>0?fRM(localInputs[`BM_${selBranch}`]?.unalloc||0):"—"}
-            </td>
-          </tr>
+              {/* BM Unallocated */}
+              <tr style={{borderBottom:"2px solid #E4EAF2",background:"#F0FDF4"}}>
+                <td style={{padding:"8px 16px"}}>
+                  <div style={{fontWeight:700,color:"#052E20"}}>Branch Manager</div>
+                  <div style={{fontSize:10,color:"#166534",marginTop:1}}>Unallocated Profit</div>
+                </td>
+                <td style={{padding:"8px 16px"}}>
+                  <span style={{background:"#DCFCE7",color:"#15803D",padding:"2px 9px",borderRadius:20,fontSize:10,fontWeight:600}}>BM</span>
+                </td>
+                <td style={{padding:"6px 10px"}}>
+                  <NumInput value={localInputs[`BM_${b}`]?.unalloc||0} onChange={v=>set(`BM_${b}`,"unalloc",v)} accent="#BBF7D0"/>
+                </td>
+                <td style={{padding:"8px 14px",textAlign:"right",color:"#CDD5E0"}}>—</td>
+                <td style={{padding:"8px 14px",textAlign:"right",fontWeight:700,color:"#052E20"}}>
+                  {(localInputs[`BM_${b}`]?.unalloc||0)>0?fRM(localInputs[`BM_${b}`]?.unalloc||0):"—"}
+                </td>
+              </tr>
 
-          {/* Repair */}
-          <tr style={{background:"#FAF5FF"}}>
-            <td style={{padding:"8px 16px"}}>
-              <div style={{fontWeight:700,color:"#3D1A78"}}>Repair & Service</div>
-              <div style={{fontSize:10,color:"#7C3AED",marginTop:1}}>Excluded from targets</div>
-            </td>
-            <td style={{padding:"8px 16px"}}>
-              <span style={{background:"#F5F3FF",color:"#6D28D9",padding:"2px 9px",borderRadius:20,fontSize:10,fontWeight:600}}>R&S</span>
-            </td>
-            <td style={{padding:"6px 10px"}}>
-              <NumInput value={localInputs[`REPAIR_${selBranch}`]||0} onChange={setRepair} accent="#DDD6FE"/>
-            </td>
-            <td style={{padding:"8px 14px",textAlign:"right",color:"#CDD5E0"}}>—</td>
-            <td style={{padding:"8px 14px",textAlign:"right",fontWeight:700,color:"#3D1A78"}}>
-              {(localInputs[`REPAIR_${selBranch}`]||0)>0?fRM(localInputs[`REPAIR_${selBranch}`]||0):"—"}
-            </td>
-          </tr>
-        </tbody>
-        <tfoot>
-          <tr style={{background:"#0A1628",fontSize:12}}>
-            <td colSpan={2} style={{padding:"10px 16px",fontWeight:600,color:"rgba(255,255,255,.6)"}}>Branch Total (excl. Repair)</td>
-            <td style={{padding:"10px 14px",textAlign:"right",color:"rgba(255,255,255,.5)",fontSize:11}}>{fRM(bSRs.reduce((s,sr)=>s+(localInputs[sr.id]?.walkin||0),0)+(localInputs[`BM_${selBranch}`]?.unalloc||0))}</td>
-            <td style={{padding:"10px 14px",textAlign:"right",color:"rgba(255,255,255,.5)",fontSize:11}}>{fRM(bSRs.reduce((s,sr)=>s+(localInputs[sr.id]?.aeon||0),0))}</td>
-            <td style={{padding:"10px 14px",textAlign:"right",fontWeight:800,color:"#fff"}}>{fRM(branchDayTotal)}</td>
-          </tr>
-        </tfoot>
-      </table>
+                <td style={{padding:"8px 14px",textAlign:"right",fontWeight:700,color:"#052E20"}}>
+                  {(localInputs[`BM_${b}`]?.unalloc||0)>0?fRM(localInputs[`BM_${b}`]?.unalloc||0):"—"}
+                </td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr style={{background:"#0A1628",fontSize:12}}>
+                <td colSpan={2} style={{padding:"10px 16px",fontWeight:600,color:"rgba(255,255,255,.6)"}}>Branch Total</td>
+                <td style={{padding:"10px 14px",textAlign:"right",color:"rgba(255,255,255,.5)",fontSize:11}}>{fRM(bSRs.reduce((s,sr)=>s+(localInputs[sr.id]?.walkin||0),0)+(localInputs[`BM_${b}`]?.unalloc||0))}</td>
+                <td style={{padding:"10px 14px",textAlign:"right",color:"rgba(255,255,255,.5)",fontSize:11}}>{fRM(bSRs.reduce((s,sr)=>s+(localInputs[sr.id]?.aeon||0),0))}</td>
+                <td style={{padding:"10px 14px",textAlign:"right",fontWeight:800,color:"#fff"}}>{fRM(dayTotal)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>;
+    })}
+
+    {/* Repair & Service — one company-wide figure for this day, not per branch */}
+    <div className="card" style={{overflow:"hidden",marginBottom:16}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:"#FAF5FF"}}>
+        <div>
+          <div style={{fontWeight:700,color:"#3D1A78",fontSize:13}}>Repair & Service</div>
+          <div style={{fontSize:10,color:"#7C3AED",marginTop:1}}>Company-wide for this date · Excluded from targets</div>
+        </div>
+        <div style={{width:160}}>
+          <NumInput value={repairInput} onChange={v=>setRepairInput(parseFloat(v)||0)} accent="#DDD6FE"/>
+        </div>
+      </div>
     </div>
-    <p style={{fontSize:11,color:"#8A96A8",marginTop:10,textAlign:"center"}}>Click "Save to Monthly Report" to post all figures. Data appears instantly in Overview and Monthly Report.</p>
+    <p style={{fontSize:11,color:"#8A96A8",marginTop:10,textAlign:"center"}}>Click "Save All to Monthly Report" to post every branch's figures for this date at once. Data appears instantly in Overview and Monthly Report.</p>
   </div>;
 }
 
@@ -2357,6 +2372,7 @@ export default function App(){
     {id:"rankings",label:"Rankings"},
     {id:"points",label:"Reward Point Ranking"},
     {id:"report",label:"Monthly Report"},
+    {id:"daily",label:"Daily Entry"},
     {id:"repair",label:"Repair & Service"},
     {id:"rto",label:"Rent to Own"},
     {id:"orders",label:"Order Tracking"},
@@ -2571,6 +2587,7 @@ export default function App(){
 
 
       {/* DAILY ENTRY */}
+      {tab==="daily"&&<DailyEntry records={records} setRecords={setRecords} srList={srList} branchMeta={branchMeta} month={month} year={year} days={days} recordsKey={recordsKey} onRepairSave={()=>setRepairRefresh(p=>p+1)}/>}
 
       {/* REPAIR */}
       {tab==="repair"&&<RepairTab month={month} year={year} endDay={selEndDay} refreshKey={repairRefresh}/>}
