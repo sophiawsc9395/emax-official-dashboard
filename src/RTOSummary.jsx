@@ -1,6 +1,6 @@
 import {useState,useEffect,useRef} from "react";
 import {listCustomers,getPaymentsForCustomers} from "./storage/rtoApi.js";
-const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
+
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
 const MNTHS_SHORT=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -18,12 +18,33 @@ function genSchedule(customer){
   return schedule;
 }
 
+/* ── Shared design tokens — identical to the admin dashboard's RTO/Order
+   pages, so the Boss viewer's Portfolio Summary renders the same as the
+   dashboard's own "View Portfolio Summary". ───────────────────────────── */
+const C={navy:"#0A1628",navyMid:"#0F2040",navyLight:"#162B52",blue:"#1B3F72",blueBright:"#2C5AA0",yellow:"#FFD500",white:"#fff",surface:"#F7F9FC",border:"#E4EAF2",text:"#0A1628",textMid:"#4A5568",textLight:"#8A96A8"};
+const card={background:C.white,border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)",overflow:"hidden"};
+const lbl={fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",display:"block",marginBottom:4};
+const Ic={
+  download:<svg width="13"height="13"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12"y1="15"x2="12"y2="3"/></svg>,
+  card:<svg width="14"height="14"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><rect x="1"y="4"width="22"height="16"rx="2"/><line x1="1"y1="10"x2="23"y2="10"/></svg>,
+  alertCircle:<svg width="14"height="14"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><circle cx="12"cy="12"r="10"/><line x1="12"y1="8"x2="12"y2="12"/><line x1="12"y1="16"x2="12.01"y2="16"/></svg>,
+};
+function SecHdr({icon,children,right}){
+  return<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
+    <div style={{display:"flex",alignItems:"center",gap:7,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>{icon&&<span style={{color:"rgba(255,255,255,.85)"}}>{icon}</span>}{children}</div>
+    {right&&<div>{right}</div>}
+  </div>;
+}
+function PBtn({children,onClick,disabled,style={}}){
+  return<button onClick={onClick} disabled={disabled} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,padding:"9px 18px",background:disabled?"#E4EAF2":`linear-gradient(135deg,${C.blue},${C.blueBright})`,color:disabled?C.textLight:C.white,border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:disabled?"default":"pointer",fontFamily:"Inter,sans-serif",boxShadow:disabled?"none":`0 2px 8px rgba(27,63,114,.35)`,transition:"all .15s",...style}}>{children}</button>;
+}
+function InfoCell({label,value,color}){return<div style={{minWidth:0}}><div style={lbl}>{label}</div><div style={{fontSize:12,fontWeight:700,color:color||C.text,wordBreak:"break-word"}}>{value}</div></div>;}
+
 function RTOSummaryInner({customers,branchMeta}){
   const summaryRef=useRef(null);
   const now=new Date();
   const currentKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
 
-  // Compute per-customer analytics
   const analytics=customers.map(c=>{
     const schedule=genSchedule(c);
     const payments=c.payments||{};
@@ -35,18 +56,12 @@ function RTOSummaryInner({customers,branchMeta}){
     const financePrice=parseFloat(c.financePrice)||0;
     const branchProfit=financePrice-cost;
     const paidCount=schedule.filter(s=>payments[s.key]?.paid).length;
-
-    // Overdue: past months (before current) that are not paid
     const overdue=schedule.filter(s=>s.key<currentKey&&!payments[s.key]?.paid);
-    // Current month due
     const currentDue=schedule.find(s=>s.key===currentKey&&!payments[s.key]?.paid);
-    // Upcoming (future unpaid)
     const upcoming=schedule.filter(s=>s.key>currentKey&&!payments[s.key]?.paid);
-
     return{...c,schedule,totalContract,totalReceived,outstanding,cost,pl,branchProfit,paidCount,overdue,currentDue,upcoming,isComplete:outstanding<=0};
   });
 
-  // Totals
   const totals={
     customers:analytics.length,
     totalContract:analytics.reduce((s,c)=>s+c.totalContract,0),
@@ -59,8 +74,6 @@ function RTOSummaryInner({customers,branchMeta}){
   };
 
   const overdueCustomers=analytics.filter(c=>c.overdue.length>0).sort((a,b)=>b.overdue.length-a.overdue.length);
-  const activeCustomers=analytics.filter(c=>!c.isComplete&&c.overdue.length===0);
-  const completedCustomers=analytics.filter(c=>c.isComplete);
 
   const downloadPhoto=async()=>{
     const el=summaryRef.current;if(!el)return;
@@ -84,131 +97,118 @@ function RTOSummaryInner({customers,branchMeta}){
   const today=`${String(now.getDate()).padStart(2,"0")}/${String(now.getMonth()+1).padStart(2,"0")}/${now.getFullYear()}`;
 
   return(
-    <div style={{fontFamily:"Inter,-apple-system,sans-serif"}}>
-      {/* Top bar */}
-      <div style={{display:"flex",gap:10,marginBottom:20,alignItems:"center",flexWrap:"wrap"}}>
+    <div>
+      <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
         <div style={{flex:1}}>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>RTO Portfolio Summary</h2>
-          <div style={{fontSize:11,color:"#8A96A8",marginTop:2}}>As at {today} · {totals.customers} customers</div>
+          <div style={{fontSize:15,fontWeight:800,color:C.navy}}>RTO Portfolio Summary</div>
+          <div style={{fontSize:11,color:C.textLight,marginTop:2}}>As at {today} · {totals.customers} customers</div>
         </div>
-        <button onClick={downloadPhoto} style={{padding:"9px 18px",background:"linear-gradient(135deg,#1B3F72,#2C5AA0)",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",boxShadow:"0 2px 8px rgba(27,63,114,.35)"}}>Download as Photo</button>
+        <PBtn onClick={downloadPhoto}>{Ic.download} Download as Photo</PBtn>
       </div>
 
-      <div ref={summaryRef} style={{background:"#fff",border:"1px solid #E4EAF2",borderRadius:12,overflow:"hidden"}}>
-        {/* Header strip */}
-        <div style={{background:"#0A1628",padding:"16px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div>
-            <div style={{fontSize:9,color:"rgba(255,255,255,.35)",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:4}}>EMAX NETWORK SDN BHD — RENT TO OWN</div>
-            <div style={{fontWeight:800,fontSize:16,color:"#fff"}}>Portfolio Summary</div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginTop:2}}>As at {today}</div>
-          </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontSize:11,color:"rgba(255,255,255,.4)",marginBottom:4}}>Status</div>
-            <div style={{fontSize:13,fontWeight:700,color:totals.overdueCount>0?"#FCA5A5":"#86EFAC"}}>{totals.overdueCount>0?`${totals.overdueCount} Overdue`:"All On Track"}</div>
-          </div>
-        </div>
+      <div ref={summaryRef} style={{...card}}>
+        <SecHdr icon={Ic.card} right={<div style={{textAlign:"right"}}><div style={{fontSize:10,color:"rgba(255,255,255,.5)"}}>Status</div><div style={{fontSize:12,fontWeight:700,color:totals.overdueCount>0?"#FCA5A5":"#86EFAC"}}>{totals.overdueCount>0?`${totals.overdueCount} Overdue`:"All On Track"}</div></div>}>
+          Portfolio Summary — As at {today}
+        </SecHdr>
 
-        {/* KPI grid */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",borderBottom:"1px solid #E4EAF2"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",borderBottom:`1px solid ${C.border}`}}>
           {[
-            ["Total Customers",   totals.customers+" pax"],
-            ["Active",            (totals.customers-totals.completeCount)+" pax"],
-            ["Completed",         totals.completeCount+" pax"],
-            ["Total Contract",    fRM(totals.totalContract)],
-            ["Total Cost",        fRM(totals.totalCost)],
-            ["Total Received",    fRM(totals.totalReceived)],
-            ["Outstanding",       fRM(totals.totalOutstanding)],
-            ["Portfolio P&L",     fRM(totals.totalPL)],
-          ].map(([l,v],i)=>(
-            <div key={l} style={{padding:"14px 16px",borderRight:"1px solid #E4EAF2",borderBottom:"1px solid #E4EAF2"}}>
-              <div style={{fontSize:9,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:5}}>{l}</div>
-              <div style={{fontWeight:800,fontSize:13,color:
-                l==="Outstanding"&&totals.totalOutstanding>0?"#B91C1C":
-                l==="Portfolio P&L"?totals.totalPL>=0?"#15803D":"#B91C1C":
-                "#0A1628"}}>{v}</div>
+            ["Total Customers",totals.customers+" pax",C.text],
+            ["Active",(totals.customers-totals.completeCount)+" pax",C.text],
+            ["Completed",totals.completeCount+" pax",C.text],
+            ["Total Contract",fRM(totals.totalContract),C.text],
+            ["Total Cost",fRM(totals.totalCost),C.text],
+            ["Total Received",fRM(totals.totalReceived),"#15803D"],
+            ["Outstanding",fRM(totals.totalOutstanding),totals.totalOutstanding>0?"#DC2626":"#15803D"],
+            ["Portfolio P&L",fRM(totals.totalPL),totals.totalPL>=0?"#15803D":"#DC2626"],
+          ].map(([l,v,c])=>(
+            <div key={l} style={{padding:"14px 16px",borderRight:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`}}>
+              <InfoCell label={l} value={v} color={c}/>
             </div>
           ))}
         </div>
 
-        {/* Section label helper */}
-        {/* Overdue */}
         {overdueCustomers.length>0&&<>
-          <div style={{padding:"10px 20px",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",display:"flex",alignItems:"center",gap:8}}>
-            <div style={{width:3,height:14,background:"#B91C1C",borderRadius:2}}/>
-            <span style={{fontSize:10,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.08em"}}>Overdue Payments — {overdueCustomers.length} customer{overdueCustomers.length>1?"s":""}</span>
+          <div style={{padding:"10px 16px",background:"#FEF2F2",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
+            <span style={{color:"#DC2626"}}>{Ic.alertCircle}</span>
+            <span style={{fontSize:10,fontWeight:800,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.08em"}}>Overdue — {overdueCustomers.length} customer{overdueCustomers.length>1?"s":""}</span>
           </div>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead><tr style={{background:"#0A1628"}}>
-              {["Customer","Phone","Branch","Overdue Months","Amount Overdue","Outstanding","Remark"].map(h=>(
+          <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead><tr style={{background:C.navy}}>
+              {["Customer","Phone","Branch","Overdue Months","Overdue Amt","Outstanding","Note"].map(h=>(
                 <th key={h} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
               ))}
             </tr></thead>
             <tbody>{overdueCustomers.map((c,i)=>(
-              <tr key={c.id} style={{borderBottom:"1px solid #F0F2F5",background:i%2===0?"#fff":"#FAFBFC"}}>
+              <tr key={c.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?C.white:C.surface}}>
                 <td style={{padding:"9px 14px"}}>
-                  <div style={{fontWeight:700,color:"#0A1628",fontSize:12}}>{c.name}</div>
-                  <div style={{fontSize:10,color:"#8A96A8"}}>{c.memberId}</div>
+                  <div style={{fontWeight:700,color:C.text,fontSize:12}}>{c.name}</div>
+                  <div style={{fontSize:10,color:C.textLight}}>{c.memberId}</div>
                 </td>
-                <td style={{padding:"9px 14px",fontSize:11,color:"#4A5568"}}>{c.contactNumber||"—"}</td>
-                <td style={{padding:"9px 14px",fontSize:11,color:"#4A5568"}}>{c.branch}</td>
+                <td style={{padding:"9px 14px",fontSize:11,color:C.textMid}}>{c.contactNumber||"—"}</td>
+                <td style={{padding:"9px 14px",fontSize:11,color:C.textMid}}>{c.branch}</td>
                 <td style={{padding:"9px 14px"}}>
                   <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                    {c.overdue.map(s=>(
-                      <span key={s.key} style={{background:"#FEF2F2",color:"#B91C1C",padding:"2px 7px",borderRadius:4,fontSize:10,fontWeight:600,border:"1px solid #FECACA"}}>{s.label}</span>
-                    ))}
+                    {c.overdue.map(s=><span key={s.key} style={{background:"#FEF2F2",color:"#DC2626",padding:"2px 7px",borderRadius:4,fontSize:10,fontWeight:600,border:"1px solid #FECACA"}}>{s.label}</span>)}
                   </div>
                 </td>
-                <td style={{padding:"9px 14px",fontWeight:700,color:"#B91C1C",fontSize:12}}>{fRM(c.overdue.reduce((s,sl)=>s+sl.amount,0))}</td>
-                <td style={{padding:"9px 14px",fontSize:12,color:"#4A5568"}}>{fRM(c.outstanding)}</td>
-                <td style={{padding:"9px 14px",fontSize:11,color:"#8A96A8"}}>{c.overdue.length===1?"1 month — follow up":`${c.overdue.length} months — urgent`}</td>
+                <td style={{padding:"9px 14px",fontWeight:700,color:"#DC2626",fontSize:12,whiteSpace:"nowrap"}}>{fRM(c.overdue.reduce((s,sl)=>s+sl.amount,0))}</td>
+                <td style={{padding:"9px 14px",fontSize:12,color:C.textMid,whiteSpace:"nowrap"}}>{fRM(c.outstanding)}</td>
+                <td style={{padding:"9px 14px",fontSize:11,color:C.textLight,whiteSpace:"nowrap"}}>{c.overdue.length===1?"1 month — follow up":`${c.overdue.length} months — urgent`}</td>
               </tr>
             ))}</tbody>
-          </table>
+          </table></div>
         </>}
 
-        {/* Due This Month */}
         {analytics.filter(c=>c.currentDue).length>0&&(()=>{
           const dueCusts=analytics.filter(c=>c.currentDue);
           const totalDue=dueCusts.reduce((s,c)=>s+c.currentDue.amount,0);
           return <>
-            <div style={{padding:"10px 20px",background:"#F7F9FC",borderTop:"1px solid #E4EAF2",borderBottom:"1px solid #E4EAF2",display:"flex",alignItems:"center",gap:8}}>
-              <div style={{width:3,height:14,background:"#1E6FDB",borderRadius:2}}/>
-              <span style={{fontSize:10,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.08em"}}>Due This Month — {MONTHS[now.getMonth()]} {now.getFullYear()} · {dueCusts.length} customer{dueCusts.length>1?"s":""}</span>
+            <div style={{padding:"10px 16px",background:C.surface,borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:3,height:14,background:C.blue,borderRadius:2}}/>
+              <span style={{fontSize:10,fontWeight:800,color:C.navy,textTransform:"uppercase",letterSpacing:"0.08em"}}>Due This Month — {MONTHS[now.getMonth()]} {now.getFullYear()} · {dueCusts.length} customer{dueCusts.length>1?"s":""}</span>
             </div>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-              <thead><tr style={{background:"#0A1628"}}>
-                {["Member ID","Customer","Phone","Branch","Amount Due"].map(h=>(
-                  <th key={h} style={{padding:"8px 14px",textAlign:h==="Amount Due"?"right":"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.7)",textTransform:"uppercase",letterSpacing:"0.05em"}}>{h}</th>
+            <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead><tr style={{background:C.navy}}>
+                {["Customer","Phone","Branch","Due Month","Amount Due","Outstanding","Note"].map(h=>(
+                  <th key={h} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
                 {dueCusts.map((c,i)=>(
-                  <tr key={c.id} style={{borderBottom:"1px solid #F0F2F5",background:i%2===0?"#fff":"#FAFBFC"}}>
-                    <td style={{padding:"9px 14px",fontSize:11,color:"#8A96A8"}}>{c.memberId}</td>
-                    <td style={{padding:"9px 14px",fontWeight:700,color:"#0A1628"}}>{c.name}</td>
-                    <td style={{padding:"9px 14px",fontSize:11,color:"#4A5568"}}>{c.contactNumber||"—"}</td>
-                    <td style={{padding:"9px 14px",fontSize:11,color:"#4A5568"}}>{c.branch}</td>
-                    <td style={{padding:"9px 14px",fontWeight:700,color:"#0A1628",textAlign:"right"}}>{fRM(c.currentDue.amount)}</td>
+                  <tr key={c.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?C.white:C.surface}}>
+                    <td style={{padding:"9px 14px"}}>
+                      <div style={{fontWeight:700,color:C.text,fontSize:12}}>{c.name}</div>
+                      <div style={{fontSize:10,color:C.textLight}}>{c.memberId}</div>
+                    </td>
+                    <td style={{padding:"9px 14px",fontSize:11,color:C.textMid}}>{c.contactNumber||"—"}</td>
+                    <td style={{padding:"9px 14px",fontSize:11,color:C.textMid}}>{c.branch}</td>
+                    <td style={{padding:"9px 14px"}}>
+                      <span style={{background:"#EEF1F7",color:C.blue,padding:"2px 7px",borderRadius:4,fontSize:10,fontWeight:600,border:"1px solid #C7D2E3"}}>{c.currentDue.label}</span>
+                    </td>
+                    <td style={{padding:"9px 14px",fontWeight:700,color:C.text,fontSize:12,whiteSpace:"nowrap"}}>{fRM(c.currentDue.amount)}</td>
+                    <td style={{padding:"9px 14px",fontSize:12,color:C.textMid,whiteSpace:"nowrap"}}>{fRM(c.outstanding)}</td>
+                    <td style={{padding:"9px 14px",fontSize:11,color:C.textLight,whiteSpace:"nowrap"}}>Due this month</td>
                   </tr>
                 ))}
-                <tr style={{borderTop:"2px solid #E4EAF2",background:"#F7F9FC"}}>
-                  <td colSpan={4} style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:"#0A1628",background:"#F7F9FC"}}>Total Due This Month</td>
-                  <td style={{padding:"9px 14px",fontWeight:800,fontSize:13,color:"#0A1628",textAlign:"right"}}>{fRM(totalDue)}</td>
+                <tr style={{borderTop:`2px solid ${C.border}`,background:C.surface}}>
+                  <td colSpan={4} style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:C.navy}}>Total Due This Month</td>
+                  <td style={{padding:"9px 14px",fontWeight:800,fontSize:13,color:C.navy,whiteSpace:"nowrap"}}>{fRM(totalDue)}</td>
+                  <td colSpan={2}/>
                 </tr>
               </tbody>
-            </table>
+            </table></div>
           </>;
         })()}
 
-        {/* All Customers */}
-        <div style={{padding:"10px 20px",background:"#F7F9FC",borderTop:"1px solid #E4EAF2",borderBottom:"1px solid #E4EAF2",display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:3,height:14,background:"#0A1628",borderRadius:2}}/>
-          <span style={{fontSize:10,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.08em"}}>All Customers Payment Analysis</span>
+        <div style={{padding:"10px 16px",background:C.surface,borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
+          <div style={{width:3,height:14,background:C.navy,borderRadius:2}}/>
+          <span style={{fontSize:10,fontWeight:800,color:C.navy,textTransform:"uppercase",letterSpacing:"0.08em"}}>All Customers Payment Analysis</span>
         </div>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,tableLayout:"fixed"}}>
-          <thead><tr style={{background:"#0A1628"}}>
-            {[["#",40],["Customer",180],["Branch",60],["Contract",100],["Received",100],["Outstanding",100],["P&L",100],["Progress",100],["Status",90]].map(([h,w])=>(
-              <th key={h} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",width:w,overflow:"hidden"}}>{h}</th>
+        <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{background:C.navy}}>
+            {["#","Customer","Branch","Contract","Received","Outstanding","P&L","Progress","Status"].map(h=>(
+              <th key={h} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
             ))}
           </tr></thead>
           <tbody>
@@ -216,51 +216,48 @@ function RTOSummaryInner({customers,branchMeta}){
               const pct=c.schedule.length?Math.round(c.paidCount/c.schedule.length*100):0;
               const status=c.isComplete?"Completed":c.overdue.length>0?`${c.overdue.length} Overdue`:"Active";
               return(
-                <tr key={c.id} style={{borderBottom:"1px solid #F0F2F5",background:i%2===0?"#fff":"#FAFBFC"}}>
-                  <td style={{padding:"9px 14px",color:"#8A96A8",fontSize:10}}>{i+1}</td>
+                <tr key={c.id} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?C.white:C.surface}}>
+                  <td style={{padding:"9px 14px",color:C.textLight,fontSize:10}}>{i+1}</td>
                   <td style={{padding:"9px 14px"}}>
-                    <div style={{fontWeight:700,color:"#0A1628"}}>{c.name}</div>
-                    <div style={{fontSize:10,color:"#8A96A8"}}>{c.memberId} · {c.contactNumber}</div>
+                    <div style={{fontWeight:700,color:C.text}}>{c.name}</div>
+                    <div style={{fontSize:10,color:C.textLight}}>{c.memberId} · {c.contactNumber}</div>
                   </td>
-                  <td style={{padding:"9px 14px",fontSize:11,color:"#4A5568"}}>{c.branch}</td>
-                  <td style={{padding:"9px 14px",fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>{fRM(c.totalContract)}</td>
-                  <td style={{padding:"9px 14px",fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>{fRM(c.totalReceived)}</td>
-                  <td style={{padding:"9px 14px",fontSize:11,color:c.outstanding>0?"#B91C1C":"#15803D",fontWeight:600,whiteSpace:"nowrap"}}>{fRM(c.outstanding)}</td>
-                  <td style={{padding:"9px 14px",fontSize:11,color:c.pl>=0?"#15803D":"#B91C1C",fontWeight:600,whiteSpace:"nowrap"}}>{fRM(c.pl)}</td>
+                  <td style={{padding:"9px 14px",fontSize:11,color:C.textMid}}>{c.branch}</td>
+                  <td style={{padding:"9px 14px",fontSize:11,color:C.text,whiteSpace:"nowrap"}}>{fRM(c.totalContract)}</td>
+                  <td style={{padding:"9px 14px",fontSize:11,color:C.text,whiteSpace:"nowrap"}}>{fRM(c.totalReceived)}</td>
+                  <td style={{padding:"9px 14px",fontSize:11,color:c.outstanding>0?"#DC2626":"#15803D",fontWeight:600,whiteSpace:"nowrap"}}>{fRM(c.outstanding)}</td>
+                  <td style={{padding:"9px 14px",fontSize:11,color:c.pl>=0?"#15803D":"#DC2626",fontWeight:600,whiteSpace:"nowrap"}}>{fRM(c.pl)}</td>
                   <td style={{padding:"9px 14px",minWidth:100}}>
                     <div style={{display:"flex",alignItems:"center",gap:6}}>
-                      <div style={{flex:1,height:4,background:"#E4EAF2",borderRadius:2,overflow:"hidden"}}>
-                        <div style={{height:"100%",background:"#0A1628",width:`${pct}%`,borderRadius:2}}/>
-                      </div>
-                      <span style={{fontSize:10,color:"#8A96A8",whiteSpace:"nowrap"}}>{c.paidCount}/{c.schedule.length}</span>
+                      <div style={{flex:1,height:4,background:C.border,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",background:C.navy,width:`${pct}%`,borderRadius:2}}/></div>
+                      <span style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{c.paidCount}/{c.schedule.length}</span>
                     </div>
                   </td>
                   <td style={{padding:"9px 14px"}}>
                     <span style={{padding:"3px 9px",borderRadius:4,fontSize:10,fontWeight:700,whiteSpace:"nowrap",display:"inline-block",
-                      background:c.isComplete?"#F0FDF4":c.overdue.length>0?"#FEF2F2":"#EFF6FF",
-                      color:c.isComplete?"#15803D":c.overdue.length>0?"#B91C1C":"#1E6FDB",
-                      border:`1px solid ${c.isComplete?"#BBF7D0":c.overdue.length>0?"#FECACA":"#BFDBFE"}`
+                      background:c.isComplete?"#F0FDF4":c.overdue.length>0?"#FEF2F2":"#EEF1F7",
+                      color:c.isComplete?"#15803D":c.overdue.length>0?"#DC2626":C.blue,
+                      border:`1px solid ${c.isComplete?"#BBF7D0":c.overdue.length>0?"#FECACA":"#C7D2E3"}`
                     }}>{status}</span>
                   </td>
                 </tr>
               );
             })}
-            <tr style={{borderTop:"2px solid #E4EAF2",background:"#F7F9FC"}}>
-              <td colSpan={2} style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:"#0A1628"}}>TOTAL ({analytics.length})</td>
+            <tr style={{borderTop:`2px solid ${C.border}`,background:C.surface}}>
+              <td colSpan={2} style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:C.navy}}>TOTAL ({analytics.length})</td>
               <td style={{padding:"9px 14px"}}/>
-              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:"#0A1628",whiteSpace:"nowrap"}}>{fRM(totals.totalContract)}</td>
-              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:"#0A1628",whiteSpace:"nowrap"}}>{fRM(totals.totalReceived)}</td>
-              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:totals.totalOutstanding>0?"#B91C1C":"#15803D",whiteSpace:"nowrap"}}>{fRM(totals.totalOutstanding)}</td>
-              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:totals.totalPL>=0?"#15803D":"#B91C1C",whiteSpace:"nowrap"}}>{fRM(totals.totalPL)}</td>
+              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:C.navy,whiteSpace:"nowrap"}}>{fRM(totals.totalContract)}</td>
+              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:C.navy,whiteSpace:"nowrap"}}>{fRM(totals.totalReceived)}</td>
+              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:totals.totalOutstanding>0?"#DC2626":"#15803D",whiteSpace:"nowrap"}}>{fRM(totals.totalOutstanding)}</td>
+              <td style={{padding:"9px 14px",fontWeight:800,fontSize:12,color:totals.totalPL>=0?"#15803D":"#DC2626",whiteSpace:"nowrap"}}>{fRM(totals.totalPL)}</td>
               <td colSpan={2}/>
             </tr>
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   );
 }
-
 
 export default function RTOSummary({branchMeta}){
   const [customers,setCustomers]=useState([]);
@@ -272,6 +269,6 @@ export default function RTOSummary({branchMeta}){
       setLoading(false);
     });
   },[]);
-  if(loading)return<div style={{padding:40,textAlign:"center",color:"#8A96A8",fontFamily:"Inter,sans-serif"}}>Loading RTO data…</div>;
+  if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontFamily:"Inter,sans-serif",fontSize:13}}>Loading RTO data…</div>;
   return <RTOSummaryInner customers={customers} branchMeta={branchMeta}/>;
 }
