@@ -66,7 +66,7 @@ const CSS = `
   .detail-topbar-title{order:3;flex-basis:100%;}
   .detail-topbar-actions{order:2;}
   .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;}
-  .rto-grid{display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start;}
+  .rto-grid{display:grid;grid-template-columns:460px 1fr;gap:20px;align-items:start;}
   @media (max-width:768px){
     .rto-grid{grid-template-columns:1fr;}
   }

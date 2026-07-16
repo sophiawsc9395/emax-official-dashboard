@@ -1134,9 +1134,14 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
     const ph=getPhase(o.step);
     const progressLabel=o.step===14?"Completed":ph?.label||"—";
     const progressColor=o.step===14?"#15803D":ph?.color||C.blue;
-    const showWho=!o.cancelled&&o.step!==14;
-    const whoLabel=s.who==="admin"?"Pending Admin Action":s.who==="branch"?"Pending Branch Action":s.who==="both"?"Pending Branch & Admin Action":"";
-    const detailText=showWho&&whoLabel?`${whoLabel} — ${s.desc}`:s.desc;
+    // s.desc/s.who describe what already happened to REACH the current step
+    // (e.g. step 1's desc is "Order submitted by branch" — the branch's own
+    // completed action). What's actually pending right now is described by
+    // the NEXT step's definition, not the current one.
+    const nextStepN=nextStepNum(o);
+    const nextDef=nextStepN?getStep(nextStepN):null;
+    const whoText=nextDef?.who==="admin"?"Admin":nextDef?.who==="branch"?"Branch":nextDef?.who==="both"?"Branch & Admin":"";
+    const detailText=(!o.cancelled&&o.step!==14&&nextDef&&whoText)?`Waiting for ${whoText} to process: ${nextDef.desc}`:s.desc;
     return{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText};
   };
 
