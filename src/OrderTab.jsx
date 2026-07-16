@@ -1118,9 +1118,8 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
     <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",minWidth:760}}>
       <div style={{width:8,flexShrink:0}}/>
       <div style={{flex:2,minWidth:0}}>Order</div>
-      <div style={{flex:1.3,minWidth:0}}>Status</div>
+      <div style={{flex:2,minWidth:0}}>Status</div>
       <div style={{flex:1.6,minWidth:0}}>Step</div>
-      <div style={{width:60,flexShrink:0,textAlign:"right"}}>Prog.</div>
       <div style={{width:110,flexShrink:0}}>Agent</div>
       <div style={{width:110,flexShrink:0,textAlign:"right"}}>Updated</div>
     </div>
@@ -1128,13 +1127,13 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
       <div style={{height:total*ROW_H,position:"relative",minWidth:760}}>
         {visible.map((o,i)=>{
           const idx=startIdx+i;
-          const s=getStep(o.step),ph=getPhase(o.step),mxS=maxStep(o),pct=Math.round(((Math.min(o.step,mxS)-1)/(mxS-1))*100);
+          const s=getStep(o.step),ph=getPhase(o.step),mxS=maxStep(o);
           const alert=alertsByOrderId[o.id];
           const statusLabel=o.cancelled?"Cancelled":isPendingBranchAction(o)?"Pending Branch Action":isShortPaymentPending(o)?"Balance Payment Needed":o.step===14?"Completed":ph?.label||"—";
           const statusColor=o.cancelled||isPendingBranchAction(o)||isShortPaymentPending(o)?"#DC2626":o.step===14?"#15803D":C.blue;
           const rowBg=idx%2===0?C.white:C.surface;
           return<div key={o.id} onClick={()=>onOpen(o)}
-            style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",gap:10,padding:"0 14px",borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer"}}
+            style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",gap:10,padding:"0 14px",borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer",overflow:"hidden"}}
             onMouseEnter={e=>{e.currentTarget.style.background="#EEF3FB";}}
             onMouseLeave={e=>{e.currentTarget.style.background=rowBg;}}>
             <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
@@ -1142,11 +1141,12 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
               <div style={{fontWeight:700,fontSize:12,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.phoneModel}</div>
               <div style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.customerName} · {o.branch}</div>
             </div>
-            <div style={{flex:1.3,minWidth:0}}>
-              <span style={{fontSize:9,fontWeight:700,color:statusColor,background:statusColor+"18",border:`1px solid ${statusColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{statusLabel}</span>
+            <div style={{flex:2,minWidth:0,display:"flex",flexWrap:"nowrap",gap:4,overflow:"hidden"}}>
+              <span style={{fontSize:9,fontWeight:700,color:statusColor,background:statusColor+"18",border:`1px solid ${statusColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{statusLabel}</span>
+              {o.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Ready Stock</span>}
+              <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash":"CCM"}</span>
             </div>
             <div style={{flex:1.6,minWidth:0,fontSize:11,color:C.textMid,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>Step {o.step}/{mxS} · {s.label}</div>
-            <div style={{width:60,flexShrink:0,textAlign:"right",fontSize:11,fontWeight:700,color:o.step>=12?"#15803D":C.navy}}>{pct}%</div>
             <div style={{width:110,flexShrink:0,fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.salesAgentName||o.salesAgentId||"—"}</div>
             <div style={{width:110,flexShrink:0,textAlign:"right",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>
           </div>;
