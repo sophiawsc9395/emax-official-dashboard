@@ -1691,11 +1691,6 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
                   {(localInputs[`BM_${b}`]?.unalloc||0)>0?fRM(localInputs[`BM_${b}`]?.unalloc||0):"—"}
                 </td>
               </tr>
-
-                <td style={{padding:"8px 14px",textAlign:"right",fontWeight:700,color:"#052E20"}}>
-                  {(localInputs[`BM_${b}`]?.unalloc||0)>0?fRM(localInputs[`BM_${b}`]?.unalloc||0):"—"}
-                </td>
-              </tr>
             </tbody>
             <tfoot>
               <tr style={{background:"#0A1628",fontSize:12}}>
