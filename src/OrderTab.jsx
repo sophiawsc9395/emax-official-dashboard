@@ -25,7 +25,7 @@ const STEPS=[
   {step:9,label:"Collection Verified",desc:"HQ verifies collection and upfront payment.",who:"admin",phase:"billing",needsVerification:true},
   {step:10,label:"Agreement Submission by Branch",desc:"Branch completes agreement checklist.",who:"both",phase:"agreement_hq",needsChecklist:true},
   {step:11,label:"Agreement Received by HQ",desc:"HQ receives original signed agreement.",who:"admin",phase:"unclaimed",canReverse:true},
-  {step:12,label:"Claim Submitted",desc:"Claim submitted to merchant.",who:"admin",phase:"claimed"},
+  {step:12,label:"Claim Submitted",desc:"Claim submitted to merchant.",who:"admin",phase:"claimed",needsClaimInfo:true},
   {step:13,label:"Claim Released",desc:"Claim released by merchant. Enter knock-off date and amount.",who:"admin",phase:"claimed"},
   {step:14,label:"Completed",desc:"Order completed and archived.",who:"admin",phase:"claimed"},
 ];
@@ -276,6 +276,8 @@ function Timeline({order,isAdmin}){
     const done=cur>s.step||isAutoReady;
     const active=cur===s.step&&!isAutoReady;
     const histEntries=(order.history||[]).filter(h=>h.step===s.step);
+    const latestStepEntry=histEntries[histEntries.length-1];
+    const hasIssueReturn=!!latestStepEntry?.reversedFrom;
     const ph=getPhase(s.step),showPh=ph&&ph.id!==lastPh;
     if(ph)lastPh=ph.id;
     return<div key={s.step}>
@@ -287,7 +289,7 @@ function Timeline({order,isAdmin}){
         </div>
         <div style={{flex:1,paddingBottom:i<visSteps.length-1?11:0,paddingTop:1}}>
           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-            <span style={{fontSize:12,fontWeight:done||active?600:400,color:done||active?C.text:"#9CA3AF"}}>{s.label}</span>
+            <span style={{fontSize:12,fontWeight:hasIssueReturn?700:(done||active?600:400),color:hasIssueReturn?"#DC2626":(done||active?C.text:"#9CA3AF")}}>{hasIssueReturn?"Agreement Issue":s.label}</span>
             {isAutoReady&&<span style={{background:C.surface,color:C.textLight,padding:"1px 7px",borderRadius:4,fontSize:9,fontWeight:600,border:`1px solid ${C.border}`}}>Auto</span>}
             {active&&<span style={{background:C.surface,color:C.blue,padding:"1px 7px",borderRadius:4,fontSize:9,fontWeight:700,border:`1px solid ${C.border}`}}>Current</span>}
             {histEntries.length>1&&<span style={{background:C.surface,color:C.textLight,padding:"1px 7px",borderRadius:4,fontSize:9,fontWeight:600,border:`1px solid ${C.border}`}}>{histEntries.length} updates</span>}
@@ -502,19 +504,6 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
     </div>;
   }
 
-  if(step===12&&!isCash){
-    return<div style={{display:"flex",flexDirection:"column",gap:12}}>
-      <div style={card}>
-        <SecHdr icon={Ic.checkCircle}>Claim Submitted</SecHdr>
-        <div style={{padding:"14px 16px"}}>
-          <div style={{background:"#F0FDF4",borderRadius:8,padding:"10px 12px",border:"1px solid #BBF7D0",marginBottom:14,display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#15803D",fontWeight:600}}>{Ic.checkCircle} Record the claim sent date and consignment note number to proceed to Claim Released.</div>
-          <div style={{marginBottom:10}}><L req>Claim Sent Out to Merchant Date</L><I type="date" value={claimSentDate} onChange={e=>setClaimSentDate(e.target.value)}/></div>
-          <div style={{marginBottom:12}}><L req>Consignment Note No.</L><I value={claimConsignmentNo} onChange={e=>setClaimConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!claimConsignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
-          <PBtn onClick={async()=>{setSaving(true);const h={step:12,date:nowDate(),time:nowTime(),note:"Claim submitted to merchant",claimSentDate,consignmentNo:claimConsignmentNo};await onUpdate({...order,step:13,claimSentDate,claimConsignmentNo,history:[...(order.history||[]),h]});setSaving(false);}} disabled={saving||!claimSentDate||!claimConsignmentNo.trim()} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Confirm Claim Submitted"} {!saving&&Ic.chevR}</PBtn>
-        </div>
-      </div>
-    </div>;
-  }
   if(step===13&&!isCash){
     return<div style={{display:"flex",flexDirection:"column",gap:12}}>
       <div style={card}>
@@ -571,20 +560,22 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
       setSaving(false);
       return;
     }
-    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,paymentProofAmount:!isCash?paymentProofAmount:undefined,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+(parseFloat(upfrontMonthly)||0),paymentMethod:payMethod,...(isShortPaymentPending(order)?{secondPaymentDate,secondPayMethod,secondPaymentAmount}:{})}:{})};
+    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:nextDef.needsClaimInfo?claimConsignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,claimSentDate:nextDef.needsClaimInfo?claimSentDate:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,paymentProofAmount:!isCash?paymentProofAmount:undefined,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+(parseFloat(upfrontMonthly)||0),paymentMethod:payMethod,...(isShortPaymentPending(order)?{secondPaymentDate,secondPayMethod,secondPaymentAmount}:{})}:{})};
     const updated={...order,step:nextDef.step,history:[...(order.history||[]),h]};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
     if(isCash&&nextDef.step===14){updated.step=14;}
     if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;if(poNumber)updated.poNumber=poNumber;if(purchaserName)updated.purchaserName=purchaserName;}
     if(nextDef.needsTransferNumbers){updated.consignmentNo=consignmentNo;updated.stockTransferNo=stockTransferNo;}
+    if(nextDef.needsClaimInfo){updated.claimSentDate=claimSentDate;updated.consignmentNo=claimConsignmentNo;}
     if(nextDef.needsInvoiceNo)updated.invoiceNo=invoiceNo;
-    const ok=await onUpdate(updated);setSaving(false);if(ok!==false){setRemark("");setInvoiceNo("");setFiles({});setVerRemark("");setCollection(false);setPayment(false);setPoNumber("");setPurchaserName("");setConsignmentNo("");setStockTransferNo("");}
+    const ok=await onUpdate(updated);setSaving(false);if(ok!==false){setRemark("");setInvoiceNo("");setFiles({});setVerRemark("");setCollection(false);setPayment(false);setPoNumber("");setPurchaserName("");setConsignmentNo("");setStockTransferNo("");setClaimConsignmentNo("");}
   };
   const ok=()=>{
     if(!branchOk)return false;
     if(nextDef.needsOrderDate&&isAdmin&&(!orderDate||!supplierName.trim()||!poNumber.trim()||!purchaserName.trim()))return false;
     if(nextDef.needsInvoiceNo&&isAdmin&&!invoiceNo.trim())return false;
     if(nextDef.needsTransferNumbers&&branchOk&&(!consignmentNo.trim()||!stockTransferNo.trim()))return false;
+    if(nextDef.needsClaimInfo&&isAdmin&&(!claimSentDate||!claimConsignmentNo.trim()))return false;
     if(nextDef.needsVerification&&!isAdmin)return false;
     if(nextDef.needsVerification&&isAdmin){
       if(!isCash&&!paymentProofAmount.toString().trim())return false;
@@ -651,6 +642,10 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div><L req>Consignment Note Number</L><I value={consignmentNo} onChange={e=>setConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!consignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
           <div><L req>Stock Transfer Number</L><I value={stockTransferNo} onChange={e=>setStockTransferNo(e.target.value)} placeholder="Stock transfer no…" style={!stockTransferNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
         </div>}
+        {nextDef.needsClaimInfo&&isAdmin&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+          <div><L req>Claim Sent Out to Merchant Date</L><I type="date" value={claimSentDate} onChange={e=>setClaimSentDate(e.target.value)}/></div>
+          <div><L req>Consignment Note No.</L><I value={claimConsignmentNo} onChange={e=>setClaimConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!claimConsignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
+        </div>}
         {nextDef.needsFiles&&branchOk&&nextDef.needsFiles.filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional,multiple})=>{
           const alreadyOnFile=!optional&&(order.history||[]).some(h=>h.step===nextDef.step&&h.files&&h.files[key]);
           return<div key={key} style={{marginBottom:12}}>
@@ -660,7 +655,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
             {files[key].map((f,i)=><div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:10,color:"#15803D",fontWeight:600,background:"#F0FDF4",padding:"3px 8px",borderRadius:5}}><span>✓ {f.name}</span><button type="button" onClick={()=>setFiles(p=>({...p,[key]:p[key].filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",color:"#DC2626",cursor:"pointer",fontSize:12,fontWeight:700,padding:0}}>✕</button></div>)}
           </div>:files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files[key].name}</div>}
         </div>;})}
-        {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
+        {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&!nextDef.needsClaimInfo&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
         {nextDef.needsVerification&&!isAdmin?<div style={{fontSize:12,color:C.textLight,fontStyle:"italic",padding:"6px 0"}}>Uploaded proof will be reviewed by admin to complete verification.</div>:<PBtn onClick={advance} disabled={!ok()||saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":`Confirm: ${nextDef.label}`} {!saving&&Ic.chevR}</PBtn>}
         {nextDef.needsVerification&&isAdmin&&(!showShortPayment
           ?<DBtn onClick={()=>setShowShortPayment(true)} style={{width:"100%",justifyContent:"center",marginTop:8}}>{Ic.rotate} Short Payment</DBtn>
@@ -1017,70 +1012,27 @@ function BulkDispatch({orders,onSave,onClose}){
 
 /* ── Bulk Claim Sent ──────────────────────────────────────────────────── */
 function BulkClaimSent({orders,onSave,onClose}){
-  const pending=orders.filter(o=>o.step===12);
+  const pending=orders.filter(o=>!o.cancelled&&o.step===11);
   const [sel,setSel]=useState(new Set());
   const [date,setDate]=useState(nowDate());
   const [search,setSearch]=useState("");
-  const [consignmentNos,setConsignmentNos]=useState({});
-  const list=pending.filter(o=>!search||(o.invoiceNo||"").toLowerCase().includes(search.toLowerCase()));
-  const selectedList=pending.filter(o=>sel.has(o.id));
-  const allNotesFilled=selectedList.length>0&&selectedList.every(o=>(consignmentNos[o.id]||"").trim());
+  const [consignmentNo,setConsignmentNo]=useState("");
+  const list=pending.filter(o=>!search||(o.invoiceNo||"").toLowerCase().includes(search.toLowerCase())||o.customerName?.toLowerCase().includes(search.toLowerCase()));
+  const canSubmit=sel.size>0&&date&&consignmentNo.trim();
   return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
-        <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.checkCircle} Set Claim Sent Date (Bulk)</div>
+        <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.checkCircle} Set Agreement Sent to Merchant Date (Bulk)</div>
         <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
       </div>
       <div style={{padding:16,overflowY:"auto",flex:1}}>
-        {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No orders awaiting claim.</div>:<>
-          <div style={{marginBottom:10}}><I placeholder="Search by invoice number…" value={search} onChange={e=>setSearch(e.target.value)}/></div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <div style={{fontSize:12,color:C.textLight}}>{list.length} shown</div>
-            <button onClick={()=>setSel(sel.size===list.length?new Set():new Set(list.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===list.length&&list.length>0?"Deselect All":"Select All Shown"}</button>
-          </div>
-          <div style={{marginBottom:12}}><L req>Claim Sent Out to Merchant Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-          {list.map(o=><div key={o.id} style={{padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7}}>
-            <div onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginBottom:sel.has(o.id)?8:0}}>
-              <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#15803D":"#fff",border:`2px solid ${sel.has(o.id)?"#15803D":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
-              <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>Invoice: {o.invoiceNo||"—"}</div><div style={{fontSize:10,color:C.textLight}}>{o.phoneModel} · {o.customerName} · {shortId(o.id)} · {o.branch}</div></div>
-            </div>
-            {sel.has(o.id)&&<div onClick={e=>e.stopPropagation()}><L req>Consignment Note No.</L><I value={consignmentNos[o.id]||""} onChange={e=>setConsignmentNos(p=>({...p,[o.id]:e.target.value}))} placeholder="Consignment note no…" style={!(consignmentNos[o.id]||"").trim()?{borderColor:"#FECACA"}:{}}/></div>}
-          </div>)}
-        </>}
-      </div>
-      <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:8}}>
-        {sel.size>0&&!allNotesFilled&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the consignment note number for every selected order.</div>}
-        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-          <GBtn onClick={onClose}>Cancel</GBtn>
-          <PBtn onClick={async()=>{if(!sel.size||!date||!allNotesFilled)return;const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,step:13,claimSentDate:date,claimConsignmentNo:consignmentNos[o.id],history:[{step:12,date:nowDate(),time:nowTime(),note:"Claim sent out to merchant (bulk)",claimSentDate:date,consignmentNo:consignmentNos[o.id]}]}));const ok=await onSave(changed);if(ok)onClose();}} disabled={!sel.size||!date||!allNotesFilled}>{Ic.checkCircle} Set Claim Sent ({sel.size})</PBtn>
-        </div>
-      </div>
-    </div>
-  </div>;
-}
-
-/* ── Bulk Agreement Submission (Consignment Note) ─────────────────────────
-   Lets branch batch several agreements together under ONE physical
-   consignment note — same idea as BulkDispatch, but for step 10 and
-   available to branch users too, not just admin. */
-function BulkAgreementSubmission({orders,onSave,onClose,userBranch}){
-  const pending=orders.filter(o=>!o.cancelled&&nextStepNum(o)===10&&(!userBranch||o.branch===userBranch));
-  const [sel,setSel]=useState(new Set());
-  const [search,setSearch]=useState("");
-  const [consignmentNo,setConsignmentNo]=useState("");
-  const list=pending.filter(o=>!search||(o.invoiceNo||"").toLowerCase().includes(search.toLowerCase())||o.customerName?.toLowerCase().includes(search.toLowerCase()));
-  const canSubmit=sel.size>0&&consignmentNo.trim();
-  return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-    <div style={{...card,width:"90%",maxWidth:560,maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
-      <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
-        <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.clipboard} Agreement Submission — Bulk Consignment Note</div>
-        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
-      </div>
-      <div style={{padding:16,overflowY:"auto",flex:1}}>
-        {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No orders awaiting Agreement Submission.</div>:<>
-          <div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Tick every order going out together in one consignment — the same Consignment Note No. is applied to all of them, and each order's standard agreement checklist is marked complete (no flagged issues).</div>
+        {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No orders awaiting Claim Submitted.</div>:<>
+          <div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Tick every order going out together to the merchant in this batch — the same date and Consignment Note No. is applied to all of them.</div>
           <div style={{marginBottom:10}}><I placeholder="Search by invoice number or customer…" value={search} onChange={e=>setSearch(e.target.value)}/></div>
-          <div style={{marginBottom:12}}><L req>Consignment Note No.</L><I value={consignmentNo} onChange={e=>setConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!consignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+            <div><L req>Claim Sent Out to Merchant Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+            <div><L req>Consignment Note No.</L><I value={consignmentNo} onChange={e=>setConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!consignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
+          </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
             <div style={{fontSize:12,color:C.textLight}}>{list.length} shown</div>
             <button onClick={()=>setSel(sel.size===list.length?new Set():new Set(list.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===list.length&&list.length>0?"Deselect All":"Select All Shown"}</button>
@@ -1092,15 +1044,10 @@ function BulkAgreementSubmission({orders,onSave,onClose,userBranch}){
         </>}
       </div>
       <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:8}}>
-        {sel.size>0&&!consignmentNo.trim()&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the Consignment Note No. to continue.</div>}
+        {sel.size>0&&!canSubmit&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the date and Consignment Note No. to continue.</div>}
         <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
           <GBtn onClick={onClose}>Cancel</GBtn>
-          <PBtn onClick={async()=>{
-            if(!canSubmit)return;
-            const checklistItems=CHECKLIST_ITEMS.map(name=>({name,checked:true,issue:false}));
-            const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,step:10,checklistItems,agreementConsignmentNo:consignmentNo,history:[{step:10,date:nowDate(),time:nowTime(),note:"Agreement Checklist Completed (Bulk)",checklistItems,agreementConsignmentNo:consignmentNo}]}));
-            const ok=await onSave(changed);if(ok)onClose();
-          }} disabled={!canSubmit}>{Ic.clipboard} Submit ({sel.size})</PBtn>
+          <PBtn onClick={async()=>{if(!canSubmit)return;const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,step:12,claimSentDate:date,consignmentNo,history:[{step:12,date:nowDate(),time:nowTime(),note:"Claim submitted to merchant (bulk)",claimSentDate:date,consignmentNo}]}));const ok=await onSave(changed);if(ok)onClose();}} disabled={!canSubmit}>{Ic.checkCircle} Confirm ({sel.size})</PBtn>
         </div>
       </div>
     </div>
@@ -1310,7 +1257,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   useEffect(()=>{const t=setTimeout(()=>setSearch(searchInput),200);return()=>clearTimeout(t);},[searchInput]);
   const [showArchive,setShowArchive]=useState(false);
   const [showBulkDispatch,setShowBulkDispatch]=useState(false);
-  const [showBulkAgreement,setShowBulkAgreement]=useState(false);
   const [showBulkClaimSent,setShowBulkClaimSent]=useState(false);
   const [showBulkKnockoff,setShowBulkKnockoff]=useState(false);
   const [upfrontDate,setUpfrontDate]=useState(nowDate());
@@ -1408,7 +1354,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   return<div className="fade-in">
     {showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}
     {showBulkDispatch&&<BulkDispatch orders={orders} onSave={bulkSave} onClose={()=>setShowBulkDispatch(false)}/>}
-    {showBulkAgreement&&<BulkAgreementSubmission orders={orders} onSave={bulkSave} onClose={()=>setShowBulkAgreement(false)} userBranch={userBranch}/>}
     {showBulkClaimSent&&<BulkClaimSent orders={orders} onSave={bulkSave} onClose={()=>setShowBulkClaimSent(false)}/>}
     {showBulkKnockoff&&<BulkKnockOff orders={orders} onSave={bulkSave} onClose={()=>setShowBulkKnockoff(false)}/>}
 
@@ -1420,8 +1365,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {isAdmin&&!isReadOnly&&orders.some(o=>o.step===3)&&<GBtn onClick={()=>setShowBulkDispatch(true)}>{Ic.truck} Dispatch to Branch</GBtn>}
-        {!isReadOnly&&orders.some(o=>!o.cancelled&&nextStepNum(o)===10&&(!userBranch||o.branch===userBranch))&&<GBtn onClick={()=>setShowBulkAgreement(true)}>{Ic.clipboard} Agreement Submission (Bulk)</GBtn>}
-        {isAdmin&&!isReadOnly&&orders.some(o=>o.step===12)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Claim Sent Date</GBtn>}
+        {isAdmin&&!isReadOnly&&orders.some(o=>!o.cancelled&&o.step===11)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Agreement Sent to Merchant Date</GBtn>}
         {isAdmin&&!isReadOnly&&orders.some(o=>o.step===13&&!o.knockOffDate)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
         {isAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
         {!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
