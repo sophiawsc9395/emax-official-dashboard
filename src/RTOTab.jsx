@@ -641,8 +641,7 @@ export default function RTOTab({branchMeta}){
             :<div style={{...card,padding:0,overflow:"hidden"}}>
               {/* Column header */}
               <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",background:C.navy,fontSize:9,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
-                <div style={{flex:2,minWidth:0}}>Customer</div>
-                <div style={{width:64,flexShrink:0}}>Branch</div>
+                <div style={{flex:1,minWidth:0}}>Customer</div>
                 <div style={{width:76,flexShrink:0,textAlign:"right"}}>Progress</div>
                 <div style={{width:76,flexShrink:0}}></div>
               </div>
@@ -660,11 +659,10 @@ export default function RTOTab({branchMeta}){
                     style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",borderBottom:`1px solid ${C.border}`,borderLeft:`3px solid ${isSelected?C.blue:"transparent"}`,background:rowBg,cursor:"pointer"}}
                     onMouseEnter={e=>{if(!isSelected)e.currentTarget.style.background="#F5F8FC";}}
                     onMouseLeave={e=>{e.currentTarget.style.background=rowBg;}}>
-                    <div style={{flex:2,minWidth:0}}>
+                    <div style={{flex:1,minWidth:0}}>
                       <div style={{fontWeight:700,fontSize:12,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.name}</div>
-                      <div style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.memberId} · {outstanding>0?`${fRM(outstanding)} due`:"Fully Paid ✓"}</div>
+                      <div style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.memberId} · {c.branch} · {outstanding>0?`${fRM(outstanding)} due`:"Fully Paid ✓"}</div>
                     </div>
-                    <div style={{width:64,flexShrink:0,fontSize:10,color:C.textMid}}>{c.branch}</div>
                     <div style={{width:76,flexShrink:0,textAlign:"right"}}>
                       <span style={{fontSize:9,fontWeight:700,color:isFullyPaid?"#15803D":C.navy,background:isFullyPaid?"#F0FDF4":C.surface,border:`1px solid ${isFullyPaid?"#BBF7D0":C.border}`,padding:"2px 7px",borderRadius:4,whiteSpace:"nowrap"}}>{isFullyPaid?"Paid":`${paidCount}/${schedule.length}`}</span>
                     </div>

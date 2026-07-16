@@ -1120,77 +1120,126 @@ function useIsMobile(){
 
 function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
   const isMobile=useIsMobile();
-  const ROW_H=isMobile?66:58;
+  const single={whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
+  // Declared unconditionally (Rules of Hooks) even though only the desktop
+  // virtualized branch below actually uses scroll position.
+  const [scrollTop,setScrollTop]=useState(0);
+
+  // Shared per-row field computation
+  const rowFields=o=>{
+    const s=getStep(o.step),mxS=maxStep(o);
+    const alert=alertsByOrderId[o.id];
+    const flagLabel=o.cancelled?"Cancelled":isPendingBranchAction(o)?"Pending Branch Action":isShortPaymentPending(o)?"Balance Payment Needed":o.step===14?"Completed":null;
+    const flagColor=o.cancelled||isPendingBranchAction(o)||isShortPaymentPending(o)?"#DC2626":"#15803D";
+    const ph=getPhase(o.step);
+    const progressLabel=o.step===14?"Completed":ph?.label||"—";
+    const progressColor=o.step===14?"#15803D":ph?.color||C.blue;
+    const showWho=!o.cancelled&&o.step!==14;
+    const whoLabel=s.who==="admin"?"Pending Admin Action":s.who==="branch"?"Pending Branch Action":s.who==="both"?"Pending Branch & Admin Action":"";
+    const detailText=showWho&&whoLabel?`${whoLabel} — ${s.desc}`:s.desc;
+    return{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText};
+  };
+
+  // ── Mobile: no inner vertical scrollbox — the full list renders in normal
+  // page flow (page itself scrolls), wrapped in a horizontally-scrollable
+  // strip so columns can be swiped into view instead of wrapping/clipping. ──
+  if(isMobile){
+    const MIN_W=780;
+    const PAD="0 14px";
+    return<div style={{...card,padding:0,overflow:"hidden"}}>
+      <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        <div style={{minWidth:MIN_W}}>
+          <div style={{display:"flex",alignItems:"center",padding:PAD,height:36,background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
+            <div style={{width:8,flexShrink:0}}/>
+            <div style={{flex:2,minWidth:0,marginLeft:10}}>Order</div>
+            <div style={{flex:2,minWidth:0,marginLeft:14}}>Status</div>
+            <div style={{flex:2.4,minWidth:0,marginLeft:20}}>Step</div>
+            <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto"}}>Updated</div>
+          </div>
+          {orders.map((o,idx)=>{
+            const{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText}=rowFields(o);
+            const rowBg=idx%2===0?C.white:C.surface;
+            return<div key={o.id} onClick={()=>onOpen(o)}
+              style={{display:"flex",alignItems:"center",padding:`10px 14px`,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer"}}>
+              <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
+              <div style={{flex:2,minWidth:0,marginLeft:10}}>
+                <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
+                <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
+              </div>
+              <div style={{flex:2,minWidth:0,marginLeft:14}}>
+                <div><span style={{fontSize:9,fontWeight:700,color:progressColor,background:progressColor+"18",border:`1px solid ${progressColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{progressLabel}</span></div>
+                <div style={{display:"flex",flexWrap:"nowrap",gap:4,marginTop:4}}>
+                  {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
+                  <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
+                  <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
+                </div>
+              </div>
+              <div style={{flex:2.4,minWidth:0,marginLeft:20}}>
+                <div style={{fontSize:11,fontWeight:600,color:C.textMid,...single}}>Step {o.step}/{mxS} · {s.label}</div>
+                <div style={{fontSize:10,color:C.textLight,marginTop:3,...single}}>{detailText}</div>
+              </div>
+              <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>
+            </div>;
+          })}
+        </div>
+      </div>
+    </div>;
+  }
+
+  // ── Desktop: manually virtualized (fixed-height viewport, only visible
+  // rows mounted) — this is what keeps scrolling smooth at hundreds of
+  // orders. Columns share the available width via flex, no horizontal
+  // scroll needed at normal desktop widths. ──
+  const ROW_H=60;
   const HEADER_H=32;
   const VIEWPORT_H=620;
   const OVERSCAN=8;
-  const [scrollTop,setScrollTop]=useState(0);
   const total=orders.length;
   const bodyScrollTop=Math.max(0,scrollTop-HEADER_H);
   const bodyVisibleH=VIEWPORT_H-HEADER_H;
   const startIdx=Math.max(0,Math.floor(bodyScrollTop/ROW_H)-OVERSCAN);
   const endIdx=Math.min(total,Math.ceil((bodyScrollTop+bodyVisibleH)/ROW_H)+OVERSCAN);
   const visible=orders.slice(startIdx,endIdx);
-  // Mobile keeps a minWidth so the list scrolls/swipes horizontally like a
-  // real table (text doesn't wrap); desktop needs no minWidth since columns
-  // simply share the available width.
-  const MIN_W=isMobile?680:0;
-  const PAD=isMobile?"0 12px":"0 10px";
-  const single={whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
+  const PAD="0 12px";
 
   return<div style={{...card,padding:0,overflow:"hidden"}}>
-    {/* Single scroll container for both axes — header and rows share the same
-        horizontal scroll position (header is sticky so it pins vertically
-        while still tracking horizontal swipe/scroll with the body). Mobile
-        keeps this scrollable horizontally (minWidth above) so swipe works. */}
-    <div onScroll={e=>setScrollTop(e.currentTarget.scrollTop)} style={{height:VIEWPORT_H,overflow:"auto",WebkitOverflowScrolling:"touch"}}>
-      <div style={{minWidth:MIN_W}}>
-        <div style={{position:"sticky",top:0,zIndex:2,height:HEADER_H,boxSizing:"border-box",display:"flex",alignItems:"center",padding:PAD,background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
-          <div style={{width:8,flexShrink:0}}/>
-          <div style={{flex:2.2,minWidth:0,marginLeft:8}}>Order</div>
-          <div style={{flex:1.5,minWidth:0,marginLeft:isMobile?8:10}}>Status</div>
-          <div style={{flex:2.3,minWidth:0,marginLeft:isMobile?8:32}}>Step</div>
-          <div style={{width:88,flexShrink:0,textAlign:"right",marginLeft:"auto"}}>Updated</div>
-        </div>
-        <div style={{height:total*ROW_H,position:"relative"}}>
-          {visible.map((o,i)=>{
-            const idx=startIdx+i;
-            const s=getStep(o.step),mxS=maxStep(o);
-            const alert=alertsByOrderId[o.id];
-            const flagLabel=o.cancelled?"Cancelled":isPendingBranchAction(o)?"Pending Branch Action":isShortPaymentPending(o)?"Balance Payment Needed":o.step===14?"Completed":null;
-            const flagColor=o.cancelled||isPendingBranchAction(o)||isShortPaymentPending(o)?"#DC2626":"#15803D";
-            const ph=getPhase(o.step);
-            const progressLabel=o.step===14?"Completed":ph?.label||"—";
-            const progressColor=o.step===14?"#15803D":ph?.color||C.blue;
-            const showWho=!o.cancelled&&o.step!==14;
-            const whoLabel=s.who==="admin"?"Pending Admin Action":s.who==="branch"?"Pending Branch Action":s.who==="both"?"Pending Branch & Admin Action":"";
-            const detailText=showWho&&whoLabel?`${whoLabel} — ${s.desc}`:s.desc;
-            const rowBg=idx%2===0?C.white:C.surface;
-            return<div key={o.id} onClick={()=>onOpen(o)}
-              style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",padding:PAD,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer",overflow:"hidden"}}
-              onMouseEnter={e=>{e.currentTarget.style.background="#EEF3FB";}}
-              onMouseLeave={e=>{e.currentTarget.style.background=rowBg;}}>
-              <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
-              <div style={{flex:2.2,minWidth:0,marginLeft:8}}>
-                <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
-                <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
+    <div onScroll={e=>setScrollTop(e.currentTarget.scrollTop)} style={{height:VIEWPORT_H,overflow:"auto"}}>
+      <div style={{position:"sticky",top:0,zIndex:2,height:HEADER_H,boxSizing:"border-box",display:"flex",alignItems:"center",padding:PAD,background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
+        <div style={{width:8,flexShrink:0}}/>
+        <div style={{flex:2,minWidth:0,marginLeft:10}}>Order</div>
+        <div style={{flex:2.2,minWidth:0,marginLeft:14}}>Status</div>
+        <div style={{flex:2.6,minWidth:0,marginLeft:36}}>Step</div>
+        <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto"}}>Updated</div>
+      </div>
+      <div style={{height:total*ROW_H,position:"relative"}}>
+        {visible.map((o,i)=>{
+          const idx=startIdx+i;
+          const{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText}=rowFields(o);
+          const rowBg=idx%2===0?C.white:C.surface;
+          return<div key={o.id} onClick={()=>onOpen(o)}
+            style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",padding:PAD,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer",overflow:"hidden"}}
+            onMouseEnter={e=>{e.currentTarget.style.background="#EEF3FB";}}
+            onMouseLeave={e=>{e.currentTarget.style.background=rowBg;}}>
+            <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
+            <div style={{flex:2,minWidth:0,marginLeft:10}}>
+              <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
+              <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
+            </div>
+            <div style={{flex:2.2,minWidth:0,marginLeft:14,overflow:"hidden"}}>
+              <div><span style={{fontSize:9,fontWeight:700,color:progressColor,background:progressColor+"18",border:`1px solid ${progressColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{progressLabel}</span></div>
+              <div style={{display:"flex",flexWrap:"nowrap",gap:4,marginTop:4}}>
+                {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
+                <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
+                <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
               </div>
-              <div style={{flex:1.5,minWidth:0,marginLeft:isMobile?8:10,overflow:"hidden"}}>
-                <div><span style={{fontSize:9,fontWeight:700,color:progressColor,background:progressColor+"18",border:`1px solid ${progressColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{progressLabel}</span></div>
-                <div style={{display:"flex",flexWrap:"nowrap",gap:4,marginTop:3,overflow:"hidden"}}>
-                  {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
-                  <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
-                  <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
-                </div>
-              </div>
-              <div style={{flex:2.3,minWidth:0,marginLeft:isMobile?8:32,overflow:"hidden"}}>
-                <div style={{fontSize:11,fontWeight:600,color:C.textMid,...single}}>Step {o.step}/{mxS} · {s.label}</div>
-                <div style={{fontSize:10,color:C.textLight,marginTop:3,...single}}>{detailText}</div>
-              </div>
-              <div style={{width:88,flexShrink:0,textAlign:"right",marginLeft:"auto",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>
-            </div>;
-          })}
-        </div>
+            </div>
+            <div style={{flex:2.6,minWidth:0,marginLeft:36,overflow:"hidden"}}>
+              <div style={{fontSize:11,fontWeight:600,color:C.textMid,...single}}>Step {o.step}/{mxS} · {s.label}</div>
+              <div style={{fontSize:10,color:C.textLight,marginTop:3,...single}}>{detailText}</div>
+            </div>
+            <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>
+          </div>;
+        })}
       </div>
     </div>
   </div>;
