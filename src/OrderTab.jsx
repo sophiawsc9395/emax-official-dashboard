@@ -422,6 +422,10 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     return matching[matching.length-1];
   };
   const filtered=orders.filter(o=>{
+    // Every report except Cash Order Knock Off is CCM-only (stock request
+    // and ready stock CCM orders) — cash orders have their own dedicated
+    // report and shouldn't appear in these.
+    if(o.orderType==="cash"&&!isCashKnockoff)return false;
     // Agreement Received — based on the actual date admin clicked "confirm
     // agreement received by HQ" (stepDates records this the moment step 11
     // is reached, regardless of what the order's current step is now).
