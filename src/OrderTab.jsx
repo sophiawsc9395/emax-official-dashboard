@@ -238,6 +238,7 @@ function Timeline({order,isAdmin}){
   let lastPh=null;
   const renderEntry=(hist,s,isLatest)=><div style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid}}>
     {hist.date&&<div style={{marginBottom:3,fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em"}}>{isLatest?"Latest — ":""}{fDT(hist.date,hist.time)}</div>}
+    {hist.reversedFrom&&<div style={{marginBottom:3,fontSize:12,fontWeight:700,color:"#DC2626"}}>Agreement Issue</div>}
     {hist.orderDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Order Date: {fDate(hist.orderDate)}{hist.supplierName?` · ${hist.supplierName}`:""}</div>}
     {hist.poNumber&&<div style={{marginBottom:2,color:C.textMid}}>PO Number: {hist.poNumber}</div>}
     {isAdmin&&hist.purchaserName&&<div style={{marginBottom:2,color:C.textMid}}>Purchaser: {hist.purchaserName}</div>}
@@ -276,8 +277,6 @@ function Timeline({order,isAdmin}){
     const done=cur>s.step||isAutoReady;
     const active=cur===s.step&&!isAutoReady;
     const histEntries=(order.history||[]).filter(h=>h.step===s.step);
-    const latestStepEntry=histEntries[histEntries.length-1];
-    const hasIssueReturn=!!latestStepEntry?.reversedFrom;
     const ph=getPhase(s.step),showPh=ph&&ph.id!==lastPh;
     if(ph)lastPh=ph.id;
     return<div key={s.step}>
@@ -289,7 +288,7 @@ function Timeline({order,isAdmin}){
         </div>
         <div style={{flex:1,paddingBottom:i<visSteps.length-1?11:0,paddingTop:1}}>
           <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-            <span style={{fontSize:12,fontWeight:hasIssueReturn?700:(done||active?600:400),color:hasIssueReturn?"#DC2626":(done||active?C.text:"#9CA3AF")}}>{hasIssueReturn?"Agreement Issue":s.label}</span>
+            <span style={{fontSize:12,fontWeight:done||active?600:400,color:done||active?C.text:"#9CA3AF"}}>{s.label}</span>
             {isAutoReady&&<span style={{background:C.surface,color:C.textLight,padding:"1px 7px",borderRadius:4,fontSize:9,fontWeight:600,border:`1px solid ${C.border}`}}>Auto</span>}
             {active&&<span style={{background:C.surface,color:C.blue,padding:"1px 7px",borderRadius:4,fontSize:9,fontWeight:700,border:`1px solid ${C.border}`}}>Current</span>}
             {histEntries.length>1&&<span style={{background:C.surface,color:C.textLight,padding:"1px 7px",borderRadius:4,fontSize:9,fontWeight:600,border:`1px solid ${C.border}`}}>{histEntries.length} updates</span>}
