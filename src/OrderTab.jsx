@@ -26,7 +26,7 @@ const STEPS=[
   {step:10,label:"Agreement Submission by Branch",desc:"Branch completes agreement checklist.",who:"both",phase:"agreement_hq",needsChecklist:true},
   {step:11,label:"Agreement Received by HQ",desc:"HQ receives original signed agreement.",who:"admin",phase:"unclaimed",canReverse:true},
   {step:12,label:"Claim Submitted",desc:"Claim submitted to merchant.",who:"admin",phase:"claimed",needsClaimInfo:true},
-  {step:13,label:"Claim Released",desc:"Claim released by merchant. Enter knock-off date and amount.",who:"admin",phase:"claimed"},
+  {step:13,label:"Claim Released",desc:"Claim released by merchant. Enter knock-off date and amount.",who:"admin",phase:"claimed",needsKnockOff:true},
   {step:14,label:"Completed",desc:"Order completed and archived.",who:"admin",phase:"claimed"},
 ];
 const CHECKLIST_ITEMS=["Aeon Application Form (3 pages)","Invoice","Result List","Notice 1 — Application (2 pages × 2 sets)","Notice 2 — Approval (8 pages)","Agreement (16 pages)","IC Copy","AutoDebit Form (Personal Account)","Bank Proof (Personal Account)"];
@@ -508,11 +508,10 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
       <div style={card}>
         <SecHdr icon={Ic.checkCircle}>Claim Released</SecHdr>
         <div style={{padding:"14px 16px"}}>
-          <div style={{fontSize:12,marginBottom:10}}><span style={{color:C.textLight,fontWeight:600}}>Claim Sent: </span>{fDate(order.claimSentDate)}</div>
-          {order.knockOffDate?<div style={{fontSize:12,marginBottom:8}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Date: </span>{fDate(order.knockOffDate)}</div>:<div style={{marginBottom:10}}><L req>Knock-off Date</L><I type="date" value={knockOffDate} onChange={e=>setKnockOffDate(e.target.value)}/></div>}
-          {order.knockOffAmount?<div style={{fontSize:12,marginBottom:12}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Amount: </span>{fRM(order.knockOffAmount)}</div>:<div style={{marginBottom:12}}><L>Knock-off Amount (RM)</L><I type="number" value={knockOffAmount} onChange={e=>setKnockOffAmount(e.target.value)}/></div>}
-          {!order.knockOffDate&&<PBtn onClick={async()=>{setSaving(true);const h={step:13,date:nowDate(),time:nowTime(),note:"Knock-off recorded",knockOffDate,knockOffAmount:knockOffAmount||undefined};await onUpdate({...order,knockOffDate,knockOffAmount:knockOffAmount||undefined,history:[...(order.history||[]),h]});setSaving(false);}} disabled={saving||!knockOffDate} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Save Knock-off"}</PBtn>}
-          {order.knockOffDate&&isAdmin&&<><Divider/><DBtn onClick={async()=>{if(!confirm("Move to Completed?"))return;setSaving(true);const h={step:14,date:nowDate(),time:nowTime(),note:"Completed and archived"};await onUpdate({...order,step:14,history:[...(order.history||[]),h]});setSaving(false);}} style={{width:"100%",justifyContent:"center"}}>{Ic.trash} Mark as Completed</DBtn></>}
+          <div style={{fontSize:12,marginBottom:8}}><span style={{color:C.textLight,fontWeight:600}}>Claim Sent: </span>{fDate(order.claimSentDate)}</div>
+          <div style={{fontSize:12,marginBottom:8}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Date: </span>{fDate(order.knockOffDate)}</div>
+          {order.knockOffAmount&&<div style={{fontSize:12,marginBottom:12}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Amount: </span>{fRM(order.knockOffAmount)}</div>}
+          {isAdmin&&<><Divider/><DBtn onClick={async()=>{if(!confirm("Move to Completed?"))return;setSaving(true);const h={step:14,date:nowDate(),time:nowTime(),note:"Completed and archived"};await onUpdate({...order,step:14,history:[...(order.history||[]),h]});setSaving(false);}} style={{width:"100%",justifyContent:"center"}}>{Ic.trash} Mark as Completed</DBtn></>}
         </div>
       </div>
     </div>;
@@ -559,13 +558,14 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
       setSaving(false);
       return;
     }
-    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:nextDef.needsClaimInfo?claimConsignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,claimSentDate:nextDef.needsClaimInfo?claimSentDate:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,paymentProofAmount:!isCash?paymentProofAmount:undefined,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+(parseFloat(upfrontMonthly)||0),paymentMethod:payMethod,...(isShortPaymentPending(order)?{secondPaymentDate,secondPayMethod,secondPaymentAmount}:{})}:{})};
+    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:nextDef.needsClaimInfo?claimConsignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,claimSentDate:nextDef.needsClaimInfo?claimSentDate:undefined,knockOffDate:nextDef.needsKnockOff?knockOffDate:undefined,knockOffAmount:nextDef.needsKnockOff&&knockOffAmount?knockOffAmount:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,paymentProofAmount:!isCash?paymentProofAmount:undefined,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+(parseFloat(upfrontMonthly)||0),paymentMethod:payMethod,...(isShortPaymentPending(order)?{secondPaymentDate,secondPayMethod,secondPaymentAmount}:{})}:{})};
     const updated={...order,step:nextDef.step,history:[...(order.history||[]),h]};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
     if(isCash&&nextDef.step===14){updated.step=14;}
     if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;if(poNumber)updated.poNumber=poNumber;if(purchaserName)updated.purchaserName=purchaserName;}
     if(nextDef.needsTransferNumbers){updated.consignmentNo=consignmentNo;updated.stockTransferNo=stockTransferNo;}
     if(nextDef.needsClaimInfo){updated.claimSentDate=claimSentDate;updated.consignmentNo=claimConsignmentNo;}
+    if(nextDef.needsKnockOff){updated.knockOffDate=knockOffDate;if(knockOffAmount)updated.knockOffAmount=knockOffAmount;}
     if(nextDef.needsInvoiceNo)updated.invoiceNo=invoiceNo;
     const ok=await onUpdate(updated);setSaving(false);if(ok!==false){setRemark("");setInvoiceNo("");setFiles({});setVerRemark("");setCollection(false);setPayment(false);setPoNumber("");setPurchaserName("");setConsignmentNo("");setStockTransferNo("");setClaimConsignmentNo("");}
   };
@@ -575,6 +575,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
     if(nextDef.needsInvoiceNo&&isAdmin&&!invoiceNo.trim())return false;
     if(nextDef.needsTransferNumbers&&branchOk&&(!consignmentNo.trim()||!stockTransferNo.trim()))return false;
     if(nextDef.needsClaimInfo&&isAdmin&&(!claimSentDate||!claimConsignmentNo.trim()))return false;
+    if(nextDef.needsKnockOff&&isAdmin&&!knockOffDate)return false;
     if(nextDef.needsVerification&&!isAdmin)return false;
     if(nextDef.needsVerification&&isAdmin){
       if(!isCash&&!paymentProofAmount.toString().trim())return false;
@@ -645,6 +646,10 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
           <div><L req>Claim Sent Out to Merchant Date</L><I type="date" value={claimSentDate} onChange={e=>setClaimSentDate(e.target.value)}/></div>
           <div><L req>Consignment Note No.</L><I value={claimConsignmentNo} onChange={e=>setClaimConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!claimConsignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
         </div>}
+        {nextDef.needsKnockOff&&isAdmin&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+          <div><L req>Knock-off Date</L><I type="date" value={knockOffDate} onChange={e=>setKnockOffDate(e.target.value)}/></div>
+          <div><L>Knock-off Amount (RM)</L><I type="number" value={knockOffAmount} onChange={e=>setKnockOffAmount(e.target.value)}/></div>
+        </div>}
         {nextDef.needsFiles&&branchOk&&nextDef.needsFiles.filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional,multiple})=>{
           const alreadyOnFile=!optional&&(order.history||[]).some(h=>h.step===nextDef.step&&h.files&&h.files[key]);
           return<div key={key} style={{marginBottom:12}}>
@@ -654,7 +659,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
             {files[key].map((f,i)=><div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:10,color:"#15803D",fontWeight:600,background:"#F0FDF4",padding:"3px 8px",borderRadius:5}}><span>✓ {f.name}</span><button type="button" onClick={()=>setFiles(p=>({...p,[key]:p[key].filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",color:"#DC2626",cursor:"pointer",fontSize:12,fontWeight:700,padding:0}}>✕</button></div>)}
           </div>:files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files[key].name}</div>}
         </div>;})}
-        {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&!nextDef.needsClaimInfo&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
+        {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&!nextDef.needsClaimInfo&&!nextDef.needsKnockOff&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
         {nextDef.needsVerification&&!isAdmin?<div style={{fontSize:12,color:C.textLight,fontStyle:"italic",padding:"6px 0"}}>Uploaded proof will be reviewed by admin to complete verification.</div>:<PBtn onClick={advance} disabled={!ok()||saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":`Confirm: ${nextDef.label}`} {!saving&&Ic.chevR}</PBtn>}
         {nextDef.needsVerification&&isAdmin&&(!showShortPayment
           ?<DBtn onClick={()=>setShowShortPayment(true)} style={{width:"100%",justifyContent:"center",marginTop:8}}>{Ic.rotate} Short Payment</DBtn>
@@ -1055,11 +1060,13 @@ function BulkClaimSent({orders,onSave,onClose}){
 
 /* ── Bulk Knock-off ────────────────────────────────────────────────────── */
 function BulkKnockOff({orders,onSave,onClose}){
-  const released=orders.filter(o=>o.step===13&&!o.knockOffDate);
+  const pending=orders.filter(o=>!o.cancelled&&o.step===12);
   const [sel,setSel]=useState(new Set());
   const [date,setDate]=useState(nowDate());
   const [amounts,setAmounts]=useState({});
-  const selectedList=released.filter(o=>sel.has(o.id));
+  const [search,setSearch]=useState("");
+  const list=pending.filter(o=>!search||(o.invoiceNo||"").toLowerCase().includes(search.toLowerCase())||(o.agreementNumber||"").toLowerCase().includes(search.toLowerCase()));
+  const selectedList=pending.filter(o=>sel.has(o.id));
   const allAmountsFilled=selectedList.length>0&&selectedList.every(o=>parseFloat(amounts[o.id])>0);
   return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
@@ -1068,17 +1075,18 @@ function BulkKnockOff({orders,onSave,onClose}){
         <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
       </div>
       <div style={{padding:16,overflowY:"auto",flex:1}}>
-        {released.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No invoices pending knock-off.</div>:<>
+        {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No invoices pending knock-off.</div>:<>
+          <div style={{marginBottom:10}}><I placeholder="Search by invoice number or agreement number…" value={search} onChange={e=>setSearch(e.target.value)}/></div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <div style={{fontSize:12,color:C.textLight}}>{released.length} pending</div>
-            <button onClick={()=>setSel(sel.size===released.length?new Set():new Set(released.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===released.length?"Deselect All":"Select All"}</button>
+            <div style={{fontSize:12,color:C.textLight}}>{list.length} shown</div>
+            <button onClick={()=>setSel(sel.size===list.length?new Set():new Set(list.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===list.length&&list.length>0?"Deselect All":"Select All Shown"}</button>
           </div>
           <div style={{marginBottom:12}}><L req>Knock-off Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-          <div style={{...lbl,marginBottom:4}}>Select invoices and fill in the knock-off amount for each</div>
-          {released.map(o=><div key={o.id} style={{padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7}}>
+          <div style={{...lbl,marginBottom:4}}>Same date applies to all selected — fill in each one's own knock-off amount</div>
+          {list.map(o=><div key={o.id} style={{padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7}}>
             <div onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginBottom:sel.has(o.id)?8:0}}>
               <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#15803D":"#fff",border:`2px solid ${sel.has(o.id)?"#15803D":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
-              <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>{o.phoneModel} · {o.customerName}</div><div style={{fontSize:10,color:C.textLight}}>{shortId(o.id)} · {o.branch} · Invoice: {o.invoiceNo||"—"}</div></div>
+              <div style={{flex:1}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>{o.phoneModel} · {o.customerName}</div><div style={{fontSize:10,color:C.textLight}}>Invoice: {o.invoiceNo||"—"} · Agreement: {o.agreementNumber||"—"} · {o.branch}</div></div>
             </div>
             {sel.has(o.id)&&<div onClick={e=>e.stopPropagation()}><L req>Knock-off Amount (RM)</L><I type="number" value={amounts[o.id]||""} onChange={e=>setAmounts(p=>({...p,[o.id]:e.target.value}))} placeholder="0.00" style={!(parseFloat(amounts[o.id])>0)?{borderColor:"#FECACA"}:{}}/></div>}
           </div>)}
@@ -1088,7 +1096,7 @@ function BulkKnockOff({orders,onSave,onClose}){
         {sel.size>0&&!allAmountsFilled&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the knock-off amount for every selected invoice.</div>}
         <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
           <GBtn onClick={onClose}>Cancel</GBtn>
-          <PBtn onClick={async()=>{if(!sel.size||!date||!allAmountsFilled)return;const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,knockOffDate:date,knockOffAmount:amounts[o.id],history:[{step:13,date:nowDate(),time:nowTime(),note:"Knock-off date set (bulk)",knockOffDate:date,knockOffAmount:amounts[o.id]}]}));const ok=await onSave(changed);if(ok)onClose();}} disabled={!sel.size||!date||!allAmountsFilled}>{Ic.calendar} Set Knock-off ({sel.size})</PBtn>
+          <PBtn onClick={async()=>{if(!sel.size||!date||!allAmountsFilled)return;const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,step:13,knockOffDate:date,knockOffAmount:amounts[o.id],history:[{step:13,date:nowDate(),time:nowTime(),note:"Claim Released (bulk)",knockOffDate:date,knockOffAmount:amounts[o.id]}]}));const ok=await onSave(changed);if(ok)onClose();}} disabled={!sel.size||!date||!allAmountsFilled}>{Ic.calendar} Set Knock-off ({sel.size})</PBtn>
         </div>
       </div>
     </div>
@@ -1365,7 +1373,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {isAdmin&&!isReadOnly&&orders.some(o=>o.step===3)&&<GBtn onClick={()=>setShowBulkDispatch(true)}>{Ic.truck} Dispatch to Branch</GBtn>}
         {isAdmin&&!isReadOnly&&orders.some(o=>!o.cancelled&&o.step===11)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Agreement Sent to Merchant Date</GBtn>}
-        {isAdmin&&!isReadOnly&&orders.some(o=>o.step===13&&!o.knockOffDate)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
+        {isAdmin&&!isReadOnly&&orders.some(o=>!o.cancelled&&o.step===12)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
         {isAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
         {!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
       </div>
