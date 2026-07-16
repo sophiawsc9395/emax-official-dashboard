@@ -1259,6 +1259,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [editOrder,setEditOrder]=useState(null);
   const [filterPhase,setFilterPhase]=useState("all");
   const [filterBranch,setFilterBranch]=useState("ALL");
+  const [filterAgent,setFilterAgent]=useState("ALL");
   const [searchInput,setSearchInput]=useState("");
   const [search,setSearch]=useState("");
   useEffect(()=>{const t=setTimeout(()=>setSearch(searchInput),200);return()=>clearTimeout(t);},[searchInput]);
@@ -1342,8 +1343,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
   const activeOrders=useMemo(()=>orders.filter(o=>o.step!==14&&(!userBranch||o.branch===userBranch)),[orders,userBranch]);
   const completedOrders=useMemo(()=>orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)),[orders,userBranch]);
+  const agentOptions=useMemo(()=>[...new Set(orders.filter(o=>!userBranch||o.branch===userBranch).map(o=>o.salesAgentName||o.salesAgentId).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),[orders,userBranch]);
   const viewingCompleted=filterPhase==="completed";
-  const filtered=useMemo(()=>(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||getPhase(o.step)?.id===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,completedOrders,activeOrders,filterPhase,filterBranch,search]);
+  const filtered=useMemo(()=>(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||getPhase(o.step)?.id===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,completedOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
   const phaseCounts=useMemo(()=>PHASES.reduce((acc,ph)=>{acc[ph.id]=activeOrders.filter(o=>ph.steps.includes(o.step)).length;return acc;},{}),[activeOrders]);
   const completedCount=orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)).length;
   const alerts=useMemo(()=>getOrderAlerts(activeOrders,userBranch),[activeOrders,userBranch]);
@@ -1411,8 +1413,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
     {/* Search + filter */}
     <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
-      <I placeholder="Search customer, model, agreement…" value={searchInput} onChange={e=>setSearchInput(e.target.value)} style={{flex:2,minWidth:160}}/>
+      <I placeholder="Search customer, model, agreement, invoice…" value={searchInput} onChange={e=>setSearchInput(e.target.value)} style={{flex:2,minWidth:160}}/>
       {isAdmin&&<SEL value={filterBranch} onChange={e=>setFilterBranch(e.target.value)} style={{flex:1,minWidth:120}}><option value="ALL">All Branches</option>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b}</option>)}</SEL>}
+      {agentOptions.length>0&&<SEL value={filterAgent} onChange={e=>setFilterAgent(e.target.value)} style={{flex:1,minWidth:140}}><option value="ALL">All Agents</option>{agentOptions.map(a=><option key={a} value={a}>{a}</option>)}</SEL>}
     </div>
 
     {/* Order list — compact rows in a fixed-height virtualized viewport.
@@ -1420,7 +1423,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         ever mounted, so scroll performance doesn't degrade as the order
         count grows into the hundreds. */}
     {filtered.length===0
-      ?<div style={{...card,padding:"44px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>{search||filterPhase!=="all"||filterBranch!=="ALL"?"No orders match your filter.":"No orders yet. Click New Order to get started."}</div>
+      ?<div style={{...card,padding:"44px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>{search||filterPhase!=="all"||filterBranch!=="ALL"||filterAgent!=="ALL"?"No orders match your filter.":"No orders yet. Click New Order to get started."}</div>
       :<OrderListVirtualized orders={filtered} alertsByOrderId={alertsByOrderId} onOpen={o=>nav("detail",o)}/>
     }
 
