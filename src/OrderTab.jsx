@@ -1098,6 +1098,64 @@ function BulkKnockOff({orders,onSave,onClose}){
 }
 
 /* ── Main export ──────────────────────────────────────────────────────── */
+/* ── Order list — compact rows, manually virtualized ─────────────────────
+   Renders a fixed-height scroll viewport and mounts only the rows that
+   fall in (or just outside) the visible range, tracked via scrollTop.
+   This is what actually fixes scroll performance at hundreds of orders —
+   the DOM never holds more than ~30-40 rows regardless of list size. */
+function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
+  const ROW_H=58;
+  const VIEWPORT_H=620;
+  const OVERSCAN=8;
+  const [scrollTop,setScrollTop]=useState(0);
+  const total=orders.length;
+  const startIdx=Math.max(0,Math.floor(scrollTop/ROW_H)-OVERSCAN);
+  const endIdx=Math.min(total,Math.ceil((scrollTop+VIEWPORT_H)/ROW_H)+OVERSCAN);
+  const visible=orders.slice(startIdx,endIdx);
+
+  return<div style={{...card,padding:0,overflow:"hidden"}}>
+    {/* Column header */}
+    <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",minWidth:760}}>
+      <div style={{width:8,flexShrink:0}}/>
+      <div style={{flex:2,minWidth:0}}>Order</div>
+      <div style={{flex:1.3,minWidth:0}}>Status</div>
+      <div style={{flex:1.6,minWidth:0}}>Step</div>
+      <div style={{width:60,flexShrink:0,textAlign:"right"}}>Prog.</div>
+      <div style={{width:110,flexShrink:0}}>Agent</div>
+      <div style={{width:110,flexShrink:0,textAlign:"right"}}>Updated</div>
+    </div>
+    <div onScroll={e=>setScrollTop(e.currentTarget.scrollTop)} style={{height:VIEWPORT_H,overflow:"auto"}}>
+      <div style={{height:total*ROW_H,position:"relative",minWidth:760}}>
+        {visible.map((o,i)=>{
+          const idx=startIdx+i;
+          const s=getStep(o.step),ph=getPhase(o.step),mxS=maxStep(o),pct=Math.round(((Math.min(o.step,mxS)-1)/(mxS-1))*100);
+          const alert=alertsByOrderId[o.id];
+          const statusLabel=o.cancelled?"Cancelled":isPendingBranchAction(o)?"Pending Branch Action":isShortPaymentPending(o)?"Balance Payment Needed":o.step===14?"Completed":ph?.label||"—";
+          const statusColor=o.cancelled||isPendingBranchAction(o)||isShortPaymentPending(o)?"#DC2626":o.step===14?"#15803D":C.blue;
+          const rowBg=idx%2===0?C.white:C.surface;
+          return<div key={o.id} onClick={()=>onOpen(o)}
+            style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",gap:10,padding:"0 14px",borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer"}}
+            onMouseEnter={e=>{e.currentTarget.style.background="#EEF3FB";}}
+            onMouseLeave={e=>{e.currentTarget.style.background=rowBg;}}>
+            <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
+            <div style={{flex:2,minWidth:0}}>
+              <div style={{fontWeight:700,fontSize:12,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.phoneModel}</div>
+              <div style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.customerName} · {o.branch}</div>
+            </div>
+            <div style={{flex:1.3,minWidth:0}}>
+              <span style={{fontSize:9,fontWeight:700,color:statusColor,background:statusColor+"18",border:`1px solid ${statusColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{statusLabel}</span>
+            </div>
+            <div style={{flex:1.6,minWidth:0,fontSize:11,color:C.textMid,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>Step {o.step}/{mxS} · {s.label}</div>
+            <div style={{width:60,flexShrink:0,textAlign:"right",fontSize:11,fontWeight:700,color:o.step>=12?"#15803D":C.navy}}>{pct}%</div>
+            <div style={{width:110,flexShrink:0,fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.salesAgentName||o.salesAgentId||"—"}</div>
+            <div style={{width:110,flexShrink:0,textAlign:"right",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>
+          </div>;
+        })}
+      </div>
+    </div>
+  </div>;
+}
+
 export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList=[],isReadOnly=false}){
   const [orders,setOrders]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -1262,48 +1320,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       {isAdmin&&<SEL value={filterBranch} onChange={e=>setFilterBranch(e.target.value)} style={{flex:1,minWidth:120}}><option value="ALL">All Branches</option>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b}</option>)}</SEL>}
     </div>
 
-    {/* Order cards */}
+    {/* Order list — compact rows in a fixed-height virtualized viewport.
+        Only the rows actually in view (plus a small overscan buffer) are
+        ever mounted, so scroll performance doesn't degrade as the order
+        count grows into the hundreds. */}
     {filtered.length===0
       ?<div style={{...card,padding:"44px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>{search||filterPhase!=="all"||filterBranch!=="ALL"?"No orders match your filter.":"No orders yet. Click New Order to get started."}</div>
-      :<div style={{display:"grid",gridTemplateColumns:"1fr",gap:12}}>
-        {filtered.map(o=>{
-          const s=getStep(o.step),ph=getPhase(o.step),mxS=maxStep(o),pct=Math.round(((Math.min(o.step,mxS)-1)/(mxS-1))*100);
-          const alert=alertsByOrderId[o.id];
-          return<div key={o.id} onClick={()=>nav("detail",o)} className="card" style={{cursor:"pointer",overflow:"hidden",transition:"box-shadow .2s,transform .2s"}}
-            onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 16px rgba(10,22,40,.10)";e.currentTarget.style.transform="translateY(-1px)";}}
-            onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)";e.currentTarget.style.transform="none";}}>
-            {/* Header strip */}
-            <div style={{background:o.cancelled?`linear-gradient(135deg,#7F1D1D,#991B1B)`:o.step>=12?`linear-gradient(135deg,#14532D,#166534)`:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 16px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
-                <div style={{minWidth:0,flex:1}}>
-                  <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
-                    {o.cancelled?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Cancelled</span>:isPendingBranchAction(o)?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Pending Branch Action</span>:isShortPaymentPending(o)?<span style={{fontSize:9,fontWeight:600,color:"#FCA5A5",background:"rgba(255,255,255,.06)",border:"1px solid rgba(252,165,165,.35)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Balance Payment Needed</span>:o.step===14?<span style={{fontSize:9,fontWeight:600,color:"#86EFAC",background:"rgba(255,255,255,.06)",border:"1px solid rgba(134,239,172,.4)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Completed</span>:ph&&<span style={{fontSize:9,fontWeight:600,color:"#fff",background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>{ph.label}</span>}
-                    {o.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:600,color:"rgba(255,255,255,.75)",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Ready Stock</span>}
-                    {o.orderType==="cash"?<span style={{fontSize:9,fontWeight:600,color:"rgba(255,255,255,.75)",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>Cash</span>:<span style={{fontSize:9,fontWeight:600,color:"rgba(255,255,255,.75)",background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.25)",padding:"2px 8px",borderRadius:4,letterSpacing:"0.03em"}}>CCM</span>}
-                  </div>
-                  <div style={{fontWeight:700,fontSize:15,color:"#fff",lineHeight:1.25,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.phoneModel}</div>
-                  <div style={{fontSize:11,color:"rgba(255,255,255,.55)",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.customerName} <span style={{opacity:.6}}>·</span> {o.branch}</div>
-                </div>
-                <div style={{fontSize:11,fontWeight:700,color:"#fff",background:"rgba(255,255,255,.1)",padding:"4px 11px",borderRadius:20,flexShrink:0}}>{pct}%</div>
-              </div>
-            </div>
-            {/* Progress bar */}
-            <div style={{height:3,background:C.border}}><div style={{height:"100%",width:`${pct}%`,background:o.step>=12?`linear-gradient(90deg,#15803D,#16A34A)`:`linear-gradient(90deg,${C.blue},${C.blueBright})`,transition:"width .3s"}}/></div>
-            {/* Body */}
-            <div style={{padding:"10px 14px"}}>
-              {alert&&<div style={{fontSize:10,fontWeight:700,color:alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#92400E",background:alert.type==="approval_warning"?"#FFFBEB":"#FEF2F2",borderRadius:5,padding:"3px 8px",marginBottom:7,border:`1px solid ${alert.type==="approval_warning"?"#FDE68A":"#FECACA"}`}}>{alert.msg}</div>}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                <span style={{fontSize:11,fontWeight:700,color:o.step>=12?"#15803D":C.navy}}>Step {o.step}/{maxStep(o)} · {s.label}</span>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <div style={{flex:1,height:3,background:C.border,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:o.step>=12?"#15803D":C.navy,borderRadius:2}}/></div>
-                <span style={{fontSize:9,color:C.textLight,flexShrink:0}}>{o.salesAgentName||o.salesAgentId||"—"}</span>
-              </div>
-              {o.lastHistoryDate&&<div style={{fontSize:10,color:C.textLight,marginTop:5}}>Updated {fDT(o.lastHistoryDate,o.lastHistoryTime)}</div>}
-            </div>
-          </div>;
-        })}
-      </div>
+      :<OrderListVirtualized orders={filtered} alertsByOrderId={alertsByOrderId} onOpen={o=>nav("detail",o)}/>
     }
 
     {/* Report downloads — admin only, footer */}
