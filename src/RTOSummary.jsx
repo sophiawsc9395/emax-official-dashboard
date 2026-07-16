@@ -91,7 +91,7 @@ function RTOSummaryInner({customers,branchMeta}){
           <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>RTO Portfolio Summary</h2>
           <div style={{fontSize:11,color:"#8A96A8",marginTop:2}}>As at {today} · {totals.customers} customers</div>
         </div>
-        <button onClick={downloadPhoto} style={{padding:"8px 18px",background:"#0A1628",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>📷 Download as Photo</button>
+        <button onClick={downloadPhoto} style={{padding:"9px 18px",background:"linear-gradient(135deg,#1B3F72,#2C5AA0)",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",boxShadow:"0 2px 8px rgba(27,63,114,.35)"}}>Download as Photo</button>
       </div>
 
       <div ref={summaryRef} style={{background:"#fff",border:"1px solid #E4EAF2",borderRadius:12,overflow:"hidden"}}>
@@ -138,9 +138,9 @@ function RTOSummaryInner({customers,branchMeta}){
             <span style={{fontSize:10,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.08em"}}>Overdue Payments — {overdueCustomers.length} customer{overdueCustomers.length>1?"s":""}</span>
           </div>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead><tr style={{background:"#F7F9FC",borderBottom:"1px solid #E4EAF2"}}>
+            <thead><tr style={{background:"#0A1628"}}>
               {["Customer","Phone","Branch","Overdue Months","Amount Overdue","Outstanding","Remark"].map(h=>(
-                <th key={h} style={{padding:"8px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",width:w,overflow:"hidden"}}>{h}</th>
+                <th key={h} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
               ))}
             </tr></thead>
             <tbody>{overdueCustomers.map((c,i)=>(
@@ -206,9 +206,9 @@ function RTOSummaryInner({customers,branchMeta}){
           <span style={{fontSize:10,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.08em"}}>All Customers Payment Analysis</span>
         </div>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,tableLayout:"fixed"}}>
-          <thead><tr style={{background:"#F7F9FC",borderBottom:"1px solid #E4EAF2"}}>
+          <thead><tr style={{background:"#0A1628"}}>
             {[["#",40],["Customer",180],["Branch",60],["Contract",100],["Received",100],["Outstanding",100],["P&L",100],["Progress",100],["Status",90]].map(([h,w])=>(
-              <th key={h} style={{padding:"8px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",width:w,overflow:"hidden"}}>{h}</th>
+              <th key={h} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",width:w,overflow:"hidden"}}>{h}</th>
             ))}
           </tr></thead>
           <tbody>

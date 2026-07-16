@@ -52,6 +52,7 @@ const Ic={
   cal:<svg width="14"height="14"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><rect x="3"y="4"width="18"height="18"rx="2"/><line x1="16"y1="2"x2="16"y2="6"/><line x1="8"y1="2"x2="8"y2="6"/><line x1="3"y1="10"x2="21"y2="10"/></svg>,
   alertCircle:<svg width="14"height="14"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><circle cx="12"cy="12"r="10"/><line x1="12"y1="8"x2="12"y2="12"/><line x1="12"y1="16"x2="12.01"y2="16"/></svg>,
   checkCircle:<svg width="14"height="14"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  chevDown:<svg width="13"height="13"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>,
 };
 function SecHdr({icon,children,right}){
   return<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
@@ -73,6 +74,18 @@ function I(p){return<input {...p} style={{...inp,...p.style}}/>;}
 function SEL({children,...p}){return<select {...p} style={{...inp,cursor:"pointer",...p.style}}>{children}</select>;}
 function InfoCell({label,value,color}){return<div style={{minWidth:0}}><div style={lbl}>{label}</div><div style={{fontSize:12,fontWeight:700,color:color||C.text,wordBreak:"break-word"}}>{value}</div></div>;}
 
+function FormField({label,req,children,span}){
+  return<div style={{width:"100%",minWidth:0,...(span?{gridColumn:"1/-1"}:{})}}><L req={req}>{label}</L>{children}</div>;
+}
+function FormCard({title,children}){
+  return<div style={{...card,marginBottom:16}}>
+    <div style={{padding:"12px 18px",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
+      <div style={{fontSize:12,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.07em"}}>{title}</div>
+    </div>
+    <div style={{padding:"20px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:18,minWidth:0}}>{children}</div>
+  </div>;
+}
+
 function CustomerForm({initial,branchMeta,onSave,onCancel}){
   const empty={memberId:"",name:"",branch:"KM",monthlyInstallment:"",contactNumber:"",salesInvoiceDate:"",tenure:"",financePrice:"",agreementFee:"",stampingFee:"",cost:"",autoDebitMonth:"1",autoDebitYear:new Date().getFullYear().toString(),payments:{}};
   const [f,setF]=useState(initial||empty);
@@ -83,51 +96,67 @@ function CustomerForm({initial,branchMeta,onSave,onCancel}){
   const tenure=parseInt(f.tenure)||0;
   const monthly=parseFloat(f.monthlyInstallment)||0;
   const totalContract=tenure*monthly;
-  const row=(k,l,type="text",req=false)=><div key={k}><L req={req}>{l}</L><I value={f[k]} onChange={e=>set(k,e.target.value)} type={type}/></div>;
-  const sec=t=><div style={{gridColumn:"1/-1",fontSize:10,fontWeight:700,color:C.blue,textTransform:"uppercase",letterSpacing:"0.07em",paddingTop:4,borderBottom:`1px solid ${C.border}`,paddingBottom:6}}>{t}</div>;
+  const missing=[!f.memberId?.toString().trim(),!f.name?.toString().trim()];
+  const row=(k,l,type="text",req=false)=><FormField key={k} label={l} req={req}><I value={f[k]} onChange={e=>set(k,e.target.value)} type={type} style={req&&!f[k]?.toString().trim()?{borderColor:"#FECACA"}:{}}/></FormField>;
   return(
-    <div style={{...card,marginBottom:16}}>
-      <SecHdr icon={Ic.users}>{initial?"Edit":"New"} Rent-to-Own Customer</SecHdr>
-      <div style={{padding:18}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12,marginBottom:16}}>
-          {sec("Customer Details")}
-          {row("memberId","Member ID",undefined,true)}
-          {row("name","Customer Name",undefined,true)}
-          {row("contactNumber","Contact Number")}
-          <div><L>Branch</L><SEL value={f.branch} onChange={e=>set("branch",e.target.value)}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}</SEL></div>
-          <div><L>Sales Invoice Date</L><I type="date" value={f.salesInvoiceDate} onChange={e=>set("salesInvoiceDate",e.target.value)}/></div>
-          {sec("Contract Details")}
-          <div><L>Tenure (months)</L><I type="number" min="1" value={f.tenure} onChange={e=>{
-            const t=e.target.value;
-            const tc=parseInt(t||0)*(parseFloat(f.monthlyInstallment)||0);
-            setF(p=>({...p,tenure:t,agreementFee:"50",stampingFee:String(calcStampingFee(tc))}));
-          }}/></div>
-          <div><L>Monthly Installment (RM)</L><I type="number" value={f.monthlyInstallment} onChange={e=>{
-            const m=e.target.value;
-            const tc=(parseInt(f.tenure)||0)*(parseFloat(m)||0);
-            setF(p=>({...p,monthlyInstallment:m,agreementFee:"50",stampingFee:String(calcStampingFee(tc))}));
-          }}/></div>
-          {row("financePrice","Finance Price (RM)","number")}
-          <div><L>Agreement Fee (RM)</L><I value={f.agreementFee||"50"} readOnly style={{background:C.surface,color:C.textMid,cursor:"not-allowed"}}/><div style={{fontSize:10,color:C.textLight,marginTop:3}}>Fixed: RM 50.00</div></div>
-          <div><L>Stamping Fee (RM)</L><I value={f.stampingFee} readOnly style={{background:C.surface,color:C.textMid,cursor:"not-allowed"}}/><div style={{fontSize:10,color:C.textLight,marginTop:3}}>Auto: based on total contract value</div></div>
-          {row("cost","Cost (RM)","number")}
-          <div><L>Auto Debit Start</L>
-            <div style={{display:"flex",gap:6}}>
-              <SEL value={f.autoDebitMonth} onChange={e=>set("autoDebitMonth",e.target.value)} style={{flex:1}}>{MONTHS.map((m,i)=><option key={i+1} value={i+1}>{m.slice(0,3)}</option>)}</SEL>
-              <SEL value={f.autoDebitYear} onChange={e=>set("autoDebitYear",e.target.value)} style={{width:78}}>{[2024,2025,2026,2027,2028,2029,2030].map(y=><option key={y} value={y}>{y}</option>)}</SEL>
-            </div>
+    <div className="fade-in">
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+        <GBtn onClick={onCancel}>{Ic.chevL} Back</GBtn>
+        <div style={{fontSize:15,fontWeight:800,color:C.navy}}>{initial?"Edit Rent-to-Own Customer":"New Rent-to-Own Customer"}</div>
+      </div>
+
+      <FormCard title="Customer Details">
+        {row("memberId","Member ID",undefined,true)}
+        {row("name","Customer Name",undefined,true)}
+        {row("contactNumber","Contact Number")}
+        <FormField label="Branch"><SEL value={f.branch} onChange={e=>set("branch",e.target.value)}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}</SEL></FormField>
+        <FormField label="Sales Invoice Date"><I type="date" value={f.salesInvoiceDate} onChange={e=>set("salesInvoiceDate",e.target.value)}/></FormField>
+      </FormCard>
+
+      <FormCard title="Contract Details">
+        <FormField label="Tenure (months)"><I type="number" min="1" value={f.tenure} onChange={e=>{
+          const t=e.target.value;
+          const tc=parseInt(t||0)*(parseFloat(f.monthlyInstallment)||0);
+          setF(p=>({...p,tenure:t,agreementFee:"50",stampingFee:String(calcStampingFee(tc))}));
+        }}/></FormField>
+        <FormField label="Monthly Installment (RM)"><I type="number" value={f.monthlyInstallment} onChange={e=>{
+          const m=e.target.value;
+          const tc=(parseInt(f.tenure)||0)*(parseFloat(m)||0);
+          setF(p=>({...p,monthlyInstallment:m,agreementFee:"50",stampingFee:String(calcStampingFee(tc))}));
+        }}/></FormField>
+        {row("financePrice","Finance Price (RM)","number")}
+        <FormField label="Agreement Fee (RM)"><I value={f.agreementFee||"50"} readOnly style={{background:C.surface,color:C.textMid,cursor:"not-allowed"}}/><div style={{fontSize:10,color:C.textLight,marginTop:3}}>Fixed: RM 50.00</div></FormField>
+        <FormField label="Stamping Fee (RM)"><I value={f.stampingFee} readOnly style={{background:C.surface,color:C.textMid,cursor:"not-allowed"}}/><div style={{fontSize:10,color:C.textLight,marginTop:3}}>Auto: based on total contract value</div></FormField>
+        {row("cost","Cost (RM)","number")}
+        <FormField label="Auto Debit Start">
+          <div style={{display:"flex",gap:6}}>
+            <SEL value={f.autoDebitMonth} onChange={e=>set("autoDebitMonth",e.target.value)} style={{flex:1}}>{MONTHS.map((m,i)=><option key={i+1} value={i+1}>{m.slice(0,3)}</option>)}</SEL>
+            <SEL value={f.autoDebitYear} onChange={e=>set("autoDebitYear",e.target.value)} style={{width:78}}>{[2024,2025,2026,2027,2028,2029,2030].map(y=><option key={y} value={y}>{y}</option>)}</SEL>
           </div>
+        </FormField>
+      </FormCard>
+
+      <div style={{...card,marginBottom:16,overflow:"hidden"}}>
+        <div style={{padding:"12px 18px",borderBottom:`1px solid ${C.border}`,background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Computed Summary</div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:12,background:C.surface,borderRadius:10,padding:14,marginBottom:16,border:`1px solid ${C.border}`}}>
-          <InfoCell label="Branch Profit" value={fRM(branchProfit)} color={branchProfit>=0?"#15803D":"#DC2626"}/>
-          <InfoCell label="Total Contract Value" value={fRM(totalContract)}/>
-          <InfoCell label="Agreement Fee" value="RM 50.00"/>
-          <InfoCell label="Stamping Fee" value={fRM(calcStampingFee(totalContract))}/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))"}}>
+          {[
+            ["Branch Profit",fRM(branchProfit),branchProfit>=0?"#15803D":"#DC2626"],
+            ["Total Contract Value",fRM(totalContract),C.text],
+            ["Agreement Fee","RM 50.00",C.text],
+            ["Stamping Fee",fRM(calcStampingFee(totalContract)),C.text],
+          ].map(([l,v,c],i,arr)=>(
+            <div key={l} style={{padding:"12px 14px",borderRight:i<arr.length-1?`1px solid ${C.border}`:"none"}}>
+              <InfoCell label={l} value={v} color={c}/>
+            </div>
+          ))}
         </div>
-        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
-          <GBtn onClick={onCancel}>Cancel</GBtn>
-          <PBtn onClick={()=>{if(!f.memberId||!f.name){alert("Member ID and Name required.");return;}onSave({...f,id:initial?.id||Date.now().toString()});}}>Save Customer</PBtn>
-        </div>
+      </div>
+
+      <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+        <GBtn onClick={onCancel}>Cancel</GBtn>
+        <PBtn onClick={()=>{if(missing.some(Boolean)){alert("Member ID and Name required.");return;}onSave({...f,id:initial?.id||Date.now().toString()});}}>{Ic.checkCircle} Save Customer</PBtn>
       </div>
     </div>
   );
@@ -142,6 +171,7 @@ function PaymentSchedule({customer,onUpdate}){
   const cost=parseFloat(customer.cost)||0;
   const pl=-cost+totalReceived;
   const summaryRef=useRef(null);
+  const [scheduleOpen,setScheduleOpen]=useState(false);
 
   const downloadPhoto=async()=>{
     const el=summaryRef.current;if(!el)return;
@@ -196,13 +226,17 @@ function PaymentSchedule({customer,onUpdate}){
             </div>
           ))}
         </div>
-        {/* Payment schedule table */}
-        <div style={{padding:"14px 18px"}}>
-          <div style={{fontSize:10,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>Payment Schedule — Auto Debit from {MONTHS[parseInt(customer.autoDebitMonth)-1]} {customer.autoDebitYear}</div>
+        {/* Payment schedule table — collapsed by default so the customer
+            detail panel stays compact; click to review the full history. */}
+        <div onClick={()=>setScheduleOpen(p=>!p)} style={{cursor:"pointer",userSelect:"none",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 18px",borderTop:`1px solid ${C.border}`,background:C.surface}}>
+          <span style={{fontSize:10,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.07em"}}>Payment Schedule — Auto Debit from {MONTHS[parseInt(customer.autoDebitMonth)-1]} {customer.autoDebitYear}</span>
+          <span style={{color:C.textLight,transition:"transform .15s",transform:scheduleOpen?"rotate(180deg)":"none",flexShrink:0,marginLeft:10}}>{Ic.chevDown}</span>
+        </div>
+        {scheduleOpen&&<div style={{padding:"0 18px 14px"}}>
           <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead><tr style={{background:C.surface}}>
+            <thead><tr style={{background:C.navy}}>
               {["#","Month","Amount","INV","Status","Payment Date"].map((h,i)=>(
-                <th key={h} style={{padding:"7px 10px",textAlign:i===2?"right":i===3||i===4?"center":"left",fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                <th key={h} style={{padding:"9px 10px",textAlign:i===2?"right":i===3||i===4?"center":"left",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
               ))}
             </tr></thead>
             <tbody>{schedule.map((s,i)=>{
@@ -228,7 +262,7 @@ function PaymentSchedule({customer,onUpdate}){
               );
             })}</tbody>
           </table></div>
-        </div>
+        </div>}
       </div>
       <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
         <PBtn onClick={downloadPhoto}>{Ic.download} Download Summary as Photo</PBtn>
@@ -368,9 +402,9 @@ function RTOSummary({customers,branchMeta}){
             <span style={{fontSize:10,fontWeight:800,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.08em"}}>Overdue — {overdueCustomers.length} customer{overdueCustomers.length>1?"s":""}</span>
           </div>
           <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-            <thead><tr style={{background:C.surface}}>
+            <thead><tr style={{background:C.navy}}>
               {["Customer","Phone","Branch","Overdue Months","Overdue Amt","Outstanding","Note"].map(h=>(
-                <th key={h} style={{padding:"8px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                <th key={h} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
               ))}
             </tr></thead>
             <tbody>{overdueCustomers.map((c,i)=>(
@@ -403,9 +437,9 @@ function RTOSummary({customers,branchMeta}){
               <span style={{fontSize:10,fontWeight:800,color:C.navy,textTransform:"uppercase",letterSpacing:"0.08em"}}>Due This Month — {MONTHS[now.getMonth()]} {now.getFullYear()} · {dueCusts.length} customer{dueCusts.length>1?"s":""}</span>
             </div>
             <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-              <thead><tr style={{background:C.surface}}>
+              <thead><tr style={{background:C.navy}}>
                 {["Customer","Phone","Branch","Due Month","Amount Due","Outstanding","Note"].map(h=>(
-                  <th key={h} style={{padding:"8px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                  <th key={h} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
@@ -440,9 +474,9 @@ function RTOSummary({customers,branchMeta}){
           <span style={{fontSize:10,fontWeight:800,color:C.navy,textTransform:"uppercase",letterSpacing:"0.08em"}}>All Customers Payment Analysis</span>
         </div>
         <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-          <thead><tr style={{background:C.surface,borderBottom:`1px solid ${C.border}`}}>
+          <thead><tr style={{background:C.navy}}>
             {["#","Customer","Branch","Contract","Received","Outstanding","P&L","Progress","Status"].map(h=>(
-              <th key={h} style={{padding:"8px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
+              <th key={h} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
             ))}
           </tr></thead>
           <tbody>
@@ -498,7 +532,6 @@ export default function RTOTab({branchMeta}){
   const [customers,setCustomers]=useState([]);
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("list"); // "list" | "summary"
-  const [showForm,setShowForm]=useState(false);
   const [editCustomer,setEditCustomer]=useState(null);
   const [selectedId,setSelectedId]=useState(null);
   const [filterBranch,setFilterBranch]=useState("ALL");
@@ -538,7 +571,7 @@ export default function RTOTab({branchMeta}){
     if(!result.ok){alert("Save failed — please try again.");return;}
     setCustomers(p=>p.some(x=>x.id===c.id)?p.map(x=>x.id===c.id?{...x,...c}:x):[...p,{...c,paidCount:0,totalReceived:0}]);
     setSummaryCustomers(null); // stale — refetch next time the summary is opened
-    setShowForm(false);setEditCustomer(null);
+    setView("list");setEditCustomer(null);
     if(!selectedId)setSelectedId(c.id);
   };
 
@@ -575,6 +608,8 @@ export default function RTOTab({branchMeta}){
 
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
 
+  if(view==="form")return<CustomerForm initial={editCustomer} branchMeta={branchMeta} onSave={saveCustomer} onCancel={()=>{setView("list");setEditCustomer(null);}}/>;
+
   return(
     <div className="fade-in">
       {/* Page header */}
@@ -600,7 +635,7 @@ export default function RTOTab({branchMeta}){
               {BRANCH_ORDER.map(b=><option key={b} value={b}>{b}</option>)}
             </SEL>
           </div>
-          <PBtn style={{width:"100%",justifyContent:"center",marginBottom:12}} onClick={()=>{setShowForm(true);setEditCustomer(null);setSelectedId(null);}}>{Ic.plus} Add New RTO Customer</PBtn>
+          <PBtn style={{width:"100%",justifyContent:"center",marginBottom:12}} onClick={()=>{setEditCustomer(null);setView("form");}}>{Ic.plus} Add New RTO Customer</PBtn>
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             {filtered.length===0&&<div style={{...card,textAlign:"center",padding:"24px 16px",color:C.textLight,fontSize:12}}>No customers yet.</div>}
             {filtered.map(c=>{
@@ -631,7 +666,7 @@ export default function RTOTab({branchMeta}){
                       <div style={{height:"100%",background:isFullyPaid?"#16A34A":C.blue,width:`${pct}%`,transition:"width .3s",borderRadius:2}}/>
                     </div>
                     <div style={{display:"flex",gap:8}}>
-                      <GBtn onClick={e=>{e.stopPropagation();setEditCustomer(c);setShowForm(true);}} style={{flex:1,padding:"5px 0",justifyContent:"center",fontSize:10}}>{Ic.edit} Edit</GBtn>
+                      <GBtn onClick={e=>{e.stopPropagation();setEditCustomer(c);setView("form");}} style={{flex:1,padding:"5px 0",justifyContent:"center",fontSize:10}}>{Ic.edit} Edit</GBtn>
                       <DBtn onClick={e=>{e.stopPropagation();deleteCustomer(c.id);}} style={{flex:1,padding:"5px 0",justifyContent:"center",fontSize:10}}>{Ic.trash} Remove</DBtn>
                     </div>
                   </div>
@@ -643,10 +678,9 @@ export default function RTOTab({branchMeta}){
 
         {/* Right: detail */}
         <div>
-          {showForm&&<CustomerForm initial={editCustomer} branchMeta={branchMeta} onSave={saveCustomer} onCancel={()=>{setShowForm(false);setEditCustomer(null);}}/>}
-          {!showForm&&selected&&<PaymentSchedule customer={selected} onUpdate={(key,data)=>updatePayment(selected.id,key,data)}/>}
-          {!showForm&&!selected&&selectedId&&<div style={{...card,textAlign:"center",padding:"60px 20px",color:C.textLight,fontSize:13}}>Loading payment schedule…</div>}
-          {!showForm&&!selected&&!selectedId&&<div style={{...card,textAlign:"center",padding:"60px 20px",color:C.textLight,fontSize:13}}>Select a customer to view their payment schedule and summary.</div>}
+          {selected&&<PaymentSchedule customer={selected} onUpdate={(key,data)=>updatePayment(selected.id,key,data)}/>}
+          {!selected&&selectedId&&<div style={{...card,textAlign:"center",padding:"60px 20px",color:C.textLight,fontSize:13}}>Loading payment schedule…</div>}
+          {!selected&&!selectedId&&<div style={{...card,textAlign:"center",padding:"60px 20px",color:C.textLight,fontSize:13}}>Select a customer to view their payment schedule and summary.</div>}
         </div>
       </div>}
     </div>
