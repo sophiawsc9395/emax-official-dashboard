@@ -1120,8 +1120,8 @@ function useIsMobile(){
 
 function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
   const isMobile=useIsMobile();
-  const ROW_H=isMobile?96:76;
-  const HEADER_H=34;
+  const ROW_H=isMobile?66:58;
+  const HEADER_H=32;
   const VIEWPORT_H=620;
   const OVERSCAN=8;
   const [scrollTop,setScrollTop]=useState(0);
@@ -1134,12 +1134,8 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
   // Mobile keeps a minWidth so the list scrolls/swipes horizontally like a
   // real table (text doesn't wrap); desktop needs no minWidth since columns
   // simply share the available width.
-  const MIN_W=isMobile?640:0;
+  const MIN_W=isMobile?680:0;
   const PAD=isMobile?"0 12px":"0 10px";
-  // Line-clamp keeps the mobile "Order" sub-line bounded to a known max
-  // height (required for the absolute-positioned virtualization to stay
-  // correct) while still showing more than a single truncated line.
-  const clamp=n=>({display:"-webkit-box",WebkitLineClamp:n,WebkitBoxOrient:"vertical",overflow:"hidden"});
   const single={whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
 
   return<div style={{...card,padding:0,overflow:"hidden"}}>
@@ -1154,7 +1150,7 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
           <div style={{flex:2.2,minWidth:0,marginLeft:8}}>Order</div>
           <div style={{flex:1.5,minWidth:0,marginLeft:isMobile?8:10}}>Status</div>
           <div style={{flex:2.3,minWidth:0,marginLeft:isMobile?8:32}}>Step</div>
-          {!isMobile&&<div style={{width:88,flexShrink:0,textAlign:"right",marginLeft:"auto"}}>Updated</div>}
+          <div style={{width:88,flexShrink:0,textAlign:"right",marginLeft:"auto"}}>Updated</div>
         </div>
         <div style={{height:total*ROW_H,position:"relative"}}>
           {visible.map((o,i)=>{
@@ -1177,19 +1173,21 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
               <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
               <div style={{flex:2.2,minWidth:0,marginLeft:8}}>
                 <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
-                <div style={isMobile?{fontSize:10,color:C.textLight,...clamp(2)}:{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
+                <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
               </div>
-              <div style={{flex:1.5,minWidth:0,marginLeft:isMobile?8:10,display:"flex",flexWrap:"nowrap",gap:4,overflow:"hidden"}}>
-                {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
-                <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
-                <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
+              <div style={{flex:1.5,minWidth:0,marginLeft:isMobile?8:10,overflow:"hidden"}}>
+                <div><span style={{fontSize:9,fontWeight:700,color:progressColor,background:progressColor+"18",border:`1px solid ${progressColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{progressLabel}</span></div>
+                <div style={{display:"flex",flexWrap:"nowrap",gap:4,marginTop:3,overflow:"hidden"}}>
+                  {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
+                  <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
+                  <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
+                </div>
               </div>
               <div style={{flex:2.3,minWidth:0,marginLeft:isMobile?8:32,overflow:"hidden"}}>
-                <span style={{fontSize:9,fontWeight:700,color:progressColor,background:progressColor+"18",border:`1px solid ${progressColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{progressLabel}</span>
-                <div style={{fontSize:11,fontWeight:600,color:C.textMid,marginTop:3,...single}}>Step {o.step}/{mxS} · {s.label}</div>
-                <div style={{fontSize:10,color:C.textLight,marginTop:2,...single}}>{detailText}</div>
+                <div style={{fontSize:11,fontWeight:600,color:C.textMid,...single}}>Step {o.step}/{mxS} · {s.label}</div>
+                <div style={{fontSize:10,color:C.textLight,marginTop:3,...single}}>{detailText}</div>
               </div>
-              {!isMobile&&<div style={{width:88,flexShrink:0,textAlign:"right",marginLeft:"auto",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>}
+              <div style={{width:88,flexShrink:0,textAlign:"right",marginLeft:"auto",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>
             </div>;
           })}
         </div>
