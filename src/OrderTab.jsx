@@ -1127,10 +1127,10 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
       <div style={{height:total*ROW_H,position:"relative",minWidth:760}}>
         {visible.map((o,i)=>{
           const idx=startIdx+i;
-          const s=getStep(o.step),ph=getPhase(o.step),mxS=maxStep(o);
+          const s=getStep(o.step),mxS=maxStep(o);
           const alert=alertsByOrderId[o.id];
-          const statusLabel=o.cancelled?"Cancelled":isPendingBranchAction(o)?"Pending Branch Action":isShortPaymentPending(o)?"Balance Payment Needed":o.step===14?"Completed":ph?.label||"—";
-          const statusColor=o.cancelled||isPendingBranchAction(o)||isShortPaymentPending(o)?"#DC2626":o.step===14?"#15803D":C.blue;
+          const flagLabel=o.cancelled?"Cancelled":isPendingBranchAction(o)?"Pending Branch Action":isShortPaymentPending(o)?"Balance Payment Needed":o.step===14?"Completed":null;
+          const flagColor=o.cancelled||isPendingBranchAction(o)||isShortPaymentPending(o)?"#DC2626":"#15803D";
           const rowBg=idx%2===0?C.white:C.surface;
           return<div key={o.id} onClick={()=>onOpen(o)}
             style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",gap:10,padding:"0 14px",borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer",overflow:"hidden"}}
@@ -1142,9 +1142,9 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
               <div style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.customerName} · {o.branch}</div>
             </div>
             <div style={{flex:2,minWidth:0,display:"flex",flexWrap:"nowrap",gap:4,overflow:"hidden"}}>
-              <span style={{fontSize:9,fontWeight:700,color:statusColor,background:statusColor+"18",border:`1px solid ${statusColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{statusLabel}</span>
-              {o.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Ready Stock</span>}
-              <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash":"CCM"}</span>
+              {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
+              <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
+              <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
             </div>
             <div style={{flex:1.6,minWidth:0,fontSize:11,color:C.textMid,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>Step {o.step}/{mxS} · {s.label}</div>
             <div style={{width:110,flexShrink:0,fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{o.salesAgentName||o.salesAgentId||"—"}</div>

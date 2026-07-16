@@ -636,44 +636,47 @@ export default function RTOTab({branchMeta}){
             </SEL>
           </div>
           <PBtn style={{width:"100%",justifyContent:"center",marginBottom:12}} onClick={()=>{setEditCustomer(null);setView("form");}}>{Ic.plus} Add New RTO Customer</PBtn>
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {filtered.length===0&&<div style={{...card,textAlign:"center",padding:"24px 16px",color:C.textLight,fontSize:12}}>No customers yet.</div>}
-            {filtered.map(c=>{
-              const schedule=genSchedule(c);
-              const paidCount=c.paidCount||0;
-              const totalReceived=c.totalReceived||0;
-              const totalContract=(parseInt(c.tenure)||0)*(parseFloat(c.monthlyInstallment)||0);
-              const outstanding=totalContract-totalReceived;
-              const isFullyPaid=outstanding<=0&&schedule.length>0;
-              const isSelected=selectedId===c.id;
-              const pct=schedule.length?Math.round(paidCount/schedule.length*100):0;
-              return(
-                <div key={c.id} onClick={()=>setSelectedId(c.id)} style={{...card,cursor:"pointer",border:`1px solid ${isSelected?C.blue:C.border}`,boxShadow:isSelected?`0 0 0 1px ${C.blue}, 0 1px 3px rgba(10,22,40,.06)`:card.boxShadow,transition:"all .15s"}}>
-                  <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"12px 14px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
-                      <div style={{minWidth:0}}>
-                        <div style={{fontWeight:700,fontSize:13,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.name}</div>
-                        <div style={{fontSize:10,color:"rgba(255,255,255,.55)",marginTop:2}}>{c.memberId} · {c.branch}</div>
-                      </div>
-                      <span style={{fontSize:9,fontWeight:600,color:isFullyPaid?"#86EFAC":"#fff",background:"rgba(255,255,255,.08)",border:`1px solid ${isFullyPaid?"rgba(134,239,172,.4)":"rgba(255,255,255,.25)"}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{isFullyPaid?"Fully Paid":`${paidCount}/${schedule.length}`}</span>
+          {filtered.length===0
+            ?<div style={{...card,textAlign:"center",padding:"24px 16px",color:C.textLight,fontSize:12}}>No customers yet.</div>
+            :<div style={{...card,padding:0,overflow:"hidden"}}>
+              {/* Column header */}
+              <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",background:C.navy,fontSize:9,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
+                <div style={{flex:2,minWidth:0}}>Customer</div>
+                <div style={{width:64,flexShrink:0}}>Branch</div>
+                <div style={{width:76,flexShrink:0,textAlign:"right"}}>Progress</div>
+                <div style={{width:76,flexShrink:0}}></div>
+              </div>
+              <div style={{maxHeight:620,overflowY:"auto"}}>
+                {filtered.map((c,i)=>{
+                  const schedule=genSchedule(c);
+                  const paidCount=c.paidCount||0;
+                  const totalReceived=c.totalReceived||0;
+                  const totalContract=(parseInt(c.tenure)||0)*(parseFloat(c.monthlyInstallment)||0);
+                  const outstanding=totalContract-totalReceived;
+                  const isFullyPaid=outstanding<=0&&schedule.length>0;
+                  const isSelected=selectedId===c.id;
+                  const rowBg=isSelected?"#EEF3FB":i%2===0?C.white:C.surface;
+                  return<div key={c.id} onClick={()=>setSelectedId(c.id)}
+                    style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",borderBottom:`1px solid ${C.border}`,borderLeft:`3px solid ${isSelected?C.blue:"transparent"}`,background:rowBg,cursor:"pointer"}}
+                    onMouseEnter={e=>{if(!isSelected)e.currentTarget.style.background="#F5F8FC";}}
+                    onMouseLeave={e=>{e.currentTarget.style.background=rowBg;}}>
+                    <div style={{flex:2,minWidth:0}}>
+                      <div style={{fontWeight:700,fontSize:12,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.name}</div>
+                      <div style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.memberId} · {outstanding>0?`${fRM(outstanding)} due`:"Fully Paid ✓"}</div>
                     </div>
-                  </div>
-                  <div style={{padding:"10px 14px"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                      <span style={{fontSize:11,fontWeight:700,color:outstanding>0?"#DC2626":"#15803D"}}>{outstanding>0?`${fRM(outstanding)} outstanding`:"Fully Paid ✓"}</span>
+                    <div style={{width:64,flexShrink:0,fontSize:10,color:C.textMid}}>{c.branch}</div>
+                    <div style={{width:76,flexShrink:0,textAlign:"right"}}>
+                      <span style={{fontSize:9,fontWeight:700,color:isFullyPaid?"#15803D":C.navy,background:isFullyPaid?"#F0FDF4":C.surface,border:`1px solid ${isFullyPaid?"#BBF7D0":C.border}`,padding:"2px 7px",borderRadius:4,whiteSpace:"nowrap"}}>{isFullyPaid?"Paid":`${paidCount}/${schedule.length}`}</span>
                     </div>
-                    <div style={{height:3,background:C.border,borderRadius:2,overflow:"hidden",marginBottom:10}}>
-                      <div style={{height:"100%",background:isFullyPaid?"#16A34A":C.blue,width:`${pct}%`,transition:"width .3s",borderRadius:2}}/>
+                    <div style={{width:76,flexShrink:0,display:"flex",gap:4,justifyContent:"flex-end"}}>
+                      <button onClick={e=>{e.stopPropagation();setEditCustomer(c);setView("form");}} title="Edit" style={{width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,color:C.textMid,cursor:"pointer"}}>{Ic.edit}</button>
+                      <button onClick={e=>{e.stopPropagation();deleteCustomer(c.id);}} title="Remove" style={{width:24,height:24,display:"flex",alignItems:"center",justifyContent:"center",background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:6,color:"#DC2626",cursor:"pointer"}}>{Ic.trash}</button>
                     </div>
-                    <div style={{display:"flex",gap:8}}>
-                      <GBtn onClick={e=>{e.stopPropagation();setEditCustomer(c);setView("form");}} style={{flex:1,padding:"5px 0",justifyContent:"center",fontSize:10}}>{Ic.edit} Edit</GBtn>
-                      <DBtn onClick={e=>{e.stopPropagation();deleteCustomer(c.id);}} style={{flex:1,padding:"5px 0",justifyContent:"center",fontSize:10}}>{Ic.trash} Remove</DBtn>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  </div>;
+                })}
+              </div>
+            </div>
+          }
         </div>
 
         {/* Right: detail */}
