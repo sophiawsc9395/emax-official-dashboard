@@ -1,5 +1,5 @@
 import {useState,useEffect,useRef,useMemo,useCallback} from "react";
-import {listOrders,getOrderHistory,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
+import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
 
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 const MERCHANTS=["Aeon","JCL","Chailease"];
@@ -384,7 +384,7 @@ function calcClaimAmount(o){
   const agreementFee=parseFloat(o.agreementFee)||0;
   return financePrice-deposit-stampingFee-agreementFee;
 }
-function downloadReport(orders,type,dateFilter,merchantFilter){
+async function downloadReport(orders,type,dateFilter,merchantFilter){
   const isClaim=type==="claim";
   const isKnockoff=type==="knockoff";
   const isCompleted=type==="completed";
@@ -394,6 +394,15 @@ function downloadReport(orders,type,dateFilter,merchantFilter){
   // Cash orders aren't tied to a merchant, so the merchant filter doesn't
   // apply to this report.
   orders=(merchantFilter&&merchantFilter!=="all"&&!isCashKnockoff)?orders.filter(o=>o.merchant===merchantFilter):orders;
+  // The `orders` array passed in only has header fields — no `.history` (that's
+  // lazily loaded per-order elsewhere for performance). These two report types
+  // need to scan actual history entries, so fetch it in one batched query and
+  // attach it before filtering — otherwise every history-based lookup below
+  // silently comes back empty.
+  if(isFirstInstallment||isCashKnockoff){
+    const histByOrder=await getHistoryForOrders(orders.map(o=>o.id));
+    orders=orders.map(o=>({...o,history:histByOrder[o.id]||[]}));
+  }
   // First Monthly Installment — based on the actual date admin ticked
   // "Payment Verified" at step 9 (Collection Verified), not any typed date.
   // An order can have more than one such tick over its life (e.g. a short
