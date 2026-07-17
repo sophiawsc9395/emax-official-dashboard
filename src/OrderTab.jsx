@@ -548,6 +548,16 @@ function BillingDetailsCard({billingData:bd,isCash,title="Billing Request Detail
   </div>;
 }
 
+// Which order-page role (see auth/orderRoles.js) is responsible for a given
+// step — used only for the forceViewOnly message below, so a restricted
+// viewer knows exactly who to chase up, not just "Admin".
+function stepRoleLabel(step){
+  if([1,2,3].includes(step))return"Purchase";
+  if([4,5].includes(step))return"Stock";
+  if([6,7,8,9,10,11,12,13].includes(step))return"Billing";
+  return null;
+}
+
 function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false}){
   const step=order.step;
   const isCash=order.orderType==="cash";
@@ -598,7 +608,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false}){
       <div style={{padding:"14px 16px"}}>
         {nextDef?<>
           <div style={{fontSize:12,color:C.textMid,marginBottom:6}}>{nextDef.desc}</div>
-          <div style={{fontSize:11,color:C.textLight,fontStyle:"italic"}}>Waiting for {nextDef.who==="admin"?"Admin":"Branch"} to process this step — outside your access for this order.</div>
+          <div style={{fontSize:11,color:C.textLight,fontStyle:"italic"}}>Waiting for {stepRoleLabel(nextDef.step)||(nextDef.who==="admin"?"Admin":"Branch")} to process this step.</div>
         </>:<div style={{fontSize:12,color:C.textLight,fontStyle:"italic"}}>No further action pending on this order.</div>}
       </div>
     </div>;

@@ -10,6 +10,50 @@ const ALLOWED = Object.keys(ORDER_USER_ROLES)
 
 const SR_KEY = "emax_v5_sr_list", BM_KEY = "emax_v5_branch_meta"
 
+// This is the exact CSS OrderTab.jsx's classNames (.card, .detail-grid,
+// .order-info-grid, .fade-in, etc.) depend on — without it the detail page
+// loses its two-column layout, spacing, and responsive breakpoints entirely.
+const CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',-apple-system,sans-serif;background:#F7F9FC;color:#0A1628;}
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-thumb{background:#CDD5E0;border-radius:3px;}
+  .card{background:#fff;border:1px solid #E4EAF2;border-radius:12px;box-shadow:0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04);transition:box-shadow .2s,transform .2s;}
+  .card:hover{box-shadow:0 4px 16px rgba(10,22,40,.10);}
+  .btn{border:none;cursor:pointer;font-family:'Inter',sans-serif;font-weight:600;letter-spacing:.01em;transition:all .15s;display:inline-flex;align-items:center;gap:6px;}
+  .input{width:100%;padding:8px 12px;border:1.5px solid #E4EAF2;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;color:#0A1628;outline:none;transition:border-color .15s;background:#fff;}
+  .input:focus{border-color:#1E6FDB;box-shadow:0 0 0 3px rgba(30,111,219,.12);}
+  .select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238A96A8'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .fade-in{animation:fadeIn .25s ease forwards;}
+  .progress-bar-fill{transition:width .8s cubic-bezier(.4,0,.2,1);}
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,22,40,.65);backdrop-filter:blur(4px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
+  tfoot td{white-space:nowrap!important;}
+  thead th{white-space:nowrap!important;}
+  .order-info-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:20px;}
+  .order-info-grid .oi-full{grid-column:1/-1;}
+  .order-info-grid .oi-value{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  @media (max-width:640px){
+    .order-info-grid{grid-template-columns:1fr;}
+    .order-info-grid .oi-value{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word;}
+  }
+  .detail-topbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+  .detail-topbar-back{order:1;}
+  .detail-topbar-title{order:3;flex-basis:100%;}
+  .detail-topbar-actions{order:2;}
+  .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;}
+  .pb-row{display:flex;align-items:flex-start;gap:0;margin-bottom:12px;}
+  .pb-label{font-size:9px;}
+  @media (max-width:640px){
+    .detail-grid{grid-template-columns:1fr;}
+  }
+  @media (max-width:480px){
+    .pb-label{display:none;}
+    .pb-circle{width:18px!important;height:18px!important;}
+  }
+`;
+
 const DEFAULT_BRANCH_META = {
   KM:{name:"EMAX Kota Marudu",manager:"SUHAINIZAM",mStatus:"Confirmed (P5 F0)"},
   T1:{name:"EMAX Tuaran",manager:"REX WENMIN",mStatus:"Confirmed (P5 F0)"},
@@ -52,6 +96,7 @@ function OrderOnlyApp(){
 
   return (
     <div style={{ minHeight:"100vh", background:"#F7F9FC", fontFamily:"Inter,-apple-system,sans-serif" }}>
+      <style>{CSS}</style>
       {/* Top bar — same navy chrome as the main dashboard */}
       <div style={{ background:"#0A1628", borderBottom:"1px solid #162B52", position:"sticky", top:0, zIndex:100 }}>
         <div style={{ maxWidth:1400, margin:"0 auto", padding:"0 12px" }}>
