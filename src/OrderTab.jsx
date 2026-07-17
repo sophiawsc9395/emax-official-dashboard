@@ -992,14 +992,6 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
         </div>
         {isReady&&<div style={{fontSize:10,color:"#15803D",marginTop:5,fontWeight:600}}>Will skip to Step 3 — Arrived HQ</div>}
       </div>
-      {!isCash&&f.stockStatus==="stock_request"&&<div>
-        <L>Pick Up Branch</L>
-        <SEL value={f.pickUpBranch||""} onChange={e=>set("pickUpBranch",e.target.value)}>
-          <option value="">— None —</option>
-          {BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}
-        </SEL>
-        <div style={{fontSize:10,color:C.textLight,marginTop:4}}>Branch that will collect this stock request from HQ, if different from the order's own branch</div>
-      </div>}
       <div>
         <L req>Order Type</L>
         <div style={{display:"flex",gap:8}}>
@@ -1011,6 +1003,13 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
       {row("phoneModel","Phone Model / Item","text",true)}
       {row("customerName","Customer Name","text",true)}
       <div><L req>Branch</L><SEL value={f.branch} onChange={e=>set("branch",e.target.value)} disabled={!isAdmin&&!!userBranch}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}</SEL></div>
+      {!isCash&&f.stockStatus==="stock_request"&&<div>
+        <L>Pick Up Branch</L>
+        <SEL value={f.pickUpBranch||""} onChange={e=>set("pickUpBranch",e.target.value)}>
+          <option value="">— None —</option>
+          {BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}
+        </SEL>
+      </div>}
       <div><L req>Sales Agent</L>{branchSRs.length>0?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}} style={missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>:<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder="Agent ID" style={missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}}/>}</div>
     </FormCard>
     <FormCard title="Customer Details">
