@@ -79,7 +79,7 @@ export const ORDER_ROLE_DEFS = {
 export const ORDER_USER_ROLES = {
   "emaxbilling@gmail.com": ["billing"],
   "emaxknockoff@gmail.com": ["knockoff"],
-  "exampurchase@gmail.com": ["purchase"],
+  "emaxpurchase@gmail.com": ["purchase"],
   "emaxstock@gmail.com": ["stock"],
   "boontheng2004@gmail.com": ["superAdmin", "billing", "knockoff", "purchase", "stock"],
   "sophiawsc9395@gmail.com": ["billing", "knockoff", "purchase", "stock", "superAdmin"],
