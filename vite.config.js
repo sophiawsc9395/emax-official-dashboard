@@ -8,6 +8,7 @@ export default defineConfig({
       input: {
         main:  'index.html',
         boss:  'boss.html',
+        manager: 'manager.html',
         order: 'order.html',
         km:    'branch-KM.html',
         t1:    'branch-T1.html',
