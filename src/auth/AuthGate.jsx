@@ -13,9 +13,11 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../storage/index.js";
 import LoginPage from "./LoginPage.jsx";
+import ResetPasswordPage from "./ResetPasswordPage.jsx";
 
 export default function AuthGate({ children, allowedEmails }) {
   const [session, setSession] = useState(undefined); // undefined = still loading
+  const [isRecovery, setIsRecovery] = useState(false);
 
   useEffect(() => {
     // Get current session on mount
@@ -23,8 +25,12 @@ export default function AuthGate({ children, allowedEmails }) {
       setSession(data.session ?? null);
     });
 
-    // Listen for sign-in / sign-out events
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Listen for sign-in / sign-out / password-recovery events. Clicking a
+    // Supabase "reset password" email link lands back on this page and fires
+    // a PASSWORD_RECOVERY event with a temporary session — that's the signal
+    // to show the "set new password" form instead of the normal login/app.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") setIsRecovery(true);
       setSession(session ?? null);
     });
 
@@ -43,6 +49,12 @@ export default function AuthGate({ children, allowedEmails }) {
         </div>
       </div>
     );
+  }
+
+  // Arrived via a password-recovery link — let them set a new password
+  // before anything else happens.
+  if (isRecovery) {
+    return <ResetPasswordPage onDone={() => setIsRecovery(false)} />;
   }
 
   // Not logged in — show login page
