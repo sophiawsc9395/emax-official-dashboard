@@ -16,7 +16,7 @@ const PHASES=[
 ];
 const STEPS=[
   {step:1,label:"New Order Request",desc:"Order submitted by branch.",who:"branch",phase:"stock"},
-  {step:2,label:"Ordered",desc:"Purchase order placed with supplier.",who:"admin",phase:"stock",needsOrderDate:true,needsRemark:true},
+  {step:2,label:"Ordered",desc:"Purchase order placed with supplier.",who:"admin",phase:"stock",needsOrderDate:true},
   {step:3,label:"Arrived HQ",desc:"Item received at HQ.",who:"admin",phase:"stock",needsFiles:[{key:"claimToPurchaser",label:"Claim Release to Purchaser File"}]},
   {step:4,label:"Dispatched to Branch",desc:"Item dispatched from HQ.",who:"admin",phase:"transfer",needsTransferNumbers:true},
   {step:5,label:"Arrived Branch",desc:"Branch confirms receipt.",who:"branch",phase:"transfer"},
@@ -232,7 +232,54 @@ function StepBadge({order,step}){
 }
 
 /* ── Timeline ─────────────────────────────────────────────────────────── */
-function Timeline({order,isAdmin}){
+function PhoneModelField({order,onUpdate}){
+  const [editing,setEditing]=useState(false);
+  const [val,setVal]=useState(order.phoneModel||"");
+  const [saving,setSaving]=useState(false);
+  const save=async()=>{
+    if(!val.trim())return;
+    setSaving(true);
+    await onUpdate({...order,phoneModel:val.trim()});
+    setSaving(false);
+    setEditing(false);
+  };
+  if(!editing){
+    return<div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+      <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.phoneModel||"—"}</div>
+      <button onClick={()=>{setVal(order.phoneModel||"");setEditing(true);}} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",padding:0}}>Edit</button>
+    </div>;
+  }
+  return<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+    <input value={val} onChange={e=>setVal(e.target.value)} placeholder="Phone Model / Item…" style={{flex:1,minWidth:120,padding:"5px 8px",border:`1.5px solid ${!val.trim()?"#FECACA":C.border}`,borderRadius:7,fontSize:12,fontFamily:"Inter,sans-serif",outline:"none"}}/>
+    <button onClick={save} disabled={saving||!val.trim()} style={{fontSize:11,fontWeight:700,color:"#fff",background:C.blue,border:"none",borderRadius:7,padding:"5px 10px",cursor:saving?"wait":"pointer",fontFamily:"Inter,sans-serif"}}>{saving?"Saving…":"Save"}</button>
+    <button onClick={()=>setEditing(false)} style={{fontSize:11,color:C.textLight,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Cancel</button>
+  </div>;
+}
+
+function TrackingNumberEditor({order,onUpdate}){
+  const [editing,setEditing]=useState(false);
+  const [val,setVal]=useState(order.trackingNumber||"");
+  const [saving,setSaving]=useState(false);
+  const save=async()=>{
+    setSaving(true);
+    await onUpdate({...order,trackingNumber:val.trim()});
+    setSaving(false);
+    setEditing(false);
+  };
+  if(!editing){
+    return<div style={{marginTop:4,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+      {order.trackingNumber?<div style={{fontSize:11,color:C.navy,fontWeight:600}}>Tracking Number: {order.trackingNumber}</div>:<div style={{fontSize:11,color:C.textLight,fontStyle:"italic"}}>No tracking number yet</div>}
+      <button onClick={()=>{setVal(order.trackingNumber||"");setEditing(true);}} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",padding:0}}>{order.trackingNumber?"Edit":"Add Tracking Number"}</button>
+    </div>;
+  }
+  return<div style={{marginTop:6,display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+    <input value={val} onChange={e=>setVal(e.target.value)} placeholder="Tracking number…" style={{flex:1,minWidth:140,padding:"6px 10px",border:`1.5px solid ${C.border}`,borderRadius:7,fontSize:12,fontFamily:"Inter,sans-serif",outline:"none"}}/>
+    <button onClick={save} disabled={saving} style={{fontSize:11,fontWeight:700,color:"#fff",background:C.blue,border:"none",borderRadius:7,padding:"6px 12px",cursor:saving?"wait":"pointer",fontFamily:"Inter,sans-serif"}}>{saving?"Saving…":"Save"}</button>
+    <button onClick={()=>setEditing(false)} style={{fontSize:11,color:C.textLight,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Cancel</button>
+  </div>;
+}
+
+function Timeline({order,isAdmin,canManageTracking,onUpdate}){
   const cur=order.step;
   const isReady=order.stockStatus==="ready";
   const visSteps=getVisibleSteps(order);
@@ -296,6 +343,7 @@ function Timeline({order,isAdmin}){
             {histEntries.length>1&&<span style={{background:C.surface,color:C.textLight,padding:"1px 7px",borderRadius:4,fontSize:9,fontWeight:600,border:`1px solid ${C.border}`}}>{histEntries.length} updates</span>}
           </div>
           {histEntries.map((hist,hi)=><div key={hi}>{renderEntry(hist,s,hi===histEntries.length-1&&histEntries.length>1)}</div>)}
+          {s.step===2&&!isAutoReady&&order.step>=2&&canManageTracking&&<TrackingNumberEditor order={order} onUpdate={onUpdate}/>}
         </div>
       </div>
     </div>;
@@ -743,7 +791,6 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false}){
           <div><L req>PO Number</L><I value={poNumber} onChange={e=>setPoNumber(e.target.value)} placeholder="PO number…" style={!poNumber.trim()?{borderColor:"#FECACA"}:{}}/></div>
           {isAdmin&&<div><L req>Purchaser Name</L><I value={purchaserName} onChange={e=>setPurchaserName(e.target.value)} placeholder="Purchaser name…" style={!purchaserName.trim()?{borderColor:"#FECACA"}:{}}/></div>}
         </div>}
-        {nextDef.needsRemark&&isAdmin&&<div style={{marginBottom:12}}><L>Remark / ETA / Order Details (optional)</L><TX value={remark} onChange={e=>setRemark(e.target.value)} rows={5} placeholder="ETA, order reference, notes…" style={{borderRadius:12,resize:"none",width:"100%",boxSizing:"border-box"}}/></div>}
         {nextDef.needsInvoiceNo&&isAdmin&&<>
           <div style={{marginBottom:12}}><L req>Sales Invoice Number</L><I value={invoiceNo} onChange={e=>setInvoiceNo(e.target.value)} placeholder="INV-2026-0001"/></div>
         </>}
@@ -881,8 +928,25 @@ function ReportCard({allOrders,reportDate,setReportDate}){
 }
 
 /* ── Order Detail ─────────────────────────────────────────────────────── */
-function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,allOrders,isReadOnly,orderPermissions}){
+function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,allOrders,isReadOnly,orderPermissions,userBranch}){
   const isSuperAdminOrder = isAdmin && (!orderPermissions || orderPermissions.adminSteps==="all");
+  // True super admin means accessed WITHOUT any orderPermissions restriction
+  // at all (the main dashboard), not just holding the "order admin" role.
+  const isTrueSuperAdmin = isAdmin && !orderPermissions;
+  // Purchase-role admin (or order admin / true super admin) — anyone who can
+  // administer the Stock Order phase (steps 1-3).
+  const canAdminStockOrder = !orderPermissions || orderPermissions.adminSteps==="all" || orderPermissions.adminSteps.includes(2);
+  // Who can add/edit the Ordered step's tracking number: true super admin,
+  // the branch/manager viewer (isAdmin=false with a userBranch), or the
+  // Purchase / order-admin role.
+  const canManageTracking = isTrueSuperAdmin || (!isAdmin&&!!userBranch) || (isAdmin&&!!orderPermissions&&canAdminStockOrder);
+  // Purchase-role admin now also gets full Edit, on top of the existing
+  // super-admin-only access.
+  const canEditOrder = isSuperAdminOrder || (isAdmin&&!!orderPermissions&&canAdminStockOrder);
+  // Billing user can also edit just the Phone Model / Item field, but only
+  // while the order is still at step 2 (Ordered) — see the inline editor in
+  // the Order Information panel below.
+  const canEditPhoneModelAtOrdered = canManageTracking || (isAdmin&&!!orderPermissions&&orderPermissions.adminSteps!=="all"&&orderPermissions.adminSteps.includes(6));
   const forceViewOnly = orderPermissions && orderPermissions.adminSteps!=="all" && (()=>{
     const nextStepN=nextStepNum(order);
     const relevantSteps=[order.step,nextStepN].filter(s=>s!=null);
@@ -903,6 +967,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
         <div style={{fontSize:11,color:C.textLight,marginTop:3}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}</div>
       </div>
       {isSuperAdminOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn><DBtn onClick={onDelete}>{Ic.trash} Delete</DBtn></div>}
+      {!isSuperAdminOrder&&canEditOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn></div>}
     </div>
 
     {order.cancelled&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"12px 16px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
@@ -919,7 +984,11 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <div className="order-info-card" style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.fileText}>Order Information</SecHdr>
       <div className="order-info-grid" style={{padding:"6px 16px 10px"}}>
-        {[["Customer Name",order.customerName],order.customerIC&&["Customer IC",order.customerIC],["Device Name",order.phoneModel],order.customerHP&&["Customer HP",order.customerHP],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],["Deposit",fRM(order.deposit)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.depositPaymentMethod&&["Deposit Payment Method",order.depositPaymentMethod],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],order.supplierName&&["Supplier",isAdmin?order.supplierName:"—"],order.poNumber&&["PO Number",order.poNumber],order.purchaserName&&["Purchaser Name",isAdmin?order.purchaserName:"—"],order.consignmentNo&&["Consignment Note No.",order.consignmentNo],order.stockTransferNo&&["Stock Transfer No.",order.stockTransferNo],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+        <div style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+          <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Device Name</div>
+          {canEditPhoneModelAtOrdered&&order.step===2?<PhoneModelField order={order} onUpdate={onUpdate}/>:<div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.phoneModel||"—"}</div>}
+        </div>
+        {[["Customer Name",order.customerName],order.customerIC&&["Customer IC",order.customerIC],order.customerHP&&["Customer HP",order.customerHP],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],["Deposit",fRM(order.deposit)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],order.poNumber&&["PO Number",order.poNumber],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
           <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}</div>
         </div>)}
@@ -932,7 +1001,6 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
           <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.customerAddress}</div>
         </div>}
       </div>
-      {order.adminRemark&&<div style={{padding:"8px 16px",borderTop:`1px solid ${C.border}`,background:"#FFFBEB"}}><div style={{fontSize:10,color:"#92400E",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Admin Remark</div><div style={{fontSize:12,color:"#78350F"}}>{order.adminRemark}</div></div>}
     </div>
 
 
@@ -941,7 +1009,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <div className="detail-grid">
       <div style={card}>
         <SecHdr icon={Ic.calendar}>Tracking Timeline</SecHdr>
-        <div style={{padding:"14px 16px"}}><Timeline order={order} isAdmin={isAdmin}/></div>
+        <div style={{padding:"14px 16px"}}><Timeline order={order} isAdmin={isAdmin} canManageTracking={canManageTracking} onUpdate={onUpdate}/></div>
       </div>
       <div>
         {order.cancelled?<div style={{...card,padding:"16px"}}>
@@ -1589,7 +1657,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   if(view==="detail"&&selected){
     const live=detailCache[selected.id];
     if(!live)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading order…</div>;
-    return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} orderPermissions={orderPermissions} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
+    return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} orderPermissions={orderPermissions} userBranch={userBranch} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
   }
   if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
