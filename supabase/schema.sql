@@ -265,3 +265,21 @@ create policy "Allow authenticated full access"
 -- The admin@emax.com account is also listed as ALLOWED in every branch
 -- main.jsx, so admin can open any page. Adjust these in the src/*.main.jsx
 -- files to match your actual email addresses.
+
+-- ─── Realtime ────────────────────────────────────────────────────────────
+-- Required for the Order Tracking page's live updates (no manual refresh
+-- needed) — without this, changes made on one device won't show up on
+-- another until the page is reloaded. Safe to re-run.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='orders'
+  ) then
+    alter publication supabase_realtime add table public.orders;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='order_history'
+  ) then
+    alter publication supabase_realtime add table public.order_history;
+  end if;
+end $$;

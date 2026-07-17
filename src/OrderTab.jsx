@@ -1,5 +1,6 @@
 import {useState,useEffect,useRef,useMemo,useCallback} from "react";
 import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
+import {supabase} from "./storage/index.js";
 
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 const MERCHANTS=["Aeon","JCL","Chailease"];
@@ -1057,6 +1058,12 @@ function getOrderAlerts(orders,userBranch=null){
     else if(days>=61)alerts.push({type:"approval_urgent",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval ${days} days ago — URGENT`});
     else if(days>=31)alerts.push({type:"approval_warning",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval ${days} days ago — action needed`});
   });
+  myOrders.filter(o=>o.step===7).forEach(o=>{
+    const billedDate=o.stepDates?.["7"]?.date;
+    if(!billedDate)return;
+    const days=daysSince(billedDate);
+    if(days>=1)alerts.push({type:"collection_proof_overdue",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Billed ${days} day${days>1?"s":""} ago — collection & payment proof not yet uploaded`});
+  });
   return alerts;
 }
 function AlertBanner({alerts,onClickOrder}){
@@ -1064,6 +1071,7 @@ function AlertBanner({alerts,onClickOrder}){
   const expired=alerts.filter(a=>a.type==="approval_expired");
   const urgent=alerts.filter(a=>a.type==="approval_urgent"||a.type==="overdue_order");
   const warning=alerts.filter(a=>a.type==="approval_warning");
+  const collectionOverdue=alerts.filter(a=>a.type==="collection_proof_overdue");
   const Block=({items,color,title})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
@@ -1078,6 +1086,7 @@ function AlertBanner({alerts,onClickOrder}){
   return<div style={{marginBottom:18}}>
     <Block items={expired} color="#DC2626" title="Approval Expired"/>
     <Block items={urgent} color="#B91C1C" title="Urgent Attention"/>
+    <Block items={collectionOverdue} color="#B91C1C" title="Collection Proof Overdue"/>
     <Block items={warning} color="#B45309" title="Approval Warning"/>
   </div>;
 }
@@ -1463,6 +1472,31 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   useEffect(()=>{
     if(view==="detail"&&selected&&!detailCache[selected.id])hydrateOrder(selected.id);
   },[view,selected,detailCache,hydrateOrder]);
+
+  // Live updates — whenever anyone (any branch, any device) changes an order
+  // or its history, everyone viewing this page picks it up automatically,
+  // no manual refresh needed. Debounced slightly so a burst of changes (e.g.
+  // a bulk action touching many orders) doesn't refetch on every single row.
+  const selectedRef=useRef(selected);
+  useEffect(()=>{selectedRef.current=selected;},[selected]);
+  useEffect(()=>{
+    let refreshTimer=null;
+    const scheduleRefresh=()=>{
+      clearTimeout(refreshTimer);
+      refreshTimer=setTimeout(()=>{refreshList();},400);
+    };
+    const channel=supabase.channel("orders-live")
+      .on("postgres_changes",{event:"*",schema:"public",table:"orders"},()=>{scheduleRefresh();})
+      .on("postgres_changes",{event:"*",schema:"public",table:"order_history"},payload=>{
+        scheduleRefresh();
+        const changedOrderId=payload.new?.order_id||payload.old?.order_id;
+        if(changedOrderId&&selectedRef.current&&String(changedOrderId)===String(selectedRef.current.id)){
+          hydrateOrder(changedOrderId);
+        }
+      })
+      .subscribe();
+    return()=>{clearTimeout(refreshTimer);supabase.removeChannel(channel);};
+  },[refreshList,hydrateOrder]);
 
   // o = full order object (header fields + its complete, already-appended history array).
   // Diffs against what we last knew about this one order and writes ONLY the new
