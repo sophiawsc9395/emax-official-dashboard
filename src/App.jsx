@@ -1489,6 +1489,8 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
   const [saved,setSaved]           = useState(false);
   const [localInputs,setLocalInputs] = useState({});
   const [repairInput,setRepairInput] = useState(0); // single company-wide figure for this day
+  const [fileInputs,setFileInputs] = useState({}); // { [branch]: File } — staged, uploaded on Save All
+  const [existingPdf,setExistingPdf] = useState({}); // { [branch]: {name,key} } — already-uploaded file for this date
 
   const dateKey = `${selDay}/${month}/${year}`;
   const visibleSRs = srList.filter(s=>srVisibleInMonth(s,month,year));
@@ -1504,6 +1506,7 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
       init[`BM_${b}`]={unalloc:d[`BM_${b}`]?.unalloc||0};
     });
     setLocalInputs(init);
+    setFileInputs({});
     // Repair & Service is one company-wide figure per day (same store the
     // Repair tab reads/writes — kept as a plain number, not per-branch).
     const repKey=`emax_v5_repair_${year}_${month}`;
@@ -1513,9 +1516,21 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
         setRepairInput(rd[selDay]||0);
       }catch{setRepairInput(0);}
     })();
+    // Check which branches already have a report file uploaded for this date
+    (async()=>{
+      try{
+        const idx=await loadData("emax_v5_pdf_index")||[];
+        const list=Array.isArray(idx)?idx:[];
+        const entries=await Promise.all(list.map(k=>loadData(k).then(p=>({key:k,pdf:p}))));
+        const found={};
+        entries.forEach(e=>{if(e.pdf&&e.pdf.date===dateKey&&e.pdf.branch&&BRANCH_ORDER.includes(e.pdf.branch))found[e.pdf.branch]={name:e.pdf.name,key:e.key};});
+        setExistingPdf(found);
+      }catch{setExistingPdf({});}
+    })();
   },[selDay,month,year]);
 
   const set=(id,field,val)=>setLocalInputs(p=>({...p,[id]:{...p[id],[field]:parseFloat(val)||0}}));
+  const setFile=(branch,file)=>setFileInputs(p=>({...p,[branch]:file}));
 
   const save=async()=>{
     setSaving(true);
@@ -1545,7 +1560,25 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
       await saveData(repairStoreKey,rd);
       if(onRepairSave)onRepairSave();
     }catch{}
-    setRecords(nr);setSaving(false);setSaved(true);
+    // Report files — one PDF per branch for this date, staged in fileInputs.
+    // Reuses the exact same storage the Monthly Report's "AEON Profit Reports"
+    // downloads already read from, so anything uploaded here shows up there.
+    const branchesWithFiles=Object.keys(fileInputs).filter(b=>fileInputs[b]);
+    if(branchesWithFiles.length){
+      try{
+        const idx=await loadData("emax_v5_pdf_index")||[];
+        const idxArr=Array.isArray(idx)?idx:[];
+        for(const b of branchesWithFiles){
+          const file=fileInputs[b];
+          const b64=await fileToB64(file);
+          const pdfKey=`emax_v5_pdf_${b}_${dateKey.replace(/\//g,"_")}_${Date.now()}`;
+          await saveData(pdfKey,{name:file.name,date:dateKey,b64,branch:b});
+          if(!idxArr.includes(pdfKey))idxArr.push(pdfKey);
+        }
+        await saveData("emax_v5_pdf_index",[...new Set(idxArr)]);
+      }catch(e){console.error("Report file upload failed:",e);}
+    }
+    setRecords(nr);setSaving(false);setSaved(true);setFileInputs({});
     setTimeout(()=>setSaved(false),2000);
   };
 
@@ -1580,12 +1613,12 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
     />;
   };
 
-  const branchDayTotal=(b)=>{
-    const bSRs=visibleSRs.filter(s=>s.branch===b);
-    return bSRs.reduce((s,sr)=>s+(localInputs[sr.id]?.walkin||0)+(localInputs[sr.id]?.aeon||0),0)
-      +(localInputs[`BM_${b}`]?.unalloc||0);
-  };
+  const branchWalkinTotal=(b)=>visibleSRs.filter(s=>s.branch===b).reduce((s,sr)=>s+(localInputs[sr.id]?.walkin||0),0)+(localInputs[`BM_${b}`]?.unalloc||0);
+  const branchInvoiceTotal=(b)=>visibleSRs.filter(s=>s.branch===b).reduce((s,sr)=>s+(localInputs[sr.id]?.aeon||0),0);
+  const branchDayTotal=(b)=>branchWalkinTotal(b)+branchInvoiceTotal(b);
   const companyDayTotal=BRANCH_ORDER.reduce((s,b)=>s+branchDayTotal(b),0);
+  const companyWalkinTotal=BRANCH_ORDER.reduce((s,b)=>s+branchWalkinTotal(b),0);
+  const companyInvoiceTotal=BRANCH_ORDER.reduce((s,b)=>s+branchInvoiceTotal(b),0);
 
   const TH=(label,color="rgba(255,255,255,.7)")=>(
     <th style={{padding:"10px 14px",fontWeight:700,fontSize:10,color,textTransform:"uppercase",letterSpacing:"0.06em",whiteSpace:"nowrap",textAlign:label==="Walk In (RM)"||label==="Invoice (RM)"||label==="Day Total"?"right":"left"}}>{label}</th>
@@ -1625,22 +1658,34 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
     </div>
 
     {/* Company-wide day total */}
-    <div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:8,padding:"8px 14px",marginBottom:20,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12}}>
+    <div style={{background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:8,padding:"10px 14px",marginBottom:20,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10,fontSize:12}}>
       <span style={{color:"#1E40AF",fontWeight:600}}>Company Day Total — {selDay}/{month}/{year}</span>
-      <span style={{fontWeight:800,color:"#1E6FDB",fontSize:14}}>{fRM(companyDayTotal)}</span>
+      <div style={{display:"flex",gap:18,alignItems:"center",flexWrap:"wrap"}}>
+        <span style={{color:"#60AAFF",fontWeight:700}}>Walk In: {fRM(companyWalkinTotal)}</span>
+        <span style={{color:"#7C3AED",fontWeight:700}}>Invoice: {fRM(companyInvoiceTotal)}</span>
+        <span style={{fontWeight:800,color:"#1E6FDB",fontSize:14}}>{fRM(companyDayTotal)}</span>
+      </div>
     </div>
 
     {/* One section per branch */}
     {BRANCH_ORDER.map(b=>{
       const bSRs=visibleSRs.filter(s=>s.branch===b);
       const dayTotal=branchDayTotal(b);
+      const wiTotal=branchWalkinTotal(b);
+      const invTotal=branchInvoiceTotal(b);
       return <div key={b} id={`daily-entry-${b}`} style={{marginBottom:24,scrollMarginTop:16}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:8}}>
           <div style={{fontWeight:800,fontSize:13,color:"#0A1628"}}>{b} — {branchMeta[b]?.name||b}</div>
-          <div style={{fontSize:12,fontWeight:700,color:dayTotal>0?"#1E6FDB":"#8A96A8"}}>{fRM(dayTotal)}</div>
+          <div style={{display:"flex",gap:14,alignItems:"center",fontSize:11,flexWrap:"wrap"}}>
+            <span style={{color:"#60AAFF",fontWeight:700}}>Walk In: {fRM(wiTotal)}</span>
+            <span style={{color:"#7C3AED",fontWeight:700}}>Invoice: {fRM(invTotal)}</span>
+            <span style={{fontSize:12,fontWeight:800,color:dayTotal>0?"#1E6FDB":"#8A96A8"}}>{fRM(dayTotal)}</span>
+          </div>
         </div>
         <div className="card" style={{overflow:"hidden"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          {/* Horizontal scroll wrapper — table is wider than mobile screens */}
+          <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:640}}>
             <thead>
               <tr style={{background:"#0A1628"}}>
                 {TH("SR / Entry")}
@@ -1701,6 +1746,17 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
               </tr>
             </tfoot>
           </table>
+          </div>
+        </div>
+        {/* Per-branch report file upload — posted to storage when Save All is clicked */}
+        <div style={{marginTop:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",padding:"8px 2px"}}>
+          <label style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",border:`1.5px solid ${fileInputs[b]?"#0A1628":"#E4EAF2"}`,borderRadius:7,cursor:"pointer",background:"#fff",fontSize:11,color:fileInputs[b]?"#0A1628":"#8A96A8"}}>
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{display:"none"}} onChange={e=>setFile(b,e.target.files[0]||null)}/>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            {fileInputs[b]?fileInputs[b].name:"Attach report file (PDF/image)"}
+          </label>
+          {fileInputs[b]&&<span style={{fontSize:10,color:"#8A96A8"}}>Will upload when you click "Save All to Monthly Report"</span>}
+          {!fileInputs[b]&&existingPdf[b]&&<span style={{fontSize:10,color:"#15803D",fontWeight:600}}>✓ {existingPdf[b].name} already uploaded for this date</span>}
         </div>
       </div>;
     })}

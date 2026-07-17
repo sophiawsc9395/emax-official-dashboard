@@ -453,7 +453,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
   if(!filtered.length){alert(`No records found${dateFilter?` for ${fDate(dateFilter)}`:""}.`);return;}
   const dateStr=dateFilter?fDate(dateFilter):"All Dates";
   const merchantLabel=isCashKnockoff?"N/A (Cash Orders)":(merchantFilter&&merchantFilter!=="all"?merchantFilter:"All Merchants");
-  let rows="",total1=0,total2=0;
+  let rows="",total1=0,total2=0,total3=0,total4=0;
   if(isAgreementReceived){
     rows=filtered.map((o,i)=>{const claim=calcClaimAmount(o);total1+=claim;const d=o.stepDates?.["11"]?.date;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.branch}</td><td>${o.agreementNumber||"—"}</td><td>${fDate(d)}</td><td>RM ${claim.toFixed(2)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="5"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
@@ -492,9 +492,15 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       const amt1=show1?parseFloat(h?.paymentProofAmount)||0:0;
       const amt2=show2?parseFloat(h?.secondPaymentAmount)||0:0;
       total1+=amt1;total2+=amt2;
-      return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${show1&&amt1?`RM ${amt1.toFixed(2)}`:"—"}</td><td>${show1?(h?.paymentMethod||"—"):"—"}</td><td>${show2&&amt2?`RM ${amt2.toFixed(2)}`:"—"}</td><td>${show2&&amt2?(h?.secondPayMethod||"—"):"—"}</td></tr>`;
+      // Upfront 1 = Agreement Fee + Stamping Fee + Deposit (the subtotal due
+      // before collection). Upfront 2 = First Monthly Installment. Both are
+      // fixed contract figures, not date-specific, so always shown.
+      const upfront1=calcUpfront(o).total;
+      const upfront2=parseFloat(h?.monthlyInstallment??o.monthlyInstallment)||0;
+      total3+=upfront1;total4+=upfront2;
+      return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${show1&&amt1?`RM ${amt1.toFixed(2)}`:"—"}</td><td>${show1?(h?.paymentMethod||"—"):"—"}</td><td>${show2&&amt2?`RM ${amt2.toFixed(2)}`:"—"}</td><td>${show2&&amt2?(h?.secondPayMethod||"—"):"—"}</td><td>RM ${upfront1.toFixed(2)}</td><td>RM ${upfront2.toFixed(2)}</td></tr>`;
     }).join("");
-    rows+=`<tr class="tot"><td colspan="2"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td></tr>`;
+    rows+=`<tr class="tot"><td colspan="2"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td><td><b>RM ${total3.toFixed(2)}</b></td><td><b>RM ${total4.toFixed(2)}</b></td></tr>`;
   }
   const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":isCashKnockoff?"Cash Order Knock Off Report":"Upfront Payment Report";
   const heads=isAgreementReceived?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Approval Date</th><th>Claim Amount</th>"
@@ -503,7 +509,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     :isClaim?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Claim Sent Date</th><th>Claim Amount</th>"
     :isFirstInstallment?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th>"
     :isCashKnockoff?"<th>#</th><th>Device Name</th><th>Branch</th><th>Invoice No</th><th>Deposit Payment Date</th><th>Deposit Payment Method</th><th>Deposit Amount</th><th>Balance Payment Date</th><th>Balance Payment Method</th><th>Balance Payment Amount</th><th>Expected Balance Payment Amount</th>"
-    :"<th>#</th><th>Invoice No</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Payment Proof Amount</th><th>2nd Method</th>";
+    :"<th>#</th><th>Invoice No</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Payment Proof Amount</th><th>2nd Method</th><th>Upfront 1 Amount</th><th>Upfront 2 Amount</th>";
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""} · Merchant: ${merchantLabel}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
   const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
 }
@@ -542,7 +548,7 @@ function BillingDetailsCard({billingData:bd,isCash,title="Billing Request Detail
   </div>;
 }
 
-function ActionPanel({order,isAdmin,onUpdate,allOrders}){
+function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false}){
   const step=order.step;
   const isCash=order.orderType==="cash";
   const nextStepN=nextStepNum(order);
@@ -579,6 +585,24 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders}){
   const [showShortPayment,setShowShortPayment]=useState(false);
   const [shortPayRemark,setShortPayRemark]=useState("");
   const upfront=calcUpfront(order);
+
+  // Some roles can see this order's full history/status but aren't allowed
+  // to act on THIS particular step (e.g. a Purchase-only user viewing an
+  // order that's already moved on to Billing). Show what's pending, with no
+  // way to actually submit anything — placed after all hooks above so the
+  // early return never violates the Rules of Hooks.
+  if(forceViewOnly){
+    if(order.step===14)return<div style={{background:"#F0FDF4",borderRadius:12,padding:"16px",border:"1px solid #BBF7D0",display:"flex",alignItems:"center",gap:10}}>{Ic.checkCircle}<div><div style={{fontWeight:700,fontSize:14,color:"#15803D"}}>Order Completed</div><div style={{fontSize:11,color:"#166534",marginTop:2}}>Knock-off: {fDate(order.knockOffDate)}</div></div></div>;
+    return<div style={card}>
+      <SecHdr icon={Ic.chevR}>{nextDef?`Next: ${nextDef.label}`:"Status"}</SecHdr>
+      <div style={{padding:"14px 16px"}}>
+        {nextDef?<>
+          <div style={{fontSize:12,color:C.textMid,marginBottom:6}}>{nextDef.desc}</div>
+          <div style={{fontSize:11,color:C.textLight,fontStyle:"italic"}}>Waiting for {nextDef.who==="admin"?"Admin":"Branch"} to process this step — outside your access for this order.</div>
+        </>:<div style={{fontSize:12,color:C.textLight,fontStyle:"italic"}}>No further action pending on this order.</div>}
+      </div>
+    </div>;
+  }
 
   const isReadyOrphaned=order.stockStatus==="ready"&&[2,3].includes(step);
   if((step===4||isReadyOrphaned)&&!order.consignmentNo&&!order.stockTransferNo){
@@ -827,7 +851,13 @@ function ReportCard({allOrders,reportDate,setReportDate}){
 }
 
 /* ── Order Detail ─────────────────────────────────────────────────────── */
-function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,allOrders,isReadOnly}){
+function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,allOrders,isReadOnly,orderPermissions}){
+  const isSuperAdminOrder = isAdmin && (!orderPermissions || orderPermissions.adminSteps==="all");
+  const forceViewOnly = orderPermissions && orderPermissions.adminSteps!=="all" && (()=>{
+    const nextStepN=nextStepNum(order);
+    const relevantSteps=[order.step,nextStepN].filter(s=>s!=null);
+    return !relevantSteps.some(s=>orderPermissions.adminSteps.includes(s));
+  })();
   const s=getStep(order.step),ph=getPhase(order.step),isCash=order.orderType==="cash";
   return<div className="fade-in">
     {/* Top bar */}
@@ -842,12 +872,12 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
         </div>
         <div style={{fontSize:11,color:C.textLight,marginTop:3}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}</div>
       </div>
-      {isAdmin&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn><DBtn onClick={onDelete}>{Ic.trash} Delete</DBtn></div>}
+      {isSuperAdminOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn><DBtn onClick={onDelete}>{Ic.trash} Delete</DBtn></div>}
     </div>
 
     {order.cancelled&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"12px 16px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,color:"#DC2626"}}>{Ic.alertCircle}<div><div style={{fontWeight:700,fontSize:13}}>This order has been cancelled</div>{order.cancelledReason&&<div style={{fontSize:11,color:"#B91C1C",marginTop:2}}>{order.cancelledReason}</div>}</div></div>
-      {isAdmin&&!isReadOnly&&<GBtn onClick={()=>onUpdate({...order,cancelled:false,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Reactivated"}]})}>Reactivate</GBtn>}
+      {isSuperAdminOrder&&!isReadOnly&&<GBtn onClick={()=>onUpdate({...order,cancelled:false,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Reactivated"}]})}>Reactivate</GBtn>}
     </div>}
 
     {/* Phase progress card */}
@@ -859,7 +889,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <div className="order-info-card" style={{...card,marginBottom:14}}>
       <SecHdr icon={Ic.fileText}>Order Information</SecHdr>
       <div className="order-info-grid" style={{padding:"6px 16px 10px"}}>
-        {[["Customer Name",order.customerName],order.customerIC&&["Customer IC",order.customerIC],["Device Name",order.phoneModel],order.customerHP&&["Customer HP",order.customerHP],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],["Deposit",fRM(order.deposit)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.depositPaymentMethod&&["Deposit Payment Method",order.depositPaymentMethod],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],order.supplierName&&["Supplier",isAdmin?order.supplierName:"—"],order.poNumber&&["PO Number",order.poNumber],order.purchaserName&&["Purchaser Name",isAdmin?order.purchaserName:"—"],order.consignmentNo&&["Consignment Note No.",order.consignmentNo],order.stockTransferNo&&["Stock Transfer No.",order.stockTransferNo],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+        {[["Customer Name",order.customerName],order.customerIC&&["Customer IC",order.customerIC],["Device Name",order.phoneModel],order.customerHP&&["Customer HP",order.customerHP],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],["Deposit",fRM(order.deposit)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.depositPaymentMethod&&["Deposit Payment Method",order.depositPaymentMethod],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],order.supplierName&&["Supplier",isAdmin?order.supplierName:"—"],order.poNumber&&["PO Number",order.poNumber],order.purchaserName&&["Purchaser Name",isAdmin?order.purchaserName:"—"],order.consignmentNo&&["Consignment Note No.",order.consignmentNo],order.stockTransferNo&&["Stock Transfer No.",order.stockTransferNo],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
           <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}</div>
         </div>)}
@@ -888,7 +918,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
           <div style={{fontSize:12,color:"#DC2626",fontStyle:"italic",textAlign:"center",padding:"12px 0"}}>Order cancelled — no further action available.</div>
         </div>:isReadOnly?<div style={{...card,padding:"16px"}}>
           <div style={{fontSize:12,color:C.textLight,fontStyle:"italic",textAlign:"center",padding:"12px 0"}}>View only — actions disabled for this viewer.</div>
-        </div>:<ActionPanel order={order} isAdmin={isAdmin} onUpdate={onUpdate} allOrders={allOrders}/>}
+        </div>:<ActionPanel order={order} isAdmin={isAdmin} onUpdate={onUpdate} allOrders={allOrders} forceViewOnly={forceViewOnly}/>}
       </div>
     </div>
   </div>;
@@ -911,7 +941,7 @@ function FormCard({title,children}){
 }
 
 function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList}){
-  const empty={phoneModel:"",branch:userBranch||"KM",merchant:"Aeon",agreementNumber:"",customerName:"",customerIC:"",customerEmail:"",customerHP:"",customerAddress:"",customerPostCode:"",customerCity:"",salesAgentId:"",salesAgentName:"",aeonApprovalDate:"",financePrice:"",deposit:"",stampingFee:"",agreementFee:"",monthlyInstallment:"",retailPrice:"",stockStatus:"stock_request",orderType:"ccm",depositPaymentDate:"",depositPaymentMethod:"RHB",depositSlip:null};
+  const empty={phoneModel:"",branch:userBranch||"KM",merchant:"Aeon",agreementNumber:"",customerName:"",customerIC:"",customerEmail:"",customerHP:"",customerAddress:"",customerPostCode:"",customerCity:"",salesAgentId:"",salesAgentName:"",aeonApprovalDate:"",financePrice:"",deposit:"",stampingFee:"",agreementFee:"",monthlyInstallment:"",retailPrice:"",stockStatus:"stock_request",orderType:"ccm",depositPaymentDate:"",depositPaymentMethod:"RHB",depositSlip:null,pickUpBranch:""};
   const [f,setF]=useState(order?{...order}:empty);
   const [slipFile,setSlipFile]=useState(null);
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
@@ -944,6 +974,14 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
         </div>
         {isReady&&<div style={{fontSize:10,color:"#15803D",marginTop:5,fontWeight:600}}>Will skip to Step 3 — Arrived HQ</div>}
       </div>
+      {!isCash&&f.stockStatus==="stock_request"&&<div>
+        <L>Pick Up Branch</L>
+        <SEL value={f.pickUpBranch||""} onChange={e=>set("pickUpBranch",e.target.value)}>
+          <option value="">— None —</option>
+          {BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}
+        </SEL>
+        <div style={{fontSize:10,color:C.textLight,marginTop:4}}>Branch that will collect this stock request from HQ, if different from the order's own branch</div>
+      </div>}
       <div>
         <L req>Order Type</L>
         <div style={{display:"flex",gap:8}}>
@@ -1354,7 +1392,19 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
   </div>;
 }
 
-export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList=[],isReadOnly=false}){
+export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList=[],isReadOnly=false,orderPermissions=null}){
+  // orderPermissions (when set) narrows a full isAdmin=true session down to
+  // specific steps/reports for the restricted Order-page-only roles (billing,
+  // knock-off, purchase, stock). null = legacy unrestricted behavior.
+  const isSuperAdminOrder = isAdmin && (!orderPermissions || orderPermissions.adminSteps==="all");
+  // Distinct from isSuperAdminOrder: true super admin means accessed WITHOUT
+  // any orderPermissions restriction at all (i.e. the main dashboard), not
+  // just holding the "order admin user" role. Remove Completed is destructive
+  // enough that even "order admin user" shouldn't get it.
+  const isTrueSuperAdmin = isAdmin && !orderPermissions;
+  const canSeeStep = (step) => !orderPermissions || orderPermissions.visibleSteps==="all" || orderPermissions.visibleSteps.includes(step);
+  const canAdminStep = (step) => !orderPermissions || orderPermissions.adminSteps==="all" || orderPermissions.adminSteps.includes(step);
+  const canSeeReport = (type) => !orderPermissions || orderPermissions.reports==="all" || orderPermissions.reports.includes(type);
   const [orders,setOrders]=useState([]);
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState(()=>sessionStorage.getItem("orderView")||"list");
@@ -1445,9 +1495,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     return true;
   };
 
-  const activeOrders=useMemo(()=>orders.filter(o=>o.step!==14&&(!userBranch||o.branch===userBranch)),[orders,userBranch]);
-  const completedOrders=useMemo(()=>orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)),[orders,userBranch]);
-  const agentOptions=useMemo(()=>[...new Set(orders.filter(o=>!userBranch||o.branch===userBranch).map(o=>o.salesAgentName||o.salesAgentId).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),[orders,userBranch]);
+  const activeOrders=useMemo(()=>orders.filter(o=>o.step!==14&&(!userBranch||o.branch===userBranch)&&canSeeStep(o.step)),[orders,userBranch,orderPermissions]);
+  const completedOrders=useMemo(()=>orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)&&canSeeStep(o.step)),[orders,userBranch,orderPermissions]);
+  const agentOptions=useMemo(()=>[...new Set(orders.filter(o=>(!userBranch||o.branch===userBranch)&&canSeeStep(o.step)).map(o=>o.salesAgentName||o.salesAgentId).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),[orders,userBranch,orderPermissions]);
   const viewingCompleted=filterPhase==="completed";
   const filtered=useMemo(()=>(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||getPhase(o.step)?.id===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,completedOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
   const phaseCounts=useMemo(()=>PHASES.reduce((acc,ph)=>{acc[ph.id]=activeOrders.filter(o=>ph.steps.includes(o.step)).length;return acc;},{}),[activeOrders]);
@@ -1460,7 +1510,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   if(view==="detail"&&selected){
     const live=detailCache[selected.id];
     if(!live)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading order…</div>;
-    return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
+    return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} orderPermissions={orderPermissions} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
   }
   if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
@@ -1477,11 +1527,11 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         <div style={{fontSize:12,color:C.textLight,marginTop:4}}>{activeOrders.length} active · {completedCount} completed</div>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        {isAdmin&&!isReadOnly&&orders.some(o=>o.step===3)&&<GBtn onClick={()=>setShowBulkDispatch(true)}>{Ic.truck} Dispatch to Branch</GBtn>}
-        {isAdmin&&!isReadOnly&&orders.some(o=>!o.cancelled&&o.step===11)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Agreement Sent to Merchant Date</GBtn>}
-        {isAdmin&&!isReadOnly&&orders.some(o=>!o.cancelled&&o.step===12)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
-        {isAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
-        {!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
+        {isAdmin&&!isReadOnly&&canAdminStep(4)&&orders.some(o=>o.step===3)&&<GBtn onClick={()=>setShowBulkDispatch(true)}>{Ic.truck} Dispatch to Branch</GBtn>}
+        {isAdmin&&!isReadOnly&&canAdminStep(12)&&orders.some(o=>!o.cancelled&&o.step===11)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Agreement Sent to Merchant Date</GBtn>}
+        {isAdmin&&!isReadOnly&&canAdminStep(13)&&orders.some(o=>!o.cancelled&&o.step===12)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
+        {isTrueSuperAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
+        {isSuperAdminOrder&&!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
       </div>
     </div>
 
@@ -1532,7 +1582,11 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     }
 
     {/* Report downloads — admin only, footer */}
-    {isAdmin&&!isReadOnly&&<div style={{...card,marginTop:12}}>
+    {(()=>{
+      const allReports=[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Cash Order Knock Off","cashKnockoff",cashKnockoffReportDate,setCashKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]];
+      const visibleReports=allReports.filter(([,type])=>canSeeReport(type));
+      if(!isAdmin||isReadOnly||!visibleReports.length)return null;
+      return<div style={{...card,marginTop:12}}>
       <div onClick={()=>setReportsExpanded(p=>!p)} style={{cursor:"pointer",userSelect:"none",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px"}}>
           <div style={{display:"flex",alignItems:"center",gap:7}}><span style={{color:"rgba(255,255,255,.85)"}}>{Ic.download}</span><span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Reports</span></div>
@@ -1542,7 +1596,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       {reportsExpanded&&<div style={{padding:"0 16px 16px",borderTop:`1px solid ${C.border}`}}>
         <div style={{padding:"14px 0 4px",maxWidth:260}}><L>Merchant</L><SEL value={reportMerchant} onChange={e=>setReportMerchant(e.target.value)}><option value="all">All Merchants</option>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
         <div style={{display:"flex",flexDirection:"column"}}>
-          {[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Cash Order Knock Off","cashKnockoff",cashKnockoffReportDate,setCashKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]].map(([label,type,date,setDate,src],i)=><div key={type} style={{display:"flex",alignItems:"flex-end",gap:10,padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none",flexWrap:"wrap"}}>
+          {visibleReports.map(([label,type,date,setDate,src],i)=><div key={type} style={{display:"flex",alignItems:"flex-end",gap:10,padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none",flexWrap:"wrap"}}>
             <div style={{flex:1,minWidth:140,fontSize:12,fontWeight:700,color:C.text}}>{label} Report</div>
             <div style={{flex:1,minWidth:130}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
             <PBtn onClick={()=>downloadReport(src,type,date,reportMerchant)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
@@ -1550,6 +1604,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
           </div>)}
         </div>
       </div>}
-    </div>}
+    </div>;
+    })()}
   </div>;
 }
