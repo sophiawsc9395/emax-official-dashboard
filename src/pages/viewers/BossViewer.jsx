@@ -2,7 +2,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
-import { mergeOrderPermissions } from "../../auth/orderRoles.js";
 
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -962,17 +961,6 @@ export default function App(){
   const [publishedUntil,setPublishedUntil]=useState(null);
   const [showPointsModal,setShowPointsModal]=useState(false);
   const [pointsModalPerson,setPointsModalPerson]=useState(null);
-  // If this logged-in viewer also holds an order-page role (billing/knock-off/
-  // purchase/stock/superAdmin — see auth/orderRoles.js), the Order Tracking
-  // tab below elevates from pure read-only to whatever that role allows.
-  // Everyone else (e.g. wingfeii@gmail.com) keeps the original view-only tab.
-  const [orderPermissions,setOrderPermissions]=useState(null);
-  useEffect(()=>{
-    supabase.auth.getSession().then(({data})=>{
-      const email=data.session?.user?.email;
-      if(email)setOrderPermissions(mergeOrderPermissions(email));
-    });
-  },[]);
 
   useEffect(()=>{
     setLoading(true);setRecords({});
@@ -1368,7 +1356,7 @@ export default function App(){
       </div>}
 
       {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}><RTOSummary branchMeta={bMeta}/></div>}
-      {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!orderPermissions} orderPermissions={orderPermissions} srList={srList}/></div>}
+      {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={true} srList={srList}/></div>}
     </div>{/* end main content */}
 
       {/* SIDEBAR — right side, collapsible */}

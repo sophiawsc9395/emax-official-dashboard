@@ -1582,7 +1582,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         {isAdmin&&!isReadOnly&&canAdminStep(12)&&orders.some(o=>!o.cancelled&&o.step===11)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Agreement Sent to Merchant Date</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(13)&&orders.some(o=>!o.cancelled&&o.step===12)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
         {isTrueSuperAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
-        {isSuperAdminOrder&&!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
+        {(isSuperAdminOrder||!isAdmin)&&!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
       </div>
     </div>
 
