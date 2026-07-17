@@ -11,6 +11,7 @@ const CSS = `
 `;
 
 export default function LoginPage({ onLogin }) {
+  const [mode, setMode] = useState("login"); // "login" | "forgot" | "sent"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,6 +32,25 @@ export default function LoginPage({ onLogin }) {
       return;
     }
     if (onLogin) onLogin(data.session);
+  };
+
+  const handleForgotSubmit = async (e) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setLoading(true);
+    setError("");
+    // Sends the user back to whichever page they requested the reset from —
+    // this exact URL needs to be on Supabase's Redirect URLs allow-list.
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      email.trim().toLowerCase(),
+      { redirectTo: window.location.origin + window.location.pathname }
+    );
+    setLoading(false);
+    if (resetError) {
+      setError(resetError.message || "Could not send reset email. Please try again.");
+      return;
+    }
+    setMode("sent");
   };
 
   return (
@@ -56,65 +76,167 @@ export default function LoginPage({ onLogin }) {
             background: "#0F1E35", border: "1px solid #1C2D4A",
             borderRadius: 16, padding: "32px 28px",
           }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 24 }}>
-              Sign in to continue
-            </div>
-
-            <form onSubmit={handleSubmit}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,.5)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  Email
-                </label>
-                <input
-                  className="input"
-                  type="email"
-                  placeholder="your@email.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  autoComplete="email"
-                  autoFocus
-                />
-              </div>
-
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,.5)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  Password
-                </label>
-                <input
-                  className="input"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-              </div>
-
-              {error && (
-                <div style={{
-                  background: "#3B1219", border: "1px solid #F0354B33",
-                  borderRadius: 8, padding: "10px 14px", fontSize: 12,
-                  color: "#F0354B", marginBottom: 16,
-                }}>
-                  {error}
+            {mode === "sent" ? (
+              <>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#00C896", marginBottom: 8 }}>
+                  ✓ Reset link sent
                 </div>
-              )}
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,.5)", marginBottom: 24 }}>
+                  Check {email.trim()} for a link to set a new password.
+                </div>
+                <button
+                  onClick={() => { setMode("login"); setError(""); }}
+                  style={{
+                    width: "100%", padding: "11px 0", borderRadius: 8,
+                    border: "1px solid #2D3E55", background: "transparent",
+                    color: "rgba(255,255,255,.7)", cursor: "pointer",
+                    fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 14,
+                  }}
+                >
+                  Back to Sign In
+                </button>
+              </>
+            ) : mode === "forgot" ? (
+              <>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 6 }}>
+                  Reset your password
+                </div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,.4)", marginBottom: 24 }}>
+                  Enter your email and we'll send you a link to set a new password.
+                </div>
 
-              <button
-                type="submit"
-                disabled={loading || !email || !password}
-                style={{
-                  width: "100%", padding: "11px 0", borderRadius: 8,
-                  border: "none", cursor: loading ? "wait" : "pointer",
-                  background: loading || !email || !password ? "#1C2D4A" : "#1E6FDB",
-                  color: loading || !email || !password ? "rgba(255,255,255,.35)" : "#fff",
-                  fontFamily: "'Inter',sans-serif", fontWeight: 700,
-                  fontSize: 14, transition: "background .15s",
-                }}
-              >
-                {loading ? "Signing in…" : "Sign In"}
-              </button>
-            </form>
+                <form onSubmit={handleForgotSubmit}>
+                  <div style={{ marginBottom: 20 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,.5)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      Email
+                    </label>
+                    <input
+                      className="input"
+                      type="email"
+                      placeholder="your@email.com"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      autoComplete="email"
+                      autoFocus
+                    />
+                  </div>
+
+                  {error && (
+                    <div style={{
+                      background: "#3B1219", border: "1px solid #F0354B33",
+                      borderRadius: 8, padding: "10px 14px", fontSize: 12,
+                      color: "#F0354B", marginBottom: 16,
+                    }}>
+                      {error}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading || !email}
+                    style={{
+                      width: "100%", padding: "11px 0", borderRadius: 8,
+                      border: "none", cursor: loading ? "wait" : "pointer",
+                      background: loading || !email ? "#1C2D4A" : "#1E6FDB",
+                      color: loading || !email ? "rgba(255,255,255,.35)" : "#fff",
+                      fontFamily: "'Inter',sans-serif", fontWeight: 700,
+                      fontSize: 14, transition: "background .15s", marginBottom: 12,
+                    }}
+                  >
+                    {loading ? "Sending…" : "Send Reset Link"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setMode("login"); setError(""); }}
+                    style={{
+                      width: "100%", padding: "9px 0", borderRadius: 8,
+                      border: "none", background: "transparent",
+                      color: "rgba(255,255,255,.4)", cursor: "pointer",
+                      fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 12,
+                    }}
+                  >
+                    Back to Sign In
+                  </button>
+                </form>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 24 }}>
+                  Sign in to continue
+                </div>
+
+                <form onSubmit={handleSubmit}>
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,.5)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      Email
+                    </label>
+                    <input
+                      className="input"
+                      type="email"
+                      placeholder="your@email.com"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      autoComplete="email"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,.5)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      Password
+                    </label>
+                    <input
+                      className="input"
+                      type="password"
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      autoComplete="current-password"
+                    />
+                  </div>
+
+                  <div style={{ textAlign: "right", marginBottom: 20 }}>
+                    <button
+                      type="button"
+                      onClick={() => { setMode("forgot"); setError(""); }}
+                      style={{
+                        background: "none", border: "none", cursor: "pointer",
+                        color: "rgba(255,255,255,.4)", fontFamily: "'Inter',sans-serif",
+                        fontSize: 12, padding: 0, textDecoration: "underline",
+                      }}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+
+                  {error && (
+                    <div style={{
+                      background: "#3B1219", border: "1px solid #F0354B33",
+                      borderRadius: 8, padding: "10px 14px", fontSize: 12,
+                      color: "#F0354B", marginBottom: 16,
+                    }}>
+                      {error}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading || !email || !password}
+                    style={{
+                      width: "100%", padding: "11px 0", borderRadius: 8,
+                      border: "none", cursor: loading ? "wait" : "pointer",
+                      background: loading || !email || !password ? "#1C2D4A" : "#1E6FDB",
+                      color: loading || !email || !password ? "rgba(255,255,255,.35)" : "#fff",
+                      fontFamily: "'Inter',sans-serif", fontWeight: 700,
+                      fontSize: 14, transition: "background .15s",
+                    }}
+                  >
+                    {loading ? "Signing in…" : "Sign In"}
+                  </button>
+                </form>
+              </>
+            )}
           </div>
 
           <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: "rgba(255,255,255,.2)" }}>
