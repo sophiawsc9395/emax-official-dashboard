@@ -63,7 +63,8 @@ export default function AuthGate({ children, allowedEmails }) {
   }
 
   // Logged in but wrong account for this page
-  if (allowedEmails && !allowedEmails.includes(session.user.email)) {
+  const userEmail = (session.user.email || "").toLowerCase();
+  if (allowedEmails && !allowedEmails.some(e => e.toLowerCase() === userEmail)) {
     return (
       <div style={{
         minHeight: "100vh", background: "#0A1628",

@@ -91,7 +91,9 @@ export const ORDER_USER_ROLES = {
  * holds no roles at all.
  */
 export function mergeOrderPermissions(email) {
-  const roles = ORDER_USER_ROLES[email] || [];
+  const normalizedEmail = (email || "").toLowerCase();
+  const roleKey = Object.keys(ORDER_USER_ROLES).find(k => k.toLowerCase() === normalizedEmail);
+  const roles = roleKey ? ORDER_USER_ROLES[roleKey] : [];
   if (!roles.length) return null;
 
   let adminAll = false, visibleAll = false, reportsAll = false;
