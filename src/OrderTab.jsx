@@ -1550,7 +1550,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
     {/* Phase KPI cards — 2×2 grid */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-      {PHASES.map(ph=>{
+      {PHASES.filter(ph=>ph.steps.some(s=>canSeeStep(s))).map(ph=>{
         const count=phaseCounts[ph.id]||0,active=filterPhase===ph.id;
         return<div key={ph.id} onClick={()=>setFilterPhase(active?"all":ph.id)} style={{...card,padding:0,overflow:"hidden",cursor:"pointer",border:`1px solid ${active?ph.color:C.border}`,boxShadow:active?`0 0 0 1px ${ph.color}, 0 1px 3px rgba(10,22,40,.06)`:card.boxShadow,transition:"all .15s"}}>
           <div style={{height:3,background:active?ph.color:"transparent",transition:"background .15s"}}/>
@@ -1563,7 +1563,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
           </div>
         </div>;
       })}
-      {isAdmin&&<div onClick={()=>setFilterPhase(viewingCompleted?"all":"completed")} style={{...card,padding:0,overflow:"hidden",cursor:"pointer",border:`1px solid ${viewingCompleted?"#15803D":C.border}`,boxShadow:viewingCompleted?`0 0 0 1px #15803D, 0 1px 3px rgba(10,22,40,.06)`:card.boxShadow,transition:"all .15s",gridColumn:"1/-1"}}>
+      {isSuperAdminOrder&&<div onClick={()=>setFilterPhase(viewingCompleted?"all":"completed")} style={{...card,padding:0,overflow:"hidden",cursor:"pointer",border:`1px solid ${viewingCompleted?"#15803D":C.border}`,boxShadow:viewingCompleted?`0 0 0 1px #15803D, 0 1px 3px rgba(10,22,40,.06)`:card.boxShadow,transition:"all .15s",gridColumn:"1/-1"}}>
         <div style={{height:3,background:viewingCompleted?"#15803D":"transparent",transition:"background .15s"}}/>
         <div style={{padding:"13px 16px",display:"flex",alignItems:"center",gap:12}}>
           <div style={{width:34,height:34,borderRadius:8,background:viewingCompleted?"#15803D":C.surface,border:viewingCompleted?"none":`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:viewingCompleted?"#fff":C.textMid,flexShrink:0,transition:"all .15s"}}>{Ic.checkCircle}</div>
