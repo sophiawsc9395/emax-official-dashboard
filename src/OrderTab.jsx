@@ -310,7 +310,9 @@ function BillingForm({order,onSubmit,onCancel}){
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
   const isCashOrder=order.orderType==="cash";
   const REQUIRED=["billingDate","customerFullName","customerIC","customerHP","customerEmail","customerAddress","customerPostCode","customerCity","itemCode","imeiSerial",...(isCashOrder?[]:["cashPriceOnListing","monthlyInstallment"])];
-  const missing=REQUIRED.filter(k=>!f[k]?.toString().trim());
+  const FILE_FIELDS=isCashOrder?[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false]]:[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false],["resultListFile","Result Listing File",true],["agreementFile","Agreement File",true]];
+  const missingFiles=FILE_FIELDS.filter(([k,,req])=>req&&!fls[k]&&!f[k]).map(([k])=>k);
+  const missing=[...REQUIRED.filter(k=>!f[k]?.toString().trim()),...missingFiles];
   const submit=async()=>{if(missing.length)return;setSaving(true);const data={...f};for(const[k,file] of Object.entries(fls))if(file)data[k]=await readFile(file,order.id);onSubmit(data);setSaving(false);};
   const row=(k,l,t="text",req=false,full=false)=><div key={k} style={full?{gridColumn:"1/-1"}:{}}>
     <L req={req}>{l}</L>
@@ -332,7 +334,17 @@ function BillingForm({order,onSubmit,onCancel}){
         {order.orderType!=="cash"&&lockedRow("monthlyInstallment","Monthly Installment (RM)","number")}
         {sec("Charges (from order — locked)")}{!isCashOrder&&lockedRow("agreementFee","Agreement Fee (RM)","number")}{!isCashOrder&&lockedRow("stampingFee","Stamping Fee (RM)","number")}{lockedRow("deposit","Deposit (RM)","number")}{!isCashOrder&&<div/>}
         {sec("File Uploads")}
-        {(isCashOrder?[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false]]:[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false],["resultListFile","Result Listing File",true],["agreementFile","Agreement File",true]]).map(([k,l,req])=><div key={k}><L req={req}>{l}</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFls(p=>({...p,[k]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>{(fls[k]||f[k])&&<div style={{fontSize:10,color:"#15803D",marginTop:2,fontWeight:600}}>✓ {fls[k]?.name||f[k]?.name}</div>}</div>)}
+        {FILE_FIELDS.map(([k,l,req])=>{
+          const isMissing=req&&!fls[k]&&!f[k];
+          return<div key={k}>
+            <L req={req}>{l}</L>
+            <div style={isMissing?{border:"1.5px solid #FECACA",borderRadius:8,padding:6}:{}}>
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFls(p=>({...p,[k]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>
+            </div>
+            {(fls[k]||f[k])&&<div style={{fontSize:10,color:"#15803D",marginTop:2,fontWeight:600}}>✓ {fls[k]?.name||f[k]?.name}</div>}
+            {isMissing&&<div style={{fontSize:10,color:"#DC2626",marginTop:2}}>Required</div>}
+          </div>;
+        })}
       </div>
       {missing.length>0&&<div style={{padding:"9px 12px",background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:8,fontSize:11,color:"#92400E",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill all required fields before submitting.</div>}
       <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><GBtn onClick={onCancel}>{Ic.chevL} Back</GBtn><PBtn onClick={submit} disabled={!!missing.length||saving}>{saving?"Saving…":"Submit Billing Request"}</PBtn></div>
@@ -1051,8 +1063,16 @@ function daysSince(dateStr){
   const nowDay=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   return Math.floor((nowDay-d)/(1000*60*60*24));
 }
+// A branch sees an order if it's THEIRS (branch column) or if their branch
+// was picked as the customer's pickup location — matches the OR filter
+// listOrders() already applies at the DB level; this is the client-side
+// equivalent for any place that still needs to re-check it in memory.
+function visibleToBranch(o,userBranch){
+  return !userBranch||o.branch===userBranch||o.pickUpBranch===userBranch;
+}
+
 function getOrderAlerts(orders,userBranch=null){
-  const myOrders=orders.filter(o=>o.step<14&&(!userBranch||o.branch===userBranch));
+  const myOrders=orders.filter(o=>o.step<14&&visibleToBranch(o,userBranch));
   const alerts=[];
   myOrders.filter(o=>o.step===2&&o.orderDate).forEach(o=>{
     const days=daysSince(o.orderDate);
@@ -1285,7 +1305,7 @@ function useIsMobile(){
   return isMobile;
 }
 
-function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
+function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
   const isMobile=useIsMobile();
   const single={whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
   // Declared unconditionally (Rules of Hooks) even though only the desktop
@@ -1309,7 +1329,12 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
     const nextDef=nextStepN?getStep(nextStepN):null;
     const whoText=nextDef?.who==="admin"?"Admin":(nextDef?.who==="branch"||nextDef?.who==="both")?"Branch":"";
     const detailText=(!o.cancelled&&o.step!==14&&nextDef&&whoText)?`Waiting for ${whoText} to process: ${nextDef.desc}`:s.desc;
-    return{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText};
+    // Branch Order vs Pickup Order — only meaningful from a branch viewer's
+    // own perspective (an order shows up in their list either because it's
+    // theirs, or only because their branch is the customer's pickup point).
+    const isPickupOnly=!!userBranch&&o.pickUpBranch===userBranch&&o.branch!==userBranch;
+    const isOwnBranchOrder=!!userBranch&&o.branch===userBranch;
+    return{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText,isPickupOnly,isOwnBranchOrder};
   };
 
   // ── Mobile: no inner vertical scrollbox — the full list renders in normal
@@ -1329,19 +1354,21 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
             <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto"}}>Updated</div>
           </div>
           {orders.map((o,idx)=>{
-            const{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText}=rowFields(o);
+            const{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText,isPickupOnly,isOwnBranchOrder}=rowFields(o);
             const rowBg=idx%2===0?C.white:C.surface;
             return<div key={o.id} onClick={()=>onOpen(o)}
               style={{display:"flex",alignItems:"center",padding:`10px 14px`,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer"}}>
               <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
               <div style={{flex:2,minWidth:0,marginLeft:10}}>
                 <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
-                <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
+                <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch}{o.pickUpBranch?` · Pickup: ${o.pickUpBranch}`:""} · {o.salesAgentName||o.salesAgentId||"—"}</div>
               </div>
               <div style={{flex:2,minWidth:0,marginLeft:14}}>
                 <div><span style={{fontSize:9,fontWeight:700,color:progressColor,background:progressColor+"18",border:`1px solid ${progressColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{progressLabel}</span></div>
                 <div style={{display:"flex",flexWrap:"nowrap",gap:4,marginTop:4}}>
                   {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
+                  {isOwnBranchOrder&&<span style={{fontSize:9,fontWeight:700,color:"#1E6FDB",background:"#1E6FDB18",border:"1px solid #1E6FDB40",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Branch Order</span>}
+                  {isPickupOnly&&<span style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#B4530918",border:"1px solid #B4530940",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Pickup Order</span>}
                   <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
                   <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
                 </div>
@@ -1386,7 +1413,7 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
       <div style={{height:total*ROW_H,position:"relative"}}>
         {visible.map((o,i)=>{
           const idx=startIdx+i;
-          const{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText}=rowFields(o);
+          const{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText,isPickupOnly,isOwnBranchOrder}=rowFields(o);
           const rowBg=idx%2===0?C.white:C.surface;
           return<div key={o.id} onClick={()=>onOpen(o)}
             style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",padding:PAD,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer",overflow:"hidden"}}
@@ -1395,12 +1422,14 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen}){
             <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
             <div style={{flex:2,minWidth:0,marginLeft:10}}>
               <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
-              <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
+              <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch}{o.pickUpBranch?` · Pickup: ${o.pickUpBranch}`:""} · {o.salesAgentName||o.salesAgentId||"—"}</div>
             </div>
             <div style={{flex:2.2,minWidth:0,marginLeft:14,overflow:"hidden"}}>
               <div><span style={{fontSize:9,fontWeight:700,color:progressColor,background:progressColor+"18",border:`1px solid ${progressColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{progressLabel}</span></div>
               <div style={{display:"flex",flexWrap:"nowrap",gap:4,marginTop:4}}>
                 {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
+                {isOwnBranchOrder&&<span style={{fontSize:9,fontWeight:700,color:"#1E6FDB",background:"#1E6FDB18",border:"1px solid #1E6FDB40",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Branch Order</span>}
+                {isPickupOnly&&<span style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#B4530918",border:"1px solid #B4530940",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Pickup Order</span>}
                 <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
                 <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
               </div>
@@ -1545,13 +1574,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     return true;
   };
 
-  const activeOrders=useMemo(()=>orders.filter(o=>o.step!==14&&(!userBranch||o.branch===userBranch)&&canSeeStep(o.step)),[orders,userBranch,orderPermissions]);
-  const completedOrders=useMemo(()=>orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)&&canSeeStep(o.step)),[orders,userBranch,orderPermissions]);
-  const agentOptions=useMemo(()=>[...new Set(orders.filter(o=>(!userBranch||o.branch===userBranch)&&canSeeStep(o.step)).map(o=>o.salesAgentName||o.salesAgentId).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),[orders,userBranch,orderPermissions]);
+  const activeOrders=useMemo(()=>orders.filter(o=>o.step!==14&&visibleToBranch(o,userBranch)&&canSeeStep(o.step)),[orders,userBranch,orderPermissions]);
+  const completedOrders=useMemo(()=>orders.filter(o=>o.step===14&&visibleToBranch(o,userBranch)&&canSeeStep(o.step)),[orders,userBranch,orderPermissions]);
+  const agentOptions=useMemo(()=>[...new Set(orders.filter(o=>visibleToBranch(o,userBranch)&&canSeeStep(o.step)).map(o=>o.salesAgentName||o.salesAgentId).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),[orders,userBranch,orderPermissions]);
   const viewingCompleted=filterPhase==="completed";
   const filtered=useMemo(()=>(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||getPhase(o.step)?.id===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,completedOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
   const phaseCounts=useMemo(()=>PHASES.reduce((acc,ph)=>{acc[ph.id]=activeOrders.filter(o=>ph.steps.includes(o.step)).length;return acc;},{}),[activeOrders]);
-  const completedCount=orders.filter(o=>o.step===14&&(!userBranch||o.branch===userBranch)).length;
+  const completedCount=orders.filter(o=>o.step===14&&visibleToBranch(o,userBranch)).length;
   const alerts=useMemo(()=>getOrderAlerts(activeOrders,userBranch),[activeOrders,userBranch]);
   const alertsByOrderId=useMemo(()=>{const m={};alerts.forEach(a=>{if(!m[a.orderId])m[a.orderId]=a;});return m;},[alerts]);
 
@@ -1628,7 +1657,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         count grows into the hundreds. */}
     {filtered.length===0
       ?<div style={{...card,padding:"44px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>{search||filterPhase!=="all"||filterBranch!=="ALL"||filterAgent!=="ALL"?"No orders match your filter.":"No orders yet. Click New Order to get started."}</div>
-      :<OrderListVirtualized orders={filtered} alertsByOrderId={alertsByOrderId} onOpen={o=>nav("detail",o)}/>
+      :<OrderListVirtualized orders={filtered} alertsByOrderId={alertsByOrderId} onOpen={o=>nav("detail",o)} userBranch={userBranch}/>
     }
 
     {/* Report downloads — admin only, footer */}

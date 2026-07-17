@@ -24,7 +24,7 @@ const CORE_COLUMNS = [
   "id","step","branch","orderType","stockStatus","cancelled","cancelledReason",
   "customerName","phoneModel","agreementNumber","invoiceNo","merchant",
   "shortPaymentPending","pendingBranchAction","lastHistoryDate","lastHistoryTime",
-  "stepDates","lastVerification",
+  "stepDates","lastVerification","pickUpBranch",
 ];
 
 function rowToOrder(row) {
@@ -48,6 +48,7 @@ function rowToOrder(row) {
     lastHistoryTime: row.last_history_time || undefined,
     stepDates: row.step_dates || {},
     lastVerification: row.last_verification || undefined,
+    pickUpBranch: row.pick_up_branch || undefined,
   };
 }
 
@@ -76,6 +77,7 @@ function orderToRow(order) {
     last_history_time: order.lastHistoryTime || null,
     step_dates: order.stepDates || {},
     last_verification: order.lastVerification || null,
+    pick_up_branch: order.pickUpBranch || null,
     data: rest,
   };
 }
@@ -102,10 +104,12 @@ function applyHistoryEntry(order, entry) {
 // List order headers — no history, no files. This is the ONLY query the
 // Order page's list/board view needs, regardless of how much history piles up.
 // Pass `branch` to scope the query itself (not just the client-side filter)
-// for branch viewers, so they never download other branches' headers.
+// for branch viewers, so they never download other branches' headers. A
+// branch sees an order if it's THEIR order (branch column) OR if their
+// branch was picked as the customer's pickup location (pick_up_branch).
 export async function listOrders(branch = null) {
   let q = supabase.from(ORDERS_TABLE).select("*").order("id", { ascending: false });
-  if (branch) q = q.eq("branch", branch);
+  if (branch) q = q.or(`branch.eq.${branch},pick_up_branch.eq.${branch}`);
   const { data, error } = await q;
   if (error) { console.error("listOrders error:", error); return []; }
   return (data || []).map(rowToOrder);

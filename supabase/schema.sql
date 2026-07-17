@@ -72,11 +72,13 @@ alter table public.orders add column if not exists last_history_date text;
 alter table public.orders add column if not exists last_history_time text;
 alter table public.orders add column if not exists step_dates jsonb not null default '{}'::jsonb;
 alter table public.orders add column if not exists last_verification jsonb;
+alter table public.orders add column if not exists pick_up_branch text;
 alter table public.orders add column if not exists data jsonb not null default '{}'::jsonb;
 alter table public.orders add column if not exists created_at timestamptz not null default now();
 alter table public.orders add column if not exists updated_at timestamptz not null default now();
 
 create index if not exists idx_orders_branch on public.orders (branch);
+create index if not exists idx_orders_pick_up_branch on public.orders (pick_up_branch);
 create index if not exists idx_orders_step on public.orders (step);
 create index if not exists idx_orders_order_type on public.orders (order_type);
 create index if not exists idx_orders_cancelled on public.orders (cancelled);
