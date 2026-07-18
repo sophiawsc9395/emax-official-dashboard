@@ -485,6 +485,8 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     return matching[matching.length-1];
   };
   const filtered=orders.filter(o=>{
+    // Cancelled orders never appear in any report.
+    if(o.cancelled)return false;
     // Every report except Cash Order Knock Off is CCM-only (stock request
     // and ready stock CCM orders) — cash orders have their own dedicated
     // report and shouldn't appear in these.
@@ -518,9 +520,9 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     // date picker is ignored for this report.
     if(isCollectionOverdue){
       if(o.step!==7)return false;
-      const billedDate=o.stepDates?.["7"]?.date;
-      if(!billedDate)return false;
-      return daysSince(billedDate)>=1;
+      const billingDate=o.billingData?.billingDate;
+      if(!billingDate)return false;
+      return daysSince(billingDate)>=1;
     }
     // First Monthly Installment Knock Off — a record of installments that
     // HAVE been knocked off (paid to the merchant), the flip side of the
@@ -572,9 +574,9 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     rows+=`<tr class="tot"><td colspan="9"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td></tr>`;
   } else if(isCollectionOverdue){
     rows=filtered.map((o,i)=>{
-      const billedDate=o.stepDates?.["7"]?.date;
-      const days=daysSince(billedDate);
-      return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.branch}</td><td>${o.agreementNumber||"—"}</td><td>${o.customerName}</td><td>${fDate(billedDate)}</td><td>${days} day${days!==1?"s":""}</td></tr>`;
+      const billingDate=o.billingData?.billingDate;
+      const days=daysSince(billingDate);
+      return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.branch}</td><td>${o.agreementNumber||"—"}</td><td>${o.customerName}</td><td>${fDate(billingDate)}</td><td>${days} day${days!==1?"s":""}</td></tr>`;
     }).join("");
     rows+=`<tr class="tot"><td colspan="6"><b>TOTAL (${filtered.length})</b></td><td></td></tr>`;
   } else if(isFirstInstallmentKnockoff){
@@ -612,7 +614,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     :isClaim?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Claim Sent Date</th><th>Claim Amount</th>"
     :isFirstInstallment?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th>"
     :isCashKnockoff?"<th>#</th><th>Device Name</th><th>Branch</th><th>Invoice No</th><th>Deposit Payment Date</th><th>Deposit Payment Method</th><th>Deposit Amount</th><th>Balance Payment Date</th><th>Balance Payment Method</th><th>Balance Payment Amount</th><th>Expected Balance Payment Amount</th>"
-    :isCollectionOverdue?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Customer Name</th><th>Billed Date</th><th>Days Overdue</th>"
+    :isCollectionOverdue?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Customer Name</th><th>Billing Date</th><th>Days Overdue</th>"
     :isFirstInstallmentKnockoff?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th><th>Knock-off Date</th>"
     :"<th>#</th><th>Invoice No</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Payment Proof Amount</th><th>2nd Method</th><th>Upfront 1 Amount</th><th>Upfront 2 Amount</th>";
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""} · Merchant: ${merchantLabel}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
@@ -845,13 +847,6 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false}){
           {files.balancePaymentProof&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files.balancePaymentProof.name}</div>}
           <PBtn onClick={async()=>{if(!files.balancePaymentProof)return;setSaving(true);const f=await readFile(files.balancePaymentProof,order.id);const h={step:9,date:nowDate(),time:nowTime(),note:"Balance payment proof uploaded",shortPaymentProofUpload:true,files:{balancePaymentProof:f}};await onUpdate({...order,history:[...(order.history||[]),h]});setSaving(false);setFiles(p=>({...p,balancePaymentProof:null}));}} disabled={!files.balancePaymentProof||saving} style={{width:"100%",justifyContent:"center",marginTop:8}}>{saving?"Saving…":"Submit Balance Payment Proof"}</PBtn>
         </div>}
-        {nextDef.needsVerification&&isAdmin&&!isCash&&<div style={{marginBottom:12,background:C.surface,borderRadius:9,padding:"10px 12px",border:`1px solid ${C.border}`}}>
-          <div style={{fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Upfront Payment Breakdown</div>
-          {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 1 (Subtotal)</span><span>{fRM(upfront.total)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 2 (First Monthly Installment)</span><span>{fRM(order.monthlyInstallment)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0 0",borderTop:`2px solid ${C.navy}`,marginTop:4,color:C.navy,fontWeight:800}}><span>Total Upfront Payment Upon Collection</span><span>{fRM(upfront.total+(parseFloat(order.monthlyInstallment)||0))}</span></div>
-        </div>}
         {nextDef.needsVerification&&isAdmin&&<div style={{marginBottom:12}}>
           <div style={{...lbl,marginBottom:8}}>Verification Checklist</div>
           {(isCash?[[payment,setPayment,"Payment Proof verified"]]:[[collection,setCollection,"Phone Collection Proof verified"],[payment,setPayment,"Upfront Payment Proof verified"]]).map(([val,setter,label],i)=><div key={i} onClick={()=>setter(!val)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:8,background:val?"#F0FDF4":C.surface,border:`1px solid ${val?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer",transition:"all .15s"}}>
@@ -1019,9 +1014,9 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
           {order.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>Ready Stock</span>}
           {isCash?<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>Cash</span>:<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>CCM</span>}
         </div>
-        <div style={{fontSize:11,color:C.textLight,marginTop:3}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}</div>
+        <div style={{fontSize:11,color:C.textLight,marginTop:3}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}{order.invoiceNo?` · Invoice: ${order.invoiceNo}`:""}</div>
       </div>
-      {isSuperAdminOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn><DBtn onClick={onDelete}>{Ic.trash} Delete</DBtn></div>}
+      {isSuperAdminOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>{!order.cancelled&&order.step!==14&&<DBtn onClick={()=>{const reason=prompt("Reason for cancelling this order (optional):")||"";if(!confirm("Cancel this order? It will move out of active tracking and won't appear in any reports."))return;onUpdate({...order,cancelled:true,cancelledReason:reason||undefined,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Order Cancelled",cancelledReason:reason||undefined}]});}}>{Ic.x} Cancel Order</DBtn>}<DBtn onClick={onDelete}>{Ic.trash} Delete</DBtn></div>}
       {!isSuperAdminOrder&&canEditOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn></div>}
     </div>
 
@@ -1209,7 +1204,7 @@ function visibleToBranch(o,userBranch){
 }
 
 function getOrderAlerts(orders,userBranch=null){
-  const myOrders=orders.filter(o=>o.step<14&&visibleToBranch(o,userBranch));
+  const myOrders=orders.filter(o=>o.step<14&&!o.cancelled&&visibleToBranch(o,userBranch));
   const alerts=[];
   myOrders.filter(o=>o.step===2&&o.orderDate).forEach(o=>{
     const days=daysSince(o.orderDate);
@@ -1222,9 +1217,9 @@ function getOrderAlerts(orders,userBranch=null){
     else if(days>=31)alerts.push({type:"approval_warning",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval ${days} days ago — action needed`});
   });
   myOrders.filter(o=>o.step===7).forEach(o=>{
-    const billedDate=o.stepDates?.["7"]?.date;
-    if(!billedDate)return;
-    const days=daysSince(billedDate);
+    const billingDate=o.billingData?.billingDate;
+    if(!billingDate)return;
+    const days=daysSince(billingDate);
     if(days>=1)alerts.push({type:"collection_proof_overdue",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Billed ${days} day${days>1?"s":""} ago — collection & payment proof not yet uploaded`});
   });
   return alerts;
@@ -1801,11 +1796,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     return true;
   };
 
-  const activeOrders=useMemo(()=>orders.filter(o=>o.step!==14&&visibleToBranch(o,userBranch)&&canSeeStep(o.step)),[orders,userBranch,orderPermissions]);
-  const completedOrders=useMemo(()=>orders.filter(o=>o.step===14&&visibleToBranch(o,userBranch)&&canSeeStep(o.step)),[orders,userBranch,orderPermissions]);
+  const activeOrders=useMemo(()=>orders.filter(o=>o.step!==14&&!o.cancelled&&visibleToBranch(o,userBranch)&&canSeeStep(o.step)),[orders,userBranch,orderPermissions]);
+  const completedOrders=useMemo(()=>orders.filter(o=>o.step===14&&!o.cancelled&&visibleToBranch(o,userBranch)&&canSeeStep(o.step)),[orders,userBranch,orderPermissions]);
+  const cancelledOrders=useMemo(()=>orders.filter(o=>o.cancelled&&visibleToBranch(o,userBranch)&&canSeeStep(o.step)),[orders,userBranch,orderPermissions]);
   const agentOptions=useMemo(()=>[...new Set(orders.filter(o=>visibleToBranch(o,userBranch)&&canSeeStep(o.step)).map(o=>o.salesAgentName||o.salesAgentId).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),[orders,userBranch,orderPermissions]);
   const viewingCompleted=filterPhase==="completed";
-  const filtered=useMemo(()=>(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||o.step===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,completedOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
+  const viewingCancelled=filterPhase==="cancelled";
+  const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||filterPhase==="all"||o.step===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
   const stepCounts=useMemo(()=>STEPS.filter(s=>s.step!==14).reduce((acc,s)=>{acc[s.step]=activeOrders.filter(o=>o.step===s.step).length;return acc;},{}),[activeOrders]);
   const completedCount=orders.filter(o=>o.step===14&&visibleToBranch(o,userBranch)).length;
   const alerts=useMemo(()=>getOrderAlerts(activeOrders,userBranch),[activeOrders,userBranch]);
@@ -1871,6 +1868,16 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
           <div style={{minWidth:0}}>
             <div style={{fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Completed</div>
             <div style={{fontSize:23,fontWeight:800,color:C.navy,lineHeight:1}}>{completedCount}</div>
+          </div>
+        </div>
+      </div>}
+      {isSuperAdminOrder&&<div onClick={()=>setFilterPhase(viewingCancelled?"all":"cancelled")} style={{...card,padding:0,overflow:"hidden",cursor:"pointer",border:`1px solid ${viewingCancelled?"#DC2626":C.border}`,boxShadow:viewingCancelled?`0 0 0 1px #DC2626, 0 1px 3px rgba(10,22,40,.06)`:card.boxShadow,transition:"all .15s",gridColumn:"1/-1"}}>
+        <div style={{height:3,background:viewingCancelled?"#DC2626":"transparent",transition:"background .15s"}}/>
+        <div style={{padding:"13px 16px",display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:34,height:34,borderRadius:8,background:viewingCancelled?"#DC2626":C.surface,border:viewingCancelled?"none":`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:viewingCancelled?"#fff":C.textMid,flexShrink:0,transition:"all .15s"}}>{Ic.x}</div>
+          <div style={{minWidth:0}}>
+            <div style={{fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Cancelled</div>
+            <div style={{fontSize:23,fontWeight:800,color:C.navy,lineHeight:1}}>{cancelledOrders.length}</div>
           </div>
         </div>
       </div>}
