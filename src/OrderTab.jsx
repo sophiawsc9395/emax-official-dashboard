@@ -1975,13 +1975,12 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             // confusing. The grid column stays reserved either way, so the
             // Download button still lands in the same place as every other row.
             const noDateNeeded=type==="collectionOverdue";
-            return<div key={type} style={{padding:"14px 0",borderTop:i>0?`1px solid ${C.border}`:"none",display:"grid",gridTemplateColumns:"1fr auto",gridTemplateRows:"auto auto",columnGap:14,alignItems:"center"}}>
+            return<div key={type} style={{padding:"14px 0",borderTop:i>0?`1px solid ${C.border}`:"none",display:"grid",gridTemplateColumns:"220px 1fr",gridTemplateRows:"auto auto",columnGap:14,alignItems:"center"}}>
               <div style={{fontSize:12,fontWeight:700,color:C.text,gridColumn:"1 / -1"}}>{label} Report</div>
               <div style={{marginTop:8}}>
                 {noDateNeeded
                   ?<div style={{fontSize:10,color:C.textLight,height:38,display:"flex",alignItems:"center"}}>Always shows who's currently overdue — there's no date to pick.</div>
-                  :<><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)} style={{width:200}}/></>
-                }
+                  :<><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></>}
               </div>
               <div style={{marginTop:8,display:"flex",alignItems:"center",gap:10,justifySelf:"end"}}>
                 {!noDateNeeded&&<button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",whiteSpace:"nowrap"}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>}
