@@ -1972,22 +1972,21 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             const isLiveSnapshot=["firstInstallment","agreementReceived","claim","collectionOverdue"].includes(type);
             // This report ignores the date entirely — it's always a live
             // snapshot — so showing a date picker that does nothing is just
-            // confusing. Skip it and show one plain download button instead.
+            // confusing. The grid column stays reserved either way, so the
+            // Download button still lands in the same place as every other row.
             const noDateNeeded=type==="collectionOverdue";
-            return<div key={type} style={{padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none"}}>
-              <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:8}}>{label} Report</div>
-              {noDateNeeded?
-                <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                  <div style={{fontSize:10,color:C.textLight,flex:1,minWidth:160}}>Always shows who's currently overdue — there's no date to pick.</div>
-                  <PBtn onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{padding:"8px 14px",flexShrink:0}}>{Ic.download} Download</PBtn>
-                </div>
-              :
-                <div style={{display:"flex",alignItems:"flex-end",gap:10,flexWrap:"wrap"}}>
-                  <div style={{width:200,flexShrink:0}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-                  <PBtn onClick={()=>downloadReport(src,type,date,reportMerchant)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
-                  <button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",flexShrink:0,paddingBottom:9,whiteSpace:"nowrap"}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>
-                </div>
-              }
+            return<div key={type} style={{padding:"14px 0",borderTop:i>0?`1px solid ${C.border}`:"none",display:"grid",gridTemplateColumns:"1fr auto",gridTemplateRows:"auto auto",columnGap:14,alignItems:"center"}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.text,gridColumn:"1 / -1"}}>{label} Report</div>
+              <div style={{marginTop:8}}>
+                {noDateNeeded
+                  ?<div style={{fontSize:10,color:C.textLight,height:38,display:"flex",alignItems:"center"}}>Always shows who's currently overdue — there's no date to pick.</div>
+                  :<><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)} style={{width:200}}/></>
+                }
+              </div>
+              <div style={{marginTop:8,display:"flex",alignItems:"center",gap:10,justifySelf:"end"}}>
+                {!noDateNeeded&&<button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",whiteSpace:"nowrap"}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>}
+                <PBtn onClick={()=>downloadReport(src,type,noDateNeeded?"":date,reportMerchant)} style={{padding:"9px 12px",width:38,height:38,justifyContent:"center"}}>{Ic.download}</PBtn>
+              </div>
             </div>;
           })}
         </div>
