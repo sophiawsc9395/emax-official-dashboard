@@ -454,6 +454,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
   const isFirstInstallment=type==="firstInstallment";
   const isCashKnockoff=type==="cashKnockoff";
   const isCollectionOverdue=type==="collectionOverdue";
+  const isFirstInstallmentKnockoff=type==="firstInstallmentKnockoff";
   // Cash orders aren't tied to a merchant, so the merchant filter doesn't
   // apply to this report.
   orders=(merchantFilter&&merchantFilter!=="all"&&!isCashKnockoff)?orders.filter(o=>o.merchant===merchantFilter):orders;
@@ -502,7 +503,14 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     // Claim Submitted — based on the claim-sent-to-merchant date admin filled
     // in. Same "All Dates = current snapshot" rule as Agreement Received.
     if(isClaim){if(!o.claimSentDate)return false;return dateFilter?o.claimSentDate===dateFilter:o.step===12;}
-    if(isFirstInstallment)return!!getInstallmentEntry(o);
+    // With a specific date, show every order whose first monthly installment
+    // was collected that day. With "All Dates", show a current snapshot
+    // instead — collected orders that haven't been knocked off yet.
+    if(isFirstInstallment){
+      const entry=getInstallmentEntry(o);
+      if(!entry)return false;
+      return dateFilter?true:!o.firstInstallmentKnockOffDate;
+    }
     // Collection Proof Overdue — a live snapshot of orders stuck at "Billed"
     // (step 7) past the same day they were billed, still missing their
     // collection & payment proof upload. Not date-filtered — there's no
@@ -514,6 +522,10 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       if(!billedDate)return false;
       return daysSince(billedDate)>=1;
     }
+    // First Monthly Installment Knock Off — a record of installments that
+    // HAVE been knocked off (paid to the merchant), the flip side of the
+    // First Monthly Installment Report above.
+    if(isFirstInstallmentKnockoff)return o.firstInstallmentKnockOffDate&&(!dateFilter||o.firstInstallmentKnockOffDate===dateFilter);
     // Cash Order Knock Off — matches on EITHER the deposit payment date
     // (from New Order Request) OR the balance payment date (from Collection
     // Verified), cash orders only.
@@ -565,6 +577,13 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.branch}</td><td>${o.agreementNumber||"—"}</td><td>${o.customerName}</td><td>${fDate(billedDate)}</td><td>${days} day${days!==1?"s":""}</td></tr>`;
     }).join("");
     rows+=`<tr class="tot"><td colspan="6"><b>TOTAL (${filtered.length})</b></td><td></td></tr>`;
+  } else if(isFirstInstallmentKnockoff){
+    rows=filtered.map((o,i)=>{
+      const amt=parseFloat(o.monthlyInstallment)||0;
+      total1+=amt;
+      return`<tr><td>${i+1}</td><td>${o.agreementNumber||"—"}</td><td>${o.customerName}</td><td><b>${o.invoiceNo||"—"}</b></td><td>RM ${amt.toFixed(2)}</td><td>${fDate(o.firstInstallmentKnockOffDate)}</td></tr>`;
+    }).join("");
+    rows+=`<tr class="tot"><td colspan="4"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td></tr>`;
   } else {
     rows=filtered.map((o,i)=>{
       const h=o.lastVerification;
@@ -586,7 +605,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     }).join("");
     rows+=`<tr class="tot"><td colspan="2"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td><td><b>RM ${total3.toFixed(2)}</b></td><td><b>RM ${total4.toFixed(2)}</b></td></tr>`;
   }
-  const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":isCashKnockoff?"Cash Order Knock Off Report":isCollectionOverdue?"Collection Proof Overdue Report":"Upfront Payment Report";
+  const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":isCashKnockoff?"Cash Order Knock Off Report":isCollectionOverdue?"Collection Proof Overdue Report":isFirstInstallmentKnockoff?"First Monthly Installment Knock Off Report":"Upfront Payment Report";
   const heads=isAgreementReceived?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Approval Date</th><th>Claim Amount</th>"
     :isCompleted?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Completed Date</th><th>Claim Amount</th>"
     :isKnockoff?"<th>#</th><th>Invoice No</th><th>Agreement No</th><th>Knock-off Amount</th><th>Expected Claim Amount</th>"
@@ -594,6 +613,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     :isFirstInstallment?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th>"
     :isCashKnockoff?"<th>#</th><th>Device Name</th><th>Branch</th><th>Invoice No</th><th>Deposit Payment Date</th><th>Deposit Payment Method</th><th>Deposit Amount</th><th>Balance Payment Date</th><th>Balance Payment Method</th><th>Balance Payment Amount</th><th>Expected Balance Payment Amount</th>"
     :isCollectionOverdue?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Customer Name</th><th>Billed Date</th><th>Days Overdue</th>"
+    :isFirstInstallmentKnockoff?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th><th>Knock-off Date</th>"
     :"<th>#</th><th>Invoice No</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Payment Proof Amount</th><th>2nd Method</th><th>Upfront 1 Amount</th><th>Upfront 2 Amount</th>";
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""} · Merchant: ${merchantLabel}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
   const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
@@ -967,17 +987,21 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
   // Purchase-role admin (or order admin / true super admin) — anyone who can
   // administer the Stock Order phase (steps 1-3).
   const canAdminStockOrder = !orderPermissions || orderPermissions.adminSteps==="all" || orderPermissions.adminSteps.includes(2);
+  // Billing-role admin — signature check via step 7 (Billed), same approach
+  // used everywhere else in this file to identify the billing role.
+  const canAdminBilling = isAdmin && !!orderPermissions && orderPermissions.adminSteps!=="all" && orderPermissions.adminSteps.includes(7);
   // Who can add/edit the Ordered step's tracking number: true super admin,
   // the branch/manager viewer (isAdmin=false with a userBranch), or the
   // Purchase / order-admin role.
   const canManageTracking = isTrueSuperAdmin || (!isAdmin&&!!userBranch) || (isAdmin&&!!orderPermissions&&canAdminStockOrder);
-  // Purchase-role admin now also gets full Edit, on top of the existing
-  // super-admin-only access.
-  const canEditOrder = isSuperAdminOrder || (isAdmin&&!!orderPermissions&&canAdminStockOrder);
+  // Purchase-role admin AND billing-role admin both get full Edit access
+  // (with their own field-level locks applied inside OrderForm), on top of
+  // the existing super-admin-only access.
+  const canEditOrder = isSuperAdminOrder || (isAdmin&&!!orderPermissions&&canAdminStockOrder) || canAdminBilling;
   // Billing user can also edit just the Phone Model / Item field, but only
   // while the order is still at step 2 (Ordered) — see the inline editor in
   // the Order Information panel below.
-  const canEditPhoneModelAtOrdered = canManageTracking || (isAdmin&&!!orderPermissions&&orderPermissions.adminSteps!=="all"&&orderPermissions.adminSteps.includes(6));
+  const canEditPhoneModelAtOrdered = canManageTracking || canAdminBilling;
   const forceViewOnly = orderPermissions && orderPermissions.adminSteps!=="all" && (()=>{
     const nextStepN=nextStepNum(order);
     const relevantSteps=[order.step,nextStepN].filter(s=>s!=null);
@@ -1314,6 +1338,50 @@ function BulkDispatch({orders,onSave,onClose}){
 }
 
 /* ── Bulk Claim Sent ──────────────────────────────────────────────────── */
+function BulkKnockOffInstallment({orders,onSave,onClose}){
+  // Eligible: CCM orders whose first monthly installment has actually been
+  // collected (payment verified at Collection Verified) and not already
+  // knocked off. Uses the denormalized lastVerification snapshot rather than
+  // a full history fetch — accurate for the normal single-verification case
+  // this bulk tool is meant for.
+  const pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&o.lastVerification?.paymentChecked&&o.lastVerification?.monthlyInstallment&&!o.firstInstallmentKnockOffDate);
+  const [sel,setSel]=useState(new Set());
+  const [date,setDate]=useState(nowDate());
+  const [search,setSearch]=useState("");
+  const list=pending.filter(o=>!search||(o.agreementNumber||"").toLowerCase().includes(search.toLowerCase())||o.customerName?.toLowerCase().includes(search.toLowerCase())||(o.invoiceNo||"").toLowerCase().includes(search.toLowerCase()));
+  const canSubmit=sel.size>0&&date;
+  return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
+      <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
+        <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.checkCircle} Knock Off First Monthly Installment (Bulk)</div>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+      </div>
+      <div style={{padding:16,overflowY:"auto",flex:1}}>
+        {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No collected installments pending knock-off.</div>:<>
+          <div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Tick every agreement whose first monthly installment was just paid to the merchant — the same knock-off date is applied to all of them.</div>
+          <div style={{marginBottom:10}}><I placeholder="Search by agreement number, customer name, or invoice number…" value={search} onChange={e=>setSearch(e.target.value)}/></div>
+          <div style={{marginBottom:12}}><L req>Knock-off Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{fontSize:12,color:C.textLight}}>{list.length} shown</div>
+            <button onClick={()=>setSel(sel.size===list.length?new Set():new Set(list.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===list.length&&list.length>0?"Deselect All":"Select All Shown"}</button>
+          </div>
+          {list.map(o=><div key={o.id} onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer"}}>
+            <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#15803D":"#fff",border:`2px solid ${sel.has(o.id)?"#15803D":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>Agreement: {o.agreementNumber||"—"}</div><div style={{fontSize:10,color:C.textLight}}>{o.customerName} · Invoice: {o.invoiceNo||"—"} · {fRM(o.monthlyInstallment)}</div></div>
+          </div>)}
+        </>}
+      </div>
+      <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:8}}>
+        {sel.size>0&&!canSubmit&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the knock-off date to continue.</div>}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <GBtn onClick={onClose}>Cancel</GBtn>
+          <PBtn onClick={async()=>{if(!canSubmit)return;const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,firstInstallmentKnockOffDate:date,history:[{step:o.step,date:nowDate(),time:nowTime(),note:"First Monthly Installment Knocked Off (bulk)",firstInstallmentKnockOffDate:date}]}));const ok=await onSave(changed);if(ok)onClose();}} disabled={!canSubmit}>{Ic.checkCircle} Confirm ({sel.size})</PBtn>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
 function BulkAgreementReceived({orders,onSave,onClose}){
   const pending=orders.filter(o=>!o.cancelled&&o.step===10);
   const [sel,setSel]=useState(new Set());
@@ -1622,6 +1690,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [showArchive,setShowArchive]=useState(false);
   const [showBulkDispatch,setShowBulkDispatch]=useState(false);
   const [showBulkAgreementReceived,setShowBulkAgreementReceived]=useState(false);
+  const [showBulkKnockOffInstallment,setShowBulkKnockOffInstallment]=useState(false);
   const [showBulkClaimSent,setShowBulkClaimSent]=useState(false);
   const [showBulkKnockoff,setShowBulkKnockoff]=useState(false);
   const [upfrontDate,setUpfrontDate]=useState(nowDate());
@@ -1631,6 +1700,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [firstInstallmentReportDate,setFirstInstallmentReportDate]=useState(nowDate());
   const [cashKnockoffReportDate,setCashKnockoffReportDate]=useState(nowDate());
   const [collectionOverdueReportDate,setCollectionOverdueReportDate]=useState(nowDate());
+  const [firstInstallmentKnockoffReportDate,setFirstInstallmentKnockoffReportDate]=useState(nowDate());
   const [reportMerchant,setReportMerchant]=useState("all");
   const [reportsExpanded,setReportsExpanded]=useState(false);
   // Fully hydrated + signed order (header + history, with every {name,path}
@@ -1754,6 +1824,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     {showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}
     {showBulkDispatch&&<BulkDispatch orders={orders} onSave={bulkSave} onClose={()=>setShowBulkDispatch(false)}/>}
     {showBulkAgreementReceived&&<BulkAgreementReceived orders={orders} onSave={bulkSave} onClose={()=>setShowBulkAgreementReceived(false)}/>}
+    {showBulkKnockOffInstallment&&<BulkKnockOffInstallment orders={orders} onSave={bulkSave} onClose={()=>setShowBulkKnockOffInstallment(false)}/>}
     {showBulkClaimSent&&<BulkClaimSent orders={orders} onSave={bulkSave} onClose={()=>setShowBulkClaimSent(false)}/>}
     {showBulkKnockoff&&<BulkKnockOff orders={orders} onSave={bulkSave} onClose={()=>setShowBulkKnockoff(false)}/>}
 
@@ -1766,6 +1837,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {isAdmin&&!isReadOnly&&canAdminStep(4)&&orders.some(o=>o.step===3)&&<GBtn onClick={()=>setShowBulkDispatch(true)}>{Ic.truck} Dispatch to Branch</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(11)&&orders.some(o=>!o.cancelled&&o.step===10)&&<GBtn onClick={()=>setShowBulkAgreementReceived(true)}>{Ic.checkCircle} Set Agreement Received by HQ Date</GBtn>}
+        {isAdmin&&!isReadOnly&&canSeeReport("firstInstallmentKnockoff")&&orders.some(o=>!o.cancelled&&o.orderType!=="cash"&&o.lastVerification?.paymentChecked&&o.lastVerification?.monthlyInstallment&&!o.firstInstallmentKnockOffDate)&&<GBtn onClick={()=>setShowBulkKnockOffInstallment(true)}>{Ic.checkCircle} Knock Off First Monthly Installment</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(12)&&orders.some(o=>!o.cancelled&&o.step===11)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Agreement Sent to Merchant Date</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(13)&&orders.some(o=>!o.cancelled&&o.step===12)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
         {isTrueSuperAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
@@ -1822,7 +1894,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
     {/* Report downloads — admin only, footer */}
     {(()=>{
-      const allReports=[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Cash Order Knock Off","cashKnockoff",cashKnockoffReportDate,setCashKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Collection Proof Overdue","collectionOverdue",collectionOverdueReportDate,setCollectionOverdueReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]];
+      const allReports=[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment Knock Off","firstInstallmentKnockoff",firstInstallmentKnockoffReportDate,setFirstInstallmentKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Cash Order Knock Off","cashKnockoff",cashKnockoffReportDate,setCashKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Collection Proof Overdue","collectionOverdue",collectionOverdueReportDate,setCollectionOverdueReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]];
       const visibleReports=allReports.filter(([,type])=>canSeeReport(type));
       if(!isAdmin||isReadOnly||!visibleReports.length)return null;
       return<div style={{...card,marginTop:12}}>

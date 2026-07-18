@@ -50,7 +50,7 @@ export const ORDER_ROLE_DEFS = {
   knockoff: {
     adminSteps: [],
     visibleSteps: [6, 7, 8, 9, 10, 11, 12, 13],
-    reports: ["upfront", "firstInstallment", "knockoff", "cashKnockoff"],
+    reports: ["upfront", "firstInstallment", "firstInstallmentKnockoff", "knockoff", "cashKnockoff"],
   },
   // Only sees and only acts on Stock Order — once an order moves past step 3
   // it disappears from this role's order list entirely.
