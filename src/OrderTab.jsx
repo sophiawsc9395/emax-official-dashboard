@@ -1572,7 +1572,7 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
             const rowBg=idx%2===0?C.white:C.surface;
             return<div key={o.id} onClick={()=>onOpen(o)}
               style={{display:"flex",alignItems:"center",padding:`10px 14px`,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer"}}>
-              <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
+              <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":C.blue):"transparent"}}/>
               <div style={{flex:2,minWidth:0,marginLeft:10}}>
                 <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
                 <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
@@ -1632,7 +1632,7 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
             style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",padding:PAD,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer",overflow:"hidden"}}
             onMouseEnter={e=>{e.currentTarget.style.background="#EEF3FB";}}
             onMouseLeave={e=>{e.currentTarget.style.background=rowBg;}}>
-            <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
+            <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":C.blue):"transparent"}}/>
             <div style={{flex:2,minWidth:0,marginLeft:10}}>
               <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
               <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
