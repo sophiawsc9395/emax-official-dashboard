@@ -1970,12 +1970,26 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             // the opposite of what actually happens, so it gets a clearer
             // label specifically for these.
             const isLiveSnapshot=["firstInstallment","agreementReceived","claim","collectionOverdue"].includes(type);
-            return<div key={type} style={{display:"flex",alignItems:"flex-end",gap:10,padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none",flexWrap:"wrap"}}>
-            <div style={{flex:1,minWidth:140,fontSize:12,fontWeight:700,color:C.text}}>{label} Report</div>
-            <div style={{flex:1,minWidth:130}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-            <PBtn onClick={()=>downloadReport(src,type,date,reportMerchant)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
-            <button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",flexShrink:0}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>
-          </div>;})}
+            // This report ignores the date entirely — it's always a live
+            // snapshot — so showing a date picker that does nothing is just
+            // confusing. Skip it and show one plain download button instead.
+            const noDateNeeded=type==="collectionOverdue";
+            return<div key={type} style={{padding:"12px 0",borderTop:i>0?`1px solid ${C.border}`:"none"}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:8}}>{label} Report</div>
+              {noDateNeeded?
+                <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                  <div style={{fontSize:10,color:C.textLight,flex:1,minWidth:160}}>Always shows who's currently overdue — there's no date to pick.</div>
+                  <PBtn onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{padding:"8px 14px",flexShrink:0}}>{Ic.download} Download</PBtn>
+                </div>
+              :
+                <div style={{display:"flex",alignItems:"flex-end",gap:10,flexWrap:"wrap"}}>
+                  <div style={{flex:1,minWidth:130}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+                  <PBtn onClick={()=>downloadReport(src,type,date,reportMerchant)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
+                  <button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",flexShrink:0,paddingBottom:9}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>
+                </div>
+              }
+            </div>;
+          })}
         </div>
       </div>}
     </div>;
