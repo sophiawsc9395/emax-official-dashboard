@@ -1617,8 +1617,7 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
                 <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
               </div>
               <div style={{flex:2,minWidth:0,marginLeft:14}}>
-                <div><span style={{fontSize:9,fontWeight:700,color:progressColor,background:progressColor+"18",border:`1px solid ${progressColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{progressLabel}</span></div>
-                <div style={{display:"flex",flexWrap:"nowrap",gap:4,marginTop:4}}>
+                <div style={{display:"flex",flexWrap:"nowrap",gap:4}}>
                   {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
                   {hasDifferentPickup&&<span style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#B4530918",border:"1px solid #B4530940",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Pickup · {o.pickUpBranch}</span>}
                   <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
@@ -1677,8 +1676,7 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
               <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
             </div>
             <div style={{flex:2.2,minWidth:0,marginLeft:14,overflow:"hidden"}}>
-              <div><span style={{fontSize:9,fontWeight:700,color:progressColor,background:progressColor+"18",border:`1px solid ${progressColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{progressLabel}</span></div>
-              <div style={{display:"flex",flexWrap:"nowrap",gap:4,marginTop:4}}>
+              <div style={{display:"flex",flexWrap:"nowrap",gap:4}}>
                 {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
                 {hasDifferentPickup&&<span style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#B4530918",border:"1px solid #B4530940",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Pickup · {o.pickUpBranch}</span>}
                 <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
@@ -1975,12 +1973,12 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             // snapshot — so showing a date picker that does nothing is just
             // confusing.
             const noDateNeeded=type==="collectionOverdue";
-            return<div key={type} style={{border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",background:C.surface}}>
+            return<div key={type} style={{border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",background:C.surface,display:"flex",flexDirection:"column",height:"100%"}}>
               <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>{label} Report</div>
               {noDateNeeded
-                ?<div style={{fontSize:10,color:C.textLight,marginBottom:10,minHeight:30}}>Always shows who's currently overdue — there's no date to pick.</div>
+                ?<div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Always shows who's currently overdue — there's no date to pick.</div>
                 :<div style={{marginBottom:10}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>}
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginTop:"auto"}}>
                 {!noDateNeeded?<button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",whiteSpace:"nowrap",padding:0}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>:<span/>}
                 <PBtn onClick={()=>downloadReport(src,type,noDateNeeded?"":date,reportMerchant)} style={{padding:"9px 12px",width:38,height:38,justifyContent:"center",flexShrink:0}}>{Ic.download}</PBtn>
               </div>
