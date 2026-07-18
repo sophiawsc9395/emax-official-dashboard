@@ -519,7 +519,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     // historical "date" this happened on, it's just current status, so the
     // date picker is ignored for this report.
     if(isCollectionOverdue){
-      if(o.step!==7)return false;
+      if(o.step<6||o.step>=8)return false;
       const billingDate=o.billingData?.billingDate;
       if(!billingDate)return false;
       return daysSince(billingDate)>=1;
@@ -1216,7 +1216,7 @@ function getOrderAlerts(orders,userBranch=null){
     else if(days>=61)alerts.push({type:"approval_urgent",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval ${days} days ago — URGENT`});
     else if(days>=31)alerts.push({type:"approval_warning",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval ${days} days ago — action needed`});
   });
-  myOrders.filter(o=>o.step===7).forEach(o=>{
+  myOrders.filter(o=>o.step<8&&o.step>=6).forEach(o=>{
     const billingDate=o.billingData?.billingDate;
     if(!billingDate)return;
     const days=daysSince(billingDate);
