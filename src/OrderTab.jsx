@@ -1151,12 +1151,13 @@ function daysSince(dateStr){
   const nowDay=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   return Math.floor((nowDay-d)/(1000*60*60*24));
 }
-// A branch sees an order if it's THEIRS (branch column) or if their branch
-// was picked as the customer's pickup location — matches the OR filter
-// listOrders() already applies at the DB level; this is the client-side
-// equivalent for any place that still needs to re-check it in memory.
+// A branch sees an order if it's THEIRS (branch column, from creation) or if
+// their branch was picked as the pickup location AND the order has reached
+// Dispatched to Branch (step 4+) — matches the OR filter listOrders() already
+// applies at the DB level; this is the client-side equivalent for any place
+// that still needs to re-check it in memory.
 function visibleToBranch(o,userBranch){
-  return !userBranch||o.branch===userBranch||o.pickUpBranch===userBranch;
+  return !userBranch||o.branch===userBranch||(o.pickUpBranch===userBranch&&o.step>=4);
 }
 
 function getOrderAlerts(orders,userBranch=null){
@@ -1709,8 +1710,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const completedOrders=useMemo(()=>orders.filter(o=>o.step===14&&visibleToBranch(o,userBranch)&&canSeeStep(o.step)),[orders,userBranch,orderPermissions]);
   const agentOptions=useMemo(()=>[...new Set(orders.filter(o=>visibleToBranch(o,userBranch)&&canSeeStep(o.step)).map(o=>o.salesAgentName||o.salesAgentId).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),[orders,userBranch,orderPermissions]);
   const viewingCompleted=filterPhase==="completed";
-  const filtered=useMemo(()=>(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||getPhase(o.step)?.id===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,completedOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
-  const phaseCounts=useMemo(()=>PHASES.reduce((acc,ph)=>{acc[ph.id]=activeOrders.filter(o=>ph.steps.includes(o.step)).length;return acc;},{}),[activeOrders]);
+  const filtered=useMemo(()=>(viewingCompleted?completedOrders:activeOrders).filter(o=>(viewingCompleted||filterPhase==="all"||o.step===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,completedOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
+  const stepCounts=useMemo(()=>STEPS.filter(s=>s.step!==14).reduce((acc,s)=>{acc[s.step]=activeOrders.filter(o=>o.step===s.step).length;return acc;},{}),[activeOrders]);
   const completedCount=orders.filter(o=>o.step===14&&visibleToBranch(o,userBranch)).length;
   const alerts=useMemo(()=>getOrderAlerts(activeOrders,userBranch),[activeOrders,userBranch]);
   const alertsByOrderId=useMemo(()=>{const m={};alerts.forEach(a=>{if(!m[a.orderId])m[a.orderId]=a;});return m;},[alerts]);
@@ -1750,16 +1751,17 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     {/* Alerts */}
     <AlertBanner alerts={alerts} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
 
-    {/* Phase KPI cards — 2×2 grid */}
+    {/* Step progress cards — one per visible step, not grouped by phase */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-      {PHASES.filter(ph=>ph.steps.some(s=>canSeeStep(s))).map(ph=>{
-        const count=phaseCounts[ph.id]||0,active=filterPhase===ph.id;
-        return<div key={ph.id} onClick={()=>setFilterPhase(active?"all":ph.id)} style={{...card,padding:0,overflow:"hidden",cursor:"pointer",border:`1px solid ${active?ph.color:C.border}`,boxShadow:active?`0 0 0 1px ${ph.color}, 0 1px 3px rgba(10,22,40,.06)`:card.boxShadow,transition:"all .15s"}}>
+      {STEPS.filter(s=>s.step!==14&&canSeeStep(s.step)).map(s=>{
+        const ph=getPhase(s.step);
+        const count=stepCounts[s.step]||0,active=filterPhase===s.step;
+        return<div key={s.step} onClick={()=>setFilterPhase(active?"all":s.step)} style={{...card,padding:0,overflow:"hidden",cursor:"pointer",border:`1px solid ${active?ph.color:C.border}`,boxShadow:active?`0 0 0 1px ${ph.color}, 0 1px 3px rgba(10,22,40,.06)`:card.boxShadow,transition:"all .15s"}}>
           <div style={{height:3,background:active?ph.color:"transparent",transition:"background .15s"}}/>
           <div style={{padding:"13px 16px",display:"flex",alignItems:"center",gap:12}}>
             <div style={{width:34,height:34,borderRadius:8,background:active?ph.color:C.surface,border:active?"none":`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:active?"#fff":C.textMid,flexShrink:0,transition:"all .15s"}}>{PHASE_ICONS[ph.id]}</div>
             <div style={{minWidth:0}}>
-              <div style={{fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{ph.label}</div>
+              <div style={{fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.label}</div>
               <div style={{fontSize:23,fontWeight:800,color:C.navy,lineHeight:1}}>{count}</div>
             </div>
           </div>

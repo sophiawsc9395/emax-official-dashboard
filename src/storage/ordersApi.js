@@ -105,11 +105,14 @@ function applyHistoryEntry(order, entry) {
 // Order page's list/board view needs, regardless of how much history piles up.
 // Pass `branch` to scope the query itself (not just the client-side filter)
 // for branch viewers, so they never download other branches' headers. A
-// branch sees an order if it's THEIR order (branch column) OR if their
-// branch was picked as the customer's pickup location (pick_up_branch).
+// branch sees an order if it's THEIR order (branch column, visible from the
+// moment it's created) OR if their branch was picked as the customer's
+// pickup location — but only once the order has actually reached
+// "Dispatched to Branch" (step 4+); before that there's nothing for the
+// pickup branch to do yet, so it stays out of their list.
 export async function listOrders(branch = null) {
   let q = supabase.from(ORDERS_TABLE).select("*").order("id", { ascending: false });
-  if (branch) q = q.or(`branch.eq.${branch},pick_up_branch.eq.${branch}`);
+  if (branch) q = q.or(`branch.eq.${branch},and(pick_up_branch.eq.${branch},step.gte.4)`);
   const { data, error } = await q;
   if (error) { console.error("listOrders error:", error); return []; }
   return (data || []).map(rowToOrder);
