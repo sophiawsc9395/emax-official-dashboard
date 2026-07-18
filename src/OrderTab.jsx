@@ -1017,7 +1017,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
         <div style={{fontSize:11,color:C.textLight,marginTop:3}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}{order.invoiceNo?` · Invoice: ${order.invoiceNo}`:""}</div>
       </div>
       {isSuperAdminOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>{!order.cancelled&&order.step!==14&&<DBtn onClick={()=>{const reason=prompt("Reason for cancelling this order (optional):")||"";if(!confirm("Cancel this order? It will move out of active tracking and won't appear in any reports."))return;onUpdate({...order,cancelled:true,cancelledReason:reason||undefined,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Order Cancelled",cancelledReason:reason||undefined}]});}}>{Ic.x} Cancel Order</DBtn>}<DBtn onClick={onDelete}>{Ic.trash} Delete</DBtn></div>}
-      {!isSuperAdminOrder&&canEditOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn></div>}
+      {!isSuperAdminOrder&&canEditOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>{canAdminBilling&&!order.cancelled&&order.step!==14&&<DBtn onClick={()=>{const reason=prompt("Reason for cancelling this order (optional):")||"";if(!confirm("Cancel this order? It will move out of active tracking and won't appear in any reports."))return;onUpdate({...order,cancelled:true,cancelledReason:reason||undefined,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Order Cancelled",cancelledReason:reason||undefined}]});}}>{Ic.x} Cancel Order</DBtn>}</div>}
     </div>
 
     {order.cancelled&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"12px 16px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
@@ -1669,6 +1669,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   // enough that even "order admin user" shouldn't get it.
   const isTrueSuperAdmin = isAdmin && !orderPermissions;
   const canSeeStep = (step) => !orderPermissions || orderPermissions.visibleSteps==="all" || orderPermissions.visibleSteps.includes(step);
+  // Branch viewers still see their own orders all the way through (via
+  // canSeeStep above) — this only hides the Claim Submitted/Claim Released
+  // summary cards specifically for them, since claims are HQ-only territory.
+  const canSeeStepCard = (step) => {
+    if(!isAdmin&&!!userBranch&&[12,13].includes(step))return false;
+    return canSeeStep(step);
+  };
   const canAdminStep = (step) => !orderPermissions || orderPermissions.adminSteps==="all" || orderPermissions.adminSteps.includes(step);
   const canSeeReport = (type) => !orderPermissions || orderPermissions.reports==="all" || orderPermissions.reports.includes(type);
   const [orders,setOrders]=useState([]);
@@ -1847,7 +1854,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
     {/* Step progress cards — one per visible step, not grouped by phase */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-      {STEPS.filter(s=>s.step!==14&&canSeeStep(s.step)).map(s=>{
+      {STEPS.filter(s=>s.step!==14&&canSeeStepCard(s.step)).map(s=>{
         const ph=getPhase(s.step);
         const count=stepCounts[s.step]||0,active=filterPhase===s.step;
         return<div key={s.step} onClick={()=>setFilterPhase(active?"all":s.step)} style={{...card,padding:0,overflow:"hidden",cursor:"pointer",border:`1px solid ${active?ph.color:C.border}`,boxShadow:active?`0 0 0 1px ${ph.color}, 0 1px 3px rgba(10,22,40,.06)`:card.boxShadow,transition:"all .15s"}}>
