@@ -453,6 +453,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
   const isAgreementReceived=type==="agreementReceived";
   const isFirstInstallment=type==="firstInstallment";
   const isCashKnockoff=type==="cashKnockoff";
+  const isCollectionOverdue=type==="collectionOverdue";
   // Cash orders aren't tied to a merchant, so the merchant filter doesn't
   // apply to this report.
   orders=(merchantFilter&&merchantFilter!=="all"&&!isCashKnockoff)?orders.filter(o=>o.merchant===merchantFilter):orders;
@@ -489,15 +490,30 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     if(o.orderType==="cash"&&!isCashKnockoff)return false;
     // Agreement Received — based on the actual date admin clicked "confirm
     // agreement received by HQ" (stepDates records this the moment step 11
-    // is reached, regardless of what the order's current step is now).
-    if(isAgreementReceived){const d=o.stepDates?.["11"]?.date;return!!d&&(!dateFilter||d===dateFilter);}
+    // is reached, regardless of what the order's current step is now). With
+    // a specific date picked, show every order that reached this step that
+    // day, wherever they are now. With "All Dates", show a current snapshot
+    // instead — only orders still actually sitting at this step right now.
+    if(isAgreementReceived){const d=o.stepDates?.["11"]?.date;if(!d)return false;return dateFilter?d===dateFilter:o.step===11;}
     // Completed — actual date the order was marked completed.
     if(isCompleted){const d=o.stepDates?.["14"]?.date;return!!d&&(!dateFilter||d===dateFilter);}
     // Claim Released — based on the knock-off date admin filled in.
     if(isKnockoff)return o.knockOffDate&&(!dateFilter||o.knockOffDate===dateFilter);
-    // Claim Submitted — based on the claim-sent-to-merchant date admin filled in.
-    if(isClaim)return o.claimSentDate&&(!dateFilter||o.claimSentDate===dateFilter);
+    // Claim Submitted — based on the claim-sent-to-merchant date admin filled
+    // in. Same "All Dates = current snapshot" rule as Agreement Received.
+    if(isClaim){if(!o.claimSentDate)return false;return dateFilter?o.claimSentDate===dateFilter:o.step===12;}
     if(isFirstInstallment)return!!getInstallmentEntry(o);
+    // Collection Proof Overdue — a live snapshot of orders stuck at "Billed"
+    // (step 7) past the same day they were billed, still missing their
+    // collection & payment proof upload. Not date-filtered — there's no
+    // historical "date" this happened on, it's just current status, so the
+    // date picker is ignored for this report.
+    if(isCollectionOverdue){
+      if(o.step!==7)return false;
+      const billedDate=o.stepDates?.["7"]?.date;
+      if(!billedDate)return false;
+      return daysSince(billedDate)>=1;
+    }
     // Cash Order Knock Off — matches on EITHER the deposit payment date
     // (from New Order Request) OR the balance payment date (from Collection
     // Verified), cash orders only.
@@ -542,6 +558,13 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       return`<tr><td>${i+1}</td><td>${o.phoneModel}</td><td>${o.branch}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${depositOk?fDate(o.depositPaymentDate):"—"}</td><td>${depositOk?(o.depositPaymentMethod||"—"):"—"}</td><td>${depositOk?`RM ${depositAmt.toFixed(2)}`:"—"}</td><td>${bal?fDate(bal.date):"—"}</td><td>${bal?(bal.paymentMethod||"—"):"—"}</td><td>${bal?`RM ${balAmt.toFixed(2)}`:"—"}</td><td>${showExpected?`RM ${expected.toFixed(2)}`:"—"}</td></tr>`;
     }).join("");
     rows+=`<tr class="tot"><td colspan="9"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td></tr>`;
+  } else if(isCollectionOverdue){
+    rows=filtered.map((o,i)=>{
+      const billedDate=o.stepDates?.["7"]?.date;
+      const days=daysSince(billedDate);
+      return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.branch}</td><td>${o.agreementNumber||"—"}</td><td>${o.customerName}</td><td>${fDate(billedDate)}</td><td>${days} day${days!==1?"s":""}</td></tr>`;
+    }).join("");
+    rows+=`<tr class="tot"><td colspan="6"><b>TOTAL (${filtered.length})</b></td><td></td></tr>`;
   } else {
     rows=filtered.map((o,i)=>{
       const h=o.lastVerification;
@@ -563,13 +586,14 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     }).join("");
     rows+=`<tr class="tot"><td colspan="2"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td><td><b>RM ${total3.toFixed(2)}</b></td><td><b>RM ${total4.toFixed(2)}</b></td></tr>`;
   }
-  const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":isCashKnockoff?"Cash Order Knock Off Report":"Upfront Payment Report";
+  const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":isCashKnockoff?"Cash Order Knock Off Report":isCollectionOverdue?"Collection Proof Overdue Report":"Upfront Payment Report";
   const heads=isAgreementReceived?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Approval Date</th><th>Claim Amount</th>"
     :isCompleted?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Completed Date</th><th>Claim Amount</th>"
     :isKnockoff?"<th>#</th><th>Invoice No</th><th>Agreement No</th><th>Knock-off Amount</th><th>Expected Claim Amount</th>"
     :isClaim?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Claim Sent Date</th><th>Claim Amount</th>"
     :isFirstInstallment?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th>"
     :isCashKnockoff?"<th>#</th><th>Device Name</th><th>Branch</th><th>Invoice No</th><th>Deposit Payment Date</th><th>Deposit Payment Method</th><th>Deposit Amount</th><th>Balance Payment Date</th><th>Balance Payment Method</th><th>Balance Payment Amount</th><th>Expected Balance Payment Amount</th>"
+    :isCollectionOverdue?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Customer Name</th><th>Billed Date</th><th>Days Overdue</th>"
     :"<th>#</th><th>Invoice No</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Payment Proof Amount</th><th>2nd Method</th><th>Upfront 1 Amount</th><th>Upfront 2 Amount</th>";
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""} · Merchant: ${merchantLabel}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
   const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
@@ -1606,6 +1630,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [agreementReceivedReportDate,setAgreementReceivedReportDate]=useState(nowDate());
   const [firstInstallmentReportDate,setFirstInstallmentReportDate]=useState(nowDate());
   const [cashKnockoffReportDate,setCashKnockoffReportDate]=useState(nowDate());
+  const [collectionOverdueReportDate,setCollectionOverdueReportDate]=useState(nowDate());
   const [reportMerchant,setReportMerchant]=useState("all");
   const [reportsExpanded,setReportsExpanded]=useState(false);
   // Fully hydrated + signed order (header + history, with every {name,path}
@@ -1797,7 +1822,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
     {/* Report downloads — admin only, footer */}
     {(()=>{
-      const allReports=[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Cash Order Knock Off","cashKnockoff",cashKnockoffReportDate,setCashKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]];
+      const allReports=[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Cash Order Knock Off","cashKnockoff",cashKnockoffReportDate,setCashKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Collection Proof Overdue","collectionOverdue",collectionOverdueReportDate,setCollectionOverdueReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]];
       const visibleReports=allReports.filter(([,type])=>canSeeReport(type));
       if(!isAdmin||isReadOnly||!visibleReports.length)return null;
       return<div style={{...card,marginTop:12}}>

@@ -42,14 +42,14 @@ export const ORDER_ROLE_DEFS = {
   billing: {
     adminSteps: [7, 9, 11, 12, 13],
     visibleSteps: [6, 7, 8, 9, 10, 11, 12, 13],
-    reports: ["agreementReceived", "claim", "knockoff"],
+    reports: ["agreementReceived", "claim", "knockoff", "collectionOverdue"],
   },
-  // Only sees Claim Submitted and Claim Released — never acts as admin on
-  // any step, purely for pulling the payment/knock-off reports (which pull
-  // from the full order set regardless of this narrower card visibility).
+  // Sees every step from Billing Request through Claim Released — never acts
+  // as admin on any of them, purely for pulling the payment/knock-off
+  // reports (which pull from the full order set regardless of card visibility).
   knockoff: {
     adminSteps: [],
-    visibleSteps: [12, 13],
+    visibleSteps: [6, 7, 8, 9, 10, 11, 12, 13],
     reports: ["upfront", "firstInstallment", "knockoff", "cashKnockoff"],
   },
   // Only sees and only acts on Stock Order — once an order moves past step 3
