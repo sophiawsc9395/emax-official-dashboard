@@ -1983,9 +1983,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
                 </div>
               :
                 <div style={{display:"flex",alignItems:"flex-end",gap:10,flexWrap:"wrap"}}>
-                  <div style={{flex:1,minWidth:130}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+                  <div style={{width:200,flexShrink:0}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
                   <PBtn onClick={()=>downloadReport(src,type,date,reportMerchant)} style={{padding:"8px 10px",flexShrink:0}}>{Ic.download}</PBtn>
-                  <button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",flexShrink:0,paddingBottom:9}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>
+                  <button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",flexShrink:0,paddingBottom:9,whiteSpace:"nowrap"}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>
                 </div>
               }
             </div>;
