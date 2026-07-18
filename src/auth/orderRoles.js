@@ -34,21 +34,22 @@
 //   Completed:            14
 
 export const ORDER_ROLE_DEFS = {
-  // Full view of every order and every step's history, but can only act as
-  // admin on Billing → Agreement Submission → Agreement Received by HQ →
-  // Claimed. Everything before that (Stock Order, Stock Transfer) is
-  // view-only for this role. Can download the reports tied to that part of
-  // the flow.
+  // Sees every step from Billing through Claimed. Billing Request (6),
+  // Customer Collection (8), and Agreement Submission (10) are genuinely
+  // done by the branch, so this role is view-only there — admin capability
+  // is on Billed (7), Collection Verified (9), Agreement Received by HQ
+  // (11), Claim Submitted (12), and Claim Released (13).
   billing: {
-    adminSteps: [6, 7, 8, 9, 10, 11, 12, 13],
-    visibleSteps: "all",
+    adminSteps: [7, 9, 11, 12, 13],
+    visibleSteps: [6, 7, 8, 9, 10, 11, 12, 13],
     reports: ["agreementReceived", "claim", "knockoff"],
   },
-  // Full view of every order, but never acts as admin on any step — purely
-  // for pulling the payment/knock-off reports.
+  // Only sees Claim Submitted and Claim Released — never acts as admin on
+  // any step, purely for pulling the payment/knock-off reports (which pull
+  // from the full order set regardless of this narrower card visibility).
   knockoff: {
     adminSteps: [],
-    visibleSteps: "all",
+    visibleSteps: [12, 13],
     reports: ["upfront", "firstInstallment", "knockoff", "cashKnockoff"],
   },
   // Only sees and only acts on Stock Order — once an order moves past step 3
@@ -58,11 +59,13 @@ export const ORDER_ROLE_DEFS = {
     visibleSteps: [1, 2, 3],
     reports: [],
   },
-  // Sees Stock Order + Stock Transfer, but only acts as admin on Stock
-  // Transfer. Once an order moves past step 5 it disappears from view.
+  // Sees Arrived HQ (view-only — that's Purchase's finish line, not theirs)
+  // through Arrived Branch, but only acts as admin on Dispatched to Branch
+  // and Arrived Branch. Does NOT see New Order Request / Ordered — those are
+  // Purchase's cards, not Stock's.
   stock: {
     adminSteps: [4, 5],
-    visibleSteps: [1, 2, 3, 4, 5],
+    visibleSteps: [3, 4, 5],
     reports: [],
   },
   // Full super-admin — everything, same as the main dashboard's order admin,

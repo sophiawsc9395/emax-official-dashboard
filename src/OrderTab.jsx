@@ -801,6 +801,13 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false}){
           {files.balancePaymentProof&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files.balancePaymentProof.name}</div>}
           <PBtn onClick={async()=>{if(!files.balancePaymentProof)return;setSaving(true);const f=await readFile(files.balancePaymentProof,order.id);const h={step:9,date:nowDate(),time:nowTime(),note:"Balance payment proof uploaded",shortPaymentProofUpload:true,files:{balancePaymentProof:f}};await onUpdate({...order,history:[...(order.history||[]),h]});setSaving(false);setFiles(p=>({...p,balancePaymentProof:null}));}} disabled={!files.balancePaymentProof||saving} style={{width:"100%",justifyContent:"center",marginTop:8}}>{saving?"Saving…":"Submit Balance Payment Proof"}</PBtn>
         </div>}
+        {nextDef.needsVerification&&isAdmin&&!isCash&&<div style={{marginBottom:12,background:C.surface,borderRadius:9,padding:"10px 12px",border:`1px solid ${C.border}`}}>
+          <div style={{fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Upfront Payment Breakdown</div>
+          {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 1 (Subtotal)</span><span>{fRM(upfront.total)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 2 (First Monthly Installment)</span><span>{fRM(order.monthlyInstallment)}</span></div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0 0",borderTop:`2px solid ${C.navy}`,marginTop:4,color:C.navy,fontWeight:800}}><span>Total Upfront Payment Upon Collection</span><span>{fRM(upfront.total+(parseFloat(order.monthlyInstallment)||0))}</span></div>
+        </div>}
         {nextDef.needsVerification&&isAdmin&&<div style={{marginBottom:12}}>
           <div style={{...lbl,marginBottom:8}}>Verification Checklist</div>
           {(isCash?[[payment,setPayment,"Payment Proof verified"]]:[[collection,setCollection,"Phone Collection Proof verified"],[payment,setPayment,"Upfront Payment Proof verified"]]).map(([val,setter,label],i)=><div key={i} onClick={()=>setter(!val)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 12px",borderRadius:8,background:val?"#F0FDF4":C.surface,border:`1px solid ${val?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer",transition:"all .15s"}}>
@@ -988,7 +995,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Device Name</div>
           {canEditPhoneModelAtOrdered&&order.step===2?<PhoneModelField order={order} onUpdate={onUpdate}/>:<div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.phoneModel||"—"}</div>}
         </div>
-        {[["Customer Name",order.customerName],order.customerIC&&["Customer IC",order.customerIC],order.customerHP&&["Customer HP",order.customerHP],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],["Deposit",fRM(order.deposit)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.orderDate&&["Order Date",fDate(order.orderDate)],order.poNumber&&["PO Number",order.poNumber],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+        {[["Customer Name",order.customerName],order.customerIC&&["Customer IC",order.customerIC],order.customerHP&&["Customer HP",order.customerHP],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],["Deposit",fRM(order.deposit)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
           <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}</div>
         </div>)}
@@ -1038,7 +1045,7 @@ function FormCard({title,children}){
   </div>;
 }
 
-function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList}){
+function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,orderPermissions}){
   const empty={phoneModel:"",branch:userBranch||"KM",merchant:"Aeon",agreementNumber:"",customerName:"",customerIC:"",customerEmail:"",customerHP:"",customerAddress:"",customerPostCode:"",customerCity:"",salesAgentId:"",salesAgentName:"",aeonApprovalDate:"",financePrice:"",deposit:"",stampingFee:"",agreementFee:"",monthlyInstallment:"",retailPrice:"",stockStatus:"stock_request",orderType:"ccm",depositPaymentDate:"",depositPaymentMethod:"RHB",depositSlip:null,pickUpBranch:""};
   const [f,setF]=useState(order?{...order}:empty);
   const [slipFile,setSlipFile]=useState(null);
@@ -1057,8 +1064,21 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
     const initHist=isReady?[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"},{step:2,date:nowDate(),time:nowTime(),note:"Ready stock"},{step:3,date:nowDate(),time:nowTime(),note:"Arrived HQ"}]:[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"}];
     onSave({...f,depositSlip,id,step:order?.step||initStep,history:order?.history||initHist});
   };
+  // Field-level edit restrictions when editing an EXISTING order — only
+  // applies to the restricted order-page roles; true super admin / order
+  // admin, and new-order creation, are always unrestricted.
+  const isSuperAdminForm=isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all");
+  const isBillingRole=isAdmin&&!!orderPermissions&&orderPermissions.adminSteps!=="all"&&orderPermissions.adminSteps.includes(7);
+  const isPurchaseRole=isAdmin&&!!orderPermissions&&orderPermissions.adminSteps!=="all"&&orderPermissions.adminSteps.includes(2);
+  const isFieldLocked=k=>{
+    if(!order||isSuperAdminForm)return false;
+    if(isBillingRole)return["phoneModel","salesAgentId","pickUpBranch"].includes(k);
+    if(isPurchaseRole)return!["phoneModel","pickUpBranch"].includes(k);
+    return false;
+  };
+  const lockedStyle={background:C.surface,color:C.textMid,cursor:"not-allowed"};
   // row() helper — uses module-level FormField (no focus loss)
-  const row=(k,l,t="text",req=false)=>(<FormField key={k} label={l} req={req}><I type={t} value={f[k]||""} onChange={e=>set(k,e.target.value)} style={req&&missing.includes(k)?{borderColor:"#FECACA"}:{}}/></FormField>);
+  const row=(k,l,t="text",req=false)=>(<FormField key={k} label={l} req={req}><I type={t} value={f[k]||""} onChange={e=>set(k,e.target.value)} disabled={isFieldLocked(k)} style={{...(req&&missing.includes(k)?{borderColor:"#FECACA"}:{}),...(isFieldLocked(k)?lockedStyle:{})}}/></FormField>);
   return<div className="fade-in">
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
       <GBtn onClick={onCancel}>{Ic.chevL} Back</GBtn>
@@ -1067,14 +1087,14 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
     <FormCard title="Order Type">
       <div>
         <L req>Stock Status</L>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8,pointerEvents:isFieldLocked("stockStatus")?"none":"auto",opacity:isFieldLocked("stockStatus")?.5:1}}>
           {[["stock_request","Stock Request"],["ready","Ready Stock"]].map(([v,l])=><button key={v} onClick={()=>set("stockStatus",v)} style={{flex:1,padding:"12px 8px",borderRadius:10,border:`2px solid ${f.stockStatus===v?C.navy:C.border}`,background:f.stockStatus===v?C.navy:C.white,color:f.stockStatus===v?"#fff":C.textMid,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",transition:"all .15s"}}>{l}</button>)}
         </div>
         {isReady&&<div style={{fontSize:10,color:"#15803D",marginTop:5,fontWeight:600}}>Will skip to Step 3 — Arrived HQ</div>}
       </div>
       <div>
         <L req>Order Type</L>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8,pointerEvents:isFieldLocked("orderType")?"none":"auto",opacity:isFieldLocked("orderType")?.5:1}}>
           {[["ccm","CCM Order"],["cash","Cash Order"]].map(([v,l])=><button key={v} onClick={()=>set("orderType",v)} style={{flex:1,padding:"12px 8px",borderRadius:10,border:`2px solid ${f.orderType===v?C.navy:C.border}`,background:f.orderType===v?C.navy:C.white,color:f.orderType===v?"#fff":C.textMid,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",transition:"all .15s"}}>{l}</button>)}
         </div>
       </div>
@@ -1082,15 +1102,15 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
     <FormCard title="Basic Information">
       {row("phoneModel","Phone Model / Item","text",true)}
       {row("customerName","Customer Name","text",true)}
-      <div><L req>Branch</L><SEL value={f.branch} onChange={e=>set("branch",e.target.value)} disabled={!isAdmin&&!!userBranch}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}</SEL></div>
+      <div><L req>Branch</L><SEL value={f.branch} onChange={e=>set("branch",e.target.value)} disabled={(!isAdmin&&!!userBranch)||isFieldLocked("branch")} style={isFieldLocked("branch")?lockedStyle:{}}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}</SEL></div>
       {!isCash&&f.stockStatus==="stock_request"&&<div>
         <L>Pick Up Branch</L>
-        <SEL value={f.pickUpBranch||""} onChange={e=>set("pickUpBranch",e.target.value)}>
+        <SEL value={f.pickUpBranch||""} onChange={e=>set("pickUpBranch",e.target.value)} disabled={isFieldLocked("pickUpBranch")} style={isFieldLocked("pickUpBranch")?lockedStyle:{}}>
           <option value="">— None —</option>
           {BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}
         </SEL>
       </div>}
-      <div><L req>Sales Agent</L>{branchSRs.length>0?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}} style={missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>:<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder="Agent ID" style={missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}}/>}</div>
+      <div><L req>Sales Agent</L>{branchSRs.length>0?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}} disabled={isFieldLocked("salesAgentId")} style={{...(missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}),...(isFieldLocked("salesAgentId")?lockedStyle:{})}}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>:<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder="Agent ID" disabled={isFieldLocked("salesAgentId")} style={{...(missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}),...(isFieldLocked("salesAgentId")?lockedStyle:{})}}/>}</div>
     </FormCard>
     <FormCard title="Customer Details">
       {row("customerIC","Customer IC","text",true)}
@@ -1101,7 +1121,7 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
       {row("customerCity","City","text",true)}
     </FormCard>
     {!isCash&&<FormCard title="CCM / Financing Details">
-      <div><L req>Merchant</L><SEL value={f.merchant} onChange={e=>set("merchant",e.target.value)}>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
+      <div><L req>Merchant</L><SEL value={f.merchant} onChange={e=>set("merchant",e.target.value)} disabled={isFieldLocked("merchant")} style={isFieldLocked("merchant")?lockedStyle:{}}>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
       {row("agreementNumber","Agreement No.","text",true)}
       {row("aeonApprovalDate","Aeon Approval Date","date",true)}
       {row("financePrice","Finance Price (RM)","number",true)}
@@ -1113,9 +1133,9 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList})
     {isCash&&<FormCard title="Cash Order Details">
       {row("retailPrice","Retail Price (RM)","number",true)}
       {row("deposit","Deposit (RM)","number",true)}
-      <div><L req>Deposit Payment Method</L><SEL value={f.depositPaymentMethod||"RHB"} onChange={e=>set("depositPaymentMethod",e.target.value)}><option value="RHB">RHB</option><option value="PBB">PBB</option></SEL></div>
+      <div><L req>Deposit Payment Method</L><SEL value={f.depositPaymentMethod||"RHB"} onChange={e=>set("depositPaymentMethod",e.target.value)} disabled={isFieldLocked("depositPaymentMethod")} style={isFieldLocked("depositPaymentMethod")?lockedStyle:{}}><option value="RHB">RHB</option><option value="PBB">PBB</option></SEL></div>
       {row("depositPaymentDate","Deposit Payment Date","date",true)}
-      <div><L req>Deposit Payment Slip</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setSlipFile(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{(slipFile||f.depositSlip)&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {slipFile?.name||f.depositSlip?.name}</div>}{!slipFile&&!f.depositSlip&&<div style={{fontSize:10,color:"#DC2626",marginTop:3}}>Required</div>}</div>
+      <div><L req>Deposit Payment Slip</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setSlipFile(e.target.files[0]||null)} disabled={isFieldLocked("depositSlip")} style={{fontSize:11,width:"100%"}}/>{(slipFile||f.depositSlip)&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {slipFile?.name||f.depositSlip?.name}</div>}{!slipFile&&!f.depositSlip&&<div style={{fontSize:10,color:"#DC2626",marginTop:3}}>Required</div>}</div>
     </FormCard>}
     {(missing.length>0||missingSlip)&&!order&&<div style={{padding:"9px 12px",background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:8,fontSize:11,color:"#92400E",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill all required fields to submit.</div>}
     <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><GBtn onClick={onCancel}>Cancel</GBtn><PBtn onClick={submit} disabled={!order&&(missing.length>0||missingSlip)}>{isReady?"Submit & Dispatch":"Submit Order Request"}</PBtn></div>
@@ -1269,6 +1289,45 @@ function BulkDispatch({orders,onSave,onClose}){
 }
 
 /* ── Bulk Claim Sent ──────────────────────────────────────────────────── */
+function BulkAgreementReceived({orders,onSave,onClose}){
+  const pending=orders.filter(o=>!o.cancelled&&o.step===10);
+  const [sel,setSel]=useState(new Set());
+  const [date,setDate]=useState(nowDate());
+  const [search,setSearch]=useState("");
+  const list=pending.filter(o=>!search||(o.invoiceNo||"").toLowerCase().includes(search.toLowerCase())||o.customerName?.toLowerCase().includes(search.toLowerCase()));
+  const canSubmit=sel.size>0&&date;
+  return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
+      <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
+        <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.checkCircle} Set Agreement Received by HQ Date (Bulk)</div>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+      </div>
+      <div style={{padding:16,overflowY:"auto",flex:1}}>
+        {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No orders awaiting Agreement Received by HQ.</div>:<>
+          <div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Tick every agreement received by HQ on the same date — that date is applied to all of them.</div>
+          <div style={{marginBottom:10}}><I placeholder="Search by invoice number or customer…" value={search} onChange={e=>setSearch(e.target.value)}/></div>
+          <div style={{marginBottom:12}}><L req>Agreement Received by HQ Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{fontSize:12,color:C.textLight}}>{list.length} shown</div>
+            <button onClick={()=>setSel(sel.size===list.length?new Set():new Set(list.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===list.length&&list.length>0?"Deselect All":"Select All Shown"}</button>
+          </div>
+          {list.map(o=><div key={o.id} onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer"}}>
+            <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#15803D":"#fff",border:`2px solid ${sel.has(o.id)?"#15803D":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>Invoice: {o.invoiceNo||"—"}</div><div style={{fontSize:10,color:C.textLight}}>{o.phoneModel} · {o.customerName} · {o.branch}</div></div>
+          </div>)}
+        </>}
+      </div>
+      <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:8}}>
+        {sel.size>0&&!canSubmit&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the date to continue.</div>}
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <GBtn onClick={onClose}>Cancel</GBtn>
+          <PBtn onClick={async()=>{if(!canSubmit)return;const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,step:11,stepDates:{...(o.stepDates||{}),11:{date,time:nowTime()}},history:[{step:11,date,time:nowTime(),note:"Agreement Received by HQ (bulk)"}]}));const ok=await onSave(changed);if(ok)onClose();}} disabled={!canSubmit}>{Ic.checkCircle} Confirm ({sel.size})</PBtn>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
 function BulkClaimSent({orders,onSave,onClose}){
   const pending=orders.filter(o=>!o.cancelled&&o.step===11);
   const [sel,setSel]=useState(new Set());
@@ -1400,9 +1459,8 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
     // Branch Order vs Pickup Order — only meaningful from a branch viewer's
     // own perspective (an order shows up in their list either because it's
     // theirs, or only because their branch is the customer's pickup point).
-    const isPickupOnly=!!userBranch&&o.pickUpBranch===userBranch&&o.branch!==userBranch;
-    const isOwnBranchOrder=!!userBranch&&o.branch===userBranch;
-    return{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText,isPickupOnly,isOwnBranchOrder};
+    const hasDifferentPickup=!!o.pickUpBranch&&o.pickUpBranch!==o.branch;
+    return{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText,hasDifferentPickup};
   };
 
   // ── Mobile: no inner vertical scrollbox — the full list renders in normal
@@ -1422,21 +1480,20 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
             <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto"}}>Updated</div>
           </div>
           {orders.map((o,idx)=>{
-            const{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText,isPickupOnly,isOwnBranchOrder}=rowFields(o);
+            const{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText,hasDifferentPickup}=rowFields(o);
             const rowBg=idx%2===0?C.white:C.surface;
             return<div key={o.id} onClick={()=>onOpen(o)}
               style={{display:"flex",alignItems:"center",padding:`10px 14px`,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer"}}>
               <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
               <div style={{flex:2,minWidth:0,marginLeft:10}}>
                 <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
-                <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch}{o.pickUpBranch?` · Pickup: ${o.pickUpBranch}`:""} · {o.salesAgentName||o.salesAgentId||"—"}</div>
+                <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
               </div>
               <div style={{flex:2,minWidth:0,marginLeft:14}}>
                 <div><span style={{fontSize:9,fontWeight:700,color:progressColor,background:progressColor+"18",border:`1px solid ${progressColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{progressLabel}</span></div>
                 <div style={{display:"flex",flexWrap:"nowrap",gap:4,marginTop:4}}>
                   {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
-                  {isOwnBranchOrder&&<span style={{fontSize:9,fontWeight:700,color:"#1E6FDB",background:"#1E6FDB18",border:"1px solid #1E6FDB40",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Branch Order</span>}
-                  {isPickupOnly&&<span style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#B4530918",border:"1px solid #B4530940",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Pickup Order</span>}
+                  {hasDifferentPickup&&<span style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#B4530918",border:"1px solid #B4530940",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Pickup · {o.pickUpBranch}</span>}
                   <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
                   <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
                 </div>
@@ -1481,7 +1538,7 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
       <div style={{height:total*ROW_H,position:"relative"}}>
         {visible.map((o,i)=>{
           const idx=startIdx+i;
-          const{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText,isPickupOnly,isOwnBranchOrder}=rowFields(o);
+          const{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText,hasDifferentPickup}=rowFields(o);
           const rowBg=idx%2===0?C.white:C.surface;
           return<div key={o.id} onClick={()=>onOpen(o)}
             style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",padding:PAD,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer",overflow:"hidden"}}
@@ -1490,14 +1547,13 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
             <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":"#F59E0B"):"transparent"}}/>
             <div style={{flex:2,minWidth:0,marginLeft:10}}>
               <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
-              <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch}{o.pickUpBranch?` · Pickup: ${o.pickUpBranch}`:""} · {o.salesAgentName||o.salesAgentId||"—"}</div>
+              <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
             </div>
             <div style={{flex:2.2,minWidth:0,marginLeft:14,overflow:"hidden"}}>
               <div><span style={{fontSize:9,fontWeight:700,color:progressColor,background:progressColor+"18",border:`1px solid ${progressColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{progressLabel}</span></div>
               <div style={{display:"flex",flexWrap:"nowrap",gap:4,marginTop:4}}>
                 {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
-                {isOwnBranchOrder&&<span style={{fontSize:9,fontWeight:700,color:"#1E6FDB",background:"#1E6FDB18",border:"1px solid #1E6FDB40",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Branch Order</span>}
-                {isPickupOnly&&<span style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#B4530918",border:"1px solid #B4530940",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Pickup Order</span>}
+                {hasDifferentPickup&&<span style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#B4530918",border:"1px solid #B4530940",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Pickup · {o.pickUpBranch}</span>}
                 <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
                 <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
               </div>
@@ -1540,6 +1596,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   useEffect(()=>{const t=setTimeout(()=>setSearch(searchInput),200);return()=>clearTimeout(t);},[searchInput]);
   const [showArchive,setShowArchive]=useState(false);
   const [showBulkDispatch,setShowBulkDispatch]=useState(false);
+  const [showBulkAgreementReceived,setShowBulkAgreementReceived]=useState(false);
   const [showBulkClaimSent,setShowBulkClaimSent]=useState(false);
   const [showBulkKnockoff,setShowBulkKnockoff]=useState(false);
   const [upfrontDate,setUpfrontDate]=useState(nowDate());
@@ -1589,7 +1646,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       refreshTimer=setTimeout(()=>{refreshList();},400);
     };
     const channel=supabase.channel("orders-live")
-      .on("postgres_changes",{event:"*",schema:"public",table:"orders"},()=>{scheduleRefresh();})
+      .on("postgres_changes",{event:"*",schema:"public",table:"orders"},payload=>{
+        scheduleRefresh();
+        const changedOrderId=payload.new?.id||payload.old?.id;
+        if(changedOrderId&&selectedRef.current&&String(changedOrderId)===String(selectedRef.current.id)){
+          hydrateOrder(changedOrderId);
+        }
+      })
       .on("postgres_changes",{event:"*",schema:"public",table:"order_history"},payload=>{
         scheduleRefresh();
         const changedOrderId=payload.new?.order_id||payload.old?.order_id;
@@ -1659,11 +1722,12 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     if(!live)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading order…</div>;
     return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} orderPermissions={orderPermissions} userBranch={userBranch} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
   }
-  if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
+  if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} orderPermissions={orderPermissions} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
   return<div className="fade-in">
     {showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}
     {showBulkDispatch&&<BulkDispatch orders={orders} onSave={bulkSave} onClose={()=>setShowBulkDispatch(false)}/>}
+    {showBulkAgreementReceived&&<BulkAgreementReceived orders={orders} onSave={bulkSave} onClose={()=>setShowBulkAgreementReceived(false)}/>}
     {showBulkClaimSent&&<BulkClaimSent orders={orders} onSave={bulkSave} onClose={()=>setShowBulkClaimSent(false)}/>}
     {showBulkKnockoff&&<BulkKnockOff orders={orders} onSave={bulkSave} onClose={()=>setShowBulkKnockoff(false)}/>}
 
@@ -1675,6 +1739,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {isAdmin&&!isReadOnly&&canAdminStep(4)&&orders.some(o=>o.step===3)&&<GBtn onClick={()=>setShowBulkDispatch(true)}>{Ic.truck} Dispatch to Branch</GBtn>}
+        {isAdmin&&!isReadOnly&&canAdminStep(11)&&orders.some(o=>!o.cancelled&&o.step===10)&&<GBtn onClick={()=>setShowBulkAgreementReceived(true)}>{Ic.checkCircle} Set Agreement Received by HQ Date</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(12)&&orders.some(o=>!o.cancelled&&o.step===11)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Agreement Sent to Merchant Date</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(13)&&orders.some(o=>!o.cancelled&&o.step===12)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
         {isTrueSuperAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
