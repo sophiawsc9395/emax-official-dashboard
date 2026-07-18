@@ -1698,6 +1698,7 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
 }
 
 export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList=[],isReadOnly=false,orderPermissions=null}){
+  const isMobile=useIsMobile();
   // orderPermissions (when set) narrows a full isAdmin=true session down to
   // specific steps/reports for the restricted Order-page-only roles (billing,
   // knock-off, purchase, stock). null = legacy unrestricted behavior.
@@ -1961,9 +1962,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         </div>
       </div>
       {reportsExpanded&&<div style={{padding:"0 16px 16px",borderTop:`1px solid ${C.border}`}}>
-        <div style={{padding:"14px 0 4px",maxWidth:260}}><L>Merchant</L><SEL value={reportMerchant} onChange={e=>setReportMerchant(e.target.value)}><option value="all">All Merchants</option>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
-        <div style={{display:"flex",flexDirection:"column"}}>
-          {visibleReports.map(([label,type,date,setDate,src],i)=>{
+        <div style={{padding:"14px 0 12px",maxWidth:260}}><L>Merchant</L><SEL value={reportMerchant} onChange={e=>setReportMerchant(e.target.value)}><option value="all">All Merchants</option>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
+          {visibleReports.map(([label,type,date,setDate,src])=>{
             // For these report types, leaving the date blank doesn't mean
             // "every record ever" — it means "what's outstanding right now".
             // Calling that button "All dates" implies full history, which is
@@ -1972,19 +1973,16 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             const isLiveSnapshot=["firstInstallment","agreementReceived","claim","collectionOverdue"].includes(type);
             // This report ignores the date entirely — it's always a live
             // snapshot — so showing a date picker that does nothing is just
-            // confusing. The grid column stays reserved either way, so the
-            // Download button still lands in the same place as every other row.
+            // confusing.
             const noDateNeeded=type==="collectionOverdue";
-            return<div key={type} style={{padding:"14px 0",borderTop:i>0?`1px solid ${C.border}`:"none",display:"grid",gridTemplateColumns:"220px 1fr",gridTemplateRows:"auto auto",columnGap:14,alignItems:"center"}}>
-              <div style={{fontSize:12,fontWeight:700,color:C.text,gridColumn:"1 / -1"}}>{label} Report</div>
-              <div style={{marginTop:8}}>
-                {noDateNeeded
-                  ?<div style={{fontSize:10,color:C.textLight,height:38,display:"flex",alignItems:"center"}}>Always shows who's currently overdue — there's no date to pick.</div>
-                  :<><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></>}
-              </div>
-              <div style={{marginTop:8,display:"flex",alignItems:"center",gap:10,justifySelf:"end"}}>
-                {!noDateNeeded&&<button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",whiteSpace:"nowrap"}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>}
-                <PBtn onClick={()=>downloadReport(src,type,noDateNeeded?"":date,reportMerchant)} style={{padding:"9px 12px",width:38,height:38,justifyContent:"center"}}>{Ic.download}</PBtn>
+            return<div key={type} style={{border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",background:C.surface}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>{label} Report</div>
+              {noDateNeeded
+                ?<div style={{fontSize:10,color:C.textLight,marginBottom:10,minHeight:30}}>Always shows who's currently overdue — there's no date to pick.</div>
+                :<div style={{marginBottom:10}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                {!noDateNeeded?<button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",whiteSpace:"nowrap",padding:0}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>:<span/>}
+                <PBtn onClick={()=>downloadReport(src,type,noDateNeeded?"":date,reportMerchant)} style={{padding:"9px 12px",width:38,height:38,justifyContent:"center",flexShrink:0}}>{Ic.download}</PBtn>
               </div>
             </div>;
           })}
