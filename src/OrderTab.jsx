@@ -1222,6 +1222,16 @@ function visibleToBranch(o,userBranch){
   return !userBranch||o.branch===userBranch||(o.pickUpBranch===userBranch&&o.step>=4);
 }
 
+// Single source of truth for alert-type -> dot color, shared by both the
+// list row's small indicator dot and (in spirit) the AlertBanner grouping
+// below. Keeping this in one place is what stops the dot and the banner
+// disagreeing about what a given alert type means.
+function alertDotColor(type){
+  if(type==="approval_expired")return"#DC2626";
+  if(type==="approval_urgent"||type==="overdue_order")return"#B91C1C";
+  if(type==="approval_warning")return"#B45309";
+  return C.blue; // collection_proof_overdue
+}
 function getOrderAlerts(orders,userBranch=null){
   const myOrders=orders.filter(o=>o.step<14&&!o.cancelled&&visibleToBranch(o,userBranch));
   const alerts=[];
@@ -1630,7 +1640,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
             const rowBg=idx%2===0?C.white:C.surface;
             return<div key={o.id} onClick={()=>onOpen(o)}
               style={{display:"flex",alignItems:"center",padding:`10px 14px`,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer"}}>
-              <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":C.blue):"transparent"}}/>
+              <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?alertDotColor(alert.type):"transparent"}}/>
               <div style={{flex:2,minWidth:0,marginLeft:10}}>
                 <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
                 <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
@@ -1689,7 +1699,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
             style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",padding:PAD,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer",overflow:"hidden"}}
             onMouseEnter={e=>{e.currentTarget.style.background="#EEF3FB";}}
             onMouseLeave={e=>{e.currentTarget.style.background=rowBg;}}>
-            <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?(alert.type==="approval_expired"?"#DC2626":alert.type==="approval_urgent"?"#B91C1C":C.blue):"transparent"}}/>
+            <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?alertDotColor(alert.type):"transparent"}}/>
             <div style={{flex:2,minWidth:0,marginLeft:10}}>
               <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
               <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
