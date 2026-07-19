@@ -361,7 +361,16 @@ function BillingForm({order,onSubmit,onCancel}){
   const FILE_FIELDS=isCashOrder?[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false]]:[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false],["resultListFile","Result Listing File",true],["agreementFile","Agreement File",true]];
   const missingFiles=FILE_FIELDS.filter(([k,,req])=>req&&!fls[k]&&!f[k]).map(([k])=>k);
   const missing=[...REQUIRED.filter(k=>!f[k]?.toString().trim()),...missingFiles];
-  const submit=async()=>{if(missing.length)return;setSaving(true);const data={...f};for(const[k,file] of Object.entries(fls))if(file)data[k]=await readFile(file,order.id);onSubmit(data);setSaving(false);};
+  const submit=async()=>{
+    if(missing.length)return;
+    setSaving(true);
+    const data={...f};
+    const entries=Object.entries(fls).filter(([,file])=>file);
+    const uploaded=await Promise.all(entries.map(([k,file])=>readFile(file,order.id).then(url=>[k,url])));
+    uploaded.forEach(([k,url])=>{data[k]=url;});
+    onSubmit(data);
+    setSaving(false);
+  };
   const row=(k,l,t="text",req=false,full=false)=><div key={k} style={full?{gridColumn:"1/-1"}:{}}>
     <L req={req}>{l}</L>
     <I type={t} value={f[k]||""} onChange={e=>set(k,e.target.value)} style={req&&!f[k]?.toString().trim()?{borderColor:"#FECACA"}:{}}/>
@@ -793,7 +802,11 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false}){
 
   const advance=async()=>{
     setSaving(true);
-    const rf={};for(const[k,f] of Object.entries(files)){if(!f)continue;rf[k]=Array.isArray(f)?await Promise.all(f.map(x=>readFile(x,order.id))):await readFile(f,order.id);}
+    const rf={};
+    const fileEntries=Object.entries(files).filter(([,f])=>f);
+    await Promise.all(fileEntries.map(async([k,f])=>{
+      rf[k]=Array.isArray(f)?await Promise.all(f.map(x=>readFile(x,order.id))):await readFile(f,order.id);
+    }));
     const totalBytes=Object.values(rf).reduce((sum,fl)=>sum+(Array.isArray(fl)?fl.reduce((s2,x)=>s2+(x?.data?.length||0),0):(fl?.data?.length||0)),0);
     if(totalBytes>4*1024*1024){
       alert("One or more of these files is too large to save (even after compression). Please use a smaller file — for PDFs, try re-exporting or scanning at a lower resolution — then try again.");
