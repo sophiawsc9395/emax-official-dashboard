@@ -1,4 +1,4 @@
-import {useState,useEffect,useRef,useMemo,useCallback} from "react";
+import {useState,useEffect,useRef,useMemo,useCallback,memo} from "react";
 import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
 import {supabase} from "./storage/index.js";
 
@@ -1559,7 +1559,7 @@ function useIsMobile(){
   return isMobile;
 }
 
-function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
+const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
   const isMobile=useIsMobile();
   const single={whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
   // Declared unconditionally (Rules of Hooks) even though only the desktop
@@ -1616,8 +1616,8 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
                 <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
                 <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
               </div>
-              <div style={{flex:2,minWidth:0,marginLeft:14}}>
-                <div style={{display:"flex",flexWrap:"nowrap",gap:4}}>
+              <div style={{flex:2,minWidth:0,marginLeft:14,alignSelf:"stretch",display:"flex",alignItems:"center"}}>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4,rowGap:5}}>
                   {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
                   {hasDifferentPickup&&<span style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#B4530918",border:"1px solid #B4530940",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Pickup · {o.pickUpBranch}</span>}
                   <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
@@ -1693,7 +1693,7 @@ function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
       </div>
     </div>
   </div>;
-}
+});
 
 export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList=[],isReadOnly=false,orderPermissions=null}){
   const isMobile=useIsMobile();
@@ -1755,7 +1755,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const refreshList=useCallback(()=>listOrders(userBranch).then(d=>{setOrders(d);setLoading(false);}),[userBranch]);
   useEffect(()=>{refreshList();},[refreshList]);
 
-  const nav=(v,sel=null)=>{setView(v);setSelected(sel);sessionStorage.setItem("orderView",v);sessionStorage.setItem("orderSelected",sel?JSON.stringify(sel):"null");};
+  const nav=useCallback((v,sel=null)=>{setView(v);setSelected(sel);sessionStorage.setItem("orderView",v);sessionStorage.setItem("orderSelected",sel?JSON.stringify(sel):"null");},[]);
+  const openOrder=useCallback(o=>nav("detail",o),[nav]);
 
   const hydrateOrder=useCallback(async id=>{
     const [header,hist]=await Promise.all([getOrder(id),getOrderHistory(id)]);
@@ -1944,7 +1945,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         count grows into the hundreds. */}
     {filtered.length===0
       ?<div style={{...card,padding:"44px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>{search||filterPhase!=="all"||filterBranch!=="ALL"||filterAgent!=="ALL"?"No orders match your filter.":"No orders yet. Click New Order to get started."}</div>
-      :<OrderListVirtualized orders={filtered} alertsByOrderId={alertsByOrderId} onOpen={o=>nav("detail",o)} userBranch={userBranch}/>
+      :<OrderListVirtualized orders={filtered} alertsByOrderId={alertsByOrderId} onOpen={openOrder} userBranch={userBranch}/>
     }
 
     {/* Report downloads — admin only, footer */}
