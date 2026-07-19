@@ -884,7 +884,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false}){
           </div>}
           <div><L>Remark</L><I value={verRemark} onChange={e=>setVerRemark(e.target.value)} placeholder="Verification notes…"/></div>
         </div>}
-        {nextDef.step===8&&isAdmin&&!isCash&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
+        {nextDef.step===8&&!isCash&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
           <div style={{...lbl,marginBottom:8}}>Upfront Payment Breakdown</div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",padding:"3px 0",borderBottom:`1px solid ${C.border}`}}><span>Description</span><span>Amount</span></div>
           {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
@@ -999,17 +999,18 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
   // used everywhere else in this file to identify the billing role.
   const canAdminBilling = isAdmin && !!orderPermissions && orderPermissions.adminSteps!=="all" && orderPermissions.adminSteps.includes(7);
   // Who can add/edit the Ordered step's tracking number: true super admin,
-  // the branch/manager viewer (isAdmin=false with a userBranch), or the
-  // Purchase / order-admin role.
-  const canManageTracking = isTrueSuperAdmin || (!isAdmin&&!!userBranch) || (isAdmin&&!!orderPermissions&&canAdminStockOrder);
+  // or the Purchase / order-admin role. Branch/manager does NOT get this —
+  // tracking number is Purchase's responsibility specifically.
+  const canManageTracking = isTrueSuperAdmin || (isAdmin&&!!orderPermissions&&canAdminStockOrder);
   // Purchase-role admin AND billing-role admin both get full Edit access
   // (with their own field-level locks applied inside OrderForm), on top of
   // the existing super-admin-only access.
   const canEditOrder = isSuperAdminOrder || (isAdmin&&!!orderPermissions&&canAdminStockOrder) || canAdminBilling;
   // Billing user can also edit just the Phone Model / Item field, but only
   // while the order is still at step 2 (Ordered) — see the inline editor in
-  // the Order Information panel below.
-  const canEditPhoneModelAtOrdered = canManageTracking || canAdminBilling;
+  // the Order Information panel below. Unlike tracking number, this DOES
+  // still include the branch/manager viewer.
+  const canEditPhoneModelAtOrdered = isTrueSuperAdmin || (!isAdmin&&!!userBranch) || (isAdmin&&!!orderPermissions&&canAdminStockOrder) || canAdminBilling;
   const forceViewOnly = orderPermissions && orderPermissions.adminSteps!=="all" && (()=>{
     const nextStepN=nextStepNum(order);
     const relevantSteps=[order.step,nextStepN].filter(s=>s!=null);
@@ -1108,7 +1109,7 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
   const isCash=f.orderType==="cash",isReady=f.stockStatus==="ready";
   const branchSRs=(srList||[]).filter(s=>s.branch===(userBranch||f.branch));
-  const REQUIRED=["phoneModel","customerName","salesAgentId","customerIC","customerEmail","customerHP","customerAddress","customerPostCode","customerCity",...(isCash?["retailPrice","deposit","depositPaymentDate","depositPaymentMethod"]:["merchant","agreementNumber","aeonApprovalDate","financePrice","stampingFee","agreementFee","deposit","monthlyInstallment"])];
+  const REQUIRED=["phoneModel","customerName","salesAgentId","customerIC","customerEmail","customerHP","customerAddress","customerPostCode","customerCity",...(!order?["pickUpBranch"]:[]),...(isCash?["retailPrice","deposit","depositPaymentDate","depositPaymentMethod"]:["merchant","agreementNumber","aeonApprovalDate","financePrice","stampingFee","agreementFee","deposit","monthlyInstallment"])];
   const missing=REQUIRED.filter(k=>!f[k]?.toString().trim());
   const missingSlip=isCash&&!slipFile&&!f.depositSlip;
   const submit=async()=>{
@@ -1159,13 +1160,13 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
       {row("phoneModel","Phone Model / Item","text",true)}
       {row("customerName","Customer Name","text",true)}
       <div><L req>Branch</L><SEL value={f.branch} onChange={e=>set("branch",e.target.value)} disabled={(!isAdmin&&!!userBranch)||isFieldLocked("branch")} style={isFieldLocked("branch")?lockedStyle:{}}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}</SEL></div>
-      {!isCash&&f.stockStatus==="stock_request"&&<div>
-        <L>Pick Up Branch</L>
-        <SEL value={f.pickUpBranch||""} onChange={e=>set("pickUpBranch",e.target.value)} disabled={isFieldLocked("pickUpBranch")} style={isFieldLocked("pickUpBranch")?lockedStyle:{}}>
-          <option value="">— None —</option>
+      <div>
+        <L req={!order}>Pick Up Branch</L>
+        <SEL value={f.pickUpBranch||""} onChange={e=>set("pickUpBranch",e.target.value)} disabled={isFieldLocked("pickUpBranch")} style={{...(isFieldLocked("pickUpBranch")?lockedStyle:{}),...(!order&&missing.includes("pickUpBranch")?{borderColor:"#FECACA"}:{})}}>
+          <option value="">— Select Branch —</option>
           {BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}
         </SEL>
-      </div>}
+      </div>
       <div><L req>Sales Agent</L>{branchSRs.length>0?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}} disabled={isFieldLocked("salesAgentId")} style={{...(missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}),...(isFieldLocked("salesAgentId")?lockedStyle:{})}}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>:<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder="Agent ID" disabled={isFieldLocked("salesAgentId")} style={{...(missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}),...(isFieldLocked("salesAgentId")?lockedStyle:{})}}/>}</div>
     </FormCard>
     <FormCard title="Customer Details">
