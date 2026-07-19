@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
+import { mergeOrderPermissions } from "../../auth/orderRoles.js";
 
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -927,7 +928,7 @@ function RTOSummary({branchMeta}){
   return <RTOSummaryComp customers={customers}/>;
 }
 
-export default function App(){
+export default function App({elevateOrderAccess=false}){
   const now=new Date();
   const [selMonth,setSelMonth]=useState(now.getMonth()+1);
   const [selYear,setSelYear]=useState(now.getFullYear());
@@ -961,6 +962,18 @@ export default function App(){
   const [publishedUntil,setPublishedUntil]=useState(null);
   const [showPointsModal,setShowPointsModal]=useState(false);
   const [pointsModalPerson,setPointsModalPerson]=useState(null);
+  // Only manager.html sets elevateOrderAccess=true — it elevates Order
+  // Tracking based on whichever order-page role(s) this email holds (see
+  // auth/orderRoles.js). boss.html never passes this, so it stays pure
+  // view-only for everyone, regardless of any order-page role they hold.
+  const [orderPermissions,setOrderPermissions]=useState(null);
+  useEffect(()=>{
+    if(!elevateOrderAccess)return;
+    supabase.auth.getSession().then(({data})=>{
+      const email=data.session?.user?.email;
+      if(email)setOrderPermissions(mergeOrderPermissions(email));
+    });
+  },[elevateOrderAccess]);
 
   useEffect(()=>{
     setLoading(true);setRecords({});
@@ -1356,7 +1369,7 @@ export default function App(){
       </div>}
 
       {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}><RTOSummary branchMeta={bMeta}/></div>}
-      {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={true} srList={srList}/></div>}
+      {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!(elevateOrderAccess&&orderPermissions)} orderPermissions={elevateOrderAccess?orderPermissions:null} srList={srList}/></div>}
     </div>{/* end main content */}
 
       {/* SIDEBAR — right side, collapsible */}

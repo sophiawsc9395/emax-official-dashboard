@@ -14,7 +14,7 @@ const ALLOWED = ["boontheng2004@gmail.com", "sophiawsc9395@gmail.com"]
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <AuthGate allowedEmails={ALLOWED}>
-      <BossApp />
+      <BossApp elevateOrderAccess={true} />
     </AuthGate>
   </React.StrictMode>
 )
