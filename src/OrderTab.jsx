@@ -2,7 +2,7 @@ import {useState,useEffect,useRef,useMemo,useCallback,memo} from "react";
 import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
 import {supabase} from "./storage/index.js";
 
-const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
+const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ","SDK"];
 const MERCHANTS=["Aeon","JCL","Chailease"];
 const PAYMENT_METHODS=["RHB","Public Bank"];
 

@@ -95,6 +95,7 @@ const DEFAULT_BRANCH_META={
   ITCC:{name:"EMAX ITCC",manager:"SUHAIDI",mStatus:"Confirmed (P0 F1)"},
   TENOM:{name:"EMAX Tenom",manager:"AZIQIL",mStatus:"Probation (P1 F1)"},
   HQ:{name:"EMAX HQ",manager:"MIKE PANG",mStatus:"Confirmed (P0 F1)"},
+  SDK:{name:"EC SDK",manager:"",mStatus:""},
 };
 
 const DEFAULT_SR=[
