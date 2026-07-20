@@ -1118,6 +1118,9 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
   const [f,setF]=useState(order?{...order}:empty);
   const [slipFile,setSlipFile]=useState(null);
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  // SDK displays with a plain hyphen per request ("SDK-EC SDK"), unlike every
+  // other branch which uses the standard "CODE — Full Name" format.
+  const branchLabel=b=>b==="SDK"?"SDK-EC SDK":`${b} — ${branchMeta[b]?.name||b}`;
   const isCash=f.orderType==="cash",isReady=f.stockStatus==="ready";
   const branchSRs=(srList||[]).filter(s=>s.branch===(userBranch||f.branch));
   const REQUIRED=["phoneModel","customerName","salesAgentId","customerIC","customerEmail","customerHP","customerAddress","customerPostCode","customerCity",...(!order?["pickUpBranch"]:[]),...(isCash?["retailPrice","deposit","depositPaymentDate","depositPaymentMethod"]:["merchant","agreementNumber","aeonApprovalDate","financePrice","stampingFee","agreementFee","deposit","monthlyInstallment"])];
@@ -1170,12 +1173,12 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
     <FormCard title="Basic Information">
       {row("phoneModel","Phone Model / Item","text",true)}
       {row("customerName","Customer Name","text",true)}
-      <div><L req>Branch</L><SEL value={f.branch} onChange={e=>set("branch",e.target.value)} disabled={(!isAdmin&&!!userBranch)||isFieldLocked("branch")} style={isFieldLocked("branch")?lockedStyle:{}}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}</SEL></div>
+      <div><L req>Branch</L><SEL value={f.branch} onChange={e=>set("branch",e.target.value)} disabled={(!isAdmin&&!!userBranch)||isFieldLocked("branch")} style={isFieldLocked("branch")?lockedStyle:{}}>{BRANCH_ORDER.map(b=><option key={b} value={b}>{branchLabel(b)}</option>)}</SEL></div>
       <div>
         <L req={!order}>Pick Up Branch</L>
         <SEL value={f.pickUpBranch||""} onChange={e=>set("pickUpBranch",e.target.value)} disabled={isFieldLocked("pickUpBranch")} style={{...(isFieldLocked("pickUpBranch")?lockedStyle:{}),...(!order&&missing.includes("pickUpBranch")?{borderColor:"#FECACA"}:{})}}>
           <option value="">— Select Branch —</option>
-          {BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name||b}</option>)}
+          {BRANCH_ORDER.map(b=><option key={b} value={b}>{branchLabel(b)}</option>)}
         </SEL>
       </div>
       <div><L req>Sales Agent</L>{branchSRs.length>0?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}} disabled={isFieldLocked("salesAgentId")} style={{...(missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}),...(isFieldLocked("salesAgentId")?lockedStyle:{})}}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>:<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder="Agent ID" disabled={isFieldLocked("salesAgentId")} style={{...(missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}),...(isFieldLocked("salesAgentId")?lockedStyle:{})}}/>}</div>
