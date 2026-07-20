@@ -1120,7 +1120,7 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
   // SDK displays with a plain hyphen per request ("SDK-EC SDK"), unlike every
   // other branch which uses the standard "CODE — Full Name" format.
-  const branchLabel=b=>b==="SDK"?"SDK-EC SDK":`${b} — ${branchMeta[b]?.name||b}`;
+  const branchLabel=b=>`${b} — ${branchMeta[b]?.name||b}`;
   const isCash=f.orderType==="cash",isReady=f.stockStatus==="ready";
   const branchSRs=(srList||[]).filter(s=>s.branch===(userBranch||f.branch));
   const REQUIRED=["phoneModel","customerName","salesAgentId","customerIC","customerEmail","customerHP","customerAddress","customerPostCode","customerCity",...(!order?["pickUpBranch"]:[]),...(isCash?["retailPrice","deposit","depositPaymentDate","depositPaymentMethod"]:["merchant","agreementNumber","aeonApprovalDate","financePrice","stampingFee","agreementFee","deposit","monthlyInstallment"])];
