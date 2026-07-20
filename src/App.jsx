@@ -82,7 +82,7 @@ const CSS = `
 `;
 
 function daysInMonth(m,y){return new Date(y,m,0).getDate();}
-const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
+const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ","SDK"];
 
 const DEFAULT_BRANCH_META={
   KM:{name:"EMAX Kota Marudu",manager:"SUHAINIZAM",mStatus:"Confirmed (P5 F0)"},
@@ -2025,7 +2025,11 @@ export default function App(){
       } else {
         setSrList(applyTypes(baseSR));
       }
-      if(bmData&&Object.keys(bmData).length>0)setBranchMeta({...DEFAULT_BRANCH_META,...bmData});
+      if(bmData&&Object.keys(bmData).length>0){
+        const merged0={...DEFAULT_BRANCH_META,...bmData};
+        Object.keys(DEFAULT_BRANCH_META).forEach(b=>{merged0[b]={...DEFAULT_BRANCH_META[b],...merged0[b],name:b==="SDK"?DEFAULT_BRANCH_META[b]?.name:(merged0[b]?.name||DEFAULT_BRANCH_META[b]?.name)};});
+        setBranchMeta(merged0);
+      }
       // Use this month's saved targets; if none yet, fall back to previous month as starting point
       const tUse=t||(tPrev)||null;
       if(tUse&&tUse.bm){
