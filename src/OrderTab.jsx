@@ -1016,10 +1016,16 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
   // the Order Information panel below. Unlike tracking number, this DOES
   // still include the branch/manager viewer.
   const canEditPhoneModelAtOrdered = isTrueSuperAdmin || (!isAdmin&&!!userBranch) || (isAdmin&&!!orderPermissions&&canAdminStockOrder) || canAdminBilling;
+  // What's actually about to be acted on is the NEXT pending step — that's
+  // the one that matters here, not the current step. Checking both (as this
+  // used to) created a loophole: a role that administers step 9 would also
+  // get full access to step 10's action, just because step 9 happened to be
+  // "current" right before it — even though step 10 isn't theirs to touch.
+  // Falls back to the current step only when there's no next step (terminal).
   const forceViewOnly = orderPermissions && orderPermissions.adminSteps!=="all" && (()=>{
     const nextStepN=nextStepNum(order);
-    const relevantSteps=[order.step,nextStepN].filter(s=>s!=null);
-    return !relevantSteps.some(s=>orderPermissions.adminSteps.includes(s));
+    const relevantStep=nextStepN!=null?nextStepN:order.step;
+    return !orderPermissions.adminSteps.includes(relevantStep);
   })();
   const s=getStep(order.step),ph=getPhase(order.step),isCash=order.orderType==="cash";
   return<div className="fade-in">
