@@ -2040,7 +2040,7 @@ export default function App(){
         const monthBmStatus=(tUse&&tUse.bmStatus)||{};
         BRANCH_ORDER.forEach(b=>{mergedMeta[b]={
           ...baseData[b],
-          name:baseData[b]?.name||DEFAULT_BRANCH_META[b]?.name,
+          name:b==="SDK"?DEFAULT_BRANCH_META[b]?.name:(baseData[b]?.name||DEFAULT_BRANCH_META[b]?.name),
           manager:monthBmName[b]||baseData[b]?.manager,
           mStatus:monthBmStatus[b]||baseData[b]?.mStatus,
         };});

@@ -453,7 +453,7 @@ export default function App(){
         const finalMeta={};
         BRANCH_ORDER.forEach(b=>{finalMeta[b]={
           ...metaWithSnap[b],
-          name:metaWithSnap[b]?.name||DEFAULT_BRANCH_META[b]?.name,
+          name:b==="SDK"?DEFAULT_BRANCH_META[b]?.name:(metaWithSnap[b]?.name||DEFAULT_BRANCH_META[b]?.name),
           manager:mn[b]||metaWithSnap[b]?.manager,
           mStatus:ms[b]||metaWithSnap[b]?.mStatus,
         };});

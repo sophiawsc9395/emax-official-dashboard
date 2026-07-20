@@ -80,7 +80,7 @@ function OrderOnlyApp(){
     Promise.all([loadData(BM_KEY), loadData(SR_KEY)]).then(([bm, sr]) => {
       if (bm && Object.keys(bm).length) {
         const merged = { ...DEFAULT_BRANCH_META, ...bm }
-        Object.keys(merged).forEach(b => { merged[b] = { ...merged[b], name: merged[b]?.name || DEFAULT_BRANCH_META[b]?.name } })
+        Object.keys(merged).forEach(b => { merged[b] = { ...merged[b], name: b==="SDK"?DEFAULT_BRANCH_META[b]?.name:(merged[b]?.name || DEFAULT_BRANCH_META[b]?.name) } })
         setBranchMeta(merged)
       }
       if (Array.isArray(sr)) setSrList(sr)

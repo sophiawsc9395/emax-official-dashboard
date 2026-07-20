@@ -1025,7 +1025,7 @@ export default function App({elevateOrderAccess=false}){
       } else setSrList(baseSRTyped);
       if(bmData&&Object.keys(bmData).length>0){
         const merged0={...DEFAULT_BRANCH_META,...bmData};
-        Object.keys(merged0).forEach(b=>{merged0[b]={...merged0[b],name:merged0[b]?.name||DEFAULT_BRANCH_META[b]?.name};});
+        Object.keys(merged0).forEach(b=>{merged0[b]={...merged0[b],name:b==="SDK"?DEFAULT_BRANCH_META[b]?.name:(merged0[b]?.name||DEFAULT_BRANCH_META[b]?.name)};});
         setBMeta(merged0);
       }
       setRewardBalances(rb||{});
@@ -1039,7 +1039,7 @@ export default function App({elevateOrderAccess=false}){
         const baseBM=srData?{...DEFAULT_BRANCH_META,...(bmData||{})}:{...DEFAULT_BRANCH_META};
         const merged={};
         const mn=tUse.bmName||{},ms=tUse.bmStatus||{};
-        BRANCH_ORDER.forEach(b=>{merged[b]={...baseBM[b],name:baseBM[b]?.name||DEFAULT_BRANCH_META[b]?.name,manager:mn[b]||baseBM[b]?.manager,mStatus:ms[b]||baseBM[b]?.mStatus};});
+        BRANCH_ORDER.forEach(b=>{merged[b]={...baseBM[b],name:b==="SDK"?DEFAULT_BRANCH_META[b]?.name:(baseBM[b]?.name||DEFAULT_BRANCH_META[b]?.name),manager:mn[b]||baseBM[b]?.manager,mStatus:ms[b]||baseBM[b]?.mStatus};});
         setBMeta(p=>({...p,...merged}));
       }
       setRepairData(rep||{});
