@@ -78,7 +78,11 @@ function OrderOnlyApp(){
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setEmail(data.session?.user?.email || null))
     Promise.all([loadData(BM_KEY), loadData(SR_KEY)]).then(([bm, sr]) => {
-      if (bm && Object.keys(bm).length) setBranchMeta({ ...DEFAULT_BRANCH_META, ...bm })
+      if (bm && Object.keys(bm).length) {
+        const merged = { ...DEFAULT_BRANCH_META, ...bm }
+        Object.keys(merged).forEach(b => { merged[b] = { ...merged[b], name: merged[b]?.name || DEFAULT_BRANCH_META[b]?.name } })
+        setBranchMeta(merged)
+      }
       if (Array.isArray(sr)) setSrList(sr)
       setLoading(false)
     }).catch(() => setLoading(false))
