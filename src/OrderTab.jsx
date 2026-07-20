@@ -256,7 +256,7 @@ function PhoneModelField({order,onUpdate}){
   </div>;
 }
 
-function TrackingNumberEditor({order,onUpdate}){
+function TrackingNumberEditor({order,onUpdate,canEdit}){
   const [editing,setEditing]=useState(false);
   const [val,setVal]=useState(order.trackingNumber||"");
   const [saving,setSaving]=useState(false);
@@ -269,7 +269,7 @@ function TrackingNumberEditor({order,onUpdate}){
   if(!editing){
     return<div style={{marginTop:4,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
       {order.trackingNumber?<div style={{fontSize:11,color:C.navy,fontWeight:600}}>Tracking Number: {order.trackingNumber}</div>:<div style={{fontSize:11,color:C.textLight,fontStyle:"italic"}}>No tracking number yet</div>}
-      <button onClick={()=>{setVal(order.trackingNumber||"");setEditing(true);}} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",padding:0}}>{order.trackingNumber?"Edit":"Add Tracking Number"}</button>
+      {canEdit&&<button onClick={()=>{setVal(order.trackingNumber||"");setEditing(true);}} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",padding:0}}>{order.trackingNumber?"Edit":"Add Tracking Number"}</button>}
     </div>;
   }
   return<div style={{marginTop:6,display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
@@ -343,7 +343,7 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate}){
             {histEntries.length>1&&<span style={{background:C.surface,color:C.textLight,padding:"1px 7px",borderRadius:4,fontSize:9,fontWeight:600,border:`1px solid ${C.border}`}}>{histEntries.length} updates</span>}
           </div>
           {histEntries.map((hist,hi)=><div key={hi}>{renderEntry(hist,s,hi===histEntries.length-1&&histEntries.length>1)}</div>)}
-          {s.step===2&&!isAutoReady&&order.step>=2&&canManageTracking&&<TrackingNumberEditor order={order} onUpdate={onUpdate}/>}
+          {s.step===2&&!isAutoReady&&order.step>=2&&<TrackingNumberEditor order={order} onUpdate={onUpdate} canEdit={canManageTracking}/>}
         </div>
       </div>
     </div>;
