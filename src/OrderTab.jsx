@@ -1,6 +1,7 @@
 import {useState,useEffect,useRef,useMemo,useCallback,memo} from "react";
 import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
 import {supabase} from "./storage/index.js";
+import * as XLSX from "xlsx";
 
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 // SDK (EC SDK) is a pickup-only location — it's not a real branch (no targets,
@@ -460,6 +461,24 @@ function calcClaimAmount(o){
   const agreementFee=parseFloat(o.agreementFee)||0;
   return financePrice-deposit-stampingFee-agreementFee;
 }
+// Live Excel export for orders currently sitting at "New Order Request" (step
+// 1) — Purchase role's own live worklist, not a historical/date-filtered
+// report like the others. Always reflects current data at the moment of
+// download.
+function downloadNewOrderExcel(orders){
+  const rows=orders.filter(o=>!o.cancelled&&o.step===1).map(o=>({
+    "Device Name":o.phoneModel||"",
+    "Branch":o.branch||"",
+    "Agreement No.":o.agreementNumber||"",
+    "Finance Price":o.financePrice?parseFloat(o.financePrice):"",
+  }));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws["!cols"]=[{wch:26},{wch:10},{wch:18},{wch:14}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"New Order Request");
+  XLSX.writeFile(wb,`New_Order_Request_${nowDate()}.xlsx`);
+}
+
 async function downloadReport(orders,type,dateFilter,merchantFilter){
   const isClaim=type==="claim";
   const isKnockoff=type==="knockoff";
@@ -1923,6 +1942,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         <div style={{fontSize:12,color:C.textLight,marginTop:4}}>{activeOrders.length} active · {completedCount} completed</div>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {isAdmin&&canAdminStep(1)&&!isReadOnly&&orders.some(o=>!o.cancelled&&o.step===1)&&<GBtn onClick={()=>downloadNewOrderExcel(orders)}>{Ic.download} Download New Order Report (Excel)</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(4)&&orders.some(o=>o.step===3)&&<GBtn onClick={()=>setShowBulkDispatch(true)}>{Ic.truck} Dispatch to Branch</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(11)&&orders.some(o=>!o.cancelled&&o.step===10)&&<GBtn onClick={()=>setShowBulkAgreementReceived(true)}>{Ic.checkCircle} Set Agreement Received by HQ Date</GBtn>}
         {isAdmin&&!isReadOnly&&canSeeReport("firstInstallmentKnockoff")&&orders.some(o=>!o.cancelled&&o.orderType!=="cash"&&o.lastVerification?.paymentChecked&&o.lastVerification?.monthlyInstallment&&!o.firstInstallmentKnockOffDate)&&<GBtn onClick={()=>setShowBulkKnockOffInstallment(true)}>{Ic.checkCircle} Knock Off First Monthly Installment</GBtn>}
