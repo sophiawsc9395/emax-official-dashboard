@@ -2,7 +2,12 @@ import {useState,useEffect,useRef,useMemo,useCallback,memo} from "react";
 import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
 import {supabase} from "./storage/index.js";
 
-const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ","SDK"];
+const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
+// SDK (EC SDK) is a pickup-only location — it's not a real branch (no targets,
+// no BM, no SR, never appears in Branch Performance). It only ever shows up
+// as an option for "which branch is the customer picking up from", so it
+// gets its own list rather than being mixed into BRANCH_ORDER.
+const PICKUP_BRANCH_OPTIONS=[...BRANCH_ORDER,"SDK"];
 const MERCHANTS=["Aeon","JCL","Chailease"];
 const PAYMENT_METHODS=["RHB","Public Bank"];
 
@@ -1178,7 +1183,7 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
         <L req={!order}>Pick Up Branch</L>
         <SEL value={f.pickUpBranch||""} onChange={e=>set("pickUpBranch",e.target.value)} disabled={isFieldLocked("pickUpBranch")} style={{...(isFieldLocked("pickUpBranch")?lockedStyle:{}),...(!order&&missing.includes("pickUpBranch")?{borderColor:"#FECACA"}:{})}}>
           <option value="">— Select Branch —</option>
-          {BRANCH_ORDER.map(b=><option key={b} value={b}>{branchLabel(b)}</option>)}
+          {PICKUP_BRANCH_OPTIONS.map(b=><option key={b} value={b}>{branchLabel(b)}</option>)}
         </SEL>
       </div>
       <div><L req>Sales Agent</L>{branchSRs.length>0?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}} disabled={isFieldLocked("salesAgentId")} style={{...(missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}),...(isFieldLocked("salesAgentId")?lockedStyle:{})}}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>:<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder="Agent ID" disabled={isFieldLocked("salesAgentId")} style={{...(missing.includes("salesAgentId")?{borderColor:"#FECACA"}:{}),...(isFieldLocked("salesAgentId")?lockedStyle:{})}}/>}</div>

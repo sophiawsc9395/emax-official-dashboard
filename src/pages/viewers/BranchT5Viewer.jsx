@@ -6,7 +6,7 @@ import { loadData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
 
 const BRANCH_ID = "T5";
-const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ","SDK"];
+const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 
 const DEFAULT_BRANCH_META = {
   KM:{name:"EMAX Kota Marudu",manager:"SUHAINIZAM",mStatus:"Confirmed (P5 F0)"},

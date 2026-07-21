@@ -82,7 +82,7 @@ const CSS = `
 `;
 
 function daysInMonth(m,y){return new Date(y,m,0).getDate();}
-const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ","SDK"];
+const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 
 const DEFAULT_BRANCH_META={
   KM:{name:"EMAX Kota Marudu",manager:"SUHAINIZAM",mStatus:"Confirmed (P5 F0)"},
@@ -2048,6 +2048,11 @@ export default function App(){
           manager:monthBmName[b]||baseData[b]?.manager,
           mStatus:monthBmStatus[b]||baseData[b]?.mStatus,
         };});
+        // SDK (EC SDK) is a pickup-only location, not a real branch — kept out
+        // of BRANCH_ORDER entirely so it never appears in Branch Performance,
+        // targets, BM, or SR. It still needs a name for the Order page's
+        // Pick Up Branch dropdown, so it's added here directly.
+        mergedMeta.SDK={name:DEFAULT_BRANCH_META.SDK?.name};
         setBranchMeta(mergedMeta);
       }
       setRewardBalances(rb||{});

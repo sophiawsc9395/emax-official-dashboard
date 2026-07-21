@@ -66,7 +66,7 @@ const CSS = `
 `;
 
 
-const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ","SDK"];
+const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 const DEFAULT_BRANCH_META={
   KM:{name:"EMAX Kota Marudu",manager:"SUHAINIZAM",mStatus:"Confirmed (P5 F0)"},
   T1:{name:"EMAX Tuaran",manager:"REX WENMIN",mStatus:"Confirmed (P5 F0)"},
@@ -1026,6 +1026,7 @@ export default function App({elevateOrderAccess=false}){
       if(bmData&&Object.keys(bmData).length>0){
         const merged0={...DEFAULT_BRANCH_META,...bmData};
         Object.keys(merged0).forEach(b=>{merged0[b]={...merged0[b],name:b==="SDK"?DEFAULT_BRANCH_META[b]?.name:(merged0[b]?.name||DEFAULT_BRANCH_META[b]?.name)};});
+        merged0.SDK={name:DEFAULT_BRANCH_META.SDK?.name};
         setBMeta(merged0);
       }
       setRewardBalances(rb||{});
