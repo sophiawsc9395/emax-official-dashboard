@@ -2387,7 +2387,8 @@ export default function App(){
     // agent, one ID across every activity) — drop the duplicate entry rather
     // than end up with two SR records sharing one ID.
     const newSRList=srList.filter(s=>!(conflict&&s.id===newId)).map(s=>s.id===oldId?{...s,id:newId}:s);
-    await saveSR(newSRList);
+    setSrList(newSRList);
+    await saveData(SR_KEY,newSRList);
     if(rewardBalances[oldId]!==undefined){
       const rb={...rewardBalances};
       rb[newId]=rb[oldId];
