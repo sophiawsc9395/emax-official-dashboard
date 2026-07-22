@@ -1247,7 +1247,14 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
       if(proceed)res=await renameSRId(oldId,newId,true);
       else return;
     }
-    if(res.ok){setEditSRId(null);setSrIdError(null);}
+    if(res.ok){
+      // renameSRId already updated the parent's srList/Supabase — this
+      // modal keeps its own separate local copy (localSR) for editing,
+      // which doesn't refresh on its own, so mirror the same result here
+      // too or the table won't visibly update.
+      if(res.newSRList)setLocalSR(res.newSRList);
+      setEditSRId(null);setSrIdError(null);
+    }
     else if(res.reason!=="unchanged")setSrIdError("Could not save");
     else setEditSRId(null);
   };
@@ -2412,7 +2419,7 @@ export default function App(){
       delete t[oldId];
       await saveData(curTypeKey,t);
     }
-    return{ok:true};
+    return{ok:true,newSRList};
   };
   const handleSaveTargets=async(t)=>{setTargets(t);await saveData(`emax_v5_targets_${selYear}_${selMonth}`,t);};
 
