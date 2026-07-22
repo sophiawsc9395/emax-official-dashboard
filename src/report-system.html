@@ -289,7 +289,7 @@ function defaultRows(company, section){
   return [];
 }
 
-function defaultQtyRows(section){
+function defaultQtyRowsFor(section){
   if(section==='playground') return [
     {label:'Socks',qty:'',amount:''},{label:'Daily Pass',qty:'',amount:''},
     {label:'10 Entries Pass',qty:'',amount:''},{label:'6 Entries Pass',qty:'',amount:''},
@@ -302,6 +302,13 @@ function defaultQtyRows(section){
   ];
   if(section==='other') return [{label:'Google Review (Free Socks)',qty:'',amount:''}];
   return [{label:'',qty:'',amount:''}];
+}
+function defaultQtyRows(section,company){
+  if(company==='miniImpianSales') return {
+    sandakan: defaultQtyRowsFor(section).map(r=>({...r})),
+    tawau: defaultQtyRowsFor(section).map(r=>({...r}))
+  };
+  return defaultQtyRowsFor(section);
 }
 
 function defaultSalesReport(company){
@@ -380,7 +387,7 @@ function blankReport(company){
     else if(sec==='salesReport') r.sections.salesReport = defaultSalesReport(company);
     else if(sec==='summary') r.sections.summary = defaultSummaryData();
     else if(sec==='rtoCare') r.sections.rtoCare = [defaultRtoCareRecord()];
-    else if(QTY_SECTIONS.has(sec)) r.sections[sec] = defaultQtyRows(sec);
+    else if(QTY_SECTIONS.has(sec)) r.sections[sec] = defaultQtyRows(sec,company);
     else r.sections[sec] = defaultRows(company, sec);
   });
   return r;
@@ -605,15 +612,11 @@ function updateTotal(card, rows){
   card.querySelector('.tval').textContent = 'RM ' + fmt(total);
 }
 
-function renderQtyListCard(sec){
-  const card = document.createElement('div');
-  card.className = 'card';
-  const rows = currentData.sections[sec];
-  card.innerHTML = `<div class="card-head"><span>${SECTION_TITLES[sec]}</span></div>`;
+function renderQtyRowsInto(container, rows, onTotalChange){
   const head = document.createElement('div');
   head.className = 'stock-head';
   head.innerHTML = `<span>Item</span><span>Qty</span><span>Amount</span><span></span>`;
-  card.appendChild(head);
+  container.appendChild(head);
 
   rows.forEach((r,i)=>{
     const item = document.createElement('div');
@@ -627,16 +630,45 @@ function renderQtyListCard(sec){
     const inputs = item.querySelectorAll('input');
     inputs[0].oninput = e=>{ rows[i].label = e.target.value; };
     inputs[1].oninput = e=>{ rows[i].qty = e.target.value; };
-    inputs[2].oninput = e=>{ rows[i].amount = e.target.value; updateQtyTotal(card, rows); };
+    inputs[2].oninput = e=>{ rows[i].amount = e.target.value; onTotalChange(); };
     item.querySelector('.del').onclick = ()=>{ rows.splice(i,1); renderMain(); };
-    card.appendChild(item);
+    container.appendChild(item);
   });
 
   const addBtn = document.createElement('button');
   addBtn.className = 'add-row-btn';
   addBtn.textContent = '+ Add item';
   addBtn.onclick = ()=>{ rows.push({label:'',qty:'',amount:''}); renderMain(); };
-  card.appendChild(addBtn);
+  container.appendChild(addBtn);
+}
+
+function renderQtyListCard(sec){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<div class="card-head"><span>${SECTION_TITLES[sec]}</span></div>`;
+
+  if(currentCompany==='miniImpianSales'){
+    const d = currentData.sections[sec];
+    const branches = [{key:'sandakan',label:'Sandakan Branch'},{key:'tawau',label:'Tawau Branch'}];
+    branches.forEach((b,bi)=>{
+      const rows = d[b.key];
+      const wrap = document.createElement('div');
+      wrap.style.marginBottom = bi<branches.length-1 ? '18px' : '0';
+      wrap.innerHTML = `<div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:2px 0 6px;">${b.label}</div>`;
+      card.appendChild(wrap);
+      const totalRow = document.createElement('div');
+      totalRow.className = 'total-row';
+      totalRow.innerHTML = `<span>TOTAL</span><span class="tval">RM 0.00</span>`;
+      const updateTotal = ()=>{ totalRow.querySelector('.tval').textContent = 'RM ' + fmt(rows.reduce((s,r)=>s+num(r.amount),0)); };
+      renderQtyRowsInto(wrap, rows, updateTotal);
+      wrap.appendChild(totalRow);
+      updateTotal();
+    });
+    return card;
+  }
+
+  const rows = currentData.sections[sec];
+  renderQtyRowsInto(card, rows, ()=>updateQtyTotal(card, rows));
 
   const total = rows.reduce((s,r)=>s+num(r.amount),0);
   const totalRow = document.createElement('div');
@@ -1380,27 +1412,35 @@ function buildPhotoHTML(){
         </div></div>`;
         inner += html;
       } else if(QTY_SECTIONS.has(sec)){
-        const rows = currentData.sections[sec];
-        let html = `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
-        html += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">${SECTION_TITLES[sec]}</div>`;
-        html += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:10.5px;text-transform:uppercase;padding:6px 14px;color:#555;">
-          <span style="flex:1.6;">Item</span>
-          <span style="flex:0.5;text-align:right;">Qty</span>
-          <span style="flex:0.8;text-align:right;">Amount</span>
-        </div>`;
-        let t=0;
-        rows.forEach(r=>{
-          if(!r.label) return;
-          html += `<div style="display:flex;align-items:center;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:13.5px;">
-            <span style="flex:1.6;">${escapeHtml(r.label)}</span>
-            <span style="flex:0.5;text-align:right;">${r.qty||'-'}</span>
-            <span style="flex:0.8;text-align:right;font-weight:600;">RM ${fmt(num(r.amount))}</span>
+        function qtySectionHtml(title, rows){
+          let html = `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+          html += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">${title}</div>`;
+          html += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:10.5px;text-transform:uppercase;padding:6px 14px;color:#555;">
+            <span style="flex:1.6;">Item</span>
+            <span style="flex:0.5;text-align:right;">Qty</span>
+            <span style="flex:0.8;text-align:right;">Amount</span>
           </div>`;
-          t+=num(r.amount);
-        });
-        html += `<div style="display:flex;justify-content:space-between;padding:8px 14px;background:#0A1628;color:#fff;font-weight:700;font-size:14px;">
-          <span>TOTAL</span><span>RM ${fmt(t)}</span></div></div>`;
-        inner += html;
+          let t=0;
+          rows.forEach(r=>{
+            if(!r.label) return;
+            html += `<div style="display:flex;align-items:center;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:13.5px;">
+              <span style="flex:1.6;">${escapeHtml(r.label)}</span>
+              <span style="flex:0.5;text-align:right;">${r.qty||'-'}</span>
+              <span style="flex:0.8;text-align:right;font-weight:600;">RM ${fmt(num(r.amount))}</span>
+            </div>`;
+            t+=num(r.amount);
+          });
+          html += `<div style="display:flex;justify-content:space-between;padding:8px 14px;background:#0A1628;color:#fff;font-weight:700;font-size:14px;">
+            <span>TOTAL</span><span>RM ${fmt(t)}</span></div></div>`;
+          return html;
+        }
+        if(currentCompany==='miniImpianSales'){
+          const d = currentData.sections[sec];
+          inner += qtySectionHtml(`${SECTION_TITLES[sec]} — Sandakan Branch`, d.sandakan);
+          inner += qtySectionHtml(`${SECTION_TITLES[sec]} — Tawau Branch`, d.tawau);
+        } else {
+          inner += qtySectionHtml(SECTION_TITLES[sec], currentData.sections[sec]);
+        }
       } else {
         const rows = currentData.sections[sec];
         const total = rows.reduce((s,r)=>s+num(r.amount),0);
