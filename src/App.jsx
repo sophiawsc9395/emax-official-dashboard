@@ -1239,6 +1239,18 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
   const [editSR,setEditSR]=useState(null);
   const [editSRId,setEditSRId]=useState(null); // {oldId, value} — separate from editSR (name) since renaming an ID needs its own validation/migration path
   const [srIdError,setSrIdError]=useState(null);
+  const trySaveSRId=async(oldId,value)=>{
+    const newId=value.trim();
+    let res=await renameSRId(oldId,newId);
+    if(!res.ok&&res.reason==="duplicate"){
+      const proceed=confirm(`"${newId}" is already used by ${res.conflictName}. Since one agent should only have one ID, continuing will merge that record into this one — ${res.conflictName}'s existing entry will be removed and this SR will take over the ID. Continue?`);
+      if(proceed)res=await renameSRId(oldId,newId,true);
+      else return;
+    }
+    if(res.ok){setEditSRId(null);setSrIdError(null);}
+    else if(res.reason!=="unchanged")setSrIdError("Could not save");
+    else setEditSRId(null);
+  };
   const [newSR,setNewSR]=useState({id:"",canon:"",branch:"KM",type:"Online",status:"Probation (P0 F0)",joinDate:`${year}-${String(month).padStart(2,"0")}`});
   const [filterBranch,setFilterBranch]=useState("ALL");
   const [saved,setSaved]=useState(false);
@@ -1421,16 +1433,12 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
                     <td style={{padding:"7px 12px",color:"#8A96A8",fontSize:10}}>
                       {editSRId?.oldId===sr.id
                         ?<div style={{display:"flex",flexDirection:"column",gap:2}}>
-                          <input autoFocus className="input" style={{width:80,padding:"3px 7px",fontSize:11}} value={editSRId.value} onChange={e=>{setEditSRId(p=>({...p,value:e.target.value}));setSrIdError(null);}} onKeyDown={async e=>{
-                            if(e.key==="Enter"){
-                              const res=await renameSRId(sr.id,editSRId.value.trim());
-                              if(res.ok){setEditSRId(null);setSrIdError(null);}
-                              else setSrIdError(res.reason==="duplicate"?"ID already in use":null);
-                            }
+                          <input autoFocus className="input" style={{width:80,padding:"3px 7px",fontSize:11}} value={editSRId.value} onChange={e=>{setEditSRId(p=>({...p,value:e.target.value}));setSrIdError(null);}} onKeyDown={e=>{
+                            if(e.key==="Enter")trySaveSRId(sr.id,editSRId.value);
                             if(e.key==="Escape"){setEditSRId(null);setSrIdError(null);}
                           }}/>
                           <div style={{display:"flex",gap:4}}>
-                            <button onClick={async()=>{const res=await renameSRId(sr.id,editSRId.value.trim());if(res.ok){setEditSRId(null);setSrIdError(null);}else setSrIdError(res.reason==="duplicate"?"ID already in use":null);}} style={{fontSize:9,padding:"1px 6px",background:"#1E6FDB",color:"#fff",border:"none",borderRadius:4,cursor:"pointer"}}>Save</button>
+                            <button onClick={()=>trySaveSRId(sr.id,editSRId.value)} style={{fontSize:9,padding:"1px 6px",background:"#1E6FDB",color:"#fff",border:"none",borderRadius:4,cursor:"pointer"}}>Save</button>
                             <button onClick={()=>{setEditSRId(null);setSrIdError(null);}} style={{fontSize:9,padding:"1px 6px",background:"none",border:"1px solid #E4EAF2",borderRadius:4,cursor:"pointer",color:"#8A96A8"}}>✕</button>
                           </div>
                           {srIdError&&<div style={{fontSize:9,color:"#DC2626",maxWidth:100}}>{srIdError}</div>}
@@ -1465,16 +1473,12 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
                     <td style={{padding:"7px 12px",color:"#B91C1C",fontSize:10}}>
                       {editSRId?.oldId===sr.id
                         ?<div style={{display:"flex",flexDirection:"column",gap:2}}>
-                          <input autoFocus className="input" style={{width:80,padding:"3px 7px",fontSize:11}} value={editSRId.value} onChange={e=>{setEditSRId(p=>({...p,value:e.target.value}));setSrIdError(null);}} onKeyDown={async e=>{
-                            if(e.key==="Enter"){
-                              const res=await renameSRId(sr.id,editSRId.value.trim());
-                              if(res.ok){setEditSRId(null);setSrIdError(null);}
-                              else setSrIdError(res.reason==="duplicate"?"ID already in use":null);
-                            }
+                          <input autoFocus className="input" style={{width:80,padding:"3px 7px",fontSize:11}} value={editSRId.value} onChange={e=>{setEditSRId(p=>({...p,value:e.target.value}));setSrIdError(null);}} onKeyDown={e=>{
+                            if(e.key==="Enter")trySaveSRId(sr.id,editSRId.value);
                             if(e.key==="Escape"){setEditSRId(null);setSrIdError(null);}
                           }}/>
                           <div style={{display:"flex",gap:4}}>
-                            <button onClick={async()=>{const res=await renameSRId(sr.id,editSRId.value.trim());if(res.ok){setEditSRId(null);setSrIdError(null);}else setSrIdError(res.reason==="duplicate"?"ID already in use":null);}} style={{fontSize:9,padding:"1px 6px",background:"#1E6FDB",color:"#fff",border:"none",borderRadius:4,cursor:"pointer"}}>Save</button>
+                            <button onClick={()=>trySaveSRId(sr.id,editSRId.value)} style={{fontSize:9,padding:"1px 6px",background:"#1E6FDB",color:"#fff",border:"none",borderRadius:4,cursor:"pointer"}}>Save</button>
                             <button onClick={()=>{setEditSRId(null);setSrIdError(null);}} style={{fontSize:9,padding:"1px 6px",background:"none",border:"1px solid #FECACA",borderRadius:4,cursor:"pointer",color:"#B91C1C"}}>✕</button>
                           </div>
                           {srIdError&&<div style={{fontSize:9,color:"#DC2626",maxWidth:100}}>{srIdError}</div>}
@@ -2367,10 +2371,15 @@ export default function App(){
   // salesAgentId on already-submitted orders, which lives in a separate
   // Supabase table this dashboard doesn't write to. Historical orders will
   // keep showing the old ID/name after a rename.
-  const renameSRId=async(oldId,newId)=>{
+  const renameSRId=async(oldId,newId,allowOverride=false)=>{
     if(!newId||newId===oldId)return{ok:false,reason:"unchanged"};
-    if(srList.some(s=>s.id===newId))return{ok:false,reason:"duplicate"};
-    const newSRList=srList.map(s=>s.id===oldId?{...s,id:newId}:s);
+    const conflict=srList.find(s=>s.id===newId&&s.id!==oldId);
+    if(conflict&&!allowOverride)return{ok:false,reason:"duplicate",conflictName:conflict.canon};
+    // If overriding onto an ID that already belongs to another SR record,
+    // that record represents the SAME agent going forward (per Sophia: one
+    // agent, one ID across every activity) — drop the duplicate entry rather
+    // than end up with two SR records sharing one ID.
+    const newSRList=srList.filter(s=>!(conflict&&s.id===newId)).map(s=>s.id===oldId?{...s,id:newId}:s);
     await saveSR(newSRList);
     if(rewardBalances[oldId]!==undefined){
       const rb={...rewardBalances};
