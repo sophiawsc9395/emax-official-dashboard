@@ -239,6 +239,18 @@ const COMPANIES = {
     shortLabel: 'Espace X (Sales)',
     hasTime: false,
     sections: ['salesReport','playground','activateGame','other']
+  },
+  miniImpianBank: {
+    name: 'MINI IMPIAN',
+    shortLabel: 'Mini Impian (Bank)',
+    hasTime: true,
+    sections: ['bank']
+  },
+  miniImpianSales: {
+    name: 'MINI IMPIAN — DAILY SALES ANALYSIS',
+    shortLabel: 'Mini Impian (Sales)',
+    hasTime: false,
+    sections: ['salesReport','playground','other']
   }
 };
 
@@ -264,6 +276,11 @@ function defaultRows(company, section){
     if(company==='espacex') return [
       {label:'Maybank',amount:''},{label:'Cash In Hand (Pending Transfer to PBB)',amount:''}
     ];
+    if(company==='miniImpianBank') return [
+      {label:'Public Bank',amount:''},
+      {label:'Cash in Hand -SDK (PENDING TRANSFER TO PBB)',amount:''},
+      {label:'Cash in Hand -TAWAU (PENDING TRANSFER TO PBB)',amount:''}
+    ];
   }
   if(section==='aeon') return [{label:'',amount:''}];
   if(section==='jcl') return [{label:'',amount:''}];
@@ -287,7 +304,8 @@ function defaultQtyRows(section){
   return [{label:'',qty:'',amount:''}];
 }
 
-function defaultSalesReport(){
+function defaultSalesReport(company){
+  if(company==='miniImpianSales') return { sandakan:{cash:'',card:'',qr:''}, tawau:{cash:'',card:'',qr:''} };
   return { cash:'', card:'', qr:'' };
 }
 
@@ -359,7 +377,7 @@ function blankReport(company){
   cfg.sections.forEach(sec=>{
     if(sec==='stock') r.sections.stock = defaultStockRows();
     else if(sec==='rto') r.sections.rto = defaultRto();
-    else if(sec==='salesReport') r.sections.salesReport = defaultSalesReport();
+    else if(sec==='salesReport') r.sections.salesReport = defaultSalesReport(company);
     else if(sec==='summary') r.sections.summary = defaultSummaryData();
     else if(sec==='rtoCare') r.sections.rtoCare = [defaultRtoCareRecord()];
     else if(QTY_SECTIONS.has(sec)) r.sections[sec] = defaultQtyRows(sec);
@@ -752,6 +770,43 @@ function renderSalesReportCard(){
   card.className = 'card';
   const d = currentData.sections.salesReport;
   card.innerHTML = `<div class="card-head"><span>Daily Sales Report</span></div>`;
+
+  if(currentCompany==='miniImpianSales'){
+    const branches = [{key:'sandakan',label:'Sandakan Branch'},{key:'tawau',label:'Tawau Branch'}];
+    const totalRow = document.createElement('div');
+    function updateTotalSales(){
+      const total = branches.reduce((sum,b)=>sum+num(d[b.key].cash)+num(d[b.key].card)+num(d[b.key].qr),0);
+      totalRow.querySelector('.tval').textContent = 'RM ' + fmt(total);
+    }
+    branches.forEach(b=>{
+      const bd = d[b.key];
+      const wrap = document.createElement('div');
+      wrap.style.marginBottom = '14px';
+      wrap.innerHTML = `<div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:2px 0 6px;">${b.label}</div>`;
+      const ff = document.createElement('div');
+      ff.className = 'fixed-fields';
+      ff.innerHTML = `
+        <div class="field"><label>Cash (RM)</label><input type="number" step="0.01" id="sr_${b.key}_cash" value="${bd.cash}"></div>
+        <div class="field"><label>Credit/Debit Card (RM)</label><input type="number" step="0.01" id="sr_${b.key}_card" value="${bd.card}"></div>
+        <div class="field"><label>QR Payment (RM)</label><input type="number" step="0.01" id="sr_${b.key}_qr" value="${bd.qr}"></div>
+      `;
+      wrap.appendChild(ff);
+      card.appendChild(wrap);
+      ['cash','card','qr'].forEach(k=>{
+        ff.querySelector('#sr_'+b.key+'_'+k).oninput = e=>{
+          bd[k] = e.target.value;
+          updateTotalSales();
+          if(refreshSummaryFn) refreshSummaryFn();
+        };
+      });
+    });
+    totalRow.className = 'total-row';
+    totalRow.innerHTML = `<span>TOTAL SALES</span><span class="tval">RM 0.00</span>`;
+    card.appendChild(totalRow);
+    updateTotalSales();
+    return card;
+  }
+
   const ff = document.createElement('div');
   ff.className = 'fixed-fields';
   ff.innerHTML = `
@@ -1258,14 +1313,24 @@ function buildPhotoHTML(){
         inner += photoSectionTable('Rent-to-Own (RTO)', rows, 'BALANCE TO RECEIVE', num(d.contractValue)-num(d.collectedPayment));
       } else if(sec==='salesReport'){
         const d = currentData.sections.salesReport;
-        const total = num(d.cash)+num(d.card)+num(d.qr);
-        const rows = [
-          {label:'Cash', amount:d.cash},
-          {label:'Credit/Debit Card', amount:d.card},
-          {label:'QR Payment', amount:d.qr},
+        if(currentCompany==='miniImpianSales'){
+          const branches=[{key:'sandakan',label:'Daily Sales Report — Sandakan Branch'},{key:'tawau',label:'Daily Sales Report — Tawau Branch'}];
+          branches.forEach(b=>{
+            const bd=d[b.key];
+            const total=num(bd.cash)+num(bd.card)+num(bd.qr);
+            const rows=[{label:'Cash',amount:bd.cash},{label:'Credit/Debit Card',amount:bd.card},{label:'QR Payment',amount:bd.qr}];
+            inner += photoSectionTable(b.label, rows, 'TOTAL SALES', total);
+          });
+        } else {
+          const total = num(d.cash)+num(d.card)+num(d.qr);
+          const rows = [
+            {label:'Cash', amount:d.cash},
+            {label:'Credit/Debit Card', amount:d.card},
+            {label:'QR Payment', amount:d.qr},
 
-        ];
-        inner += photoSectionTable('Daily Sales Report', rows, 'TOTAL SALES', total);
+          ];
+          inner += photoSectionTable('Daily Sales Report', rows, 'TOTAL SALES', total);
+        }
       } else if(sec==='summary'){
         const d = currentData.sections.summary;
         const sr = currentData.sections.salesReport || {};
