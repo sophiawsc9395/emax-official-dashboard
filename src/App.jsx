@@ -1231,12 +1231,14 @@ function AdjustBalanceWidget({personId,balance,adjustBalance}){
   </div>;
 }
 
-function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson}){
+function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [tab,setTab]=useState("bm");
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
   const [localSR,setLocalSR]=useState(JSON.parse(JSON.stringify(srList)));
   const [editSR,setEditSR]=useState(null);
+  const [editSRId,setEditSRId]=useState(null); // {oldId, value} — separate from editSR (name) since renaming an ID needs its own validation/migration path
+  const [srIdError,setSrIdError]=useState(null);
   const [newSR,setNewSR]=useState({id:"",canon:"",branch:"KM",type:"Online",status:"Probation (P0 F0)",joinDate:`${year}-${String(month).padStart(2,"0")}`});
   const [filterBranch,setFilterBranch]=useState("ALL");
   const [saved,setSaved]=useState(false);
@@ -1416,7 +1418,25 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
                 </tr></thead>
                 <tbody>{active.map((sr,i)=>(
                   <tr key={sr.id} style={{borderTop:"1px solid #F0F2F5",background:i%2===0?"#fff":"#FAFBFC"}}>
-                    <td style={{padding:"7px 12px",color:"#8A96A8",fontSize:10}}>{sr.id}</td>
+                    <td style={{padding:"7px 12px",color:"#8A96A8",fontSize:10}}>
+                      {editSRId?.oldId===sr.id
+                        ?<div style={{display:"flex",flexDirection:"column",gap:2}}>
+                          <input autoFocus className="input" style={{width:80,padding:"3px 7px",fontSize:11}} value={editSRId.value} onChange={e=>{setEditSRId(p=>({...p,value:e.target.value}));setSrIdError(null);}} onKeyDown={async e=>{
+                            if(e.key==="Enter"){
+                              const res=await renameSRId(sr.id,editSRId.value.trim());
+                              if(res.ok){setEditSRId(null);setSrIdError(null);}
+                              else setSrIdError(res.reason==="duplicate"?"ID already in use":null);
+                            }
+                            if(e.key==="Escape"){setEditSRId(null);setSrIdError(null);}
+                          }}/>
+                          <div style={{display:"flex",gap:4}}>
+                            <button onClick={async()=>{const res=await renameSRId(sr.id,editSRId.value.trim());if(res.ok){setEditSRId(null);setSrIdError(null);}else setSrIdError(res.reason==="duplicate"?"ID already in use":null);}} style={{fontSize:9,padding:"1px 6px",background:"#1E6FDB",color:"#fff",border:"none",borderRadius:4,cursor:"pointer"}}>Save</button>
+                            <button onClick={()=>{setEditSRId(null);setSrIdError(null);}} style={{fontSize:9,padding:"1px 6px",background:"none",border:"1px solid #E4EAF2",borderRadius:4,cursor:"pointer",color:"#8A96A8"}}>✕</button>
+                          </div>
+                          {srIdError&&<div style={{fontSize:9,color:"#DC2626",maxWidth:100}}>{srIdError}</div>}
+                        </div>
+                        :<span style={{cursor:"pointer",borderBottom:"1px dashed #E4EAF2"}} title="Click to edit ID — only changes tracking in this dashboard; won't update past Order Tracking records" onClick={()=>{setEditSRId({oldId:sr.id,value:sr.id});setSrIdError(null);}}>{sr.id}</span>}
+                    </td>
                     <td style={{padding:"7px 12px"}}>
                       {editSR?.id===sr.id
                         ?<input autoFocus className="input" style={{width:140,padding:"3px 7px",fontSize:12}} value={editSR.canon} onChange={e=>setEditSR(p=>({...p,canon:e.target.value.toUpperCase()}))} onBlur={async()=>{await updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}} onKeyDown={e=>{if(e.key==="Enter"){updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}if(e.key==="Escape")setEditSR(null);}}/>
@@ -1442,7 +1462,25 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:700}}>
                 <tbody>{resigned.map((sr,i)=>(
                   <tr key={sr.id} style={{borderTop:"1px solid #FEE2E2",background:i%2===0?"#FFF5F5":"#FEF2F2"}}>
-                    <td style={{padding:"7px 12px",color:"#B91C1C",fontSize:10}}>{sr.id}</td>
+                    <td style={{padding:"7px 12px",color:"#B91C1C",fontSize:10}}>
+                      {editSRId?.oldId===sr.id
+                        ?<div style={{display:"flex",flexDirection:"column",gap:2}}>
+                          <input autoFocus className="input" style={{width:80,padding:"3px 7px",fontSize:11}} value={editSRId.value} onChange={e=>{setEditSRId(p=>({...p,value:e.target.value}));setSrIdError(null);}} onKeyDown={async e=>{
+                            if(e.key==="Enter"){
+                              const res=await renameSRId(sr.id,editSRId.value.trim());
+                              if(res.ok){setEditSRId(null);setSrIdError(null);}
+                              else setSrIdError(res.reason==="duplicate"?"ID already in use":null);
+                            }
+                            if(e.key==="Escape"){setEditSRId(null);setSrIdError(null);}
+                          }}/>
+                          <div style={{display:"flex",gap:4}}>
+                            <button onClick={async()=>{const res=await renameSRId(sr.id,editSRId.value.trim());if(res.ok){setEditSRId(null);setSrIdError(null);}else setSrIdError(res.reason==="duplicate"?"ID already in use":null);}} style={{fontSize:9,padding:"1px 6px",background:"#1E6FDB",color:"#fff",border:"none",borderRadius:4,cursor:"pointer"}}>Save</button>
+                            <button onClick={()=>{setEditSRId(null);setSrIdError(null);}} style={{fontSize:9,padding:"1px 6px",background:"none",border:"1px solid #FECACA",borderRadius:4,cursor:"pointer",color:"#B91C1C"}}>✕</button>
+                          </div>
+                          {srIdError&&<div style={{fontSize:9,color:"#DC2626",maxWidth:100}}>{srIdError}</div>}
+                        </div>
+                        :<span style={{cursor:"pointer",borderBottom:"1px dashed #FECACA"}} title="Click to edit ID — only changes tracking in this dashboard; won't update past Order Tracking records" onClick={()=>{setEditSRId({oldId:sr.id,value:sr.id});setSrIdError(null);}}>{sr.id}</span>}
+                    </td>
                     <td style={{padding:"7px 12px",fontWeight:700,color:"#7F1D1D"}}>{sr.canon}</td>
                     <td style={{padding:"7px 12px",color:"#B91C1C",fontSize:11}}>{sr.type}</td>
                     <td style={{padding:"7px 12px",color:"#B91C1C",fontSize:11}}>{sr.resignDate?sr.resignDate.split("-").reverse().join("/"):"—"}</td>
@@ -2321,6 +2359,52 @@ export default function App(){
     setRewardHistory(newHist);
     await saveData("emax_v5_reward_history",newHist);
   };
+  // Renames an SR's ID everywhere this dashboard itself tracks it by ID —
+  // the SR list, their points balance, points history, and status history.
+  // Does NOT (and can't from here) touch: past months' Type overrides, which
+  // are stored per month/year and would need every historical month
+  // re-fetched and re-saved individually; or the Order Tracking system's
+  // salesAgentId on already-submitted orders, which lives in a separate
+  // Supabase table this dashboard doesn't write to. Historical orders will
+  // keep showing the old ID/name after a rename.
+  const renameSRId=async(oldId,newId)=>{
+    if(!newId||newId===oldId)return{ok:false,reason:"unchanged"};
+    if(srList.some(s=>s.id===newId))return{ok:false,reason:"duplicate"};
+    const newSRList=srList.map(s=>s.id===oldId?{...s,id:newId}:s);
+    await saveSR(newSRList);
+    if(rewardBalances[oldId]!==undefined){
+      const rb={...rewardBalances};
+      rb[newId]=rb[oldId];
+      delete rb[oldId];
+      setRewardBalances(rb);
+      await saveData("emax_v5_reward_balance",rb);
+    }
+    if(rewardHistory[oldId]!==undefined){
+      const rh={...rewardHistory};
+      rh[newId]=rh[oldId];
+      delete rh[oldId];
+      setRewardHistory(rh);
+      await saveData("emax_v5_reward_history",rh);
+    }
+    if(statusHistory[oldId]!==undefined){
+      const sh={...statusHistory};
+      sh[newId]=sh[oldId];
+      delete sh[oldId];
+      setStatusHistory(sh);
+      await saveData("emax_v5_status_history",sh);
+    }
+    // Current month's Type override (Online/Offline), if any — same caveat
+    // as above, only THIS loaded month is migrated, not every past month.
+    const curTypeKey=`emax_v5_sr_types_${selYear}_${selMonth}`;
+    const curTypes=await loadData(curTypeKey);
+    if(curTypes&&curTypes[oldId]!==undefined){
+      const t={...curTypes};
+      t[newId]=t[oldId];
+      delete t[oldId];
+      await saveData(curTypeKey,t);
+    }
+    return{ok:true};
+  };
   const handleSaveTargets=async(t)=>{setTargets(t);await saveData(`emax_v5_targets_${selYear}_${selMonth}`,t);};
 
   const branchTotals=useMemo(()=>{
@@ -2741,7 +2825,7 @@ Please now:
 1. Set the new BM name above
 2. Click Save`);
 }}/>}
-    {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson}/>}
+    {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson} renameSRId={renameSRId}/>}
     {printBranch&&<PrintBranchReport branchId={printBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onClose={()=>setPrintBranch(null)} month={month} year={year} days={days}/>}
     {showPointsModal&&<PointsHistoryModal srList={srList} branchMeta={branchMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onDeletePointsEntry={deletePointsEntry} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
     {showStatusHistoryModal&&<StatusHistoryModal srList={srList} branchMeta={branchMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onDeleteStatusEntry={deleteStatusEntry} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}
