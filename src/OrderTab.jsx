@@ -310,7 +310,7 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate}){
     {hist.secondPaymentDate&&<div style={{marginBottom:2,color:"#92400E",fontWeight:600}}>2nd Payment: {fDate(hist.secondPaymentDate)} · {hist.secondPayMethod} · {fRM(hist.secondPaymentAmount)}</div>}
     {hist.verificationRemark&&<div style={{marginBottom:2,color:C.textMid}}>Note: {hist.verificationRemark}</div>}
     {hist.returnRemark&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Returned: {hist.returnRemark}</div>}
-    {hist.billingData&&<div style={{marginTop:6}}><BillingDetailsCard billingData={hist.billingData} isCash={order.orderType==="cash"} title="Billing Request Details"/></div>}
+    {hist.billingData&&<div style={{marginTop:6}}><BillingDetailsCard billingData={hist.billingData} isCash={order.orderType==="cash"} title="Billing Request Details" liveOrder={order}/></div>}
     {s.step===8&&order.orderType!=="cash"&&!hist.shortPaymentProofUpload&&<div style={{marginTop:6,background:C.white,borderRadius:7,padding:"8px 10px",border:`1px solid ${C.border}`}}>
       <div style={{fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Upfront Payment Breakdown</div>
       {(()=>{const up=calcUpfront(order);const monthly=parseFloat(order.billingData?.monthlyInstallment)||0;return<>
@@ -641,9 +641,9 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       const upfront1=calcUpfront(o).total;
       const upfront2=parseFloat(h?.monthlyInstallment??o.monthlyInstallment)||0;
       total3+=upfront1;total4+=upfront2;
-      return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${show1&&amt1?`RM ${amt1.toFixed(2)}`:"—"}</td><td>${show1?(h?.paymentMethod||"—"):"—"}</td><td>${show2&&amt2?`RM ${amt2.toFixed(2)}`:"—"}</td><td>${show2&&amt2?(h?.secondPayMethod||"—"):"—"}</td><td>RM ${upfront1.toFixed(2)}</td><td>RM ${upfront2.toFixed(2)}</td></tr>`;
+      return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.customerName||"—"}</td><td>${o.agreementNumber||"—"}</td><td>${show1&&amt1?`RM ${amt1.toFixed(2)}`:"—"}</td><td>${show1?(h?.paymentMethod||"—"):"—"}</td><td>${show2&&amt2?`RM ${amt2.toFixed(2)}`:"—"}</td><td>${show2&&amt2?(h?.secondPayMethod||"—"):"—"}</td><td>RM ${upfront1.toFixed(2)}</td><td>RM ${upfront2.toFixed(2)}</td></tr>`;
     }).join("");
-    rows+=`<tr class="tot"><td colspan="2"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td><td><b>RM ${total3.toFixed(2)}</b></td><td><b>RM ${total4.toFixed(2)}</b></td></tr>`;
+    rows+=`<tr class="tot"><td colspan="4"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td><td><b>RM ${total3.toFixed(2)}</b></td><td><b>RM ${total4.toFixed(2)}</b></td></tr>`;
   }
   const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":isCashKnockoff?"Cash Order Knock Off Report":isCollectionOverdue?"Collection Proof Overdue Report":isFirstInstallmentKnockoff?"First Monthly Installment Knock Off Report":"Upfront Payment Report";
   const heads=isAgreementReceived?`<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Merchant Approval Date</th>${!dateFilter?"<th>Date of Agreement Received by HQ</th>":""}<th>Claim Amount</th>`
@@ -654,15 +654,26 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     :isCashKnockoff?"<th>#</th><th>Device Name</th><th>Branch</th><th>Invoice No</th><th>Deposit Payment Date</th><th>Deposit Payment Method</th><th>Deposit Amount</th><th>Balance Payment Date</th><th>Balance Payment Method</th><th>Balance Payment Amount</th><th>Expected Balance Payment Amount</th>"
     :isCollectionOverdue?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Customer Name</th><th>Billing Date</th><th>Days Overdue</th>"
     :isFirstInstallmentKnockoff?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th><th>Knock-off Date</th>"
-    :"<th>#</th><th>Invoice No</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Payment Proof Amount</th><th>2nd Method</th><th>Upfront 1 Amount</th><th>Upfront 2 Amount</th>";
+    :"<th>#</th><th>Invoice No</th><th>Customer Name</th><th>Agreement No</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Payment Proof Amount</th><th>2nd Method</th><th>Upfront 1 Amount</th><th>Upfront 2 Amount</th>";
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""} · Merchant: ${merchantLabel}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
   const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
 }
 
 /* ── Action Panel ─────────────────────────────────────────────────────── */
-function BillingDetailsCard({billingData:bd,isCash,title="Billing Request Details (as submitted)"}){
+function BillingDetailsCard({billingData:bd,isCash,title="Billing Request Details (as submitted)",liveOrder}){
   if(!bd)return null;
-  const rows=[["Billing Date",fDate(bd.billingDate)],["Customer Name",bd.customerFullName],["Customer IC",bd.customerIC],["HP Number",bd.customerHP],["Item Code",bd.itemCode],["IMEI / Serial No.",bd.imeiSerial],bd.agreementNumber&&["Agreement Number",bd.agreementNumber],!isCash&&["Cash Price on Listing",fRM(bd.cashPriceOnListing)],!isCash&&["Monthly Installment",fRM(bd.monthlyInstallment)],bd.agreementFee&&["Agreement Fee",fRM(bd.agreementFee)],bd.stampingFee&&["Stamping Fee",fRM(bd.stampingFee)],bd.deposit&&["Deposit",fRM(bd.deposit)]].filter(Boolean);
+  // Agreement Fee, Stamping Fee, Deposit, Monthly Installment, and Agreement
+  // Number all overlap with the main Order's own editable fields — if admin
+  // corrects one of these after the billing form was submitted, show the
+  // corrected value here too rather than freezing at the original submission.
+  // Everything else here (customer/item details) stays as the historical
+  // record of what was actually submitted.
+  const agreementFee=liveOrder?.agreementFee!=null&&liveOrder.agreementFee!==""?liveOrder.agreementFee:bd.agreementFee;
+  const stampingFee=liveOrder?.stampingFee!=null&&liveOrder.stampingFee!==""?liveOrder.stampingFee:bd.stampingFee;
+  const deposit=liveOrder?.deposit!=null&&liveOrder.deposit!==""?liveOrder.deposit:bd.deposit;
+  const monthlyInstallment=liveOrder?.monthlyInstallment!=null&&liveOrder.monthlyInstallment!==""?liveOrder.monthlyInstallment:bd.monthlyInstallment;
+  const agreementNumber=liveOrder?.agreementNumber!=null&&liveOrder.agreementNumber!==""?liveOrder.agreementNumber:bd.agreementNumber;
+  const rows=[["Billing Date",fDate(bd.billingDate)],["Customer Name",bd.customerFullName],["Customer IC",bd.customerIC],["HP Number",bd.customerHP],["Item Code",bd.itemCode],["IMEI / Serial No.",bd.imeiSerial],agreementNumber&&["Agreement Number",agreementNumber],!isCash&&["Cash Price on Listing",fRM(bd.cashPriceOnListing)],!isCash&&["Monthly Installment",fRM(monthlyInstallment)],agreementFee&&["Agreement Fee",fRM(agreementFee)],stampingFee&&["Stamping Fee",fRM(stampingFee)],deposit&&["Deposit",fRM(deposit)]].filter(Boolean);
   const fileKeys=[["deviceSerialImg","Device Serial No. Image"],["freeGiftSerialImg","Free Gift Serial No. Image"],["resultListFile","Result Listing File"],["agreementFile","Agreement File"]];
   const hasFiles=fileKeys.some(([k])=>bd[k]);
   return<div className="order-info-card" style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
