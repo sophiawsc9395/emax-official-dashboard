@@ -556,6 +556,27 @@ function renderMain(){
     document.getElementById('timeInput').oninput = (e)=>{ currentData.time = e.target.value; };
   }
 
+  if(currentCompany==='miniImpianSales'){
+    const branches = [{key:'sandakan',label:'Sandakan Branch'},{key:'tawau',label:'Tawau Branch'}];
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;';
+    branches.forEach((b,bi)=>{
+      const col = document.createElement('div');
+      col.style.cssText = bi===0 ? 'border-right:1px solid var(--border,#E4EAF2);padding-right:24px;' : '';
+      const heading = document.createElement('div');
+      heading.style.cssText = 'font-weight:800;font-size:15px;color:var(--navy,#0A1628);margin-bottom:10px;';
+      heading.textContent = b.label;
+      col.appendChild(heading);
+      cfg.sections.forEach(sec=>{
+        if(sec==='salesReport') col.appendChild(renderSalesReportCard(currentData.sections.salesReport[b.key], '_'+b.key));
+        else if(QTY_SECTIONS.has(sec)) col.appendChild(renderQtyListCard(sec, currentData.sections[sec][b.key]));
+      });
+      grid.appendChild(col);
+    });
+    main.appendChild(grid);
+    return;
+  }
+
   cfg.sections.forEach(sec=>{
     if(sec==='stock') main.appendChild(renderStockCard());
     else if(sec==='rto') main.appendChild(renderRtoCard());
@@ -642,35 +663,12 @@ function renderQtyRowsInto(container, rows, onTotalChange){
   container.appendChild(addBtn);
 }
 
-function renderQtyListCard(sec){
+function renderQtyListCard(sec, data){
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `<div class="card-head"><span>${SECTION_TITLES[sec]}</span></div>`;
 
-  if(currentCompany==='miniImpianSales'){
-    const d = currentData.sections[sec];
-    const branches = [{key:'sandakan',label:'Sandakan Branch'},{key:'tawau',label:'Tawau Branch'}];
-    const grid = document.createElement('div');
-    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:20px;';
-    branches.forEach((b,bi)=>{
-      const rows = d[b.key];
-      const wrap = document.createElement('div');
-      if(bi===0) wrap.style.cssText = 'border-right:1px solid var(--border,#E4EAF2);padding-right:20px;';
-      wrap.innerHTML = `<div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:2px 0 6px;">${b.label}</div>`;
-      grid.appendChild(wrap);
-      const totalRow = document.createElement('div');
-      totalRow.className = 'total-row';
-      totalRow.innerHTML = `<span>TOTAL</span><span class="tval">RM 0.00</span>`;
-      const updateTotal = ()=>{ totalRow.querySelector('.tval').textContent = 'RM ' + fmt(rows.reduce((s,r)=>s+num(r.amount),0)); };
-      renderQtyRowsInto(wrap, rows, updateTotal);
-      wrap.appendChild(totalRow);
-      updateTotal();
-    });
-    card.appendChild(grid);
-    return card;
-  }
-
-  const rows = currentData.sections[sec];
+  const rows = data || currentData.sections[sec];
   renderQtyRowsInto(card, rows, ()=>updateQtyTotal(card, rows));
 
   const total = rows.reduce((s,r)=>s+num(r.amount),0);
@@ -800,76 +798,29 @@ function renderRtoCard(){
   return card;
 }
 
-function renderSalesReportCard(){
+function renderSalesReportCard(data, idSuffix){
+  const d = data || currentData.sections.salesReport;
+  const suf = idSuffix || '';
   const card = document.createElement('div');
   card.className = 'card';
-  const d = currentData.sections.salesReport;
   card.innerHTML = `<div class="card-head"><span>Daily Sales Report</span></div>`;
-
-  if(currentCompany==='miniImpianSales'){
-    const branches = [{key:'sandakan',label:'Sandakan Branch'},{key:'tawau',label:'Tawau Branch'}];
-    const totalRow = document.createElement('div');
-    function updateTotalSales(){
-      branches.forEach(b=>{
-        const sub = num(d[b.key].cash)+num(d[b.key].card)+num(d[b.key].qr);
-        const subEl = card.querySelector(`.subtotal-${b.key}`);
-        if(subEl) subEl.textContent = 'RM ' + fmt(sub);
-      });
-      const total = branches.reduce((sum,b)=>sum+num(d[b.key].cash)+num(d[b.key].card)+num(d[b.key].qr),0);
-      totalRow.querySelector('.tval').textContent = 'RM ' + fmt(total);
-    }
-    const grid = document.createElement('div');
-    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:20px;';
-    branches.forEach((b,bi)=>{
-      const bd = d[b.key];
-      const wrap = document.createElement('div');
-      if(bi===0) wrap.style.cssText = 'border-right:1px solid var(--border,#E4EAF2);padding-right:20px;';
-      wrap.innerHTML = `<div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:2px 0 6px;">${b.label}</div>`;
-      const ff = document.createElement('div');
-      ff.className = 'fixed-fields';
-      ff.innerHTML = `
-        <div class="field"><label>Cash (RM)</label><input type="number" step="0.01" id="sr_${b.key}_cash" value="${bd.cash}"></div>
-        <div class="field"><label>Credit/Debit Card (RM)</label><input type="number" step="0.01" id="sr_${b.key}_card" value="${bd.card}"></div>
-        <div class="field"><label>QR Payment (RM)</label><input type="number" step="0.01" id="sr_${b.key}_qr" value="${bd.qr}"></div>
-      `;
-      wrap.appendChild(ff);
-      const subRow = document.createElement('div');
-      subRow.style.cssText = 'display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--navy-2);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border,#E4EAF2);';
-      subRow.innerHTML = `<span>Branch Subtotal</span><span class="subtotal-${b.key}">RM 0.00</span>`;
-      wrap.appendChild(subRow);
-      grid.appendChild(wrap);
-      ['cash','card','qr'].forEach(k=>{
-        ff.querySelector('#sr_'+b.key+'_'+k).oninput = e=>{
-          bd[k] = e.target.value;
-          updateTotalSales();
-          if(refreshSummaryFn) refreshSummaryFn();
-        };
-      });
-    });
-    card.appendChild(grid);
-    totalRow.className = 'total-row';
-    totalRow.innerHTML = `<span>TOTAL SALES</span><span class="tval">RM 0.00</span>`;
-    card.appendChild(totalRow);
-    updateTotalSales();
-    return card;
-  }
 
   const ff = document.createElement('div');
   ff.className = 'fixed-fields';
   ff.innerHTML = `
-    <div class="field"><label>Cash (RM)</label><input type="number" step="0.01" id="sr_cash" value="${d.cash}"></div>
-    <div class="field"><label>Credit/Debit Card (RM)</label><input type="number" step="0.01" id="sr_card" value="${d.card}"></div>
-    <div class="field"><label>QR Payment (RM)</label><input type="number" step="0.01" id="sr_qr" value="${d.qr}"></div>
+    <div class="field"><label>Cash (RM)</label><input type="number" step="0.01" id="sr_cash${suf}" value="${d.cash}"></div>
+    <div class="field"><label>Credit/Debit Card (RM)</label><input type="number" step="0.01" id="sr_card${suf}" value="${d.card}"></div>
+    <div class="field"><label>QR Payment (RM)</label><input type="number" step="0.01" id="sr_qr${suf}" value="${d.qr}"></div>
     ${currentCompany==='dojo'?`
-    <div class="field"><label>GrabFood (RM)</label><input type="number" step="0.01" id="sr_grabfood" value="${d.grabfood||''}"></div>
-    <div class="field"><label>FoodPanda (RM)</label><input type="number" step="0.01" id="sr_foodpanda" value="${d.foodpanda||''}"></div>
+    <div class="field"><label>GrabFood (RM)</label><input type="number" step="0.01" id="sr_grabfood${suf}" value="${d.grabfood||''}"></div>
+    <div class="field"><label>FoodPanda (RM)</label><input type="number" step="0.01" id="sr_foodpanda${suf}" value="${d.foodpanda||''}"></div>
     `:''}
   `;
   card.appendChild(ff);
 
   const srKeys = currentCompany==='dojo' ? ['cash','card','qr','grabfood','foodpanda'] : ['cash','card','qr'];
   srKeys.forEach(k=>{
-    const el = ff.querySelector('#sr_'+k);
+    const el = ff.querySelector('#sr_'+k+suf);
     if(el) el.oninput = e=>{
       d[k] = e.target.value;
       updateTotalSales();
@@ -1298,6 +1249,32 @@ function photoSectionTable(title, rows, totalLabel, totalValue){
   return html;
 }
 
+// Item/Qty/Amount table, matching Espace X's own export format exactly —
+// used standalone (not nested) so the Mini Impian per-branch column builder
+// can call it directly.
+function qtySectionHtmlStandalone(title, rows){
+  let html = `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+  html += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">${title}</div>`;
+  html += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:10.5px;text-transform:uppercase;padding:6px 14px;color:#555;">
+    <span style="flex:1.6;">Item</span>
+    <span style="flex:0.5;text-align:right;">Qty</span>
+    <span style="flex:0.8;text-align:right;">Amount</span>
+  </div>`;
+  let t=0;
+  rows.forEach(r=>{
+    if(!r.label) return;
+    html += `<div style="display:flex;align-items:center;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:13.5px;">
+      <span style="flex:1.6;">${escapeHtml(r.label)}</span>
+      <span style="flex:0.5;text-align:right;">${r.qty||'-'}</span>
+      <span style="flex:0.8;text-align:right;font-weight:600;">RM ${fmt(num(r.amount))}</span>
+    </div>`;
+    t+=num(r.amount);
+  });
+  html += `<div style="display:flex;justify-content:space-between;padding:8px 14px;background:#0A1628;color:#fff;font-weight:700;font-size:14px;">
+    <span>TOTAL</span><span>RM ${fmt(t)}</span></div></div>`;
+  return html;
+}
+
 // One shared section title spanning the full width, with short per-branch
 // sub-headers underneath in side-by-side columns — avoids repeating the full
 // section title in each column (which wraps awkwardly in a narrow column).
@@ -1344,6 +1321,32 @@ function buildPhotoHTML(){
     const cfg = COMPANIES[currentCompany];
     inner += `<h2 style="margin:0 0 4px;font-size:19px;">${cfg.name}</h2>`;
     inner += `<div style="color:#666;font-size:13px;margin-bottom:14px;">${cfg.hasTime?('Time: '+(currentData.time||'-')+' &middot; '):''}Date: ${currentData.date}</div>`;
+
+    if(currentCompany==='miniImpianSales'){
+      // Two complete, independent reports side by side — each built exactly
+      // like Espace X's own simple single-branch export, just fed that
+      // branch's own data, rather than splitting each section across columns.
+      function buildBranchColumn(branchKey, branchLabel){
+        const sr = currentData.sections.salesReport[branchKey];
+        const srTotal = num(sr.cash)+num(sr.card)+num(sr.qr);
+        let html = `<div style="font-weight:800;font-size:15px;color:#0A1628;margin-bottom:8px;">${branchLabel}</div>`;
+        html += photoSectionTable('Daily Sales Report', [
+          {label:'Cash', amount:sr.cash},
+          {label:'Credit/Debit Card', amount:sr.card},
+          {label:'QR Payment', amount:sr.qr},
+        ], 'TOTAL SALES', srTotal);
+        html += qtySectionHtmlStandalone(SECTION_TITLES.playground, currentData.sections.playground[branchKey]);
+        html += qtySectionHtmlStandalone(SECTION_TITLES.other, currentData.sections.other[branchKey]);
+        return html;
+      }
+      const left = buildBranchColumn('sandakan', 'Sandakan Branch');
+      const right = buildBranchColumn('tawau', 'Tawau Branch');
+      inner += `<div style="display:flex;gap:20px;align-items:flex-start;">
+        <div style="flex:1;min-width:0;border-right:1px solid #ddd;padding-right:20px;">${left}</div>
+        <div style="flex:1;min-width:0;">${right}</div>
+      </div>`;
+    } else {
+
     const sectionsForPhoto = cfg.photoSections || cfg.sections;
     sectionsForPhoto.forEach(sec=>{
       if(sec==='stock'){
@@ -1514,6 +1517,7 @@ function buildPhotoHTML(){
         inner += photoSectionTable(SECTION_TITLES[sec], rows, 'TOTAL', total);
       }
     });
+    }
   }
   return inner;
 }
