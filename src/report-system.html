@@ -1362,12 +1362,14 @@ function buildPhotoHTML(){
         const d = currentData.sections.salesReport;
         if(currentCompany==='miniImpianSales'){
           const branches=[{key:'sandakan',label:'Daily Sales Report — Sandakan Branch'},{key:'tawau',label:'Daily Sales Report — Tawau Branch'}];
+          let cols = '';
           branches.forEach(b=>{
             const bd=d[b.key];
             const total=num(bd.cash)+num(bd.card)+num(bd.qr);
             const rows=[{label:'Cash',amount:bd.cash},{label:'Credit/Debit Card',amount:bd.card},{label:'QR Payment',amount:bd.qr}];
-            inner += photoSectionTable(b.label, rows, 'TOTAL SALES', total);
+            cols += `<div style="flex:1;min-width:0;">${photoSectionTable(b.label, rows, 'TOTAL SALES', total)}</div>`;
           });
+          inner += `<div style="display:flex;gap:14px;align-items:flex-start;">${cols}</div>`;
         } else {
           const total = num(d.cash)+num(d.card)+num(d.qr);
           const rows = [
@@ -1451,8 +1453,12 @@ function buildPhotoHTML(){
         }
         if(currentCompany==='miniImpianSales'){
           const d = currentData.sections[sec];
-          inner += qtySectionHtml(`${SECTION_TITLES[sec]} — Sandakan Branch`, d.sandakan);
-          inner += qtySectionHtml(`${SECTION_TITLES[sec]} — Tawau Branch`, d.tawau);
+          const sandakanHtml = qtySectionHtml(`${SECTION_TITLES[sec]} — Sandakan Branch`, d.sandakan);
+          const tawauHtml = qtySectionHtml(`${SECTION_TITLES[sec]} — Tawau Branch`, d.tawau);
+          inner += `<div style="display:flex;gap:14px;align-items:flex-start;">
+            <div style="flex:1;min-width:0;">${sandakanHtml}</div>
+            <div style="flex:1;min-width:0;">${tawauHtml}</div>
+          </div>`;
         } else {
           inner += qtySectionHtml(SECTION_TITLES[sec], currentData.sections[sec]);
         }
