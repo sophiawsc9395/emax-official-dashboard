@@ -650,12 +650,14 @@ function renderQtyListCard(sec){
   if(currentCompany==='miniImpianSales'){
     const d = currentData.sections[sec];
     const branches = [{key:'sandakan',label:'Sandakan Branch'},{key:'tawau',label:'Tawau Branch'}];
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:20px;';
     branches.forEach((b,bi)=>{
       const rows = d[b.key];
       const wrap = document.createElement('div');
-      wrap.style.marginBottom = bi<branches.length-1 ? '18px' : '0';
+      if(bi===0) wrap.style.cssText = 'border-right:1px solid var(--border,#E4EAF2);padding-right:20px;';
       wrap.innerHTML = `<div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:2px 0 6px;">${b.label}</div>`;
-      card.appendChild(wrap);
+      grid.appendChild(wrap);
       const totalRow = document.createElement('div');
       totalRow.className = 'total-row';
       totalRow.innerHTML = `<span>TOTAL</span><span class="tval">RM 0.00</span>`;
@@ -664,6 +666,7 @@ function renderQtyListCard(sec){
       wrap.appendChild(totalRow);
       updateTotal();
     });
+    card.appendChild(grid);
     return card;
   }
 
@@ -807,13 +810,20 @@ function renderSalesReportCard(){
     const branches = [{key:'sandakan',label:'Sandakan Branch'},{key:'tawau',label:'Tawau Branch'}];
     const totalRow = document.createElement('div');
     function updateTotalSales(){
+      branches.forEach(b=>{
+        const sub = num(d[b.key].cash)+num(d[b.key].card)+num(d[b.key].qr);
+        const subEl = card.querySelector(`.subtotal-${b.key}`);
+        if(subEl) subEl.textContent = 'RM ' + fmt(sub);
+      });
       const total = branches.reduce((sum,b)=>sum+num(d[b.key].cash)+num(d[b.key].card)+num(d[b.key].qr),0);
       totalRow.querySelector('.tval').textContent = 'RM ' + fmt(total);
     }
-    branches.forEach(b=>{
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:20px;';
+    branches.forEach((b,bi)=>{
       const bd = d[b.key];
       const wrap = document.createElement('div');
-      wrap.style.marginBottom = '14px';
+      if(bi===0) wrap.style.cssText = 'border-right:1px solid var(--border,#E4EAF2);padding-right:20px;';
       wrap.innerHTML = `<div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:2px 0 6px;">${b.label}</div>`;
       const ff = document.createElement('div');
       ff.className = 'fixed-fields';
@@ -823,7 +833,11 @@ function renderSalesReportCard(){
         <div class="field"><label>QR Payment (RM)</label><input type="number" step="0.01" id="sr_${b.key}_qr" value="${bd.qr}"></div>
       `;
       wrap.appendChild(ff);
-      card.appendChild(wrap);
+      const subRow = document.createElement('div');
+      subRow.style.cssText = 'display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--navy-2);margin-top:8px;padding-top:8px;border-top:1px dashed var(--border,#E4EAF2);';
+      subRow.innerHTML = `<span>Branch Subtotal</span><span class="subtotal-${b.key}">RM 0.00</span>`;
+      wrap.appendChild(subRow);
+      grid.appendChild(wrap);
       ['cash','card','qr'].forEach(k=>{
         ff.querySelector('#sr_'+b.key+'_'+k).oninput = e=>{
           bd[k] = e.target.value;
@@ -832,6 +846,7 @@ function renderSalesReportCard(){
         };
       });
     });
+    card.appendChild(grid);
     totalRow.className = 'total-row';
     totalRow.innerHTML = `<span>TOTAL SALES</span><span class="tval">RM 0.00</span>`;
     card.appendChild(totalRow);
