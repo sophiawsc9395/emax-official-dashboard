@@ -189,25 +189,58 @@ function isFileRef(v) {
   return !!v && typeof v === "object" && typeof v.path === "string" && typeof v.name === "string" && !v.url;
 }
 
-// Deep-walks any object/array and signs every {name,path} file ref it finds,
-// wherever it's nested (history[].files, billingData.*, depositSlip, etc.)
-async function signDeep(obj) {
-  if (Array.isArray(obj)) {
-    const out = [];
-    for (const item of obj) out.push(await signDeep(item));
-    return out;
-  }
+// Pure (no network) walk that just replaces every {name,path} file ref with
+// a placeholder carrying its path, so the caller can collect all paths up
+// front and sign them in one batched request instead of one round-trip per
+// file. Structure/shape is otherwise identical to the old signDeep.
+function collectFileRefs(obj, paths) {
+  if (Array.isArray(obj)) return obj.map(item => collectFileRefs(item, paths));
   if (obj && typeof obj === "object") {
-    if (isFileRef(obj)) return { ...obj, url: await signFileUrl(obj.path) };
+    if (isFileRef(obj)) { paths.push(obj.path); return { ...obj, _signPath: obj.path }; }
     const out = {};
-    for (const k of Object.keys(obj)) out[k] = await signDeep(obj[k]);
+    for (const k of Object.keys(obj)) out[k] = collectFileRefs(obj[k], paths);
     return out;
   }
   return obj;
 }
 
-export async function signOrderFiles(orderOrHistory) {
-  return signDeep(orderOrHistory);
+// Second pass: swap each placeholder's `_signPath` for the resolved `url`
+// looked up from the batch-signed map. Still no network calls here.
+function applySignedUrls(obj, urlByPath) {
+  if (Array.isArray(obj)) return obj.map(item => applySignedUrls(item, urlByPath));
+  if (obj && typeof obj === "object") {
+    if ("_signPath" in obj) {
+      const { _signPath, ...rest } = obj;
+      return { ...rest, url: urlByPath.get(_signPath) || null };
+    }
+    const out = {};
+    for (const k of Object.keys(obj)) out[k] = applySignedUrls(obj[k], urlByPath);
+    return out;
+  }
+  return obj;
+}
+
+// Signs every {name,path} file ref nested anywhere in an order/history
+// object (history[].files, billingData.*, depositSlip, etc.) in ONE batched
+// Storage request, regardless of how many files there are — instead of the
+// old approach of awaiting createSignedUrl one file at a time, which meant
+// an order with N files cost N sequential network round-trips (this is what
+// made opening orders at/after Customer Collection — the step with multiple
+// collection-proof photos plus every prior step's files — slow to load).
+export async function signOrderFiles(orderOrHistory, expiresIn = 60 * 60 * 24) {
+  const paths = [];
+  const withPlaceholders = collectFileRefs(orderOrHistory, paths);
+  if (paths.length === 0) return withPlaceholders;
+
+  const uniquePaths = [...new Set(paths)];
+  const urlByPath = new Map();
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(uniquePaths, expiresIn);
+  if (error) {
+    console.error("signOrderFiles batch error:", error);
+  } else {
+    (data || []).forEach((r, i) => { if (r?.signedUrl) urlByPath.set(uniquePaths[i], r.signedUrl); });
+  }
+  return applySignedUrls(withPlaceholders, urlByPath);
 }
 
 /* ── Writes ────────────────────────────────────────────────────────────── */
