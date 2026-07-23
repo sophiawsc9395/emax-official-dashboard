@@ -1231,7 +1231,7 @@ function AdjustBalanceWidget({personId,balance,adjustBalance}){
   </div>;
 }
 
-function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId}){
+function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,migrateRecordsForMonth}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [tab,setTab]=useState("bm");
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
@@ -1239,6 +1239,12 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
   const [editSR,setEditSR]=useState(null);
   const [editSRId,setEditSRId]=useState(null); // {oldId, value} — separate from editSR (name) since renaming an ID needs its own validation/migration path
   const [srIdError,setSrIdError]=useState(null);
+  const [showFixRecords,setShowFixRecords]=useState(false);
+  const [fixOldId,setFixOldId]=useState("");
+  const [fixNewId,setFixNewId]=useState("");
+  const [fixYear,setFixYear]=useState(year);
+  const [fixMonth,setFixMonth]=useState(month);
+  const [fixResult,setFixResult]=useState(null);
   const trySaveSRId=async(oldId,value)=>{
     const newId=value.trim();
     let res=await renameSRId(oldId,newId);
@@ -1346,9 +1352,49 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
             {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
           </select>
           <button className="btn btn-success" onClick={()=>setEditSR("new")}>+ Add New SR</button>
+          <button className="btn btn-ghost" onClick={()=>{setShowFixRecords(p=>!p);setFixResult(null);}} style={{padding:"6px 14px"}}>Fix Missing Records</button>
           <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
         </div>
       </div>
+
+      {showFixRecords&&<div style={{padding:"16px 24px",background:"#FFFBEB",borderBottom:"1px solid #E4EAF2"}}>
+        <div style={{fontWeight:700,fontSize:13,color:"#92400E",marginBottom:6}}>Fix Missing Records After a Rename</div>
+        <div style={{fontSize:11,color:"#78350F",marginBottom:12,lineHeight:1.5}}>
+          If an SR's Monthly Report looks empty for a month after you renamed their ID, use this to move that month's sales records from the old ID to the new one. Renaming an SR's ID from now on already does this automatically for the current and previous month — this tool is for fixing a rename that already happened, or an older month.
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10,marginBottom:12}}>
+          <div>
+            <label style={{fontSize:10,fontWeight:700,color:"#92400E",display:"block",marginBottom:3,textTransform:"uppercase"}}>Old ID</label>
+            <input className="input" placeholder="e.g. EM0250" value={fixOldId} onChange={e=>setFixOldId(e.target.value.toUpperCase())} style={{fontSize:12}}/>
+          </div>
+          <div>
+            <label style={{fontSize:10,fontWeight:700,color:"#92400E",display:"block",marginBottom:3,textTransform:"uppercase"}}>New ID</label>
+            <input className="input" placeholder="e.g. EM0271" value={fixNewId} onChange={e=>setFixNewId(e.target.value.toUpperCase())} style={{fontSize:12}}/>
+          </div>
+          <div>
+            <label style={{fontSize:10,fontWeight:700,color:"#92400E",display:"block",marginBottom:3,textTransform:"uppercase"}}>Month</label>
+            <select className="input select" value={fixMonth} onChange={e=>setFixMonth(parseInt(e.target.value))} style={{fontSize:12}}>
+              {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{fontSize:10,fontWeight:700,color:"#92400E",display:"block",marginBottom:3,textTransform:"uppercase"}}>Year</label>
+            <select className="input select" value={fixYear} onChange={e=>setFixYear(parseInt(e.target.value))} style={{fontSize:12}}>
+              {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button className="btn btn-success" onClick={async()=>{
+            if(!fixOldId.trim()||!fixNewId.trim()){setFixResult("Enter both the old and new ID.");return;}
+            const changed=await migrateRecordsForMonth(fixOldId.trim(),fixNewId.trim(),fixYear,fixMonth);
+            setFixResult(changed
+              ? `Done — moved ${MONTHS_LABEL[fixMonth-1]} ${fixYear}'s records from ${fixOldId.trim()} to ${fixNewId.trim()}.`
+              : `No records found for ${fixOldId.trim()} in ${MONTHS_LABEL[fixMonth-1]} ${fixYear} — nothing to move.`);
+          }}>Move This Month's Records</button>
+          {fixResult&&<span style={{fontSize:12,color:"#78350F",fontWeight:600}}>{fixResult}</span>}
+        </div>
+      </div>}
 
       <div style={{padding:"20px 24px"}}>
         {/* Add New SR form */}
@@ -2357,6 +2403,30 @@ export default function App(){
 
   // Manually adjust a person's points balance by +/- delta, with a required description.
   // This appends a history entry instead of overwriting the balance.
+  // Migrates one month's worth of daily sales records from oldId to newId.
+  // Reused both by the automatic current+previous-month migration inside
+  // renameSRId, and by the standalone "Fix Records" repair tool below for
+  // manually fixing months an earlier rename didn't reach.
+  const migrateRecordsForMonth=async(oldId,newId,year,month)=>{
+    const key=`emax_v5_records_${year}_${month}`;
+    const monthRecords=await loadData(key);
+    if(!monthRecords)return false;
+    let changed=false;
+    const updated={...monthRecords};
+    Object.keys(updated).forEach(dateKey=>{
+      const day=updated[dateKey];
+      if(day&&day[oldId]!==undefined){
+        updated[dateKey]={...day,[newId]:day[oldId]};
+        delete updated[dateKey][oldId];
+        changed=true;
+      }
+    });
+    if(changed){
+      await saveData(key,updated);
+      if(Number(year)===selYear&&Number(month)===selMonth)setRecords(updated);
+    }
+    return changed;
+  };
   const adjustBalance=async(personId,delta,note)=>{
     const d=Number(delta)||0;
     if(d===0)return;
@@ -2371,13 +2441,16 @@ export default function App(){
     await saveData("emax_v5_reward_history",newHist);
   };
   // Renames an SR's ID everywhere this dashboard itself tracks it by ID —
-  // the SR list, their points balance, points history, and status history.
-  // Does NOT (and can't from here) touch: past months' Type overrides, which
-  // are stored per month/year and would need every historical month
-  // re-fetched and re-saved individually; or the Order Tracking system's
-  // salesAgentId on already-submitted orders, which lives in a separate
-  // Supabase table this dashboard doesn't write to. Historical orders will
-  // keep showing the old ID/name after a rename.
+  // the SR list, their points balance, points history, status history, and
+  // their daily sales records (Monthly Report / Overview / Rankings data)
+  // for the current and previous month specifically.
+  // Does NOT (and can't from here) touch: sales records or Type overrides
+  // from any month further back than last month — those are stored per
+  // month/year and would need every historical month re-fetched and
+  // re-saved individually; or the Order Tracking system's salesAgentId on
+  // already-submitted orders, which lives in a separate Supabase table this
+  // dashboard doesn't write to. Historical orders there will keep showing
+  // the old ID/name after a rename.
   const renameSRId=async(oldId,newId,allowOverride=false)=>{
     if(!newId||newId===oldId)return{ok:false,reason:"unchanged"};
     const conflict=srList.find(s=>s.id===newId&&s.id!==oldId);
@@ -2420,6 +2493,16 @@ export default function App(){
       delete t[oldId];
       await saveData(curTypeKey,t);
     }
+    // Daily sales records — the actual dataset behind Monthly Report,
+    // Overview, and Rankings. Stored per month/year, with each day keyed by
+    // SR ID (records[date][srId] = {walkin, aeon, ...}). This is the most
+    // important thing to migrate, since without it the SR's whole sales
+    // history becomes invisible under their new ID. Migrates the current and
+    // previous month specifically — older months are NOT retroactively
+    // fixed by this (would need every past month re-fetched individually).
+    const prevM=selMonth===1?12:selMonth-1, prevY=selMonth===1?selYear-1:selYear;
+    await migrateRecordsForMonth(oldId,newId,selYear,selMonth);
+    await migrateRecordsForMonth(oldId,newId,prevY,prevM);
     return{ok:true,newSRList};
   };
   const handleSaveTargets=async(t)=>{setTargets(t);await saveData(`emax_v5_targets_${selYear}_${selMonth}`,t);};
@@ -2842,7 +2925,7 @@ Please now:
 1. Set the new BM name above
 2. Click Save`);
 }}/>}
-    {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson} renameSRId={renameSRId}/>}
+    {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson} renameSRId={renameSRId} migrateRecordsForMonth={migrateRecordsForMonth}/>}
     {printBranch&&<PrintBranchReport branchId={printBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onClose={()=>setPrintBranch(null)} month={month} year={year} days={days}/>}
     {showPointsModal&&<PointsHistoryModal srList={srList} branchMeta={branchMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onDeletePointsEntry={deletePointsEntry} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
     {showStatusHistoryModal&&<StatusHistoryModal srList={srList} branchMeta={branchMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onDeleteStatusEntry={deleteStatusEntry} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}
