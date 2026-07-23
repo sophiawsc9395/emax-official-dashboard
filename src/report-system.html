@@ -1400,12 +1400,15 @@ function buildPhotoHTML(){
           });
           inner += photoBranchPairTable('Daily Sales Report', branchData, 'TOTAL SALES');
         } else {
-          const total = num(d.cash)+num(d.card)+num(d.qr);
+          const total = num(d.cash)+num(d.card)+num(d.qr)+(currentCompany==='dojo'?num(d.grabfood)+num(d.foodpanda):0);
           const rows = [
             {label:'Cash', amount:d.cash},
             {label:'Credit/Debit Card', amount:d.card},
             {label:'QR Payment', amount:d.qr},
-
+            ...(currentCompany==='dojo'?[
+              {label:'GrabFood', amount:d.grabfood},
+              {label:'FoodPanda', amount:d.foodpanda},
+            ]:[]),
           ];
           inner += photoSectionTable('Daily Sales Report', rows, 'TOTAL SALES', total);
         }
