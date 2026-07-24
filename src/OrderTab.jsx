@@ -500,13 +500,16 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     const histByOrder=await getHistoryForOrders(orders.map(o=>o.id));
     orders=orders.map(o=>({...o,history:histByOrder[o.id]||[]}));
   }
-  // First Monthly Installment — based on the actual date admin ticked
-  // "Payment Verified" at step 9 (Collection Verified), not any typed date.
+  // First Monthly Installment — based on the "Upfront Payment Date" field the
+  // admin actually fills in at step 9 (Collection Verified), NOT the system
+  // date the save button happened to be clicked on (those can differ, e.g.
+  // when an entry is filed a day late or backdated). Same field used by the
+  // Cash Order Knock Off report's getCashBalanceEntry below, for consistency.
   // An order can have more than one such tick over its life (e.g. a short
   // payment redo), so we take the latest one that matches the filter date.
   const getInstallmentEntry=o=>{
     const entries=(o.history||[]).filter(h=>h.step===9&&h.paymentChecked&&h.monthlyInstallment!==undefined&&h.monthlyInstallment!==null&&h.monthlyInstallment!=="");
-    const matching=dateFilter?entries.filter(h=>h.date===dateFilter):entries;
+    const matching=dateFilter?entries.filter(h=>h.upfrontPaymentDate===dateFilter):entries;
     return matching[matching.length-1];
   };
   // Cash Order Knock Off — same "latest verification at step 9" lookup as
