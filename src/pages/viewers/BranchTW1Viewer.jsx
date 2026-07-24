@@ -643,92 +643,103 @@ export default function App(){
       </div>}
 
       {tab==="overview"&&<div className="fade-in">
-      {/* Branch summary card */}
-      <div className="card" style={{padding:"18px 20px",marginBottom:20,borderTop:"3px solid #1E6FDB"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12,marginBottom:14}}>
+      {/* Branch summary — gradient hero card */}
+      <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",borderRadius:16,padding:"22px 24px",marginBottom:20,color:"#fff",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-60,right:-60,width:220,height:220,borderRadius:"50%",background:"radial-gradient(circle,rgba(30,111,219,.35),transparent 70%)",pointerEvents:"none"}}/>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12,position:"relative",zIndex:1}}>
           <div>
-            <h2 style={{fontWeight:800,fontSize:15,color:"#0A1628",margin:0,textTransform:"uppercase"}}>{meta.name||DEFAULT_BRANCH_META[BRANCH_ID]?.name}</h2>
-            <div style={{fontSize:11,color:"#5A6472",marginTop:3,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>BM: {meta.manager} · {meta.mStatus}<button onClick={()=>{setStatusModalPerson(`BM_${BRANCH_ID}`);setShowStatusHistoryModal(true);}} style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:4,border:"1px solid #E4EAF2",background:"transparent",color:"#1E6FDB",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>History</button></div>
+            <h2 style={{fontWeight:800,fontSize:18,color:"#fff",margin:0,letterSpacing:"0.01em"}}>{meta.name||DEFAULT_BRANCH_META[BRANCH_ID]?.name}</h2>
+            <div style={{fontSize:12,color:"rgba(255,255,255,.55)",marginTop:5,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>BM: {meta.manager} · {meta.mStatus}<button onClick={()=>{setStatusModalPerson(`BM_${BRANCH_ID}`);setShowStatusHistoryModal(true);}} style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:5,border:"1px solid rgba(255,255,255,.25)",background:"rgba(255,255,255,.06)",color:"rgba(255,255,255,.75)",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>History</button></div>
           </div>
           <div style={{textAlign:"right"}}>
-            <div style={{fontWeight:900,fontSize:22,color:achColor(bTotal.total,bTarget),letterSpacing:"-0.02em"}}>
+            <div style={{fontWeight:800,fontSize:28,color:achColor(bTotal.total,bTarget),letterSpacing:"-0.02em"}}>
               {bTarget>0?branchPct.toFixed(1)+"%":"—"}
             </div>
-            <div style={{fontSize:10,color:"#5A6472"}}>Achievement</div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,.5)"}}>Achievement</div>
           </div>
         </div>
-        {bTarget>0&&<ProgressBar pct={branchPct} color={achColor(bTotal.total,bTarget)}/>}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10,marginTop:14}}>
-          {[["Total Profit",fRM(bTotal.total),"#0A1628"],["Target",bTarget>0?fRM(bTarget):"Not Set","#4A5568"],
-            ["Walk In",fRM(bTotal.wi),"#1E6FDB"],["Invoice",fRM(bTotal.ae),"#7C5CFC"],
+        {bTarget>0&&<div style={{margin:"16px 0 18px",position:"relative",zIndex:1}}><ProgressBar pct={branchPct} color={achColor(bTotal.total,bTarget)}/></div>}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,position:"relative",zIndex:1}}>
+          {[["Total Profit",fRM(bTotal.total),"#fff"],["Target",bTarget>0?fRM(bTarget):"Not Set","rgba(255,255,255,.7)"],
+            ["Walk In",fRM(bTotal.wi),"#7FB8FF"],["Invoice",fRM(bTotal.ae),"#C4B5FD"],
             ["Balance",bTarget>0?(Math.max(bTarget-bTotal.total,0)>0?fRM(Math.max(bTarget-bTotal.total,0)):"Target Met"):"—",
-             bTarget>0&&bTotal.total>=bTarget?"#00C896":bTarget>0?"#F0354B":"#8A96A8"]
+             bTarget>0&&bTotal.total>=bTarget?"#00E0A8":bTarget>0?"#FF6B81":"rgba(255,255,255,.5)"]
           ].map(([l,v,c])=>(
-            <div key={l}>
-              <div style={{fontSize:10,color:"#5A6472",marginBottom:2}}>{l}</div>
-              <div style={{fontWeight:700,color:c,fontSize:13,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v}</div>
+            <div key={l} style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",borderRadius:10,padding:"11px 13px"}}>
+              <div style={{fontSize:9.5,color:"rgba(255,255,255,.45)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{l}</div>
+              <div style={{fontWeight:800,color:c,fontSize:14,whiteSpace:"nowrap"}}>{v}</div>
             </div>
           ))}
         </div>
-        {/* BM Incentive Tiers */}
-        {(()=>{
-          const achBonus=branchPct>=120?calcAchievementBonus(branchPct,"bm"):0;
-          const pts=calcRewardPoints(branchPct,branchPct);
-          return <div style={{marginTop:14,display:"flex",flexDirection:"column",gap:8}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,gap:6,flexWrap:"nowrap"}}>
-              <span style={{color:"#5A6472",fontSize:10,flex:1,minWidth:0,overflow:"visible"}}>🏆 Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
-              <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{(rewardBalances[`BM_${BRANCH_ID}`]?.balance||0).toLocaleString()} pts</span>
-            </div>
-            {/* Branch Achievement Bonus tier */}
-            {achBonus>0&&(()=>{
-              const tier=Math.floor((branchPct-120)/10);
-              const nextTierPct=120+(tier+1)*10;
-              const isMaxTier=nextTierPct>200;
-              return <div style={{background:"linear-gradient(135deg,#FFF9EB,#FFFBF0)",borderRadius:8,padding:"8px 10px",border:"1px solid #FDE68A"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                  <span style={{fontSize:10,fontWeight:700,color:"#92400E",display:"flex",alignItems:"center",gap:4}}>
-                    <span style={{background:"#F5A623",color:"#fff",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:800}}>Tier {tier+1}</span>
-                    Branch Achievement Bonus
-                  </span>
-                  <span style={{fontWeight:800,fontSize:12,color:"#D97706"}}>{fRM(achBonus)}</span>
-                </div>
-                {!isMaxTier&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:4,borderTop:"1px dashed #FDE68A"}}>
-                  <span style={{fontSize:9,color:"#B45309"}}>Next: Tier {tier+2} at {nextTierPct}%</span>
-                  <span style={{fontSize:9,fontWeight:700,color:"#B45309"}}>{fRM(calcAchievementBonus(nextTierPct,"bm"))}</span>
-                </div>}
-                {isMaxTier&&<div style={{fontSize:9,color:"#D97706",fontWeight:600,paddingTop:4,borderTop:"1px dashed #FDE68A"}}>🏆 Maximum tier reached</div>}
-              </div>;
-            })()}
-            {/* Reward Points tier */}
-            {pts>0&&(()=>{
-              const TIERS=[[110,500],[120,1000],[130,1500],[140,2000],[150,3000],[160,4500],[170,6000],[180,7500],[190,9000],[200,12000]];
-              const curTierIdx=TIERS.reduce((acc,[t],i)=>branchPct>=t?i:acc,-1);
-              const nextTierEntry=TIERS[curTierIdx+1]||null;
-              const isMaxTier=!nextTierEntry;
-              return <div style={{background:"linear-gradient(135deg,#EFF6FF,#F0F7FF)",borderRadius:8,padding:"8px 10px",border:"1px solid #BFDBFE"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                  <span style={{fontSize:10,fontWeight:700,color:"#1E40AF",display:"flex",alignItems:"center",gap:4}}>
-                    <span style={{background:"#1E6FDB",color:"#fff",borderRadius:20,padding:"1px 7px",fontSize:9,fontWeight:800}}>
-                      {curTierIdx>=0?`Tier ${curTierIdx+1}`:"Tier 1"}
-                    </span>
-                    Reward Points
-                  </span>
-                  <span style={{fontWeight:800,fontSize:12,color:"#1E6FDB"}}>{pts.toLocaleString()} pts</span>
-                </div>
-                {!isMaxTier&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:4,borderTop:"1px dashed #BFDBFE"}}>
-                  <span style={{fontSize:9,color:"#1E40AF"}}>Next: Tier {curTierIdx+2} at {nextTierEntry[0]}%</span>
-                  <span style={{fontSize:9,fontWeight:700,color:"#1E40AF"}}>{nextTierEntry[1].toLocaleString()} pts</span>
-                </div>}
-                {isMaxTier&&<div style={{fontSize:9,color:"#1E6FDB",fontWeight:600,paddingTop:4,borderTop:"1px dashed #BFDBFE"}}>🏆 Maximum tier reached</div>}
-              </div>;
-            })()}
-          </div>;
-        })()}
       </div>
 
+      {/* BM Earned Reward Points + Incentive Tiers — pulled out of the hero card into their own strip */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:14,gap:8,flexWrap:"wrap"}}>
+        <span style={{color:"#5A6472",fontSize:11}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
+        <span style={{fontWeight:700,fontSize:12,color:"#0A1628"}}>{(rewardBalances[`BM_${BRANCH_ID}`]?.balance||0).toLocaleString()} pts</span>
+      </div>
+      {(()=>{
+        const achBonus=branchPct>=120?calcAchievementBonus(branchPct,"bm"):0;
+        const pts=calcRewardPoints(branchPct,branchPct);
+        if(achBonus<=0&&pts<=0)return null;
+        return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12,marginBottom:20}}>
+          {/* Branch Achievement Bonus tier — light blue gradient */}
+          {achBonus>0&&(()=>{
+            const tier=Math.floor((branchPct-120)/10);
+            const nextTierPct=120+(tier+1)*10;
+            const isMaxTier=nextTierPct>200;
+            return <div style={{background:"linear-gradient(135deg,#EFF6FF,#DBEAFE)",borderRadius:12,padding:"13px 15px",border:"1px solid #93C5FD"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                <span style={{fontSize:11,fontWeight:700,color:"#1E3A8A",display:"flex",alignItems:"center",gap:5}}>
+                  <span style={{background:"linear-gradient(135deg,#3B82F6,#2563EB)",color:"#fff",borderRadius:20,padding:"2px 9px",fontSize:9,fontWeight:800,boxShadow:"0 1px 3px rgba(0,0,0,.15)"}}>Tier {tier+1}</span>
+                  Branch Achievement Bonus
+                </span>
+                <span style={{fontWeight:800,fontSize:13,color:"#1D4ED8"}}>{fRM(achBonus)}</span>
+              </div>
+              {!isMaxTier&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:5,marginTop:5,borderTop:"1px dashed #93C5FD",fontSize:9.5}}>
+                <span style={{color:"#1E3A8A"}}>Next: Tier {tier+2} at {nextTierPct}%</span>
+                <span style={{fontWeight:700,color:"#1E3A8A"}}>{fRM(calcAchievementBonus(nextTierPct,"bm"))}</span>
+              </div>}
+              {isMaxTier&&<div style={{fontSize:9.5,color:"#1D4ED8",fontWeight:600,paddingTop:5,marginTop:5,borderTop:"1px dashed #93C5FD"}}>Maximum tier reached</div>}
+            </div>;
+          })()}
+          {/* Reward Points tier — violet gradient */}
+          {pts>0&&(()=>{
+            const TIERS=[[110,500],[120,1000],[130,1500],[140,2000],[150,3000],[160,4500],[170,6000],[180,7500],[190,9000],[200,12000]];
+            const curTierIdx=TIERS.reduce((acc,[t],i)=>branchPct>=t?i:acc,-1);
+            const nextTierEntry=TIERS[curTierIdx+1]||null;
+            const isMaxTier=!nextTierEntry;
+            return <div style={{background:"linear-gradient(135deg,#F5F0FF,#EDE4FF)",borderRadius:12,padding:"13px 15px",border:"1px solid #C4B5FD"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                <span style={{fontSize:11,fontWeight:700,color:"#5B21B6",display:"flex",alignItems:"center",gap:5}}>
+                  <span style={{background:"linear-gradient(135deg,#8B5CF6,#6D28D9)",color:"#fff",borderRadius:20,padding:"2px 9px",fontSize:9,fontWeight:800,boxShadow:"0 1px 3px rgba(0,0,0,.15)"}}>
+                    {curTierIdx>=0?`Tier ${curTierIdx+1}`:"Tier 1"}
+                  </span>
+                  Reward Points
+                </span>
+                <span style={{fontWeight:800,fontSize:13,color:"#6D28D9"}}>{pts.toLocaleString()} pts</span>
+              </div>
+              {!isMaxTier&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:5,marginTop:5,borderTop:"1px dashed #C4B5FD",fontSize:9.5}}>
+                <span style={{color:"#5B21B6"}}>Next: Tier {curTierIdx+2} at {nextTierEntry[0]}%</span>
+                <span style={{fontWeight:700,color:"#5B21B6"}}>{nextTierEntry[1].toLocaleString()} pts</span>
+              </div>}
+              {isMaxTier&&<div style={{fontSize:9.5,color:"#6D28D9",fontWeight:600,paddingTop:5,marginTop:5,borderTop:"1px dashed #C4B5FD"}}>Maximum tier reached</div>}
+            </div>;
+          })()}
+        </div>;
+      })()}
+
       {/* SR Cards */}
-      <h3 style={{fontSize:12,fontWeight:800,color:"#0A1628",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.08em"}}>SR Performance</h3>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14,alignItems:"start"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+        <div style={{width:30,height:30,borderRadius:9,background:"#0A16281A",color:"#0A1628",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div>
+          <div style={{fontSize:15,fontWeight:800,color:"#0A1628"}}>SR Performance</div>
+          <div style={{fontSize:11.5,color:"#8A96A8"}}>{srList.filter(sr=>srVisibleInMonth(sr,month,year)).length} sales reps · ranked by achievement</div>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,alignItems:"start"}}>
         {srList.filter(sr=>srVisibleInMonth(sr,month,year)).sort((a,b)=>pctN(srTotals[b.id]?.total||0,targets?.sr?.[b.id]?.target||0)-pctN(srTotals[a.id]?.total||0,targets?.sr?.[a.id]?.target||0)).map(sr=>{
   const target=targets?.sr?.[sr.id]?.target||0,bonus=targets?.sr?.[sr.id]?.bonus||0;
   const rows=days.map(d=>{const k=`${d}/${month}/${year}`,v=records[k]?.[sr.id]||{};return{day:d,wi:v.walkin||0,ae:v.aeon||0};});
@@ -736,22 +747,23 @@ export default function App(){
   const p=pctN(total,target),color=achColor(total,target);
   const bonusEarned=branchPct>=100&&total>=target&&bonus>0;
   const achBonus=calcAchievementBonus(p),points=calcRewardPoints(p,branchPct);
-  const thS={padding:"6px 12px",fontSize:10,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",whiteSpace:"nowrap"};
-  return <div key={sr.id} style={{border:"1px solid #E4EAF2",borderRadius:10,overflow:"hidden",background:"#fff",boxShadow:"0 1px 4px rgba(10,22,40,.05)"}}>
-    <div style={{background:"#0A1628",padding:"10px 14px"}}>
+  const thS={padding:"6px 12px",fontSize:10,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",whiteSpace:"nowrap",position:"sticky",top:0,zIndex:1};
+  return <div key={sr.id} style={{border:"1px solid #E4EAF2",borderRadius:14,overflow:"hidden",background:"#fff",boxShadow:"0 2px 8px rgba(10,22,40,.06)"}}>
+    <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"14px 16px"}}>
       <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>EMAX NETWORK SDN BHD</div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:3}}>
-        <span style={{fontWeight:800,fontSize:13,color:"#fff"}}>{sr.canon}</span>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:5}}>
+        <span style={{fontWeight:800,fontSize:15,color:"#fff"}}>{sr.canon}</span>
         <TypeTag type={sr.type}/>
       </div>
     </div>
-    <div style={{padding:"5px 14px",background:"#0F2040",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+    <div style={{padding:"7px 16px",background:"#0F2040",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
       <div style={{display:"flex",alignItems:"center",gap:6}}>
         <StatusTag status={sr.status}/>
         <button onClick={()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}} style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:4,border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:"rgba(255,255,255,.45)",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>History</button>
       </div>
       <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}}>{(bMeta[sr.branch]?.name||sr.branch).toUpperCase()}</span>
     </div>
+    <div style={{maxHeight:280,overflowY:"auto"}}>
     <table style={{width:"100%",borderCollapse:"collapse"}}>
       <thead><tr>
         <th style={{...thS,textAlign:"center",width:48}}>Date</th>
@@ -769,7 +781,8 @@ export default function App(){
         </tr>;
       })}</tbody>
     </table>
-    <div style={{padding:"10px 14px",background:"#F7F9FC",borderTop:"2px solid #E4EAF2"}}>
+    </div>
+    <div style={{padding:"12px 16px",background:"#F7F9FC",borderTop:"2px solid #E4EAF2"}}>
       {[["Walk In",fRM(tWI),"#4A5568"],["Invoice",fRM(tAE),"#4A5568"],["Total Profit",fRM(total),"#0A1628"]].map(([l,v,c])=>(
         <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",fontSize:11}}>
           <span style={{color:"#5A6472"}}>{l}</span>
@@ -828,7 +841,7 @@ export default function App(){
         <span style={{fontSize:11,color:"#4A5568",whiteSpace:"nowrap",flexShrink:0}}>{(rewardBalances[sr.id]?.balance||0).toLocaleString()} pts</span>
       </div>
 
-      {/* Compact tier progress — only shown when at least one tier is active */}
+      {/* Compact tier progress — same blue/violet cards as the Branch Manager's incentive strip, only shown when at least one tier is active */}
       {((branchPct>=120&&p>=100)||(branchPct>=100&&p>=110))&&(()=>{
         const bTier=branchPct>=120&&p>=100?Math.floor((branchPct-120)/10)+1:null;
         const bNextPct=bTier?120+bTier*10:null;
@@ -837,14 +850,18 @@ export default function App(){
         const TIERS=[[110,500],[120,1000],[130,1500],[140,2000],[150,3000],[160,4500],[170,6000],[180,7500],[190,9000],[200,12000]];
         const pTierIdx=branchPct>=100&&p>=110?TIERS.reduce((acc,[t],i)=>p>=t?i:acc,-1):-1;
         const pNext=pTierIdx>=0?TIERS[pTierIdx+1]:null;
-        return <div style={{background:"#F7F9FC",borderRadius:8,padding:"8px 10px",border:"1px solid #E4EAF2",display:"flex",flexDirection:"column",gap:5}}>
-          {bTier&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:10,color:"#92400E",fontWeight:600}}>Bonus Tier {bTier}{!bMax?` → next at ${bNextPct}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"sr")):"🏆"}</span>
+        return <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:6}}>
+          {bTier&&<div style={{background:"linear-gradient(135deg,#EFF6FF,#DBEAFE)",borderRadius:9,padding:"9px 11px",border:"1px solid #93C5FD"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:10.5,color:"#1E3A8A",fontWeight:600}}>Bonus Tier {bTier}{!bMax?` → next at ${bNextPct}%`:" (max)"}</span>
+              <span style={{fontSize:11.5,fontWeight:700,color:"#1D4ED8"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"sr")):"Max"}</span>
+            </div>
           </div>}
-          {pTierIdx>=0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontSize:10,color:"#1E40AF",fontWeight:600}}>Points Tier {pTierIdx+1}{pNext?` → next at ${pNext[0]}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{pNext?pNext[1].toLocaleString()+" pts":"🏆"}</span>
+          {pTierIdx>=0&&<div style={{background:"linear-gradient(135deg,#F5F0FF,#EDE4FF)",borderRadius:9,padding:"9px 11px",border:"1px solid #C4B5FD"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:10.5,color:"#5B21B6",fontWeight:600}}>Points Tier {pTierIdx+1}{pNext?` → next at ${pNext[0]}%`:" (max)"}</span>
+              <span style={{fontSize:11.5,fontWeight:700,color:"#6D28D9"}}>{pNext?pNext[1].toLocaleString()+" pts":"Max"}</span>
+            </div>
           </div>}
         </div>;
       })()}
