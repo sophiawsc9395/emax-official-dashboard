@@ -844,6 +844,14 @@ function RTOSummaryComp({customers}){
                 <td style={{padding:"8px 12px",fontSize:11,color:"#7F1D1D"}}>{c.overdue.length===1?"1 month — follow up":`${c.overdue.length} months — urgent`}</td>
               </tr>
             ))}</tbody>
+            <tbody>
+            <tr style={{background:"#FEE2E2",borderTop:"2px solid #FECACA"}}>
+              <td colSpan={4} style={{padding:"8px 12px",fontWeight:800,fontSize:11,color:"#7F1D1D"}}>TOTAL — {overdueCustomers.length} customer{overdueCustomers.length>1?"s":""}</td>
+              <td style={{padding:"8px 12px",fontWeight:800,fontSize:12,color:"#7F1D1D"}}>{fRM(overdueCustomers.reduce((s,c)=>s+c.overdue.reduce((s2,sl)=>s2+sl.amount,0),0))}</td>
+              <td style={{padding:"8px 12px",fontWeight:800,fontSize:11,color:"#7F1D1D"}}>{fRM(overdueCustomers.reduce((s,c)=>s+c.outstanding,0))}</td>
+              <td/>
+            </tr>
+            </tbody>
           </table></div>
         </>}
         <div style={{fontSize:11,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.07em",padding:"12px 16px 8px",borderTop:"1px solid #E4EAF2"}}>All Customers Payment Analysis</div>
