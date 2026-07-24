@@ -1982,6 +1982,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         read left-to-right as a row on a wide screen, so no rail is needed
         for the sequence to still be legible). */}
     <div style={{marginBottom:20}}>
+      <div style={isMobile?undefined:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:18,alignItems:"start",marginBottom:20}}>{/* fixed 2 phases per row on desktop */}
       {groupedPhases.map(ph=>{
         const phaseTotal=ph.steps.reduce((sum,s)=>sum+(stepCounts[s.step]||0),0);
         return isMobile?(
@@ -2008,20 +2009,20 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             </div>
           </div>
         ):(
-          <div key={ph.id} style={{marginBottom:26}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:13}}>
-              <div style={{width:4,height:18,borderRadius:2,background:ph.color}}/>
-              <div style={{fontSize:15,fontWeight:800,color:C.navy}}>{ph.label}</div>
-              <div style={{fontSize:12,fontWeight:700,color:C.textLight,background:C.white,border:`1px solid ${C.border}`,padding:"3px 10px",borderRadius:20}}>{phaseTotal} order{phaseTotal!==1?"s":""}</div>
+          <div key={ph.id}>
+            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:10}}>
+              <div style={{width:4,height:15,borderRadius:2,background:ph.color}}/>
+              <div style={{fontSize:13,fontWeight:800,color:C.navy}}>{ph.label}</div>
+              <div style={{fontSize:11,fontWeight:700,color:C.textLight,background:C.white,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:20}}>{phaseTotal} order{phaseTotal!==1?"s":""}</div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10}}>
               {ph.steps.map(s=>{
                 const count=stepCounts[s.step]||0,active=filterPhase===s.step;
-                return<div key={s.step} onClick={()=>setFilterPhase(active?"all":s.step)} style={{...card,border:`1px solid ${active?ph.color:C.border}`,borderTop:`3px solid ${ph.color}`,padding:"22px 22px 20px",display:"flex",flexDirection:"column",gap:16,cursor:"pointer",boxShadow:active?`0 0 0 1.5px ${ph.color}, 0 10px 22px rgba(10,22,40,.10)`:card.boxShadow,transition:"all .12s"}}>
-                  <div style={{width:42,height:42,borderRadius:11,background:ph.bg,color:ph.color,display:"flex",alignItems:"center",justifyContent:"center"}}>{PHASE_ICONS[ph.id]}</div>
+                return<div key={s.step} onClick={()=>setFilterPhase(active?"all":s.step)} style={{...card,border:`1px solid ${active?ph.color:C.border}`,borderTop:`3px solid ${ph.color}`,padding:"12px 14px 11px",display:"flex",flexDirection:"column",gap:9,cursor:"pointer",boxShadow:active?`0 0 0 1.5px ${ph.color}, 0 6px 16px rgba(10,22,40,.08)`:card.boxShadow,transition:"all .12s"}}>
+                  <div style={{width:30,height:30,borderRadius:8,background:ph.bg,color:ph.color,display:"flex",alignItems:"center",justifyContent:"center"}}>{PHASE_ICONS[ph.id]}</div>
                   <div>
-                    <div style={{fontSize:11.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:6}}>{s.label}</div>
-                    <div style={{fontSize:30,fontWeight:800,color:count?C.navy:"#C3CCDA",lineHeight:1}}>{count}</div>
+                    <div style={{fontSize:9.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:3}}>{s.label}</div>
+                    <div style={{fontSize:21,fontWeight:800,color:count?C.navy:"#C3CCDA",lineHeight:1}}>{count}</div>
                   </div>
                 </div>;
               })}
@@ -2029,6 +2030,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
           </div>
         );
       })}
+      </div>
 
       {/* Terminal states (Completed / Cancelled) — outside the phase flow,
           so kept visually separate as flat pill rows rather than grid cards. */}
