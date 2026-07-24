@@ -747,7 +747,7 @@ export default function App(){
   const p=pctN(total,target),color=achColor(total,target);
   const bonusEarned=branchPct>=100&&total>=target&&bonus>0;
   const achBonus=calcAchievementBonus(p),points=calcRewardPoints(p,branchPct);
-  const thS={padding:"6px 12px",fontSize:10,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",whiteSpace:"nowrap",position:"sticky",top:0,zIndex:1};
+  const thS={padding:"6px 12px",fontSize:10,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",whiteSpace:"nowrap"};
   return <div key={sr.id} style={{border:"1px solid #E4EAF2",borderRadius:14,overflow:"hidden",background:"#fff",boxShadow:"0 2px 8px rgba(10,22,40,.06)"}}>
     <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"14px 16px"}}>
       <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>EMAX NETWORK SDN BHD</div>
@@ -763,7 +763,6 @@ export default function App(){
       </div>
       <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}}>{(bMeta[sr.branch]?.name||sr.branch).toUpperCase()}</span>
     </div>
-    <div style={{maxHeight:280,overflowY:"auto"}}>
     <table style={{width:"100%",borderCollapse:"collapse"}}>
       <thead><tr>
         <th style={{...thS,textAlign:"center",width:48}}>Date</th>
@@ -781,7 +780,6 @@ export default function App(){
         </tr>;
       })}</tbody>
     </table>
-    </div>
     <div style={{padding:"12px 16px",background:"#F7F9FC",borderTop:"2px solid #E4EAF2"}}>
       {[["Walk In",fRM(tWI),"#4A5568"],["Invoice",fRM(tAE),"#4A5568"],["Total Profit",fRM(total),"#0A1628"]].map(([l,v,c])=>(
         <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",fontSize:11}}>
