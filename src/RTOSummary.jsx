@@ -53,7 +53,7 @@ function StatTile({label,value,color,icon,accent}){
   </div>;
 }
 
-function RTOSummaryInner({customers,branchMeta}){
+export function RTOSummaryInner({customers,branchMeta}){
   const summaryRef=useRef(null);
   const now=new Date();
   const currentKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
