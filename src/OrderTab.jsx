@@ -1927,6 +1927,10 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const viewingCancelled=filterPhase==="cancelled";
   const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||filterPhase==="all"||o.step===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
   const stepCounts=useMemo(()=>STEPS.filter(s=>s.step!==14).reduce((acc,s)=>{acc[s.step]=activeOrders.filter(o=>o.step===s.step).length;return acc;},{}),[activeOrders]);
+  // Step cards grouped by phase (Stock Order, Stock Transfer, Billing, etc.)
+  // for the redesigned Order Tracking cards — each phase only appears if it
+  // has at least one step visible to this role.
+  const groupedPhases=useMemo(()=>PHASES.map(ph=>({...ph,steps:STEPS.filter(s=>s.phase===ph.id&&s.step!==14&&canSeeStepCard(s.step))})).filter(g=>g.steps.length>0),[orderPermissions,userBranch,isAdmin]);
   const completedCount=orders.filter(o=>o.step===14&&visibleToBranch(o,userBranch)).length;
   const alerts=useMemo(()=>getOrderAlerts(activeOrders,userBranch),[activeOrders,userBranch]);
   const alertsByOrderId=useMemo(()=>{const m={};alerts.forEach(a=>{if(!m[a.orderId])m[a.orderId]=a;});return m;},[alerts]);
@@ -1971,40 +1975,71 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     {/* Alerts */}
     <AlertBanner alerts={alerts} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
 
-    {/* Step progress cards — one per visible step, not grouped by phase */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
-      {STEPS.filter(s=>s.step!==14&&canSeeStepCard(s.step)).map(s=>{
-        const ph=getPhase(s.step);
-        const count=stepCounts[s.step]||0,active=filterPhase===s.step;
-        return<div key={s.step} onClick={()=>setFilterPhase(active?"all":s.step)} style={{...card,padding:0,overflow:"hidden",cursor:"pointer",border:`1px solid ${active?ph.color:C.border}`,boxShadow:active?`0 0 0 1px ${ph.color}, 0 1px 3px rgba(10,22,40,.06)`:card.boxShadow,transition:"all .15s"}}>
-          <div style={{height:3,background:active?ph.color:"transparent",transition:"background .15s"}}/>
-          <div style={{padding:"13px 16px",display:"flex",alignItems:"center",gap:12}}>
-            <div style={{width:34,height:34,borderRadius:8,background:active?ph.color:C.surface,border:active?"none":`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:active?"#fff":C.textMid,flexShrink:0,transition:"all .15s"}}>{PHASE_ICONS[ph.id]}</div>
-            <div style={{minWidth:0}}>
-              <div style={{fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.label}</div>
-              <div style={{fontSize:23,fontWeight:800,color:C.navy,lineHeight:1}}>{count}</div>
+    {/* Step progress cards — grouped by phase. Mobile: cards connected by a
+        colored rail per phase (echoes the physical hand-off of stock/
+        paperwork moving through that phase). Desktop: a clean even grid per
+        phase with a colored top edge, no connecting rail (a phase's steps
+        read left-to-right as a row on a wide screen, so no rail is needed
+        for the sequence to still be legible). */}
+    <div style={{marginBottom:20}}>
+      {groupedPhases.map(ph=>{
+        const phaseTotal=ph.steps.reduce((sum,s)=>sum+(stepCounts[s.step]||0),0);
+        return isMobile?(
+          <div key={ph.id} style={{marginBottom:18}}>
+            <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:11}}>
+              <div style={{width:4,height:16,borderRadius:2,background:ph.color}}/>
+              <div style={{fontSize:13.5,fontWeight:800,color:C.navy}}>{ph.label}</div>
+              <div style={{marginLeft:"auto",fontSize:11.5,fontWeight:700,color:C.textLight,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 9px",borderRadius:20}}>{phaseTotal} order{phaseTotal!==1?"s":""}</div>
+            </div>
+            <div style={{position:"relative",paddingLeft:22}}>
+              <div style={{position:"absolute",left:5,top:8,bottom:8,width:2,borderRadius:2,background:ph.bg}}/>
+              {ph.steps.map((s,i)=>{
+                const count=stepCounts[s.step]||0,active=filterPhase===s.step;
+                return<div key={s.step} style={{position:"relative",marginBottom:i===ph.steps.length-1?0:10}}>
+                  <div onClick={()=>setFilterPhase(active?"all":s.step)} style={{...card,padding:"13px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",border:`1px solid ${active?ph.color:C.border}`,boxShadow:active?`0 0 0 1.5px ${ph.color}, 0 6px 16px rgba(10,22,40,.09)`:card.boxShadow,transition:"all .12s"}}>
+                    <div style={{width:38,height:38,borderRadius:10,background:ph.bg,color:ph.color,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{PHASE_ICONS[ph.id]}</div>
+                    <div style={{minWidth:0,flex:1}}>
+                      <div style={{fontSize:10.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.label}</div>
+                      <div style={{fontSize:22,fontWeight:800,color:count?C.navy:"#C3CCDA",lineHeight:1}}>{count}</div>
+                    </div>
+                  </div>
+                </div>;
+              })}
             </div>
           </div>
-        </div>;
+        ):(
+          <div key={ph.id} style={{marginBottom:26}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:13}}>
+              <div style={{width:4,height:18,borderRadius:2,background:ph.color}}/>
+              <div style={{fontSize:15,fontWeight:800,color:C.navy}}>{ph.label}</div>
+              <div style={{fontSize:12,fontWeight:700,color:C.textLight,background:C.white,border:`1px solid ${C.border}`,padding:"3px 10px",borderRadius:20}}>{phaseTotal} order{phaseTotal!==1?"s":""}</div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:16}}>
+              {ph.steps.map(s=>{
+                const count=stepCounts[s.step]||0,active=filterPhase===s.step;
+                return<div key={s.step} onClick={()=>setFilterPhase(active?"all":s.step)} style={{...card,border:`1px solid ${active?ph.color:C.border}`,borderTop:`3px solid ${ph.color}`,padding:"22px 22px 20px",display:"flex",flexDirection:"column",gap:16,cursor:"pointer",boxShadow:active?`0 0 0 1.5px ${ph.color}, 0 10px 22px rgba(10,22,40,.10)`:card.boxShadow,transition:"all .12s"}}>
+                  <div style={{width:42,height:42,borderRadius:11,background:ph.bg,color:ph.color,display:"flex",alignItems:"center",justifyContent:"center"}}>{PHASE_ICONS[ph.id]}</div>
+                  <div>
+                    <div style={{fontSize:11.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:6}}>{s.label}</div>
+                    <div style={{fontSize:30,fontWeight:800,color:count?C.navy:"#C3CCDA",lineHeight:1}}>{count}</div>
+                  </div>
+                </div>;
+              })}
+            </div>
+          </div>
+        );
       })}
-      {isSuperAdminOrder&&<div onClick={()=>setFilterPhase(viewingCompleted?"all":"completed")} style={{...card,padding:0,overflow:"hidden",cursor:"pointer",border:`1px solid ${viewingCompleted?"#15803D":C.border}`,boxShadow:viewingCompleted?`0 0 0 1px #15803D, 0 1px 3px rgba(10,22,40,.06)`:card.boxShadow,transition:"all .15s",gridColumn:"1/-1"}}>
-        <div style={{height:3,background:viewingCompleted?"#15803D":"transparent",transition:"background .15s"}}/>
-        <div style={{padding:"13px 16px",display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:34,height:34,borderRadius:8,background:viewingCompleted?"#15803D":C.surface,border:viewingCompleted?"none":`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:viewingCompleted?"#fff":C.textMid,flexShrink:0,transition:"all .15s"}}>{Ic.checkCircle}</div>
-          <div style={{minWidth:0}}>
-            <div style={{fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Completed</div>
-            <div style={{fontSize:23,fontWeight:800,color:C.navy,lineHeight:1}}>{completedCount}</div>
-          </div>
+
+      {/* Terminal states (Completed / Cancelled) — outside the phase flow,
+          so kept visually separate as flat pill rows rather than grid cards. */}
+      {isSuperAdminOrder&&<div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?10:14}}>
+        <div onClick={()=>setFilterPhase(viewingCompleted?"all":"completed")} style={{...card,border:`1px solid ${viewingCompleted?"#15803D":C.border}`,boxShadow:viewingCompleted?`0 0 0 1.5px #15803D, 0 4px 12px rgba(10,22,40,.08)`:card.boxShadow,padding:"14px 18px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",transition:"all .12s",flex:isMobile?"none":"0 0 240px"}}>
+          <div style={{width:36,height:36,borderRadius:10,background:"#F0FDF4",color:"#15803D",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{Ic.checkCircle}</div>
+          <div><div style={{fontSize:10.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>Completed</div><div style={{fontSize:20,fontWeight:800,color:C.navy,lineHeight:1}}>{completedCount}</div></div>
         </div>
-      </div>}
-      {isSuperAdminOrder&&<div onClick={()=>setFilterPhase(viewingCancelled?"all":"cancelled")} style={{...card,padding:0,overflow:"hidden",cursor:"pointer",border:`1px solid ${viewingCancelled?"#DC2626":C.border}`,boxShadow:viewingCancelled?`0 0 0 1px #DC2626, 0 1px 3px rgba(10,22,40,.06)`:card.boxShadow,transition:"all .15s",gridColumn:"1/-1"}}>
-        <div style={{height:3,background:viewingCancelled?"#DC2626":"transparent",transition:"background .15s"}}/>
-        <div style={{padding:"13px 16px",display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:34,height:34,borderRadius:8,background:viewingCancelled?"#DC2626":C.surface,border:viewingCancelled?"none":`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:viewingCancelled?"#fff":C.textMid,flexShrink:0,transition:"all .15s"}}>{Ic.x}</div>
-          <div style={{minWidth:0}}>
-            <div style={{fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3}}>Cancelled</div>
-            <div style={{fontSize:23,fontWeight:800,color:C.navy,lineHeight:1}}>{cancelledOrders.length}</div>
-          </div>
+        <div onClick={()=>setFilterPhase(viewingCancelled?"all":"cancelled")} style={{...card,border:`1px solid ${viewingCancelled?"#DC2626":C.border}`,boxShadow:viewingCancelled?`0 0 0 1.5px #DC2626, 0 4px 12px rgba(10,22,40,.08)`:card.boxShadow,padding:"14px 18px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",transition:"all .12s",flex:isMobile?"none":"0 0 240px"}}>
+          <div style={{width:36,height:36,borderRadius:10,background:"#F1F3F7",color:C.textLight,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{Ic.x}</div>
+          <div><div style={{fontSize:10.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>Cancelled</div><div style={{fontSize:20,fontWeight:800,color:C.navy,lineHeight:1}}>{cancelledOrders.length}</div></div>
         </div>
       </div>}
     </div>
