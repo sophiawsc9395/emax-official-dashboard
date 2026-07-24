@@ -44,11 +44,11 @@ function PBtn({children,onClick,disabled,style={}}){
   return<button onClick={onClick} disabled={disabled} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,padding:"9px 18px",background:disabled?"#E4EAF2":`linear-gradient(135deg,${C.blue},${C.blueBright})`,color:disabled?C.textLight:C.white,border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:disabled?"default":"pointer",fontFamily:"Inter,sans-serif",boxShadow:disabled?"none":`0 2px 8px rgba(27,63,114,.35)`,transition:"all .15s",...style}}>{children}</button>;
 }
 function StatTile({label,value,color,icon,accent}){
-  return<div style={{...card,padding:"13px 15px",display:"flex",alignItems:"center",gap:11,borderTop:`3px solid ${accent||C.border}`}}>
+  return<div style={{...card,overflow:"visible",padding:"13px 15px",display:"flex",alignItems:"center",gap:11,borderTop:`3px solid ${accent||C.border}`}}>
     <div style={{width:32,height:32,borderRadius:9,background:accent?accent+"1A":C.surface,color:accent||C.textMid,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{icon}</div>
     <div style={{minWidth:0}}>
       <div style={lbl}>{label}</div>
-      <div style={{fontSize:15,fontWeight:800,color:color||C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{value}</div>
+      <div style={{fontSize:13.5,fontWeight:800,color:color||C.text,whiteSpace:"nowrap"}}>{value}</div>
     </div>
   </div>;
 }
@@ -125,7 +125,7 @@ export function RTOSummaryInner({customers,branchMeta}){
           Portfolio Summary — As at {today}
         </SecHdr>
 
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,padding:14,background:C.surface,borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:10,padding:14,background:C.surface,borderBottom:`1px solid ${C.border}`}}>
           <StatTile label="Total Customers" value={totals.customers+" pax"} icon={Ic.users} accent={C.navy}/>
           <StatTile label="Active" value={(totals.customers-totals.completeCount)+" pax"} icon={Ic.users} accent={C.navy}/>
           <StatTile label="Completed" value={totals.completeCount+" pax"} icon={Ic.checkCircle} accent={C.navy}/>
