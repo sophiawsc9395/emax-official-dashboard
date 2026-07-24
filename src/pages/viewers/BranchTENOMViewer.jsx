@@ -381,6 +381,8 @@ export default function App(){
   const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair"].includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
+  const [isMobile,setIsMobile]=useState(typeof window!=="undefined"&&window.innerWidth<=760);
+  useEffect(()=>{const onResize=()=>setIsMobile(window.innerWidth<=760);window.addEventListener("resize",onResize);return()=>window.removeEventListener("resize",onResize);},[]);
   const [rewardBalances,setRewardBalances]=useState({});
   const [rewardHistory,setRewardHistory]=useState({});
   const [showPointsModal,setShowPointsModal]=useState(false);
@@ -739,7 +741,7 @@ export default function App(){
           <div style={{fontSize:11.5,color:"#8A96A8"}}>{srList.filter(sr=>srVisibleInMonth(sr,month,year)).length} sales reps · ranked by achievement</div>
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,alignItems:"start"}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:isMobile?12:16,alignItems:"start"}}>
         {srList.filter(sr=>srVisibleInMonth(sr,month,year)).sort((a,b)=>pctN(srTotals[b.id]?.total||0,targets?.sr?.[b.id]?.target||0)-pctN(srTotals[a.id]?.total||0,targets?.sr?.[a.id]?.target||0)).map(sr=>{
   const target=targets?.sr?.[sr.id]?.target||0,bonus=targets?.sr?.[sr.id]?.bonus||0;
   const rows=days.map(d=>{const k=`${d}/${month}/${year}`,v=records[k]?.[sr.id]||{};return{day:d,wi:v.walkin||0,ae:v.aeon||0};});
@@ -751,13 +753,13 @@ export default function App(){
   return <div key={sr.id} style={{border:"1px solid #E4EAF2",borderRadius:14,overflow:"hidden",background:"#fff",boxShadow:"0 2px 8px rgba(10,22,40,.06)"}}>
     <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"14px 16px"}}>
       <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>EMAX NETWORK SDN BHD</div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:5}}>
-        <span style={{fontWeight:800,fontSize:15,color:"#fff"}}>{sr.canon}</span>
-        <TypeTag type={sr.type}/>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:5,gap:8}}>
+        <span style={{fontWeight:800,fontSize:15,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sr.canon}</span>
+        <span style={{flexShrink:0}}><TypeTag type={sr.type}/></span>
       </div>
     </div>
-    <div style={{padding:"7px 16px",background:"#0F2040",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-      <div style={{display:"flex",alignItems:"center",gap:6}}>
+    <div style={{padding:"7px 16px",background:"#0F2040",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
         <StatusTag status={sr.status}/>
         <button onClick={()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}} style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:4,border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:"rgba(255,255,255,.45)",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>History</button>
       </div>
@@ -810,32 +812,32 @@ export default function App(){
       <div style={{fontSize:9,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>Incentives</div>
 
       {/* Personal Achievement Bonus */}
-      {bonus>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:4,gap:6,flexWrap:"nowrap"}}>
-        <span style={{color:"#5A6472",fontSize:10}}>Personal Achievement Bonus</span>
-        <span style={{fontSize:10,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>
+      {bonus>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"2px 0",fontSize:11,gap:6}}>
+        <span style={{color:"#5A6472"}}>Personal Achievement Bonus</span>
+        <span style={{color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>
           {bonusEarned?fRM(bonus):`${fRM(bonus)} (Pending)`}
         </span>
       </div>}
 
       {/* Branch Achievement Bonus */}
-      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2,gap:6,flexWrap:"nowrap"}}>
-        <span style={{color:"#5A6472",fontSize:10}}>Branch Achievement Bonus</span>
+      <div style={{display:"flex",justifyContent:"space-between",padding:"2px 0",fontSize:11,gap:6}}>
+        <span style={{color:"#5A6472"}}>Branch Achievement Bonus</span>
         {(branchPct>=120&&p>=100)
-          ? <span style={{fontSize:10,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{fRM(calcAchievementBonus(branchPct,"sr"))}</span>
+          ? <span style={{color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{fRM(calcAchievementBonus(branchPct,"sr"))}</span>
           : <span style={{color:"#5A6472",flexShrink:0}}>—</span>
         }
       </div>
 
       {/* Reward Points */}
-      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2,marginTop:2,gap:6,flexWrap:"nowrap"}}>
-        <span style={{color:"#5A6472",fontSize:10}}>Reward Points (This Month)</span>
+      <div style={{display:"flex",justifyContent:"space-between",padding:"2px 0",fontSize:11,gap:6}}>
+        <span style={{color:"#5A6472"}}>Reward Points (This Month)</span>
         {(branchPct>=100&&p>=110)
-          ? <span style={{fontSize:10,color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{calcRewardPoints(p,branchPct).toLocaleString()} pts</span>
+          ? <span style={{color:"#0A1628",whiteSpace:"nowrap",flexShrink:0}}>{calcRewardPoints(p,branchPct).toLocaleString()} pts</span>
           : <span style={{color:"#5A6472",flexShrink:0}}>—</span>
         }
       </div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:11,marginBottom:6,gap:6,flexWrap:"nowrap"}}>
-        <span style={{color:"#5A6472",fontSize:10,flex:1,minWidth:0,overflow:"visible"}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
+      <div style={{display:"flex",justifyContent:"space-between",padding:"2px 0",marginBottom:4,fontSize:11,gap:6}}>
+        <span style={{color:"#5A6472",flex:1,minWidth:0}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
         <span style={{fontSize:11,color:"#4A5568",whiteSpace:"nowrap",flexShrink:0}}>{(rewardBalances[sr.id]?.balance||0).toLocaleString()} pts</span>
       </div>
 
