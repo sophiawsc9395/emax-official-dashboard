@@ -653,7 +653,7 @@ export default function App(){
             <h2 style={{fontWeight:800,fontSize:18,color:"#fff",margin:0,letterSpacing:"0.01em"}}>{meta.name||DEFAULT_BRANCH_META[BRANCH_ID]?.name}</h2>
             <div style={{fontSize:12,color:"rgba(255,255,255,.55)",marginTop:5,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>BM: {meta.manager} · {meta.mStatus}<button onClick={()=>{setStatusModalPerson(`BM_${BRANCH_ID}`);setShowStatusHistoryModal(true);}} style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:5,border:"1px solid rgba(255,255,255,.25)",background:"rgba(255,255,255,.06)",color:"rgba(255,255,255,.75)",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>History</button></div>
           </div>
-          <div style={{textAlign:"right"}}>
+          <div style={{textAlign:"right",marginLeft:"auto"}}>
             <div style={{fontWeight:800,fontSize:24,color:achColor(bTotal.total,bTarget),letterSpacing:"-0.02em"}}>
               {bTarget>0?branchPct.toFixed(1)+"%":"—"}
             </div>
