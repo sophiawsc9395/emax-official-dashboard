@@ -573,9 +573,11 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       const depositOk=o.depositPaymentDate&&(!dateFilter||o.depositPaymentDate===dateFilter);
       return!!(depositOk||bal);
     }
-    // Upfront Payment — matches on EITHER the 1st or 2nd upfront payment date.
+    // Upfront Payment — follows the date the admin clicked "Confirm:
+    // Collection Verified" (h.date), not the typed Upfront/2nd Payment Date
+    // fields (those are now shown as their own reference columns instead).
     const h=o.lastVerification;
-    return h&&(h.upfrontPaymentDate||h.secondPaymentDate)&&(!dateFilter||h.upfrontPaymentDate===dateFilter||h.secondPaymentDate===dateFilter);
+    return h&&(h.upfrontPaymentDate||h.secondPaymentDate)&&(!dateFilter||h.date===dateFilter);
   }).sort((a,b)=>(a.invoiceNo||"").localeCompare(b.invoiceNo||""));
   if(!filtered.length){alert(`No records found${dateFilter?` for ${fDate(dateFilter)}`:""}.`);return;}
   const dateStr=dateFilter?fDate(dateFilter):"All Dates";
@@ -630,13 +632,12 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
   } else {
     rows=filtered.map((o,i)=>{
       const h=o.lastVerification;
-      // Only show each amount if ITS OWN date matches the date this report is
-      // for — otherwise a short-payment's original date can leak an amount
-      // that belongs to a different day into this day's report.
-      const show1=!dateFilter||h?.upfrontPaymentDate===dateFilter;
-      const show2=!dateFilter||h?.secondPaymentDate===dateFilter;
-      const amt1=show1?parseFloat(h?.paymentProofAmount)||0:0;
-      const amt2=show2?parseFloat(h?.secondPaymentAmount)||0:0;
+      // Both amounts belong to the same verification event (one Confirm
+      // click), so both are shown/hidden together based on that click's
+      // date matching the report's date filter.
+      const showRow=!dateFilter||h?.date===dateFilter;
+      const amt1=showRow?parseFloat(h?.paymentProofAmount)||0:0;
+      const amt2=showRow?parseFloat(h?.secondPaymentAmount)||0:0;
       total1+=amt1;total2+=amt2;
       // Upfront 1 = Agreement Fee + Stamping Fee + Deposit (the subtotal due
       // before collection). Upfront 2 = First Monthly Installment. Both are
@@ -644,9 +645,9 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       const upfront1=calcUpfront(o).total;
       const upfront2=parseFloat(h?.monthlyInstallment??o.monthlyInstallment)||0;
       total3+=upfront1;total4+=upfront2;
-      return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.customerName||"—"}</td><td>${o.agreementNumber||"—"}</td><td>${show1&&amt1?`RM ${amt1.toFixed(2)}`:"—"}</td><td>${show1?(h?.paymentMethod||"—"):"—"}</td><td>${show2&&amt2?`RM ${amt2.toFixed(2)}`:"—"}</td><td>${show2&&amt2?(h?.secondPayMethod||"—"):"—"}</td><td>RM ${upfront1.toFixed(2)}</td><td>RM ${upfront2.toFixed(2)}</td></tr>`;
+      return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.customerName||"—"}</td><td>${o.agreementNumber||"—"}</td><td>${showRow?fDate(h?.upfrontPaymentDate):"—"}</td><td>${showRow&&amt1?`RM ${amt1.toFixed(2)}`:"—"}</td><td>${showRow?(h?.paymentMethod||"—"):"—"}</td><td>${showRow&&h?.secondPaymentDate?fDate(h.secondPaymentDate):"—"}</td><td>${showRow&&amt2?`RM ${amt2.toFixed(2)}`:"—"}</td><td>${showRow&&amt2?(h?.secondPayMethod||"—"):"—"}</td><td>RM ${upfront1.toFixed(2)}</td><td>RM ${upfront2.toFixed(2)}</td></tr>`;
     }).join("");
-    rows+=`<tr class="tot"><td colspan="4"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td><td><b>RM ${total3.toFixed(2)}</b></td><td><b>RM ${total4.toFixed(2)}</b></td></tr>`;
+    rows+=`<tr class="tot"><td colspan="4"><b>TOTAL (${filtered.length})</b></td><td></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td><td><b>RM ${total3.toFixed(2)}</b></td><td><b>RM ${total4.toFixed(2)}</b></td></tr>`;
   }
   const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":isCashKnockoff?"Cash Order Knock Off Report":isCollectionOverdue?"Collection Proof Overdue Report":isFirstInstallmentKnockoff?"First Monthly Installment Knock Off Report":"Upfront Payment Report";
   const heads=isAgreementReceived?`<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Merchant Approval Date</th>${!dateFilter?"<th>Date of Agreement Received by HQ</th>":""}<th>Claim Amount</th>`
@@ -657,7 +658,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     :isCashKnockoff?"<th>#</th><th>Device Name</th><th>Branch</th><th>Invoice No</th><th>Deposit Payment Date</th><th>Deposit Payment Method</th><th>Deposit Amount</th><th>Balance Payment Date</th><th>Balance Payment Method</th><th>Balance Payment Amount</th><th>Expected Balance Payment Amount</th>"
     :isCollectionOverdue?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Customer Name</th><th>Billing Date</th><th>Days Overdue</th>"
     :isFirstInstallmentKnockoff?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th><th>Knock-off Date</th>"
-    :"<th>#</th><th>Invoice No</th><th>Customer Name</th><th>Agreement No</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Payment Proof Amount</th><th>2nd Method</th><th>Upfront 1 Amount</th><th>Upfront 2 Amount</th>";
+    :"<th>#</th><th>Invoice No</th><th>Customer Name</th><th>Agreement No</th><th>Upfront Payment Date</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Upfront Payment Date</th><th>2nd Payment Proof Amount</th><th>2nd Method</th><th>Upfront 1 Amount</th><th>Upfront 2 Amount</th>";
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""} · Merchant: ${merchantLabel}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
   const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
 }
