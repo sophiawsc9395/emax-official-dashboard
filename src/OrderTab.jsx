@@ -1986,7 +1986,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         <div style={{fontSize:12,color:C.textLight,marginTop:4}}>{activeOrders.length} active · {completedCount} completed</div>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        {isAdmin&&canAdminStep(1)&&!isReadOnly&&orders.some(o=>!o.cancelled&&o.step===1)&&<GBtn onClick={()=>downloadNewOrderExcel(orders)}>{Ic.download} Download New Order Report (Excel)</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(4)&&orders.some(o=>o.step===3)&&<GBtn onClick={()=>setShowBulkDispatch(true)}>{Ic.truck} Dispatch to Branch</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(11)&&orders.some(o=>!o.cancelled&&o.step===10)&&<GBtn onClick={()=>setShowBulkAgreementReceived(true)}>{Ic.checkCircle} Set Agreement Received by HQ Date</GBtn>}
         {isAdmin&&!isReadOnly&&canSeeReport("firstInstallmentKnockoff")&&orders.some(o=>!o.cancelled&&o.orderType!=="cash"&&o.lastVerification?.paymentChecked&&o.lastVerification?.monthlyInstallment&&!o.firstInstallmentKnockOffDate)&&<GBtn onClick={()=>setShowBulkKnockOffInstallment(true)}>{Ic.checkCircle} Knock Off First Monthly Installment</GBtn>}
@@ -2092,7 +2091,11 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     {(()=>{
       const allReports=[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment Knock Off","firstInstallmentKnockoff",firstInstallmentKnockoffReportDate,setFirstInstallmentKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Cash Order Knock Off","cashKnockoff",cashKnockoffReportDate,setCashKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Collection Proof Overdue","collectionOverdue",collectionOverdueReportDate,setCollectionOverdueReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Purchase Claim","purchaseClaim",purchaseClaimReportDate,setPurchaseClaimReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]];
       const visibleReports=allReports.filter(([,type])=>canSeeReport(type));
-      if(!isAdmin||isReadOnly||!visibleReports.length)return null;
+      // New Order Report (Excel) isn't gated by the same canSeeReport/type
+      // system as the others — it's a direct step-1 export — but it belongs
+      // in this panel too since it's conceptually a report, not a bulk action.
+      const showNewOrderExcel=isAdmin&&canAdminStep(1)&&!isReadOnly&&orders.some(o=>!o.cancelled&&o.step===1);
+      if(!isAdmin||isReadOnly||(!visibleReports.length&&!showNewOrderExcel))return null;
       return<div style={{...card,marginTop:12}}>
       <div onClick={()=>setReportsExpanded(p=>!p)} style={{cursor:"pointer",userSelect:"none",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px"}}>
@@ -2103,6 +2106,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       {reportsExpanded&&<div style={{padding:"0 16px 16px",borderTop:`1px solid ${C.border}`}}>
         <div style={{padding:"14px 0 12px",maxWidth:260}}><L>Merchant</L><SEL value={reportMerchant} onChange={e=>setReportMerchant(e.target.value)}><option value="all">All Merchants</option>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
+          {showNewOrderExcel&&<div style={{border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",background:C.surface,display:"flex",flexDirection:"column",height:"100%"}}>
+            <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>New Order Report (Excel)</div>
+            <div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Every order currently sitting at New Order Request — exported as a spreadsheet, not the printable report the others use.</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:8,marginTop:"auto"}}>
+              <PBtn onClick={()=>downloadNewOrderExcel(orders)} style={{padding:"9px 12px",width:38,height:38,justifyContent:"center",flexShrink:0}}>{Ic.download}</PBtn>
+            </div>
+          </div>}
           {visibleReports.map(([label,type,date,setDate,src])=>{
             // For these report types, leaving the date blank doesn't mean
             // "every record ever" — it means "what's outstanding right now".

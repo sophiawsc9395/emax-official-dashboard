@@ -638,12 +638,12 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
       <table style={{width:"100%",borderCollapse:"collapse",minWidth:920}}>
         <thead><tr>
           <th style={TH({textAlign:"left"})}>Branch</th>
-          <th style={TH()}>Monthly Target</th>
+          <th style={TH()}>Achievement</th>
           <th style={TH()}>Total Profit</th>
           <th style={TH()}>Walk In</th>
           <th style={TH()}>Invoice</th>
           <th style={TH()}>Balance</th>
-          <th style={TH()}>Achievement</th>
+          <th style={TH()}>Monthly Target</th>
         </tr></thead>
         <tbody>{[...BRANCH_ORDER].sort((a,b2)=>{
             const pa=pctN(bt[a]?.total||0,targets?.bm?.[a]||0);
@@ -657,7 +657,9 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
               <div style={{fontWeight:700,color:"#0A1628",fontSize:12,textTransform:"uppercase"}}>{branchMeta[b]?.name||b}</div>
               <div style={{fontSize:10,color:"#5A6472",marginTop:1}}>{branchMeta[b]?.manager}</div>
             </td>
-            <td style={{...TD(),textAlign:"right"}}><span style={{color:"#4A5568",fontSize:12}}>{target>0?`RM ${nc(target)}`:"—"}</span></td>
+            <td style={{...TD(),textAlign:"right"}}>
+              {target>0?<AchBadge profit={total} target={target} size="md"/>:<span style={{color:"#4A5568",fontSize:12}}>—</span>}
+            </td>
             <td style={{...TD(),textAlign:"right"}}>
               <span style={{color:"#4A5568",fontSize:12}}>{total>0?`RM ${nc(total)}`:"—"}</span>
             </td>
@@ -672,14 +674,12 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
                 :bal>=0?<span style={{color:"#4A5568",fontSize:12}}>+RM {nc(bal)}</span>
                 :<span style={{color:"#4A5568",fontSize:12}}>RM {nc(Math.abs(bal))}</span>}
             </td>
-            <td style={{...TD(),textAlign:"right"}}>
-              {target>0?<AchBadge profit={total} target={target} size="md"/>:<span style={{color:"#4A5568",fontSize:12}}>—</span>}
-            </td>
+            <td style={{...TD(),textAlign:"right"}}><span style={{color:"#4A5568",fontSize:12}}>{target>0?`RM ${nc(target)}`:"—"}</span></td>
           </tr>;
         })}</tbody>
         <tfoot><tr style={{background:"#0A1628",fontSize:11}}>
           <td style={{padding:"9px 10px",fontWeight:600,color:"rgba(255,255,255,.6)",whiteSpace:"nowrap"}}>Total</td>
-          <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><span style={{color:"rgba(255,255,255,.6)"}}>{grandTgt>0?`RM ${nc(grandTgt)}`:"—"}</span></td>
+          <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><AchBadge profit={grandT} target={grandTgt} size="md"/></td>
           <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><span style={{color:"rgba(255,255,255,.6)"}}>{grandT>0?`RM ${nc(grandT)}`:"—"}</span></td>
           <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><span style={{color:"rgba(255,255,255,.6)"}}>{grandWI!==0?`RM ${nc(grandWI)}`:"—"}</span></td>
           <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><span style={{color:"rgba(255,255,255,.6)"}}>{grandAE>0?`RM ${nc(grandAE)}`:"—"}</span></td>
@@ -688,7 +688,7 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
               {grandTgt>0?(grandT-grandTgt>=0?"+RM "+nc(grandT-grandTgt):"RM "+nc(Math.abs(grandT-grandTgt))):"—"}
             </span>
           </td>
-          <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><AchBadge profit={grandT} target={grandTgt} size="md"/></td>
+          <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><span style={{color:"rgba(255,255,255,.6)"}}>{grandTgt>0?`RM ${nc(grandTgt)}`:"—"}</span></td>
         </tr></tfoot>
       </table>
     </div>
