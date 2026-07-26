@@ -161,20 +161,21 @@ function VerifyBox({report,onSaved}){
   </div>;
 }
 
-function downloadMonthlyBankInPDF(reports,branchMeta,month){
+function downloadMonthlyBankInPDF(reports,branchMeta,month,scopeBranch){
   const rows=reports
-    .filter(r=>r.verifiedAt&&r.date.slice(0,7)===month)
+    .filter(r=>r.verifiedAt&&r.date.slice(0,7)===month&&(!scopeBranch||r.branch===scopeBranch))
     .sort((a,b)=>a.branch.localeCompare(b.branch)||a.date.localeCompare(b.date));
   const monthLabel=new Date(month+"-01").toLocaleDateString("en-MY",{month:"long",year:"numeric"});
+  const titleSuffix=scopeBranch?` — ${branchMeta[scopeBranch]?.name||scopeBranch}`:"";
   const w=window.open("","_blank");
-  w.document.write(`<!DOCTYPE html><html><head><title>Daily Sales Bank-in Report — ${monthLabel}</title>
+  w.document.write(`<!DOCTYPE html><html><head><title>Daily Sales Bank-in Report — ${monthLabel}${titleSuffix}</title>
   <style>*{box-sizing:border-box;margin:0;padding:0;font-family:Inter,system-ui,sans-serif;}body{padding:24px;}
   h2{font-size:15px;font-weight:800;color:#0A1628;margin-bottom:2px;}.period{font-size:11px;color:#8A96A8;margin-bottom:16px;}
   table{border-collapse:collapse;width:100%;font-size:12px;}
   th{background:#0A1628;color:rgba(255,255,255,.8);padding:9px 14px;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.06em;text-align:right;}
   th.L{text-align:left;}td{padding:8px 14px;border-bottom:1px solid #E4EAF2;text-align:right;}td.L{text-align:left;font-weight:700;}
   @page{size:A4;margin:12mm;}</style></head><body>
-  <h2>Daily Sales Bank-in Report — EMAX NETWORK SDN BHD</h2>
+  <h2>Daily Sales Bank-in Report${titleSuffix} — EMAX NETWORK SDN BHD</h2>
   <div class="period">Month: ${monthLabel} · ${rows.length} verified report${rows.length!==1?"s":""}</div>
   <table><thead><tr><th class="L">Branch</th><th class="L">Sales Date</th><th class="L">Bank-in Date</th><th class="L">Payment Method</th><th>Actual Bank-in Amount</th></tr></thead>
   <tbody>${rows.map(r=>`<tr><td class="L">${branchMeta[r.branch]?.name||r.branch}</td><td class="L">${fDate(r.date)}</td><td class="L">${fDate(r.actualPaymentDate)}</td><td class="L">${r.paymentMethod||"—"}</td><td>${fRM(r.actualAmountReceived)}</td></tr>`).join("")}</tbody></table>
@@ -215,12 +216,18 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   },[reports]);
 
   const existingKeys=useMemo(()=>new Set(reports.map(r=>r.id)),[reports]);
+  // Knock-off role (not super admin) and branch viewers only need the
+  // working queue — verified reports are done and belong in the monthly
+  // download instead of cluttering this list forever. Super admin still
+  // sees everything since they're the one place that needs the full picture.
+  const showOnlyUnverified=(canVerify&&!isAdmin)||!!userBranch;
   const visible=useMemo(()=>{
     let list=reports;
+    if(showOnlyUnverified)list=list.filter(r=>!r.verifiedAt);
     if(userBranch)list=list.filter(r=>r.branch===userBranch);
     else if(branchFilter!=="all")list=list.filter(r=>r.branch===branchFilter);
     return list;
-  },[reports,userBranch,branchFilter]);
+  },[reports,userBranch,branchFilter,showOnlyUnverified]);
 
   // Late bank-in alert — same day the report is posted, the slip is due;
   // 1+ day late triggers this.
@@ -264,12 +271,12 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
 
     {canSubmit&&<BatchSubmitForm branchMeta={branchMeta} onSavedAll={saveAll} existingKeys={existingKeys}/>}
 
-    {/* Super admin — monthly bank-in report across every branch */}
-    {isAdmin&&<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+    {/* Monthly bank-in report — super admin gets every branch, branch viewers get their own branch only */}
+    {(isAdmin||userBranch)&&<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
       <span style={{fontSize:12,fontWeight:700,color:C.text}}>Monthly Bank-in Report</span>
       <input type="month" value={exportMonth} onChange={e=>setExportMonth(e.target.value)} style={{padding:"7px 9px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,fontFamily:"Inter,sans-serif"}}/>
-      <GBtn onClick={()=>downloadMonthlyBankInPDF(reports,branchMeta,exportMonth)} style={{fontSize:11,padding:"7px 12px"}}>Download (PDF)</GBtn>
-      <span style={{fontSize:10,color:C.textLight}}>Every branch's verified bank-in — sales date, bank-in date, method, amount.</span>
+      <GBtn onClick={()=>downloadMonthlyBankInPDF(reports,branchMeta,exportMonth,userBranch)} style={{fontSize:11,padding:"7px 12px"}}>Download (PDF)</GBtn>
+      <span style={{fontSize:10,color:C.textLight}}>{userBranch?"Your branch's verified bank-in":"Every branch's verified bank-in"} — sales date, bank-in date, method, amount.</span>
     </div>}
 
     <div style={{...card}}>
