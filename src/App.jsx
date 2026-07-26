@@ -232,7 +232,7 @@ function ProgressBar({pct:p,color,height=6}){
 function AchBadge({profit,target,size="sm"}){
   if(!target) return <span style={{color:"#8A96A8",fontSize:11}}>—</span>;
   const p=pctN(profit,target),color=achColor(profit,target),bg=achBg(profit,target);
-  return <span className="tag" style={{background:bg,color,fontSize:size==="lg"?14:size==="md"?13:11,fontWeight:700}}>{p.toFixed(2)}%</span>;
+  return <span className="tag" style={{background:bg,color,fontSize:size==="lg"?14:size==="md"?12:11,fontWeight:700}}>{p.toFixed(2)}%</span>;
 }
 function StatusTag({status}){
   if(!status) return null;
