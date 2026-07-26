@@ -2108,7 +2108,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
           {showNewOrderExcel&&<div style={{border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",background:C.surface,display:"flex",flexDirection:"column",height:"100%"}}>
             <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>New Order Report (Excel)</div>
-            <div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Every order currently sitting at New Order Request — exported as a spreadsheet, not the printable report the others use.</div>
+            <div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Every order currently sitting at New Order Request.</div>
             <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:8,marginTop:"auto"}}>
               <PBtn onClick={()=>downloadNewOrderExcel(orders)} style={{padding:"9px 12px",width:38,height:38,justifyContent:"center",flexShrink:0}}>{Ic.download}</PBtn>
             </div>
