@@ -13,7 +13,7 @@
  */
 import {useState,useEffect,useMemo} from "react";
 import {loadData,saveData} from "./storage/index.js";
-import {uploadOrderFile,signFileUrl} from "./storage/ordersApi.js";
+import {uploadOrderFile,signFileUrl,removeOrderFile} from "./storage/ordersApi.js";
 
 const DAILY_SALES_KEY="emax_v5_daily_sales";
 const BANKS=["PBB","AGRO","RHB"];
@@ -290,8 +290,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   const [reports,setReports]=useState([]);
   const [loading,setLoading]=useState(true);
   const [slipUrls,setSlipUrls]=useState({});
-  const [branchFilter,setBranchFilter]=useState(userBranch||"all");
-  const [dateFilter,setDateFilter]=useState("");
+  const [dateFilter,setDateFilter]=useState(nowDate());
   const [bankInReportBranch,setBankInReportBranch]=useState(userBranch||"");
   const [expandedBalanceReminder,setExpandedBalanceReminder]=useState(null);
   const [expandedVerify,setExpandedVerify]=useState(null);
@@ -299,7 +298,8 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   const [expandedShortPayment,setExpandedShortPayment]=useState(null);
   const [expandedReminder,setExpandedReminder]=useState(null);
   const [exportMonth,setExportMonth]=useState(nowDate().slice(0,7));
-  const [showVerifiedToo,setShowVerifiedToo]=useState(false);
+  const [cleanupMonth,setCleanupMonth]=useState(nowDate().slice(0,7));
+  const [cleaningUp,setCleaningUp]=useState(false);
 
   useEffect(()=>{loadData(DAILY_SALES_KEY).then(d=>{setReports(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>setLoading(false));},[]);
 
@@ -320,6 +320,24 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
     setReports(next);
     await saveData(DAILY_SALES_KEY,next);
   };
+  // Bulk cleanup — removes the uploaded slip FILES (bank-in + balance
+  // payment) for every report in a chosen month, freeing up Storage space.
+  // The underlying report itself (sales figures, verification status) is
+  // left untouched — only the file attachments are cleared.
+  const bulkDeleteSlipsForMonth=async(month)=>{
+    const affected=reports.filter(r=>r.date.slice(0,7)===month&&(r.bankInSlip||r.balancePaymentSlip));
+    if(!affected.length)return;
+    setCleaningUp(true);
+    await Promise.all(affected.flatMap(r=>[
+      r.bankInSlip?.path?removeOrderFile(r.bankInSlip.path):null,
+      r.balancePaymentSlip?.path?removeOrderFile(r.balancePaymentSlip.path):null,
+    ].filter(Boolean)));
+    const affectedIds=new Set(affected.map(r=>r.id));
+    const next=reports.map(r=>affectedIds.has(r.id)?{...r,bankInSlip:null,bankInUploadedAt:null,balancePaymentSlip:null,balancePaymentUploadedAt:null}:r);
+    setReports(next);
+    await saveData(DAILY_SALES_KEY,next);
+    setCleaningUp(false);
+  };
 
   useEffect(()=>{
     reports.filter(r=>r.bankInSlip?.path&&!slipUrls[r.id]).forEach(async r=>{
@@ -334,20 +352,16 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   },[reports]);
 
   const existingKeys=useMemo(()=>new Set(reports.map(r=>r.id)),[reports]);
-  // Everyone — super admin included — only sees the working queue here now.
-  // Verified reports are done and belong in the monthly downloads instead of
-  // cluttering this list forever.
+  // The verification queue is now a single-day, all-branches snapshot: pick
+  // a date, see everyone's report for that day, verified or not. No branch
+  // filter needed since seeing every branch side-by-side for one day is the
+  // point (that's what makes it a useful daily cross-check).
   const visible=useMemo(()=>{
-    // "Unverified" here really means "still needs action": a report that's
-    // verified but flagged short-payment-and-not-yet-resolved stays visible
-    // too, since the knock-off/branch still have work to do on it.
-    const needsAction=r=>!r.verifiedAt||(r.shortPayment&&!r.secondPaymentVerifiedAt);
-    let list=(isAdmin&&showVerifiedToo)?reports:reports.filter(needsAction);
+    if(!dateFilter)return[];
+    let list=reports.filter(r=>r.date===dateFilter);
     if(userBranch)list=list.filter(r=>r.branch===userBranch);
-    else if(branchFilter!=="all")list=list.filter(r=>r.branch===branchFilter);
-    if(dateFilter)list=list.filter(r=>r.date===dateFilter);
     return list;
-  },[reports,userBranch,branchFilter,isAdmin,showVerifiedToo,dateFilter]);
+  },[reports,dateFilter,userBranch]);
 
   // Late bank-in alert — same day the report is posted, the slip is due;
   // 1+ day late triggers this.
@@ -430,22 +444,27 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       <span style={{fontSize:10,color:C.textLight}}>One branch, one full month — sales date, bank-in date, method, amount.</span>
     </div>}
 
+    {/* Super admin only — bulk-clear uploaded slip files for a month to free up storage. Sales/verification data is untouched. */}
+    {isAdmin&&(()=>{
+      const affectedCount=reports.filter(r=>r.date.slice(0,7)===cleanupMonth&&(r.bankInSlip||r.balancePaymentSlip)).length;
+      return<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",borderLeft:"3px solid #DC2626"}}>
+        <span style={{fontSize:12,fontWeight:700,color:C.text}}>Bulk Delete Bank-in Slips</span>
+        <input type="month" value={cleanupMonth} onChange={e=>setCleanupMonth(e.target.value)} style={{padding:"7px 9px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,fontFamily:"Inter,sans-serif"}}/>
+        <GBtn onClick={()=>{if(window.confirm(`Delete all ${affectedCount} uploaded bank-in/balance slip file${affectedCount!==1?"s":""} for every branch in this month? The sales figures and verification status stay — only the uploaded files are removed. This cannot be undone.`))bulkDeleteSlipsForMonth(cleanupMonth);}} disabled={!affectedCount||cleaningUp} style={{fontSize:11,padding:"7px 12px",color:"#DC2626",borderColor:"#FECACA"}}>{cleaningUp?"Deleting…":`Delete ${affectedCount||""} Slip${affectedCount!==1?"s":""}`}</GBtn>
+        <span style={{fontSize:10,color:C.textLight}}>Removes uploaded slip files for every branch this month — sales figures and verified status are kept.</span>
+      </div>;
+    })()}
+
     {canSeeActionPanel&&<div style={{...card}}>
       <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
         <span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Cash Sales Bank In Slip Verification Queue</span>
-        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-          {isAdmin&&<label style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"rgba(255,255,255,.7)",cursor:"pointer"}}>
-            <input type="checkbox" checked={showVerifiedToo} onChange={e=>setShowVerifiedToo(e.target.checked)}/>Show verified too
-          </label>}
-          {isAdmin&&<input type="date" value={dateFilter} onChange={e=>setDateFilter(e.target.value)} style={{padding:"5px 9px",border:"1px solid rgba(255,255,255,.2)",borderRadius:6,fontSize:11,background:"rgba(255,255,255,.06)",color:"#fff",fontFamily:"Inter,sans-serif"}}/>}
-          {!userBranch&&<SEL value={branchFilter} onChange={e=>setBranchFilter(e.target.value)} style={{width:"auto",padding:"5px 9px",fontSize:11}}>
-            <option value="all">All Branches</option>
-            {dailySalesBranches(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}
-          </SEL>}
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.6)"}}>Date:</span>
+          <input type="date" value={dateFilter} onChange={e=>setDateFilter(e.target.value)} max={nowDate()} style={{padding:"5px 9px",border:"1px solid rgba(255,255,255,.2)",borderRadius:6,fontSize:11,background:"rgba(255,255,255,.06)",color:"#fff",fontFamily:"Inter,sans-serif"}}/>
         </div>
       </div>
       {visible.length===0
-        ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No reports yet.</div>
+        ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No reports for this date.</div>
         :<div>{visible.map(r=>{
           const canUploadSlip=!r.bankInSlip&&isAdmin&&!userBranch;
           const canVerifyThis=r.bankInSlip&&!r.verifiedAt&&canVerify;

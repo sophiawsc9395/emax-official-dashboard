@@ -302,6 +302,16 @@ export async function deleteOrder(id) {
   return { ok: true };
 }
 
+// Best-effort removal of a single file from Storage — used by bulk-cleanup
+// actions (e.g. Daily Sales Report's monthly bank-in slip cleanup). Errors
+// are logged but never thrown, since a missing/already-gone file shouldn't
+// block the caller from clearing its own reference to it.
+export async function removeOrderFile(path) {
+  if (!path) return;
+  const { error } = await supabase.storage.from(BUCKET).remove([path]);
+  if (error) console.error("removeOrderFile error:", error);
+}
+
 export async function deleteOrders(ids) {
   const list = (ids || []).map(String);
   if (!list.length) return { ok: true };

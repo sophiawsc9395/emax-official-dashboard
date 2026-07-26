@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import OrderTab from './OrderTab.jsx'
+import DailySalesTab from './DailySalesTab.jsx'
 import AuthGate from './auth/AuthGate.jsx'
-import { mergeOrderPermissions, ORDER_USER_ROLES } from './auth/orderRoles.js'
+import { mergeOrderPermissions, ORDER_USER_ROLES, getDailySalesAccess } from './auth/orderRoles.js'
 import { supabase, loadData } from './storage/index.js'
 
 // Only emails with a role in orderRoles.js can even reach this page.
@@ -74,6 +75,11 @@ function OrderOnlyApp(){
   const [srList, setSrList] = useState([])
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [pageTab, setPageTabRaw] = useState(() => {
+    const h = window.location.hash.replace('#', '')
+    return ['orders', 'dailySales'].includes(h) ? h : 'orders'
+  })
+  const setPageTab = (t) => { setPageTabRaw(t); window.location.hash = t }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setEmail(data.session?.user?.email || null))
@@ -124,7 +130,16 @@ function OrderOnlyApp(){
       <div style={{ display:"flex", maxWidth:1400, margin:"0 auto" }}>
         {/* MAIN CONTENT */}
         <div style={{ flex:1, minWidth:0, padding:"20px", maxWidth:1180 }}>
-          <OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} isReadOnly={false} orderPermissions={orderPermissions} />
+          <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+            {[["orders","Order Tracking"],["dailySales","Daily Sales Report"]].map(([id,label])=>(
+              <button key={id} onClick={()=>setPageTab(id)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${pageTab===id?"#0A1628":"#E4EAF2"}`,background:pageTab===id?"#0A1628":"#fff",color:pageTab===id?"#fff":"#4A5568",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{label}</button>
+            ))}
+          </div>
+          {pageTab==="orders" && <OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} isReadOnly={false} orderPermissions={orderPermissions} />}
+          {pageTab==="dailySales" && (()=>{
+            const {isSuperAdminOrder,canSubmit,canVerify} = getDailySalesAccess(true, orderPermissions, false)
+            return <DailySalesTab branchMeta={branchMeta} isAdmin={isSuperAdminOrder} canSubmit={canSubmit} canVerify={canVerify} />
+          })()}
         </div>
 
         {/* SIDEBAR — right side, collapsible, same treatment as the main dashboard's */}

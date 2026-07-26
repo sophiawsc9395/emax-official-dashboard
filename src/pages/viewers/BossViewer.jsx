@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
-import { mergeOrderPermissions, getDailySalesAccess } from "../../auth/orderRoles.js";
+import { mergeOrderPermissions } from "../../auth/orderRoles.js";
 import { RTOSummaryInner } from "../../RTOSummary.jsx";
 
 const CSS = `
@@ -762,7 +762,7 @@ export default function App({elevateOrderAccess=false}){
   const [selEndDay,setSelEndDay]=useState(daysInMonth(now.getMonth()+1,now.getFullYear()));
   const periodDays=days.filter(d=>d>=selStartDay&&d<=selEndDay);
   const [selBranch,setSelBranch]=useState(BRANCH_ORDER[0]);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","repair","rto","orders"].includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","repair","rto","orders","dailySales"].includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
 
@@ -1193,12 +1193,7 @@ export default function App({elevateOrderAccess=false}){
 
       {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}><RTOSummary branchMeta={bMeta}/></div>}
       {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!(elevateOrderAccess&&orderPermissions)} orderPermissions={elevateOrderAccess?orderPermissions:null} srList={srList}/></div>}
-      {tab==="dailySales"&&(()=>{
-        const dsPerms=elevateOrderAccess?orderPermissions:null;
-        const dsReadOnly=!(elevateOrderAccess&&orderPermissions);
-        const {isSuperAdminOrder,canSubmit,canVerify}=getDailySalesAccess(true,dsPerms,dsReadOnly);
-        return<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={isSuperAdminOrder} canSubmit={canSubmit} canVerify={canVerify}/></div>;
-      })()}
+      {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} canSubmit={false} canVerify={false}/></div>}
     </div>{/* end main content */}
 
       {/* SIDEBAR — right side, collapsible */}
