@@ -89,6 +89,9 @@ function BatchSubmitForm({branchMeta,onSavedAll,existingKeys}){
       submittedAt:nowDate(),
       bankInSlip:null,bankInUploadedAt:null,
       verifiedBy:null,verifiedAt:null,paymentMethod:null,actualPaymentDate:null,actualAmountReceived:null,
+      shortPayment:false,shortPaymentRemark:null,shortPaymentAt:null,
+      balancePaymentSlip:null,balancePaymentUploadedAt:null,
+      secondPaymentAmount:null,secondPaymentDate:null,secondPaymentMethod:null,secondPaymentVerifiedAt:null,
     }));
     await onSavedAll(toSave);
     setSaving(false);
@@ -161,6 +164,106 @@ function VerifyBox({report,onSaved}){
   </div>;
 }
 
+function ShortPaymentBox({report,onSaved,onCancel}){
+  const [remark,setRemark]=useState("");
+  const [saving,setSaving]=useState(false);
+  const flag=async()=>{
+    if(!remark.trim())return;
+    setSaving(true);
+    await onSaved({...report,shortPayment:true,shortPaymentRemark:remark,shortPaymentAt:nowDate()});
+    setSaving(false);
+  };
+  return<div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:8,padding:10,marginTop:8}}>
+    <L req>Remark to branch — what's short and what's needed</L>
+    <textarea value={remark} onChange={e=>setRemark(e.target.value)} rows={2} placeholder="e.g. RM50 short — please upload balance payment slip" style={{width:"100%",padding:"9px 11px",border:"1px solid #FDE68A",borderRadius:8,fontSize:13,fontFamily:"Inter,sans-serif",boxSizing:"border-box",resize:"vertical"}}/>
+    <div style={{display:"flex",gap:8,marginTop:8}}>
+      <PBtn onClick={flag} disabled={!remark.trim()||saving} style={{fontSize:11,padding:"7px 12px",background:"#B45309"}}>{saving?"Saving…":"Flag Short Payment"}</PBtn>
+      <GBtn onClick={onCancel} style={{fontSize:11,padding:"7px 12px"}}>Cancel</GBtn>
+    </div>
+  </div>;
+}
+
+function UploadBalanceSlipBox({report,onSaved}){
+  const [file,setFile]=useState(null);
+  const [saving,setSaving]=useState(false);
+  const upload=async()=>{
+    if(!file)return;
+    setSaving(true);
+    const f=await readSlipFile(file,`dailysales_balance_${report.branch}_${report.date}`);
+    await onSaved({...report,balancePaymentSlip:f,balancePaymentUploadedAt:nowDate()});
+    setSaving(false);
+  };
+  return<div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+    <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFile(e.target.files[0]||null)} style={{fontSize:11}}/>
+    <PBtn onClick={upload} disabled={!file||saving} style={{padding:"7px 12px",fontSize:11,background:"#B45309"}}>{saving?"Uploading…":"Upload Balance Payment Slip"}</PBtn>
+  </div>;
+}
+
+function SecondPaymentBox({report,onSaved}){
+  // Setting secondPaymentVerifiedAt is what finally resolves a short-payment
+  // report and lets it drop out of the "needs action" list.
+  const [method,setMethod]=useState(BANKS[0]);
+  const [pDate,setPDate]=useState(nowDate());
+  const [amount,setAmount]=useState("");
+  const [saving,setSaving]=useState(false);
+  const save=async()=>{
+    setSaving(true);
+    await onSaved({...report,secondPaymentAmount:parseFloat(amount)||0,secondPaymentDate:pDate,secondPaymentMethod:method,secondPaymentVerifiedAt:nowDate()});
+    setSaving(false);
+  };
+  return<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,alignItems:"end",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginTop:8}}>
+    <div><L>2nd Payment Method</L><SEL value={method} onChange={e=>setMethod(e.target.value)}>{BANKS.map(b=><option key={b} value={b}>{b}</option>)}</SEL></div>
+    <div><L>2nd Payment Date</L><I type="date" value={pDate} onChange={e=>setPDate(e.target.value)} max={nowDate()}/></div>
+    <div><L>2nd Payment Amount</L><I type="number" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/></div>
+    <PBtn onClick={save} disabled={!amount||saving} style={{height:38,justifyContent:"center"}}>{saving?"Saving…":"Save 2nd Payment"}</PBtn>
+  </div>;
+}
+
+
+function EditBox({report,isAdmin,onSaved,onCancel}){
+  const [totalSales,setTotalSales]=useState(String(report.totalSales??""));
+  const [debit,setDebit]=useState(String(report.debit??""));
+  const [credit,setCredit]=useState(String(report.credit??""));
+  const [rhbQr,setRhbQr]=useState(String(report.rhbQr??""));
+  const [cashSales,setCashSales]=useState(String(report.cashSales??""));
+  const [remark,setRemark]=useState(report.remark||"");
+  const [method,setMethod]=useState(report.paymentMethod||BANKS[0]);
+  const [actualDate,setActualDate]=useState(report.actualPaymentDate||nowDate());
+  const [amount,setAmount]=useState(report.actualAmountReceived!=null?String(report.actualAmountReceived):"");
+  const [saving,setSaving]=useState(false);
+  const canEditVerification=isAdmin&&report.verifiedAt;
+  const save=async()=>{
+    setSaving(true);
+    await onSaved({
+      ...report,
+      totalSales:parseFloat(totalSales)||0,debit:parseFloat(debit)||0,credit:parseFloat(credit)||0,
+      rhbQr:parseFloat(rhbQr)||0,cashSales:parseFloat(cashSales)||0,remark:remark||undefined,
+      ...(canEditVerification?{paymentMethod:method,actualPaymentDate:actualDate,actualAmountReceived:parseFloat(amount)||0}:{}),
+    });
+    setSaving(false);
+  };
+  return<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginTop:8}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8,marginBottom:canEditVerification?10:0}}>
+      <div><L>Total Sales</L><I type="number" step="0.01" value={totalSales} onChange={e=>setTotalSales(e.target.value)}/></div>
+      <div><L>Debit</L><I type="number" step="0.01" value={debit} onChange={e=>setDebit(e.target.value)}/></div>
+      <div><L>Credit</L><I type="number" step="0.01" value={credit} onChange={e=>setCredit(e.target.value)}/></div>
+      <div><L>RHB QR</L><I type="number" step="0.01" value={rhbQr} onChange={e=>setRhbQr(e.target.value)}/></div>
+      <div><L>Cash Sales</L><I type="number" step="0.01" value={cashSales} onChange={e=>setCashSales(e.target.value)}/></div>
+      <div><L>Remark</L><I value={remark} onChange={e=>setRemark(e.target.value)}/></div>
+    </div>
+    {canEditVerification&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8}}>
+      <div><L>Payment Method</L><SEL value={method} onChange={e=>setMethod(e.target.value)}>{BANKS.map(b=><option key={b} value={b}>{b}</option>)}</SEL></div>
+      <div><L>Actual Payment Date</L><I type="date" value={actualDate} onChange={e=>setActualDate(e.target.value)} max={nowDate()}/></div>
+      <div><L>Actual Amount Received</L><I type="number" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/></div>
+    </div>}
+    <div style={{display:"flex",gap:8,marginTop:10}}>
+      <PBtn onClick={save} disabled={saving} style={{fontSize:11,padding:"7px 12px"}}>{saving?"Saving…":"Save Changes"}</PBtn>
+      <GBtn onClick={onCancel} style={{fontSize:11,padding:"7px 12px"}}>Cancel</GBtn>
+    </div>
+  </div>;
+}
+
+
 function downloadMonthlyBankInPDF(reports,branchMeta,month,scopeBranch){
   const rows=reports
     .filter(r=>r.verifiedAt&&r.date.slice(0,7)===month&&(!scopeBranch||r.branch===scopeBranch))
@@ -177,8 +280,29 @@ function downloadMonthlyBankInPDF(reports,branchMeta,month,scopeBranch){
   @page{size:A4;margin:12mm;}</style></head><body>
   <h2>Daily Sales Bank-in Report${titleSuffix} — EMAX NETWORK SDN BHD</h2>
   <div class="period">Month: ${monthLabel} · ${rows.length} verified report${rows.length!==1?"s":""}</div>
-  <table><thead><tr><th class="L">Branch</th><th class="L">Sales Date</th><th class="L">Bank-in Date</th><th class="L">Payment Method</th><th>Actual Bank-in Amount</th></tr></thead>
-  <tbody>${rows.map(r=>`<tr><td class="L">${branchMeta[r.branch]?.name||r.branch}</td><td class="L">${fDate(r.date)}</td><td class="L">${fDate(r.actualPaymentDate)}</td><td class="L">${r.paymentMethod||"—"}</td><td>${fRM(r.actualAmountReceived)}</td></tr>`).join("")}</tbody></table>
+  <table><thead><tr><th class="L">Branch</th><th class="L">Sales Date</th><th class="L">Bank-in Date</th><th class="L">Payment Method</th><th>Actual Bank-in Amount</th><th class="L">Remark</th><th class="L">Short Payment Remark</th><th>2nd Payment Amount</th><th class="L">2nd Payment Date</th><th class="L">2nd Payment Method</th></tr></thead>
+  <tbody>${rows.map(r=>`<tr><td class="L">${branchMeta[r.branch]?.name||r.branch}</td><td class="L">${fDate(r.date)}</td><td class="L">${fDate(r.actualPaymentDate)}</td><td class="L">${r.paymentMethod||"—"}</td><td>${fRM(r.actualAmountReceived)}</td><td class="L">${r.remark||"—"}</td><td class="L">${r.shortPaymentRemark||"—"}</td><td>${r.secondPaymentAmount!=null?fRM(r.secondPaymentAmount):"—"}</td><td class="L">${fDate(r.secondPaymentDate)}</td><td class="L">${r.secondPaymentMethod||"—"}</td></tr>`).join("")}</tbody></table>
+  </body></html>`);
+  w.document.close();setTimeout(()=>w.print(),400);
+}
+
+function downloadMonthlyDailySalesPDF(reports,branchMeta,month){
+  const rows=reports
+    .filter(r=>r.date.slice(0,7)===month)
+    .sort((a,b)=>a.branch.localeCompare(b.branch)||a.date.localeCompare(b.date));
+  const monthLabel=new Date(month+"-01").toLocaleDateString("en-MY",{month:"long",year:"numeric"});
+  const w=window.open("","_blank");
+  w.document.write(`<!DOCTYPE html><html><head><title>Monthly Daily Sales Report — ${monthLabel}</title>
+  <style>*{box-sizing:border-box;margin:0;padding:0;font-family:Inter,system-ui,sans-serif;}body{padding:24px;}
+  h2{font-size:15px;font-weight:800;color:#0A1628;margin-bottom:2px;}.period{font-size:11px;color:#8A96A8;margin-bottom:16px;}
+  table{border-collapse:collapse;width:100%;font-size:12px;}
+  th{background:#0A1628;color:rgba(255,255,255,.8);padding:9px 14px;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.06em;text-align:right;}
+  th.L{text-align:left;}td{padding:8px 14px;border-bottom:1px solid #E4EAF2;text-align:right;}td.L{text-align:left;font-weight:700;}
+  @page{size:A4;margin:12mm;}</style></head><body>
+  <h2>Monthly Daily Sales Report — EMAX NETWORK SDN BHD</h2>
+  <div class="period">Month: ${monthLabel} · ${rows.length} report${rows.length!==1?"s":""} across every branch</div>
+  <table><thead><tr><th class="L">Branch</th><th class="L">Date</th><th>Total Sales</th><th>Debit + Credit</th><th>RHB QR</th><th>Cash Sales</th><th class="L">Remark</th></tr></thead>
+  <tbody>${rows.map(r=>`<tr><td class="L">${branchMeta[r.branch]?.name||r.branch}</td><td class="L">${fDate(r.date)}</td><td>${fRM(r.totalSales)}</td><td>${fRM((r.debit||0)+(r.credit||0))}</td><td>${fRM(r.rhbQr)}</td><td>${fRM(r.cashSales)}</td><td class="L">${r.remark||"—"}</td></tr>`).join("")}</tbody></table>
   </body></html>`);
   w.document.close();setTimeout(()=>w.print(),400);
 }
@@ -189,8 +313,11 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   const [slipUrls,setSlipUrls]=useState({});
   const [branchFilter,setBranchFilter]=useState(userBranch||"all");
   const [expandedVerify,setExpandedVerify]=useState(null);
+  const [expandedEdit,setExpandedEdit]=useState(null);
+  const [expandedShortPayment,setExpandedShortPayment]=useState(null);
   const [expandedReminder,setExpandedReminder]=useState(null);
   const [exportMonth,setExportMonth]=useState(nowDate().slice(0,7));
+  const [showVerifiedToo,setShowVerifiedToo]=useState(false);
 
   useEffect(()=>{loadData(DAILY_SALES_KEY).then(d=>{setReports(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>setLoading(false));},[]);
 
@@ -206,28 +333,38 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
     setReports(next);
     await saveData(DAILY_SALES_KEY,next);
   };
+  const deleteReport=async(id)=>{
+    const next=reports.filter(r=>r.id!==id);
+    setReports(next);
+    await saveData(DAILY_SALES_KEY,next);
+  };
 
   useEffect(()=>{
     reports.filter(r=>r.bankInSlip?.path&&!slipUrls[r.id]).forEach(async r=>{
       const url=await signFileUrl(r.bankInSlip.path);
       if(url)setSlipUrls(p=>({...p,[r.id]:url}));
     });
+    reports.filter(r=>r.balancePaymentSlip?.path&&!slipUrls[r.id+"_balance"]).forEach(async r=>{
+      const url=await signFileUrl(r.balancePaymentSlip.path);
+      if(url)setSlipUrls(p=>({...p,[r.id+"_balance"]:url}));
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[reports]);
 
   const existingKeys=useMemo(()=>new Set(reports.map(r=>r.id)),[reports]);
-  // Knock-off role (not super admin) and branch viewers only need the
-  // working queue — verified reports are done and belong in the monthly
-  // download instead of cluttering this list forever. Super admin still
-  // sees everything since they're the one place that needs the full picture.
-  const showOnlyUnverified=(canVerify&&!isAdmin)||!!userBranch;
+  // Everyone — super admin included — only sees the working queue here now.
+  // Verified reports are done and belong in the monthly downloads instead of
+  // cluttering this list forever.
   const visible=useMemo(()=>{
-    let list=reports;
-    if(showOnlyUnverified)list=list.filter(r=>!r.verifiedAt);
+    // "Unverified" here really means "still needs action": a report that's
+    // verified but flagged short-payment-and-not-yet-resolved stays visible
+    // too, since the knock-off/branch still have work to do on it.
+    const needsAction=r=>!r.verifiedAt||(r.shortPayment&&!r.secondPaymentVerifiedAt);
+    let list=(isAdmin&&showVerifiedToo)?reports:reports.filter(needsAction);
     if(userBranch)list=list.filter(r=>r.branch===userBranch);
     else if(branchFilter!=="all")list=list.filter(r=>r.branch===branchFilter);
     return list;
-  },[reports,userBranch,branchFilter,showOnlyUnverified]);
+  },[reports,userBranch,branchFilter,isAdmin,showVerifiedToo]);
 
   // Late bank-in alert — same day the report is posted, the slip is due;
   // 1+ day late triggers this.
@@ -279,19 +416,43 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       <span style={{fontSize:10,color:C.textLight}}>{userBranch?"Your branch's verified bank-in":"Every branch's verified bank-in"} — sales date, bank-in date, method, amount.</span>
     </div>}
 
+    {/* New report — super admin only: every branch's full raw daily sales figures for the month */}
+    {isAdmin&&<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:12,fontWeight:700,color:C.text}}>Monthly Daily Sales Report</span>
+      <input type="month" value={exportMonth} onChange={e=>setExportMonth(e.target.value)} style={{padding:"7px 9px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,fontFamily:"Inter,sans-serif"}}/>
+      <GBtn onClick={()=>downloadMonthlyDailySalesPDF(reports,branchMeta,exportMonth)} style={{fontSize:11,padding:"7px 12px"}}>Download (PDF)</GBtn>
+      <span style={{fontSize:10,color:C.textLight}}>Every branch, every day this month — Total Sales, Debit+Credit, RHB QR, Cash Sales, Remark.</span>
+    </div>}
+
     <div style={{...card}}>
       <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
         <span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Daily Sales Reports</span>
-        {!userBranch&&<SEL value={branchFilter} onChange={e=>setBranchFilter(e.target.value)} style={{width:"auto",padding:"5px 9px",fontSize:11}}>
-          <option value="all">All Branches</option>
-          {dailySalesBranches(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}
-        </SEL>}
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          {isAdmin&&<label style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:"rgba(255,255,255,.7)",cursor:"pointer"}}>
+            <input type="checkbox" checked={showVerifiedToo} onChange={e=>setShowVerifiedToo(e.target.checked)}/>Show verified too
+          </label>}
+          {!userBranch&&<SEL value={branchFilter} onChange={e=>setBranchFilter(e.target.value)} style={{width:"auto",padding:"5px 9px",fontSize:11}}>
+            <option value="all">All Branches</option>
+            {dailySalesBranches(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}
+          </SEL>}
+        </div>
       </div>
       {visible.length===0
         ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No reports yet.</div>
         :<div>{visible.map(r=>{
           const canUploadSlip=!r.bankInSlip&&isAdmin&&!userBranch;
           const canVerifyThis=r.bankInSlip&&!r.verifiedAt&&canVerify;
+          // Short payment follow-up — knock-off flags it after verifying a
+          // partial amount, branch uploads the balance slip, knock-off keys
+          // in the 2nd payment to finally resolve it.
+          const canFlagShortPayment=canVerify&&r.verifiedAt&&!r.shortPayment;
+          const canUploadBalanceSlip=userBranch===r.branch&&r.shortPayment&&!r.balancePaymentSlip;
+          const canKeyIn2ndPayment=canVerify&&r.shortPayment&&r.balancePaymentSlip&&!r.secondPaymentVerifiedAt;
+          // Super admin can edit/delete any report regardless of verified
+          // status; Billing role (canSubmit, non-admin) can only edit
+          // unverified ones — once verified, only super admin can touch it.
+          const canEditThis=r.verifiedAt?isAdmin:canSubmit;
+          const canDeleteThis=isAdmin;
           return<div key={r.id} style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
               <div>
@@ -299,14 +460,27 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
                 <div style={{fontSize:11,color:C.textMid,marginTop:3}}>Total {fRM(r.totalSales)} · Debit {fRM(r.debit)} · Credit {fRM(r.credit)} · RHB QR {fRM(r.rhbQr)} · Cash {fRM(r.cashSales)}</div>
                 {r.remark&&<div style={{fontSize:11,color:C.textLight,marginTop:2}}>Remark: {r.remark}</div>}
                 {r.verifiedAt&&<div style={{fontSize:11,color:"#15803D",marginTop:3,fontWeight:600}}>Verified — {r.paymentMethod} · {fDate(r.actualPaymentDate)} · {fRM(r.actualAmountReceived)} received</div>}
+                {r.shortPayment&&<div style={{fontSize:11,color:"#B45309",marginTop:3,fontWeight:600}}>Short Payment — {r.shortPaymentRemark}</div>}
+                {r.secondPaymentVerifiedAt&&<div style={{fontSize:11,color:"#15803D",marginTop:3,fontWeight:600}}>2nd Payment — {r.secondPaymentMethod} · {fDate(r.secondPaymentDate)} · {fRM(r.secondPaymentAmount)} received</div>}
               </div>
               <StatusBadge report={r}/>
             </div>
             {r.bankInSlip&&<div style={{marginTop:6}}>{slipUrls[r.id]?<a href={slipUrls[r.id]} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600}}>View Bank-in Slip: {r.bankInSlip.name}</a>:<span style={{fontSize:11,color:C.textLight}}>Loading slip link…</span>}</div>}
+            {r.balancePaymentSlip&&<div style={{marginTop:2}}>{slipUrls[r.id+"_balance"]?<a href={slipUrls[r.id+"_balance"]} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:"#B45309",fontWeight:600}}>View Balance Payment Slip: {r.balancePaymentSlip.name}</a>:<span style={{fontSize:11,color:C.textLight}}>Loading slip link…</span>}</div>}
             {canUploadSlip&&<div style={{marginTop:8}}><UploadSlipBox report={r} onSaved={save}/></div>}
             {canVerifyThis&&(expandedVerify===r.id
               ?<VerifyBox report={r} onSaved={async(u)=>{await save(u);setExpandedVerify(null);}}/>
               :<GBtn onClick={()=>setExpandedVerify(r.id)} style={{marginTop:8,fontSize:11,padding:"6px 12px"}}>Verify Bank-in</GBtn>)}
+            {canFlagShortPayment&&(expandedShortPayment===r.id
+              ?<ShortPaymentBox report={r} onSaved={async(u)=>{await save(u);setExpandedShortPayment(null);}} onCancel={()=>setExpandedShortPayment(null)}/>
+              :<GBtn onClick={()=>setExpandedShortPayment(r.id)} style={{marginTop:8,marginLeft:8,fontSize:11,padding:"6px 12px",color:"#B45309",borderColor:"#FDE68A"}}>Short Payment</GBtn>)}
+            {canUploadBalanceSlip&&<div style={{marginTop:8}}><UploadBalanceSlipBox report={r} onSaved={save}/></div>}
+            {canKeyIn2ndPayment&&<SecondPaymentBox report={r} onSaved={save}/>}
+            {(canEditThis||canDeleteThis)&&expandedEdit!==r.id&&<div style={{display:"flex",gap:8,marginTop:8}}>
+              {canEditThis&&<GBtn onClick={()=>setExpandedEdit(r.id)} style={{fontSize:11,padding:"6px 12px"}}>Edit</GBtn>}
+              {canDeleteThis&&<GBtn onClick={()=>{if(window.confirm(`Delete the ${fDate(r.date)} report for ${branchMeta[r.branch]?.name||r.branch}? This cannot be undone.`))deleteReport(r.id);}} style={{fontSize:11,padding:"6px 12px",color:"#DC2626",borderColor:"#FECACA"}}>Delete</GBtn>}
+            </div>}
+            {canEditThis&&expandedEdit===r.id&&<EditBox report={r} isAdmin={isAdmin} onSaved={async(u)=>{await save(u);setExpandedEdit(null);}} onCancel={()=>setExpandedEdit(null)}/>}
           </div>;
         })}</div>}
     </div>
