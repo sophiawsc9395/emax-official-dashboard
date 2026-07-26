@@ -1,5 +1,6 @@
 import {useState,useEffect,useRef,useMemo,useCallback,memo} from "react";
 import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
+import DailySalesTab from "./DailySalesTab.jsx";
 import {supabase} from "./storage/index.js";
 import * as XLSX from "xlsx";
 
@@ -886,6 +887,11 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false}){
     if(nextDef.needsClaimInfo){updated.claimSentDate=claimSentDate;updated.consignmentNo=claimConsignmentNo;}
     if(nextDef.needsKnockOff){updated.knockOffDate=knockOffDate;if(knockOffAmount)updated.knockOffAmount=knockOffAmount;}
     if(nextDef.needsInvoiceNo)updated.invoiceNo=invoiceNo;
+    // Denormalized onto the header (not just history) because the alert
+    // system (getOrderAlerts) only has header-level order data to work with
+    // for performance — it can't afford to fetch full history for every
+    // active order on every render.
+    if(rf.balancePaymentProof)updated.balancePaymentUploadedDate=nowDate();
     const ok=await onUpdate(updated);setSaving(false);if(ok!==false){setRemark("");setInvoiceNo("");setFiles({});setVerRemark("");setCollection(false);setPayment(false);setPoNumber("");setPurchaserName("");setConsignmentNo("");setStockTransferNo("");setClaimConsignmentNo("");}
   };
   const ok=()=>{
@@ -922,7 +928,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false}){
           <L req>Upload Balance Payment Proof</L>
           <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,balancePaymentProof:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>
           {files.balancePaymentProof&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files.balancePaymentProof.name}</div>}
-          <PBtn onClick={async()=>{if(!files.balancePaymentProof)return;setSaving(true);const f=await readFile(files.balancePaymentProof,order.id);const h={step:9,date:nowDate(),time:nowTime(),note:"Balance payment proof uploaded",shortPaymentProofUpload:true,files:{balancePaymentProof:f}};await onUpdate({...order,history:[...(order.history||[]),h]});setSaving(false);setFiles(p=>({...p,balancePaymentProof:null}));}} disabled={!files.balancePaymentProof||saving} style={{width:"100%",justifyContent:"center",marginTop:8}}>{saving?"Saving…":"Submit Balance Payment Proof"}</PBtn>
+          <PBtn onClick={async()=>{if(!files.balancePaymentProof)return;setSaving(true);const f=await readFile(files.balancePaymentProof,order.id);const h={step:9,date:nowDate(),time:nowTime(),note:"Balance payment proof uploaded",shortPaymentProofUpload:true,files:{balancePaymentProof:f}};await onUpdate({...order,balancePaymentUploadedDate:nowDate(),history:[...(order.history||[]),h]});setSaving(false);setFiles(p=>({...p,balancePaymentProof:null}));}} disabled={!files.balancePaymentProof||saving} style={{width:"100%",justifyContent:"center",marginTop:8}}>{saving?"Saving…":"Submit Balance Payment Proof"}</PBtn>
         </div>}
         {nextDef.needsVerification&&isAdmin&&<div style={{marginBottom:12}}>
           <div style={{...lbl,marginBottom:8}}>Verification Checklist</div>
@@ -1298,6 +1304,7 @@ function alertDotColor(type){
   if(type==="approval_expired")return"#DC2626";
   if(type==="approval_urgent"||type==="overdue_order")return"#B91C1C";
   if(type==="approval_warning")return"#B45309";
+  if(type==="cash_balance_payment_overdue")return"#7C3AED";
   return C.blue; // collection_proof_overdue
 }
 function getOrderAlerts(orders,userBranch=null){
@@ -1319,6 +1326,16 @@ function getOrderAlerts(orders,userBranch=null){
     const days=daysSince(billingDate);
     if(days>=1)alerts.push({type:"collection_proof_overdue",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Billed ${days} day${days>1?"s":""} ago — collection & payment proof not yet uploaded`});
   });
+  // Cash order balance payment slip — a separate 2-day-grace check from the
+  // general collection proof alert above, since it's checking a different
+  // file (balancePaymentProof, not paymentProof/collectionProof) and cash
+  // orders get more grace before this one fires.
+  myOrders.filter(o=>o.orderType==="cash"&&o.step<9&&o.step>=6&&!o.balancePaymentUploadedDate).forEach(o=>{
+    const billingDate=o.billingData?.billingDate;
+    if(!billingDate)return;
+    const days=daysSince(billingDate);
+    if(days>2)alerts.push({type:"cash_balance_payment_overdue",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Billed ${days} days ago — balance payment slip not yet uploaded (2-day limit passed)`});
+  });
   return alerts;
 }
 function AlertBanner({alerts,onClickOrder}){
@@ -1328,6 +1345,7 @@ function AlertBanner({alerts,onClickOrder}){
   const urgent=alerts.filter(a=>a.type==="approval_urgent"||a.type==="overdue_order");
   const warning=alerts.filter(a=>a.type==="approval_warning");
   const collectionOverdue=alerts.filter(a=>a.type==="collection_proof_overdue");
+  const cashBalanceOverdue=alerts.filter(a=>a.type==="cash_balance_payment_overdue");
   const Block=({items,color,title})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
@@ -1346,6 +1364,7 @@ function AlertBanner({alerts,onClickOrder}){
     <Block items={expired} color="#DC2626" title="Approval Expired"/>
     <Block items={urgent} color="#B91C1C" title="Urgent Attention"/>
     <Block items={collectionOverdue} color="#B91C1C" title="Collection Proof Overdue"/>
+    <Block items={cashBalanceOverdue} color="#7C3AED" title="Cash Balance Payment Slip Overdue"/>
     <Block items={warning} color="#B45309" title="Approval Warning"/>
   </div>;
 }
@@ -1817,6 +1836,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   };
   const canAdminStep = (step) => !orderPermissions || orderPermissions.adminSteps==="all" || orderPermissions.adminSteps.includes(step);
   const canSeeReport = (type) => !orderPermissions || orderPermissions.reports==="all" || orderPermissions.reports.includes(type);
+  // Daily Sales Report — submit is Billing-role territory (same as billing
+  // steps generally, step 7 = Billed), verify is Knock-off Admin territory
+  // (same role that already owns the knock-off reports). Super admin gets
+  // both regardless, same as everywhere else in this file.
+  const canSubmitDailySales = isSuperAdminOrder || canAdminStep(7);
+  const canVerifyDailySales = isSuperAdminOrder || canSeeReport("knockoff");
+  const [pageTab,setPageTab]=useState("orders");
   const [orders,setOrders]=useState([]);
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState(()=>sessionStorage.getItem("orderView")||"list");
@@ -1963,6 +1989,17 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
   if(loading)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading orders…</div>;
 
+  // Any branch-scoped session can see the Daily Sales tab (to view/upload
+  // for their own branch) even without submit/verify rights; HQ roles see
+  // it if they can submit or verify.
+  const canSeeDailySalesTab = isSuperAdminOrder || canSubmitDailySales || canVerifyDailySales || !!userBranch;
+  const PageTabs=canSeeDailySalesTab&&<div style={{display:"flex",gap:8,marginBottom:16}}>
+    {[["orders","Order Tracking"],["dailySales","Daily Sales Report"]].map(([id,label])=>(
+      <button key={id} onClick={()=>setPageTab(id)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${pageTab===id?C.navy:C.border}`,background:pageTab===id?C.navy:"#fff",color:pageTab===id?"#fff":C.textMid,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{label}</button>
+    ))}
+  </div>;
+  if(pageTab==="dailySales")return<div className="fade-in">{PageTabs}<DailySalesTab branchMeta={branchMeta} isAdmin={isSuperAdminOrder} userBranch={userBranch} canSubmit={canSubmitDailySales} canVerify={canVerifyDailySales}/></div>;
+
   if(view==="detail"&&selected){
     const live=detailCache[selected.id];
     if(!live)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading order…</div>;
@@ -1971,6 +2008,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} orderPermissions={orderPermissions} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
   return<div className="fade-in">
+    {PageTabs}
     {showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}
     {showBulkDispatch&&<BulkDispatch orders={orders} onSave={bulkSave} onClose={()=>setShowBulkDispatch(false)}/>}
     {showBulkAgreementReceived&&<BulkAgreementReceived orders={orders} onSave={bulkSave} onClose={()=>setShowBulkAgreementReceived(false)}/>}
