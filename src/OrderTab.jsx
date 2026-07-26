@@ -2117,7 +2117,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             return<div key={type} style={{border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",background:C.surface,display:"flex",flexDirection:"column",height:"100%"}}>
               <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>{label} Report</div>
               {noDateNeeded
-                ?<div style={{fontSize:10,color:C.textLight,marginBottom:10}}>{type==="purchaseClaim"?"Always shows orders still waiting on their Claim Release to Purchaser file — there's no date to pick.":"Always shows who's currently overdue — there's no date to pick."}</div>
+                ?<div style={{fontSize:10,color:C.textLight,marginBottom:10}}>{type==="purchaseClaim"?"Always shows orders still waiting on their Claim Release to Purchaser file.":"Always shows who's currently overdue."}</div>
                 :<div style={{marginBottom:10}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>}
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginTop:"auto"}}>
                 {!noDateNeeded?<button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",whiteSpace:"nowrap",padding:0}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>:<span/>}
