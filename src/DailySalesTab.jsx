@@ -14,10 +14,12 @@
 import {useState,useEffect,useMemo} from "react";
 import {loadData,saveData} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl} from "./storage/ordersApi.js";
-import * as XLSX from "xlsx";
 
 const DAILY_SALES_KEY="emax_v5_daily_sales";
 const BANKS=["PBB","AGRO","RHB"];
+// HQ and EC SDK aren't real selling branches (HQ doesn't sell, SDK is a
+// pickup-only location) — excluded from every branch list in this tab only.
+const dailySalesBranches=branchMeta=>Object.keys(branchMeta||{}).filter(b=>b!=="HQ"&&b!=="SDK");
 
 const C={navy:"#0A1628",navyMid:"#0F2040",navyLight:"#162B52",blue:"#1B3F72",blueBright:"#2C5AA0",white:"#fff",surface:"#F7F9FC",border:"#E4EAF2",text:"#0A1628",textMid:"#4A5568",textLight:"#8A96A8"};
 const card={background:C.white,border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)",overflow:"hidden"};
@@ -65,47 +67,63 @@ function StatusBadge({report}){
   return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#F0FDF4",color:"#15803D"}}>Verified</span>;
 }
 
-function SubmitForm({branchMeta,userBranch,onSaved,existingBranches}){
-  const branches=Object.keys(branchMeta||{});
-  const [branch,setBranch]=useState(userBranch||branches[0]||"");
+function BatchSubmitForm({branchMeta,onSavedAll,existingKeys}){
+  const branches=dailySalesBranches(branchMeta);
   const [date,setDate]=useState(nowDate());
-  const [totalSales,setTotalSales]=useState("");
-  const [debit,setDebit]=useState("");
-  const [credit,setCredit]=useState("");
-  const [rhbQr,setRhbQr]=useState("");
-  const [cashSales,setCashSales]=useState("");
-  const [remark,setRemark]=useState("");
+  const empty=()=>Object.fromEntries(branches.map(b=>[b,{totalSales:"",debit:"",credit:"",rhbQr:"",cashSales:"",remark:""}]));
+  const [rows,setRows]=useState(empty());
   const [saving,setSaving]=useState(false);
-  const alreadyExists=existingBranches.has(`${branch}_${date}`);
-  const submit=async()=>{
-    if(!branch||!date||alreadyExists)return;
+  // Reset the form's inputs whenever the date changes, so numbers from one
+  // day don't accidentally get submitted for another.
+  useEffect(()=>{setRows(empty());// eslint-disable-next-line react-hooks/exhaustive-deps
+  },[date]);
+  const setField=(b,k,v)=>setRows(p=>({...p,[b]:{...p[b],[k]:v}}));
+  const alreadySubmitted=b=>existingKeys.has(`${b}_${date}`);
+  const filledCount=branches.filter(b=>!alreadySubmitted(b)&&rows[b].totalSales!=="").length;
+  const submitAll=async()=>{
     setSaving(true);
-    const report={
-      id:`${branch}_${date}`,branch,date,
-      totalSales:parseFloat(totalSales)||0,debit:parseFloat(debit)||0,credit:parseFloat(credit)||0,
-      rhbQr:parseFloat(rhbQr)||0,cashSales:parseFloat(cashSales)||0,remark:remark||undefined,
+    const toSave=branches.filter(b=>!alreadySubmitted(b)&&rows[b].totalSales!=="").map(b=>({
+      id:`${b}_${date}`,branch:b,date,
+      totalSales:parseFloat(rows[b].totalSales)||0,debit:parseFloat(rows[b].debit)||0,credit:parseFloat(rows[b].credit)||0,
+      rhbQr:parseFloat(rows[b].rhbQr)||0,cashSales:parseFloat(rows[b].cashSales)||0,remark:rows[b].remark||undefined,
       submittedAt:nowDate(),
       bankInSlip:null,bankInUploadedAt:null,
       verifiedBy:null,verifiedAt:null,paymentMethod:null,actualPaymentDate:null,actualAmountReceived:null,
-    };
-    await onSaved(report);
+    }));
+    await onSavedAll(toSave);
     setSaving(false);
-    setTotalSales("");setDebit("");setCredit("");setRhbQr("");setCashSales("");setRemark("");
+    setRows(empty());
   };
   return<div style={{...card,padding:"14px 16px",marginBottom:14}}>
-    <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:12}}>Submit Daily Sales Report</div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10,marginBottom:10}}>
-      <div><L req>Branch</L>{userBranch?<I value={branchMeta[userBranch]?.name||userBranch} disabled/>:<SEL value={branch} onChange={e=>setBranch(e.target.value)}>{branches.map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}</SEL>}</div>
-      <div><L req>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)} max={nowDate()}/></div>
-      <div><L req>Total Sales</L><I type="number" step="0.01" value={totalSales} onChange={e=>setTotalSales(e.target.value)} placeholder="0.00"/></div>
-      <div><L>Debit</L><I type="number" step="0.01" value={debit} onChange={e=>setDebit(e.target.value)} placeholder="0.00"/></div>
-      <div><L>Credit</L><I type="number" step="0.01" value={credit} onChange={e=>setCredit(e.target.value)} placeholder="0.00"/></div>
-      <div><L>RHB QR</L><I type="number" step="0.01" value={rhbQr} onChange={e=>setRhbQr(e.target.value)} placeholder="0.00"/></div>
-      <div><L req>Cash Sales</L><I type="number" step="0.01" value={cashSales} onChange={e=>setCashSales(e.target.value)} placeholder="0.00"/></div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:12}}>
+      <div style={{fontSize:13,fontWeight:700,color:C.text}}>Submit Daily Sales Report — All Branches</div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <L req>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)} max={nowDate()} style={{width:"auto"}}/>
+      </div>
     </div>
-    <div style={{marginBottom:12}}><L>Remark</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>
-    {alreadyExists&&<div style={{fontSize:11,color:"#DC2626",marginBottom:10,fontWeight:600}}>A report for this branch and date already exists — pick a different date.</div>}
-    <PBtn onClick={submit} disabled={!branch||!date||!totalSales||!cashSales||alreadyExists||saving}>{saving?"Saving…":"Submit Report"}</PBtn>
+    <div style={{overflowX:"auto"}}>
+    <table style={{width:"100%",borderCollapse:"collapse",minWidth:760}}>
+      <thead><tr style={{background:C.surface}}>
+        {["Branch","Total Sales *","Debit","Credit","RHB QR","Cash Sales *","Remark"].map(h=>(
+          <th key={h} style={{padding:"6px 8px",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
+        ))}
+      </tr></thead>
+      <tbody>{branches.map(b=>{
+        const done=alreadySubmitted(b);
+        return<tr key={b} style={{borderBottom:`1px solid ${C.border}`,background:done?C.surface:"#fff"}}>
+          <td style={{padding:"6px 8px",fontSize:12,fontWeight:700,color:C.text,whiteSpace:"nowrap"}}>{branchMeta[b]?.name||b}</td>
+          {["totalSales","debit","credit","rhbQr","cashSales"].map(k=>(
+            <td key={k} style={{padding:"4px 6px"}}><input type="number" step="0.01" disabled={done} value={rows[b][k]} onChange={e=>setField(b,k,e.target.value)} placeholder={done?"—":"0.00"} style={{width:90,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif",background:done?C.surface:"#fff"}}/></td>
+          ))}
+          <td style={{padding:"4px 6px"}}><input disabled={done} value={rows[b].remark} onChange={e=>setField(b,"remark",e.target.value)} placeholder={done?"Already submitted":"Optional"} style={{width:130,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif",background:done?C.surface:"#fff"}}/></td>
+        </tr>;
+      })}</tbody>
+    </table>
+    </div>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginTop:12}}>
+      <PBtn onClick={submitAll} disabled={!filledCount||saving}>{saving?"Saving…":`Submit ${filledCount||""} Report${filledCount!==1?"s":""}`}</PBtn>
+      <span style={{fontSize:11,color:C.textLight}}>Branches already submitted for this date are greyed out — fill in the rest and submit together.</span>
+    </div>
   </div>;
 }
 
@@ -143,22 +161,25 @@ function VerifyBox({report,onSaved}){
   </div>;
 }
 
-function downloadMonthlyBankInExcel(reports,branchMeta,month){
+function downloadMonthlyBankInPDF(reports,branchMeta,month){
   const rows=reports
     .filter(r=>r.verifiedAt&&r.date.slice(0,7)===month)
-    .sort((a,b)=>a.branch.localeCompare(b.branch)||a.date.localeCompare(b.date))
-    .map(r=>({
-      "Branch":branchMeta[r.branch]?.name||r.branch,
-      "Sales Date":fDate(r.date),
-      "Bank-in Date":fDate(r.actualPaymentDate),
-      "Payment Method":r.paymentMethod||"",
-      "Actual Bank-in Amount":r.actualAmountReceived?parseFloat(r.actualAmountReceived):"",
-    }));
-  const ws=XLSX.utils.json_to_sheet(rows);
-  ws["!cols"]=[{wch:20},{wch:12},{wch:12},{wch:14},{wch:18}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,"Bank-in Report");
-  XLSX.writeFile(wb,`Daily_Sales_BankIn_${month}.xlsx`);
+    .sort((a,b)=>a.branch.localeCompare(b.branch)||a.date.localeCompare(b.date));
+  const monthLabel=new Date(month+"-01").toLocaleDateString("en-MY",{month:"long",year:"numeric"});
+  const w=window.open("","_blank");
+  w.document.write(`<!DOCTYPE html><html><head><title>Daily Sales Bank-in Report — ${monthLabel}</title>
+  <style>*{box-sizing:border-box;margin:0;padding:0;font-family:Inter,system-ui,sans-serif;}body{padding:24px;}
+  h2{font-size:15px;font-weight:800;color:#0A1628;margin-bottom:2px;}.period{font-size:11px;color:#8A96A8;margin-bottom:16px;}
+  table{border-collapse:collapse;width:100%;font-size:12px;}
+  th{background:#0A1628;color:rgba(255,255,255,.8);padding:9px 14px;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.06em;text-align:right;}
+  th.L{text-align:left;}td{padding:8px 14px;border-bottom:1px solid #E4EAF2;text-align:right;}td.L{text-align:left;font-weight:700;}
+  @page{size:A4;margin:12mm;}</style></head><body>
+  <h2>Daily Sales Bank-in Report — EMAX NETWORK SDN BHD</h2>
+  <div class="period">Month: ${monthLabel} · ${rows.length} verified report${rows.length!==1?"s":""}</div>
+  <table><thead><tr><th class="L">Branch</th><th class="L">Sales Date</th><th class="L">Bank-in Date</th><th class="L">Payment Method</th><th>Actual Bank-in Amount</th></tr></thead>
+  <tbody>${rows.map(r=>`<tr><td class="L">${branchMeta[r.branch]?.name||r.branch}</td><td class="L">${fDate(r.date)}</td><td class="L">${fDate(r.actualPaymentDate)}</td><td class="L">${r.paymentMethod||"—"}</td><td>${fRM(r.actualAmountReceived)}</td></tr>`).join("")}</tbody></table>
+  </body></html>`);
+  w.document.close();setTimeout(()=>w.print(),400);
 }
 
 export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,canVerify}){
@@ -174,6 +195,13 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
 
   const save=async(updated)=>{
     const next=[...reports.filter(r=>r.id!==updated.id),updated].sort((a,b)=>b.date.localeCompare(a.date)||a.branch.localeCompare(b.branch));
+    setReports(next);
+    await saveData(DAILY_SALES_KEY,next);
+  };
+  const saveAll=async(newReports)=>{
+    if(!newReports.length)return;
+    const newIds=new Set(newReports.map(r=>r.id));
+    const next=[...reports.filter(r=>!newIds.has(r.id)),...newReports].sort((a,b)=>b.date.localeCompare(a.date)||a.branch.localeCompare(b.branch));
     setReports(next);
     await saveData(DAILY_SALES_KEY,next);
   };
@@ -234,13 +262,13 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       {lateAlerts.map(r=><div key={r.id} style={{fontSize:12,color:"#DC2626",padding:"3px 0"}}>{branchMeta[r.branch]?.name||r.branch} — report dated {fDate(r.date)}, slip still not uploaded ({daysSince(r.date)} day{daysSince(r.date)>1?"s":""} late)</div>)}
     </div>}
 
-    {canSubmit&&<SubmitForm branchMeta={branchMeta} userBranch={userBranch} onSaved={save} existingBranches={existingKeys}/>}
+    {canSubmit&&<BatchSubmitForm branchMeta={branchMeta} onSavedAll={saveAll} existingKeys={existingKeys}/>}
 
     {/* Super admin — monthly bank-in report across every branch */}
     {isAdmin&&<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
       <span style={{fontSize:12,fontWeight:700,color:C.text}}>Monthly Bank-in Report</span>
       <input type="month" value={exportMonth} onChange={e=>setExportMonth(e.target.value)} style={{padding:"7px 9px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,fontFamily:"Inter,sans-serif"}}/>
-      <GBtn onClick={()=>downloadMonthlyBankInExcel(reports,branchMeta,exportMonth)} style={{fontSize:11,padding:"7px 12px"}}>Download (Excel)</GBtn>
+      <GBtn onClick={()=>downloadMonthlyBankInPDF(reports,branchMeta,exportMonth)} style={{fontSize:11,padding:"7px 12px"}}>Download (PDF)</GBtn>
       <span style={{fontSize:10,color:C.textLight}}>Every branch's verified bank-in — sales date, bank-in date, method, amount.</span>
     </div>}
 
@@ -249,7 +277,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
         <span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Daily Sales Reports</span>
         {!userBranch&&<SEL value={branchFilter} onChange={e=>setBranchFilter(e.target.value)} style={{width:"auto",padding:"5px 9px",fontSize:11}}>
           <option value="all">All Branches</option>
-          {Object.keys(branchMeta||{}).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}
+          {dailySalesBranches(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}
         </SEL>}
       </div>
       {visible.length===0

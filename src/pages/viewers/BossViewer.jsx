@@ -2,7 +2,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
-import { mergeOrderPermissions } from "../../auth/orderRoles.js";
+import DailySalesTab from "../../DailySalesTab.jsx";
+import { mergeOrderPermissions, getDailySalesAccess } from "../../auth/orderRoles.js";
 import { RTOSummaryInner } from "../../RTOSummary.jsx";
 
 const CSS = `
@@ -976,7 +977,7 @@ export default function App({elevateOrderAccess=false}){
     return{name:s.canon,status:s.status,branch:s.branch,sub:(bMeta[s.branch]?.name||s.branch).toUpperCase(),wi:rankSRTotals[s.id]?.wi||0,ae:rankSRTotals[s.id]?.ae||0,profit,target,bonus,bonusEarned:branchHit&&profit>=target&&bonus>0,branchPct,role:"sr",points:calcRewardPoints(p,branchPct)};
   }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target));
 
-  const TABS=[{id:"overview",label:"Overview"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"report",label:"Monthly Report"},{id:"repair",label:"Repair & Service"},{id:"rto",label:"RTO Summary"},{id:"orders",label:"Order Tracking"}];
+  const TABS=[{id:"overview",label:"Overview"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"report",label:"Monthly Report"},{id:"repair",label:"Repair & Service"},{id:"rto",label:"RTO Summary"},{id:"orders",label:"Order Tracking"},{id:"dailySales",label:"Daily Sales Report"}];
 
   if(loading)return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
     <div style={{textAlign:"center"}}>
@@ -1192,6 +1193,12 @@ export default function App({elevateOrderAccess=false}){
 
       {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}><RTOSummary branchMeta={bMeta}/></div>}
       {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!(elevateOrderAccess&&orderPermissions)} orderPermissions={elevateOrderAccess?orderPermissions:null} srList={srList}/></div>}
+      {tab==="dailySales"&&(()=>{
+        const dsPerms=elevateOrderAccess?orderPermissions:null;
+        const dsReadOnly=!(elevateOrderAccess&&orderPermissions);
+        const {isSuperAdminOrder,canSubmit,canVerify}=getDailySalesAccess(true,dsPerms,dsReadOnly);
+        return<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={isSuperAdminOrder} canSubmit={canSubmit} canVerify={canVerify}/></div>;
+      })()}
     </div>{/* end main content */}
 
       {/* SIDEBAR — right side, collapsible */}

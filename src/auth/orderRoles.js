@@ -116,3 +116,23 @@ export function mergeOrderPermissions(email) {
     reports: reportsAll ? "all" : [...reports],
   };
 }
+
+/**
+ * Daily Sales Report access — submit is Billing-role territory (step 7 =
+ * Billed, same step that gates the Billing role elsewhere), verify is
+ * Knock-off Admin territory (same role that already owns the knock-off
+ * reports). A true super admin (isAdmin with no orderPermissions object at
+ * all — the main dashboard) gets both regardless. isReadOnly (view-only Boss
+ * Viewer sessions without elevated access) blocks both no matter what.
+ */
+export function getDailySalesAccess(isAdmin, orderPermissions, isReadOnly = false) {
+  const isSuperAdminOrder = isAdmin && (!orderPermissions || orderPermissions.adminSteps === "all");
+  if (isReadOnly) return { isSuperAdminOrder: false, canSubmit: false, canVerify: false };
+  const canAdminStep7 = !orderPermissions || orderPermissions.adminSteps === "all" || orderPermissions.adminSteps.includes(7);
+  const canSeeKnockoffReport = !orderPermissions || orderPermissions.reports === "all" || orderPermissions.reports.includes("knockoff");
+  return {
+    isSuperAdminOrder,
+    canSubmit: isSuperAdminOrder || (isAdmin && canAdminStep7),
+    canVerify: isSuperAdminOrder || (isAdmin && canSeeKnockoffReport),
+  };
+}

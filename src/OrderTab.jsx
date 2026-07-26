@@ -1,6 +1,5 @@
 import {useState,useEffect,useRef,useMemo,useCallback,memo} from "react";
 import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
-import DailySalesTab from "./DailySalesTab.jsx";
 import {supabase} from "./storage/index.js";
 import * as XLSX from "xlsx";
 
@@ -1836,13 +1835,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   };
   const canAdminStep = (step) => !orderPermissions || orderPermissions.adminSteps==="all" || orderPermissions.adminSteps.includes(step);
   const canSeeReport = (type) => !orderPermissions || orderPermissions.reports==="all" || orderPermissions.reports.includes(type);
-  // Daily Sales Report — submit is Billing-role territory (same as billing
-  // steps generally, step 7 = Billed), verify is Knock-off Admin territory
-  // (same role that already owns the knock-off reports). Super admin gets
-  // both regardless, same as everywhere else in this file.
-  const canSubmitDailySales = isSuperAdminOrder || canAdminStep(7);
-  const canVerifyDailySales = isSuperAdminOrder || canSeeReport("knockoff");
-  const [pageTab,setPageTab]=useState("orders");
   const [orders,setOrders]=useState([]);
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState(()=>sessionStorage.getItem("orderView")||"list");
@@ -1989,17 +1981,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
   if(loading)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading orders…</div>;
 
-  // Any branch-scoped session can see the Daily Sales tab (to view/upload
-  // for their own branch) even without submit/verify rights; HQ roles see
-  // it if they can submit or verify.
-  const canSeeDailySalesTab = isSuperAdminOrder || canSubmitDailySales || canVerifyDailySales || !!userBranch;
-  const PageTabs=canSeeDailySalesTab&&<div style={{display:"flex",gap:8,marginBottom:16}}>
-    {[["orders","Order Tracking"],["dailySales","Daily Sales Report"]].map(([id,label])=>(
-      <button key={id} onClick={()=>setPageTab(id)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${pageTab===id?C.navy:C.border}`,background:pageTab===id?C.navy:"#fff",color:pageTab===id?"#fff":C.textMid,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{label}</button>
-    ))}
-  </div>;
-  if(pageTab==="dailySales")return<div className="fade-in">{PageTabs}<DailySalesTab branchMeta={branchMeta} isAdmin={isSuperAdminOrder} userBranch={userBranch} canSubmit={canSubmitDailySales} canVerify={canVerifyDailySales}/></div>;
-
   if(view==="detail"&&selected){
     const live=detailCache[selected.id];
     if(!live)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading order…</div>;
@@ -2008,7 +1989,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} orderPermissions={orderPermissions} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
   return<div className="fade-in">
-    {PageTabs}
     {showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}
     {showBulkDispatch&&<BulkDispatch orders={orders} onSave={bulkSave} onClose={()=>setShowBulkDispatch(false)}/>}
     {showBulkAgreementReceived&&<BulkAgreementReceived orders={orders} onSave={bulkSave} onClose={()=>setShowBulkAgreementReceived(false)}/>}

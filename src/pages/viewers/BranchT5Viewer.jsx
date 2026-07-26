@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { loadData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
+import DailySalesTab from "../../DailySalesTab.jsx";
 
 const BRANCH_ID = "T5";
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
@@ -601,6 +602,7 @@ export default function App(){
       </div>}
 
       {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
+      {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} canSubmit={false} canVerify={false}/></div>}
       {tab==="rankings"&&<div className="fade-in" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:20}}>
         <RankingTable title="Branch Manager Ranking" rows={bmRankRows} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
         <RankingTable title="Online SR Ranking — Company" rows={srRankRows.filter(r=>r.type==="Online")} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
@@ -884,7 +886,7 @@ export default function App(){
         minHeight:"calc(100vh - 49px)",position:"sticky",top:49,alignSelf:"flex-start",
       }}>
         <div style={{width:220,padding:"16px 10px",visibility:sidebarOpen?"visible":"hidden"}}>
-          {[{id:"overview",label:"Performance"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"orders",label:"Order Request"}].map(t=>(
+          {[{id:"overview",label:"Performance"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"orders",label:"Order Request"},{id:"dailySales",label:"Daily Sales Report"}].map(t=>(
             <button key={t.id} onClick={()=>{setTab(t.id);setSidebarOpen(false);}} style={{
               display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
               border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
