@@ -488,6 +488,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
   const isCashKnockoff=type==="cashKnockoff";
   const isCollectionOverdue=type==="collectionOverdue";
   const isFirstInstallmentKnockoff=type==="firstInstallmentKnockoff";
+  const isPurchaseClaim=type==="purchaseClaim";
   // Cash orders aren't tied to a merchant, so the merchant filter doesn't
   // apply to this report.
   orders=(merchantFilter&&merchantFilter!=="all"&&!isCashKnockoff)?orders.filter(o=>o.merchant===merchantFilter):orders;
@@ -496,7 +497,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
   // need to scan actual history entries, so fetch it in one batched query and
   // attach it before filtering — otherwise every history-based lookup below
   // silently comes back empty.
-  if(isFirstInstallment||isCashKnockoff){
+  if(isFirstInstallment||isCashKnockoff||isPurchaseClaim){
     const histByOrder=await getHistoryForOrders(orders.map(o=>o.id));
     orders=orders.map(o=>({...o,history:histByOrder[o.id]||[]}));
   }
@@ -523,10 +524,13 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
   const filtered=orders.filter(o=>{
     // Cancelled orders never appear in any report.
     if(o.cancelled)return false;
-    // Every report except Cash Order Knock Off is CCM-only (stock request
-    // and ready stock CCM orders) — cash orders have their own dedicated
-    // report and shouldn't appear in these.
-    if(o.orderType==="cash"&&!isCashKnockoff)return false;
+    // Every report except Cash Order Knock Off and Purchase Claim is
+    // CCM-only (stock request and ready stock CCM orders) — cash orders have
+    // their own dedicated report and shouldn't appear in these. Purchase
+    // Claim is the exception because non-ready-stock cash orders still go
+    // through Ordered/Arrived HQ like any CCM order, and still need the
+    // Claim Release to Purchaser file uploaded there.
+    if(o.orderType==="cash"&&!isCashKnockoff&&!isPurchaseClaim)return false;
     // Agreement Received — based on the actual date admin clicked "confirm
     // agreement received by HQ" (stepDates records this the moment step 11
     // is reached, regardless of what the order's current step is now). With
@@ -572,6 +576,18 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       const bal=getCashBalanceEntry(o); // already respects dateFilter internally
       const depositOk=o.depositPaymentDate&&(!dateFilter||o.depositPaymentDate===dateFilter);
       return!!(depositOk||bal);
+    }
+    // Purchase Claim — a live snapshot, not date-filtered (same reasoning as
+    // Collection Proof Overdue: this is current outstanding status, not a
+    // historical date). Shows every order that has been Ordered (step 2,
+    // which is where PO Number/Supplier/Purchaser get filled in) but where
+    // no history entry at step 3 (Arrived HQ) has the "Claim Release to
+    // Purchaser" file uploaded yet. The moment that file is uploaded, the
+    // order drops out of this report on its own — nothing to knock off.
+    if(isPurchaseClaim){
+      if(!o.orderDate)return false;
+      const claimUploaded=(o.history||[]).some(h=>h.step===3&&h.files?.claimToPurchaser);
+      return!claimUploaded;
     }
     // Upfront Payment — follows the date the admin clicked "Confirm:
     // Collection Verified" (h.date), not the typed Upfront/2nd Payment Date
@@ -629,6 +645,9 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       return`<tr><td>${i+1}</td><td>${o.agreementNumber||"—"}</td><td>${o.customerName}</td><td><b>${o.invoiceNo||"—"}</b></td><td>RM ${amt.toFixed(2)}</td><td>${fDate(o.firstInstallmentKnockOffDate)}</td></tr>`;
     }).join("");
     rows+=`<tr class="tot"><td colspan="4"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td></tr>`;
+  } else if(isPurchaseClaim){
+    rows=filtered.map((o,i)=>`<tr><td>${i+1}</td><td>${o.phoneModel||"—"}</td><td>${o.agreementNumber||"—"}</td><td>${o.branch}</td><td>${o.poNumber||"—"}</td><td>${o.purchaserName||"—"}</td><td>${fDate(o.orderDate)}</td><td>${o.supplierName||"—"}</td></tr>`).join("");
+    rows+=`<tr class="tot"><td colspan="8"><b>TOTAL (${filtered.length})</b></td></tr>`;
   } else {
     rows=filtered.map((o,i)=>{
       const h=o.lastVerification;
@@ -649,7 +668,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     }).join("");
     rows+=`<tr class="tot"><td colspan="4"><b>TOTAL (${filtered.length})</b></td><td></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td><td><b>RM ${total3.toFixed(2)}</b></td><td><b>RM ${total4.toFixed(2)}</b></td></tr>`;
   }
-  const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":isCashKnockoff?"Cash Order Knock Off Report":isCollectionOverdue?"Collection Proof Overdue Report":isFirstInstallmentKnockoff?"First Monthly Installment Knock Off Report":"Upfront Payment Report";
+  const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":isCashKnockoff?"Cash Order Knock Off Report":isCollectionOverdue?"Collection Proof Overdue Report":isFirstInstallmentKnockoff?"First Monthly Installment Knock Off Report":isPurchaseClaim?"Purchase Claim Report":"Upfront Payment Report";
   const heads=isAgreementReceived?`<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Merchant Approval Date</th>${!dateFilter?"<th>Date of Agreement Received by HQ</th>":""}<th>Claim Amount</th>`
     :isCompleted?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Completed Date</th><th>Claim Amount</th>"
     :isKnockoff?"<th>#</th><th>Invoice No</th><th>Agreement No</th><th>Knock-off Amount</th><th>Expected Claim Amount</th>"
@@ -658,6 +677,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     :isCashKnockoff?"<th>#</th><th>Device Name</th><th>Branch</th><th>Invoice No</th><th>Deposit Payment Date</th><th>Deposit Payment Method</th><th>Deposit Amount</th><th>Balance Payment Date</th><th>Balance Payment Method</th><th>Balance Payment Amount</th><th>Expected Balance Payment Amount</th>"
     :isCollectionOverdue?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Customer Name</th><th>Billing Date</th><th>Days Overdue</th>"
     :isFirstInstallmentKnockoff?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th><th>Knock-off Date</th>"
+    :isPurchaseClaim?"<th>#</th><th>Device Name</th><th>Agreement No</th><th>Branch</th><th>PO Number</th><th>Purchaser</th><th>Order Date</th><th>Supplier Name</th>"
     :"<th>#</th><th>Invoice No</th><th>Customer Name</th><th>Agreement No</th><th>Upfront Payment Date</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Upfront Payment Date</th><th>2nd Payment Proof Amount</th><th>2nd Method</th><th>Upfront 1 Amount</th><th>Upfront 2 Amount</th>";
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""} · Merchant: ${merchantLabel}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
   const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
@@ -1302,6 +1322,7 @@ function getOrderAlerts(orders,userBranch=null){
   return alerts;
 }
 function AlertBanner({alerts,onClickOrder}){
+  const isMobile=useIsMobile();
   if(!alerts.length)return null;
   const expired=alerts.filter(a=>a.type==="approval_expired");
   const urgent=alerts.filter(a=>a.type==="approval_urgent"||a.type==="overdue_order");
@@ -1313,8 +1334,11 @@ function AlertBanner({alerts,onClickOrder}){
       <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>{title}</span>
       <span style={{fontSize:10,fontWeight:700,color,background:color+"15",padding:"1px 8px",borderRadius:20}}>{items.length}</span>
     </div>
-    {items.map((a,i)=><div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"8px 4px",borderTop:i>0?`1px solid ${C.border}`:"none",cursor:onClickOrder?"pointer":"default"}}>
-      <div style={{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}><span style={{fontSize:12,fontWeight:700,color:C.text}}>{a.phoneModel}</span><span style={{fontSize:11,color:C.textLight,marginLeft:8}}>{a.customerName} · {a.branch}</span></div>
+    {items.map((a,i)=><div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:isMobile?"flex-start":"center",gap:isMobile?3:10,padding:"8px 4px",borderTop:i>0?`1px solid ${C.border}`:"none",cursor:onClickOrder?"pointer":"default"}}>
+      <div style={isMobile?{minWidth:0}:{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+        <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.phoneModel}</div>
+        <div style={{fontSize:11,color:C.textLight}}>{a.customerName} · {a.branch}</div>
+      </div>
       <span style={{fontSize:11,color,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{a.msg}</span>
     </div>)}
   </div>;
@@ -1818,6 +1842,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [firstInstallmentReportDate,setFirstInstallmentReportDate]=useState(nowDate());
   const [cashKnockoffReportDate,setCashKnockoffReportDate]=useState(nowDate());
   const [collectionOverdueReportDate,setCollectionOverdueReportDate]=useState(nowDate());
+  const [purchaseClaimReportDate,setPurchaseClaimReportDate]=useState(nowDate());
   const [firstInstallmentKnockoffReportDate,setFirstInstallmentKnockoffReportDate]=useState(nowDate());
   const [reportMerchant,setReportMerchant]=useState("all");
   const [reportsExpanded,setReportsExpanded]=useState(false);
@@ -2065,7 +2090,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
     {/* Report downloads — admin only, footer */}
     {(()=>{
-      const allReports=[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment Knock Off","firstInstallmentKnockoff",firstInstallmentKnockoffReportDate,setFirstInstallmentKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Cash Order Knock Off","cashKnockoff",cashKnockoffReportDate,setCashKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Collection Proof Overdue","collectionOverdue",collectionOverdueReportDate,setCollectionOverdueReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]];
+      const allReports=[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment Knock Off","firstInstallmentKnockoff",firstInstallmentKnockoffReportDate,setFirstInstallmentKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Cash Order Knock Off","cashKnockoff",cashKnockoffReportDate,setCashKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Collection Proof Overdue","collectionOverdue",collectionOverdueReportDate,setCollectionOverdueReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Purchase Claim","purchaseClaim",purchaseClaimReportDate,setPurchaseClaimReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]];
       const visibleReports=allReports.filter(([,type])=>canSeeReport(type));
       if(!isAdmin||isReadOnly||!visibleReports.length)return null;
       return<div style={{...card,marginTop:12}}>
@@ -2088,11 +2113,11 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             // This report ignores the date entirely — it's always a live
             // snapshot — so showing a date picker that does nothing is just
             // confusing.
-            const noDateNeeded=type==="collectionOverdue";
+            const noDateNeeded=type==="collectionOverdue"||type==="purchaseClaim";
             return<div key={type} style={{border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",background:C.surface,display:"flex",flexDirection:"column",height:"100%"}}>
               <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>{label} Report</div>
               {noDateNeeded
-                ?<div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Always shows who's currently overdue — there's no date to pick.</div>
+                ?<div style={{fontSize:10,color:C.textLight,marginBottom:10}}>{type==="purchaseClaim"?"Always shows orders still waiting on their Claim Release to Purchaser file — there's no date to pick.":"Always shows who's currently overdue — there's no date to pick."}</div>
                 :<div style={{marginBottom:10}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>}
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginTop:"auto"}}>
                 {!noDateNeeded?<button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",whiteSpace:"nowrap",padding:0}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>:<span/>}

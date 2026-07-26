@@ -57,7 +57,7 @@ export const ORDER_ROLE_DEFS = {
   purchase: {
     adminSteps: [1, 2, 3],
     visibleSteps: [1, 2, 3],
-    reports: [],
+    reports: ["purchaseClaim"],
   },
   // Sees Arrived HQ (view-only — that's Purchase's finish line, not theirs)
   // through Arrived Branch, but only acts as admin on Dispatched to Branch
