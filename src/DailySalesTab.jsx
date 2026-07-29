@@ -347,6 +347,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   const [expandedReminder,setExpandedReminder]=useState(null);
   const [exportMonth,setExportMonth]=useState(nowDate().slice(0,7));
   const [cleanupMonth,setCleanupMonth]=useState(nowDate().slice(0,7));
+  const [showBulkDelete,setShowBulkDelete]=useState(false);
   const [cleaningUp,setCleaningUp]=useState(false);
 
   useEffect(()=>{loadData(DAILY_SALES_KEY).then(d=>{setReports(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>setLoading(false));},[]);
@@ -439,6 +440,23 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
 
   return<div>
+    {/* Super admin only — a single compact button up top; the month picker
+        and confirm only appear once clicked, instead of a permanent card
+        taking up space in the middle of the page. */}
+    {isAdmin&&(()=>{
+      const affectedCount=reports.filter(r=>r.date.slice(0,7)===cleanupMonth&&(r.bankInSlip||r.balancePaymentSlip)).length;
+      return<div style={{marginBottom:14}}>
+        {!showBulkDelete
+          ?<GBtn onClick={()=>setShowBulkDelete(true)} style={{fontSize:11,padding:"7px 12px",color:"#DC2626",borderColor:"#FECACA"}}>Bulk Delete Bank-in Slips</GBtn>
+          :<div style={{...card,padding:"12px 14px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",borderLeft:"3px solid #DC2626"}}>
+            <span style={{fontSize:12,fontWeight:700,color:C.text}}>Bulk Delete Bank-in Slips</span>
+            <input type="month" value={cleanupMonth} onChange={e=>setCleanupMonth(e.target.value)} style={{padding:"7px 9px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,fontFamily:"Inter,sans-serif"}}/>
+            <GBtn onClick={()=>{if(window.confirm(`Delete all ${affectedCount} uploaded bank-in/balance slip file${affectedCount!==1?"s":""} for every branch in this month? The sales figures and verification status stay — only the uploaded files are removed. This cannot be undone.`))bulkDeleteSlipsForMonth(cleanupMonth);}} disabled={!affectedCount||cleaningUp} style={{fontSize:11,padding:"7px 12px",color:"#DC2626",borderColor:"#FECACA"}}>{cleaningUp?"Deleting…":`Delete ${affectedCount||""} Slip${affectedCount!==1?"s":""}`}</GBtn>
+            <GBtn onClick={()=>setShowBulkDelete(false)} style={{fontSize:11,padding:"7px 12px"}}>Cancel</GBtn>
+            <span style={{fontSize:10,color:C.textLight}}>Removes uploaded slip files for every branch this month — sales figures and verified status are kept.</span>
+          </div>}
+      </div>;
+    })()}
     {/* Branch-facing reminder — clickable, expands to the upload box */}
     {myPending.length>0&&<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
@@ -503,17 +521,6 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       <GBtn onClick={()=>downloadMonthlyBankInPDF(reports,branchMeta,exportMonth,userBranch||bankInReportBranch)} disabled={!userBranch&&!bankInReportBranch} style={{fontSize:11,padding:"7px 12px"}}>Download (PDF)</GBtn>
       <span style={{fontSize:10,color:C.textLight}}>One branch, one full month — sales date, bank-in date, method, amount.</span>
     </div>}
-
-    {/* Super admin only — bulk-clear uploaded slip files for a month to free up storage. Sales/verification data is untouched. */}
-    {isAdmin&&(()=>{
-      const affectedCount=reports.filter(r=>r.date.slice(0,7)===cleanupMonth&&(r.bankInSlip||r.balancePaymentSlip)).length;
-      return<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",borderLeft:"3px solid #DC2626"}}>
-        <span style={{fontSize:12,fontWeight:700,color:C.text}}>Bulk Delete Bank-in Slips</span>
-        <input type="month" value={cleanupMonth} onChange={e=>setCleanupMonth(e.target.value)} style={{padding:"7px 9px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,fontFamily:"Inter,sans-serif"}}/>
-        <GBtn onClick={()=>{if(window.confirm(`Delete all ${affectedCount} uploaded bank-in/balance slip file${affectedCount!==1?"s":""} for every branch in this month? The sales figures and verification status stay — only the uploaded files are removed. This cannot be undone.`))bulkDeleteSlipsForMonth(cleanupMonth);}} disabled={!affectedCount||cleaningUp} style={{fontSize:11,padding:"7px 12px",color:"#DC2626",borderColor:"#FECACA"}}>{cleaningUp?"Deleting…":`Delete ${affectedCount||""} Slip${affectedCount!==1?"s":""}`}</GBtn>
-        <span style={{fontSize:10,color:C.textLight}}>Removes uploaded slip files for every branch this month — sales figures and verified status are kept.</span>
-      </div>;
-    })()}
 
     {canSeeActionPanel&&<div style={{...card}}>
       <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>

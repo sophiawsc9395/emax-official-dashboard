@@ -2678,7 +2678,7 @@ export default function App(){
       <div style={{flex:1,minWidth:0,padding:"20px",maxWidth:1180}}>
       {/* Period bar — shows actual data period, consistent across all tabs */}
       {/* Period bar */}
-      {tab!=="orders"&&<div style={{padding:"7px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+      {["overview","rankings","report","daily"].includes(tab)&&<div style={{padding:"7px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
         <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
         <span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year} (no data yet)`}</span>
         {publishedUntil&&<span style={{marginLeft:8,color:"#15803D",fontWeight:600}}>✅ Published up to {publishedUntil.replace(/(\d{4})-(\d{2})-(\d{2})/,(m,y,mo,d)=>`${d}/${mo}/${y}`)}</span>}
