@@ -26,6 +26,7 @@ const card={background:C.white,border:`1px solid ${C.border}`,borderRadius:12,bo
 
 const nowDate=()=>new Date().toISOString().split("T")[0];
 const nowTime=()=>new Date().toTimeString().slice(0,5);
+const yesterday=()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().split("T")[0];};
 const fDate=s=>{if(!s)return"—";const[y,m,d]=s.split("-");return`${d}/${m}/${y}`;};
 const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
 const daysSince=dateStr=>{if(!dateStr)return 0;const[y,m,d]=dateStr.split("-").map(Number);const then=new Date(y,m-1,d);const now=new Date();const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());return Math.floor((today-then)/(1000*60*60*24));};
@@ -60,6 +61,7 @@ const PBtn=({children,...p})=><button {...p} style={{display:"inline-flex",align
 const GBtn=({children,...p})=><button {...p} style={{display:"inline-flex",alignItems:"center",gap:6,background:"#fff",color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif",...(p.style||{})}}>{children}</button>;
 
 function StatusBadge({report}){
+  if(!report.cashSales)return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#F0FDF4",color:"#15803D"}}>No Cash — N/A</span>;
   if(!report.bankInSlip){
     const late=daysSince(report.submittedAt)>=1;
     return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:late?"#FEF2F2":"#FFFBEB",color:late?"#DC2626":"#B45309"}}>{late?"Bank-in Overdue":"Awaiting Bank-in"}</span>;
@@ -85,20 +87,22 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
   const setField=(b,k,v)=>setRows(p=>({...p,[b]:{...p[b],[k]:v}}));
   const reportFor=b=>reports.find(r=>r.id===`${b}_${date}`);
   const alreadySubmitted=b=>existingKeys.has(`${b}_${date}`);
-  const filledCount=branches.filter(b=>!alreadySubmitted(b)&&rows[b].totalSales!=="").length;
+  const filledCount=branches.filter(b=>!alreadySubmitted(b)&&rows[b].cashSales!=="").length;
   const submitAll=async()=>{
     setSaving(true);
-    const toSave=branches.filter(b=>!alreadySubmitted(b)&&rows[b].totalSales!=="").map(b=>({
-      id:`${b}_${date}`,branch:b,date,
-      totalSales:parseFloat(rows[b].totalSales)||0,debit:parseFloat(rows[b].debit)||0,credit:parseFloat(rows[b].credit)||0,
-      rhbQr:parseFloat(rows[b].rhbQr)||0,cashSales:parseFloat(rows[b].cashSales)||0,remark:rows[b].remark||undefined,
-      submittedAt:nowDate(),submittedTime:nowTime(),editLog:[],
-      bankInSlip:null,bankInUploadedAt:null,
-      verifiedBy:null,verifiedAt:null,paymentMethod:null,actualPaymentDate:null,actualAmountReceived:null,
-      shortPayment:false,shortPaymentRemark:null,shortPaymentAt:null,
-      balancePaymentSlip:null,balancePaymentUploadedAt:null,
-      secondPaymentAmount:null,secondPaymentDate:null,secondPaymentMethod:null,secondPaymentVerifiedAt:null,
-    }));
+    const toSave=branches.filter(b=>!alreadySubmitted(b)&&rows[b].cashSales!=="").map(b=>{
+      const debit=parseFloat(rows[b].debit)||0,credit=parseFloat(rows[b].credit)||0,rhbQr=parseFloat(rows[b].rhbQr)||0,cashSales=parseFloat(rows[b].cashSales)||0;
+      return{
+        id:`${b}_${date}`,branch:b,date,
+        totalSales:debit+credit+rhbQr+cashSales,debit,credit,rhbQr,cashSales,remark:rows[b].remark||undefined,
+        submittedAt:nowDate(),submittedTime:nowTime(),editLog:[],
+        bankInSlip:null,bankInUploadedAt:null,
+        verifiedBy:null,verifiedAt:null,paymentMethod:null,actualPaymentDate:null,actualAmountReceived:null,
+        shortPayment:false,shortPaymentRemark:null,shortPaymentAt:null,
+        balancePaymentSlip:null,balancePaymentUploadedAt:null,
+        secondPaymentAmount:null,secondPaymentDate:null,secondPaymentMethod:null,secondPaymentVerifiedAt:null,
+      };
+    });
     await onSavedAll(toSave);
     setSaving(false);
     setRows(empty());
@@ -113,7 +117,7 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
     <div style={{overflowX:"auto"}}>
     <table style={{width:"100%",borderCollapse:"collapse",minWidth:860}}>
       <thead><tr style={{background:C.surface}}>
-        {["Branch","Total Sales *","Debit","Credit","RHB QR","Cash Sales *","Remark","Submitted / Actions"].map(h=>(
+        {["Branch","Total Sales (Auto)","Debit","Credit","RHB QR","Cash Sales *","Remark","Submitted / Actions"].map(h=>(
           <th key={h} style={{padding:"6px 8px",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
         ))}
       </tr></thead>
@@ -138,18 +142,21 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
             <td style={{padding:"6px 8px",fontSize:12,fontWeight:700,color:C.text,whiteSpace:"nowrap"}}>
               {branchMeta[b]?.name||b}
             </td>
-            {["totalSales","debit","credit","rhbQr","cashSales"].map(k=>(
-              <td key={k} style={{padding:"4px 6px"}}>
+            {["totalSales","debit","credit","rhbQr","cashSales"].map(k=>{
+              const autoTotal=(parseFloat(rows[b].debit)||0)+(parseFloat(rows[b].credit)||0)+(parseFloat(rows[b].rhbQr)||0)+(parseFloat(rows[b].cashSales)||0);
+              return<td key={k} style={{padding:"4px 6px"}}>
                 {done
                   ?<>
                     <span style={{fontSize:12,color:C.textMid,fontWeight:600,whiteSpace:"nowrap"}}>{fRM(r[k])}{everEditedFields.has(k)&&<FieldEditedTag field={k}/>}</span>
                     <FieldLog field={k}/>
                   </>
                   :canSubmit
-                    ?<input type="number" step="0.01" value={rows[b][k]} onChange={e=>setField(b,k,e.target.value)} placeholder="0.00" style={{width:90,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif"}}/>
+                    ?(k==="totalSales"
+                      ?<span style={{fontSize:12,color:C.textMid,fontWeight:700,whiteSpace:"nowrap"}}>{fRM(autoTotal)}</span>
+                      :<input type="number" step="0.01" value={rows[b][k]} onChange={e=>setField(b,k,e.target.value)} placeholder="0.00" style={{width:90,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif"}}/>)
                     :<span style={{fontSize:12,color:C.textLight}}>—</span>}
-              </td>
-            ))}
+              </td>;
+            })}
             <td style={{padding:"4px 6px"}}>
               {done
                 ?<>
@@ -188,16 +195,18 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
 function UploadSlipBox({report,onSaved}){
   const [file,setFile]=useState(null);
   const [saving,setSaving]=useState(false);
+  const isReplace=!!report.bankInSlip;
   const upload=async()=>{
     if(!file)return;
     setSaving(true);
+    if(report.bankInSlip?.path)await removeOrderFile(report.bankInSlip.path);
     const f=await readSlipFile(file,`dailysales_${report.branch}_${report.date}`);
     await onSaved({...report,bankInSlip:f,bankInUploadedAt:nowDate()});
     setSaving(false);
   };
   return<div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
     <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFile(e.target.files[0]||null)} style={{fontSize:11}}/>
-    <PBtn onClick={upload} disabled={!file||saving} style={{padding:"7px 12px",fontSize:11}}>{saving?"Uploading…":"Upload Bank-in Slip"}</PBtn>
+    <PBtn onClick={upload} disabled={!file||saving} style={{padding:"7px 12px",fontSize:11}}>{saving?"Uploading…":isReplace?"Replace Bank-in Slip":"Upload Bank-in Slip"}</PBtn>
   </div>;
 }
 
@@ -276,7 +285,6 @@ function SecondPaymentBox({report,onSaved}){
 
 
 function EditBox({report,isAdmin,editorRole,onSaved,onCancel}){
-  const [totalSales,setTotalSales]=useState(String(report.totalSales??""));
   const [debit,setDebit]=useState(String(report.debit??""));
   const [credit,setCredit]=useState(String(report.credit??""));
   const [rhbQr,setRhbQr]=useState(String(report.rhbQr??""));
@@ -287,10 +295,11 @@ function EditBox({report,isAdmin,editorRole,onSaved,onCancel}){
   const [amount,setAmount]=useState(report.actualAmountReceived!=null?String(report.actualAmountReceived):"");
   const [saving,setSaving]=useState(false);
   const canEditVerification=isAdmin&&report.verifiedAt;
+  const autoTotal=(parseFloat(debit)||0)+(parseFloat(credit)||0)+(parseFloat(rhbQr)||0)+(parseFloat(cashSales)||0);
   const save=async()=>{
     setSaving(true);
     const newVals={
-      totalSales:parseFloat(totalSales)||0,debit:parseFloat(debit)||0,credit:parseFloat(credit)||0,
+      totalSales:autoTotal,debit:parseFloat(debit)||0,credit:parseFloat(credit)||0,
       rhbQr:parseFloat(rhbQr)||0,cashSales:parseFloat(cashSales)||0,remark:remark||undefined,
       ...(canEditVerification?{paymentMethod:method,actualPaymentDate:actualDate,actualAmountReceived:parseFloat(amount)||0}:{}),
     };
@@ -314,7 +323,7 @@ function EditBox({report,isAdmin,editorRole,onSaved,onCancel}){
   };
   return<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginTop:8}}>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8,marginBottom:canEditVerification?10:0}}>
-      <div><L>Total Sales</L><I type="number" step="0.01" value={totalSales} onChange={e=>setTotalSales(e.target.value)}/></div>
+      <div><L>Total Sales (Auto)</L><div style={{padding:"9px 11px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontWeight:700,color:C.textMid,background:C.surface}}>{fRM(autoTotal)}</div></div>
       <div><L>Debit</L><I type="number" step="0.01" value={debit} onChange={e=>setDebit(e.target.value)}/></div>
       <div><L>Credit</L><I type="number" step="0.01" value={credit} onChange={e=>setCredit(e.target.value)}/></div>
       <div><L>RHB QR</L><I type="number" step="0.01" value={rhbQr} onChange={e=>setRhbQr(e.target.value)}/></div>
@@ -333,6 +342,47 @@ function EditBox({report,isAdmin,editorRole,onSaved,onCancel}){
   </div>;
 }
 
+
+function BranchMonthlyReport({branchMeta,userBranch,reports}){
+  const [month,setMonth]=useState(nowDate().slice(0,7));
+  const [y,m]=month.split("-").map(Number);
+  const daysInMonth=new Date(y,m,0).getDate();
+  const rows=Array.from({length:daysInMonth},(_,i)=>{
+    const d=String(i+1).padStart(2,"0");
+    const dateStr=`${month}-${d}`;
+    const r=reports.find(x=>x.id===`${userBranch}_${dateStr}`);
+    return{dateStr,r};
+  });
+  return<div style={{...card,marginBottom:14}}>
+    <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Monthly Sales Report — {branchMeta[userBranch]?.name||userBranch}</span>
+      <input type="month" value={month} onChange={e=>setMonth(e.target.value)} max={nowDate().slice(0,7)} style={{padding:"5px 9px",border:"1px solid rgba(255,255,255,.2)",borderRadius:6,fontSize:11,background:"rgba(255,255,255,.06)",color:"#fff",fontFamily:"Inter,sans-serif"}}/>
+    </div>
+    <div style={{overflowX:"auto"}}>
+    <table style={{width:"100%",borderCollapse:"collapse",minWidth:700}}>
+      <thead><tr style={{background:C.surface}}>
+        {["Date","Total Sales","Debit","Credit","RHB QR","Cash Sales","Remark","Status"].map(h=>(
+          <th key={h} style={{padding:"6px 8px",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
+        ))}
+      </tr></thead>
+      <tbody>{rows.map(({dateStr,r})=>(
+        <tr key={dateStr} style={{borderBottom:`1px solid ${C.border}`,background:r?"#fff":C.surface}}>
+          <td style={{padding:"6px 8px",fontSize:12,fontWeight:600,color:C.text,whiteSpace:"nowrap"}}>{fDate(dateStr)}</td>
+          {r?<>
+            <td style={{padding:"6px 8px",fontSize:12,color:C.textMid,whiteSpace:"nowrap"}}>{fRM(r.totalSales)}</td>
+            <td style={{padding:"6px 8px",fontSize:12,color:C.textMid,whiteSpace:"nowrap"}}>{fRM(r.debit)}</td>
+            <td style={{padding:"6px 8px",fontSize:12,color:C.textMid,whiteSpace:"nowrap"}}>{fRM(r.credit)}</td>
+            <td style={{padding:"6px 8px",fontSize:12,color:C.textMid,whiteSpace:"nowrap"}}>{fRM(r.rhbQr)}</td>
+            <td style={{padding:"6px 8px",fontSize:12,color:C.textMid,whiteSpace:"nowrap"}}>{fRM(r.cashSales)}</td>
+            <td style={{padding:"6px 8px",fontSize:11,color:C.textLight}}>{r.remark||"—"}</td>
+            <td style={{padding:"6px 8px"}}><StatusBadge report={r}/></td>
+          </>:<td colSpan={7} style={{padding:"6px 8px",fontSize:11,color:C.textLight}}>Not submitted yet</td>}
+        </tr>
+      ))}</tbody>
+    </table>
+    </div>
+  </div>;
+}
 
 function downloadMonthlyBankInPDF(reports,branchMeta,month,scopeBranch){
   const rows=reports
@@ -360,12 +410,10 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   const [reports,setReports]=useState([]);
   const [loading,setLoading]=useState(true);
   const [slipUrls,setSlipUrls]=useState({});
-  const [dateFilter,setDateFilter]=useState(nowDate());
+  const [dateFilter,setDateFilter]=useState(yesterday());
   const [bankInReportBranch,setBankInReportBranch]=useState(userBranch||"");
-  const [expandedBalanceReminder,setExpandedBalanceReminder]=useState(null);
   const [expandedVerify,setExpandedVerify]=useState(null);
   const [expandedShortPayment,setExpandedShortPayment]=useState(null);
-  const [expandedReminder,setExpandedReminder]=useState(null);
   const [exportMonth,setExportMonth]=useState(nowDate().slice(0,7));
   const [cleanupMonth,setCleanupMonth]=useState(nowDate().slice(0,7));
   const [showBulkDelete,setShowBulkDelete]=useState(false);
@@ -422,6 +470,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   },[reports]);
 
   const existingKeys=useMemo(()=>new Set(reports.map(r=>r.id)),[reports]);
+  const lastSubmittedDate=useMemo(()=>reports.length?reports.reduce((max,r)=>r.date>max?r.date:max,reports[0].date):null,[reports]);
   // The verification queue is now a single-day, all-branches snapshot: pick
   // a date, see everyone's report for that day, verified or not. No branch
   // filter needed since seeing every branch side-by-side for one day is the
@@ -436,7 +485,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   // Late bank-in alert — based on when the report was SUBMITTED (admin's
   // update), not the sales date it's reporting on. A report entered today
   // for last week's sales isn't "already late" the moment it's saved.
-  const lateAlerts=useMemo(()=>reports.filter(r=>!r.bankInSlip&&daysSince(r.submittedAt)>=1),[reports]);
+  const lateAlerts=useMemo(()=>reports.filter(r=>r.cashSales>0&&!r.bankInSlip&&daysSince(r.submittedAt)>=1),[reports]);
   // Grouped branch-by-branch for the HQ view, instead of one flat mixed list.
   const lateAlertsByBranch=useMemo(()=>{
     const groups={};
@@ -447,7 +496,10 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   // awaiting bank-in, not just the late ones (so it doubles as a same-day
   // nudge, not only an overdue warning). Clicking a card reveals the upload
   // box inline instead of it always being visible in the list below.
-  const myPending=useMemo(()=>userBranch?reports.filter(r=>r.branch===userBranch&&!r.bankInSlip):[],[reports,userBranch]);
+  // Includes reports that already have a slip but aren't verified yet — so
+  // the branch can still replace a mis-uploaded slip right up until the
+  // knock-off actually verifies it.
+  const myPending=useMemo(()=>userBranch?reports.filter(r=>r.branch===userBranch&&r.cashSales>0&&!r.verifiedAt&&!r.shortPayment):[],[reports,userBranch]);
   // Branch-facing reminder for short-payment follow-up — same clickable
   // pattern as the bank-in reminder, since the main action panel below is
   // hidden from branch viewers now (Boss/Manager Viewer, super admin, and
@@ -478,7 +530,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
           </div>}
       </div>;
     })()}
-    {/* Branch-facing reminder — clickable, expands to the upload box */}
+    {/* Branch-facing reminder — upload/replace panel shown directly, no expand click needed */}
     {myPending.length>0&&<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
         <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Bank In Cash Sales</span>
@@ -486,13 +538,12 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       </div>
       {myPending.map(r=>{
         const late=daysSince(r.submittedAt)>=1;
-        const open=expandedReminder===r.id;
         return<div key={r.id} style={{borderTop:`1px solid ${C.border}`,padding:"8px 0"}}>
-          <div onClick={()=>setExpandedReminder(open?null:r.id)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,cursor:"pointer"}}>
-            <span style={{fontSize:12,color:late?"#DC2626":C.text,fontWeight:600}}>Bank in {fRM(r.cashSales)} for {fDate(r.date)}{late?` — ${daysSince(r.submittedAt)} day${daysSince(r.submittedAt)>1?"s":""} late`:""}</span>
-            <span style={{fontSize:11,color:C.blueBright,fontWeight:700}}>{open?"Close ▲":"Upload ▼"}</span>
+          <div style={{fontSize:12,color:late?"#DC2626":C.text,fontWeight:600,marginBottom:6}}>
+            {r.bankInSlip?"Replace bank-in slip for ":"Bank in "}{!r.bankInSlip&&`${fRM(r.cashSales)} for `}{fDate(r.date)}{late?` — ${daysSince(r.submittedAt)} day${daysSince(r.submittedAt)>1?"s":""} late`:""}
+            {r.bankInSlip&&<span style={{color:C.textLight,fontWeight:500}}> (currently: {r.bankInSlip.name} — replace if this was uploaded by mistake)</span>}
           </div>
-          {open&&<div style={{marginTop:8}}><UploadSlipBox report={r} onSaved={async(u)=>{await save(u);setExpandedReminder(null);}}/></div>}
+          <UploadSlipBox report={r} onSaved={save}/>
         </div>;
       })}
     </div>}
@@ -503,16 +554,10 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
         <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Balance Payment Needed</span>
         <span style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"1px 8px",borderRadius:20}}>{myBalancePending.length}</span>
       </div>
-      {myBalancePending.map(r=>{
-        const open=expandedBalanceReminder===r.id;
-        return<div key={r.id} style={{borderTop:`1px solid ${C.border}`,padding:"8px 0"}}>
-          <div onClick={()=>setExpandedBalanceReminder(open?null:r.id)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,cursor:"pointer"}}>
-            <span style={{fontSize:12,color:"#B45309",fontWeight:600}}>{fDate(r.date)} — {r.shortPaymentRemark}</span>
-            <span style={{fontSize:11,color:C.blueBright,fontWeight:700}}>{open?"Close ▲":"Upload ▼"}</span>
-          </div>
-          {open&&<div style={{marginTop:8}}><UploadBalanceSlipBox report={r} onSaved={async(u)=>{await save(u);setExpandedBalanceReminder(null);}}/></div>}
-        </div>;
-      })}
+      {myBalancePending.map(r=><div key={r.id} style={{borderTop:`1px solid ${C.border}`,padding:"8px 0"}}>
+        <div style={{fontSize:12,color:"#B45309",fontWeight:600,marginBottom:6}}>{fDate(r.date)} — {r.shortPaymentRemark}</div>
+        <UploadBalanceSlipBox report={r} onSaved={save}/>
+      </div>)}
     </div>}
 
     {/* HQ-level overdue summary across all branches — branch users get the reminder above instead */}
@@ -529,7 +574,9 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       ))}
     </div>}
 
-    <BatchSubmitForm branchMeta={branchMeta} reports={reports} isAdmin={isAdmin} canSubmit={canSubmit} onSavedAll={saveAll} onSaved={save} onDelete={deleteReport} existingKeys={existingKeys}/>
+    {userBranch
+      ?<BranchMonthlyReport branchMeta={branchMeta} userBranch={userBranch} reports={reports}/>
+      :<BatchSubmitForm branchMeta={branchMeta} reports={reports} isAdmin={isAdmin} canSubmit={canSubmit} onSavedAll={saveAll} onSaved={save} onDelete={deleteReport} existingKeys={existingKeys}/>}
 
     {/* Monthly bank-in report — always one branch's full month, never every branch mixed together */}
     {(isAdmin||userBranch)&&<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -551,16 +598,17 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
           <input type="date" value={dateFilter} onChange={e=>setDateFilter(e.target.value)} max={nowDate()} style={{padding:"5px 9px",border:"1px solid rgba(255,255,255,.2)",borderRadius:6,fontSize:11,background:"rgba(255,255,255,.06)",color:"#fff",fontFamily:"Inter,sans-serif"}}/>
         </div>
       </div>
+      {lastSubmittedDate&&<div style={{padding:"6px 16px",fontSize:10,color:C.textLight,borderBottom:`1px solid ${C.border}`}}>Last submitted sales date by admin: <b style={{color:C.textMid}}>{fDate(lastSubmittedDate)}</b></div>}
       {visible.length===0
         ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No reports for this date.</div>
         :<div>{visible.map(r=>{
-          const canUploadSlip=!r.bankInSlip&&isAdmin&&!userBranch;
-          const canVerifyThis=r.bankInSlip&&!r.verifiedAt&&!r.shortPayment&&canVerify;
+          const canUploadSlip=r.cashSales>0&&!r.bankInSlip&&isAdmin&&!userBranch;
+          const canVerifyThis=r.cashSales>0&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment&&canVerify;
           // Short payment follow-up — knock-off can flag it as soon as a
           // bank-in slip is uploaded (an alternative to Verify, for when the
           // slip amount is less than expected), branch uploads the balance
           // slip, knock-off keys in the 2nd payment to finally resolve it.
-          const canFlagShortPayment=canVerify&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment;
+          const canFlagShortPayment=r.cashSales>0&&canVerify&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment;
           const canKeyIn2ndPayment=canVerify&&r.shortPayment&&r.balancePaymentSlip&&!r.secondPaymentVerifiedAt;
           return<div key={r.id} style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
