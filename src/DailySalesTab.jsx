@@ -14,6 +14,7 @@
 import {useState,useEffect,useMemo,Fragment} from "react";
 import {loadData,saveData} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl,removeOrderFile} from "./storage/ordersApi.js";
+import {resolveEditorRole} from "./auth/orderRoles.js";
 
 const DAILY_SALES_KEY="emax_v5_daily_sales";
 const BANKS=["PBB","AGRO","RHB"];
@@ -72,7 +73,7 @@ function StatusBadge({report}){
   return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#F0FDF4",color:"#15803D"}}>Verified</span>;
 }
 
-function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,canVerify,onSavedAll,onSaved,onDelete,existingKeys}){
+function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,canVerify,email,onSavedAll,onSaved,onDelete,existingKeys}){
   const branches=dailySalesBranches(branchMeta);
   const [date,setDate]=useState(nowDate());
   const empty=()=>Object.fromEntries(branches.map(b=>[b,{totalSales:"",debit:"",credit:"",rhbQr:"",cashSales:"",remark:""}]));
@@ -135,7 +136,11 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,canVerify,onSaved
         // Billing/Knock-off, so without this a routine sales-figure
         // correction would misleadingly log as "Super Admin" instead of
         // "Billing", which is really what the action is.
-        const editorRole=canSubmit?"Billing":canVerify?"Knock-off":isAdmin?"Super Admin":"Viewer";
+        // Prefer resolving the actual role from their login email — this
+        // correctly distinguishes, say, emaxbilling@gmail.com from
+        // Sophia (who holds Billing alongside Super Admin) — falling back
+        // to the capability-based guess only if the email isn't recognized.
+        const editorRole=resolveEditorRole(email,["billing","knockoff","superAdmin"])||(canSubmit?"Billing":canVerify?"Knock-off":isAdmin?"Super Admin":"Viewer");
         const editing=editingBranch===b;
         const everEditedFields=new Set((r?.editLog||[]).flatMap(e=>e.fields||[]));
         const fieldLogKey=k=>`${b}_${k}`;
@@ -412,7 +417,7 @@ function downloadMonthlyBankInPDF(reports,branchMeta,month,scopeBranch){
   w.document.close();setTimeout(()=>w.print(),400);
 }
 
-export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,canVerify}){
+export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,canVerify,email}){
   const [reports,setReports]=useState([]);
   const [loading,setLoading]=useState(true);
   const [slipUrls,setSlipUrls]=useState({});
@@ -582,7 +587,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
 
     {userBranch
       ?<BranchMonthlyReport branchMeta={branchMeta} userBranch={userBranch} reports={reports}/>
-      :<BatchSubmitForm branchMeta={branchMeta} reports={reports} isAdmin={isAdmin} canSubmit={canSubmit} canVerify={canVerify} onSavedAll={saveAll} onSaved={save} onDelete={deleteReport} existingKeys={existingKeys}/>}
+      :<BatchSubmitForm branchMeta={branchMeta} reports={reports} isAdmin={isAdmin} canSubmit={canSubmit} canVerify={canVerify} email={email} onSavedAll={saveAll} onSaved={save} onDelete={deleteReport} existingKeys={existingKeys}/>}
 
     {/* Monthly bank-in report — always one branch's full month, never every branch mixed together */}
     {(isAdmin||userBranch)&&<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -609,13 +614,12 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
         ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No reports for this date.</div>
         :<div>{visible.map(r=>{
           const canUploadSlip=r.cashSales>0&&!r.bankInSlip&&isAdmin&&!userBranch;
-          const canVerifyThis=r.cashSales>0&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment&&canVerify;
-          // Short payment follow-up — knock-off can flag it as soon as a
-          // bank-in slip is uploaded (an alternative to Verify, for when the
-          // slip amount is less than expected), branch uploads the balance
-          // slip, knock-off keys in the 2nd payment to finally resolve it.
-          const canFlagShortPayment=r.cashSales>0&&canVerify&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment;
-          const canKeyIn2ndPayment=canVerify&&r.shortPayment&&r.balancePaymentSlip&&!r.secondPaymentVerifiedAt;
+          const canVerifyThis=r.cashSales>0&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment&&isAdmin;
+          // Verify/Short Payment/2nd Payment are now super-admin-only actions
+          // — Knock-off role can still see this queue but not act on it,
+          // since payment method mix-ups were happening at this step.
+          const canFlagShortPayment=r.cashSales>0&&isAdmin&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment;
+          const canKeyIn2ndPayment=isAdmin&&r.shortPayment&&r.balancePaymentSlip&&!r.secondPaymentVerifiedAt;
           return<div key={r.id} style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
               <div>

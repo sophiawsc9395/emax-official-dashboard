@@ -2019,6 +2019,11 @@ function PointsHistoryModal({srList,branchMeta,rewardBalances,rewardHistory,onCl
 }
 
 export default function App(){
+  // Logged-in user's email — used only for edit-log attribution (Daily
+  // Sales Report / Order Tracking), so an edit shows the specific role
+  // relevant to the action rather than a generic capability-based guess.
+  const [currentEmail,setCurrentEmail]=useState(null);
+  useEffect(()=>{supabase.auth.getSession().then(({data})=>setCurrentEmail(data?.session?.user?.email||null));},[]);
   // Month/year selection — default to current month
   const now = new Date();
   const [selMonth,setSelMonth]     = useState(now.getMonth()+1);
@@ -2840,8 +2845,8 @@ export default function App(){
       {/* REPAIR */}
       {tab==="repair"&&<RepairTab month={month} year={year} endDay={selEndDay} refreshKey={repairRefresh}/>}
       {tab==="rto"&&<RTOTab branchMeta={branchMeta}/>}
-      {tab==="orders"&&<OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList}/>}
-      {tab==="dailySales"&&<DailySalesTab branchMeta={branchMeta} isAdmin={true} canSubmit={true} canVerify={true}/>}
+      {tab==="orders"&&<OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} email={currentEmail}/>}
+      {tab==="dailySales"&&<DailySalesTab branchMeta={branchMeta} isAdmin={true} canSubmit={true} canVerify={true} email={currentEmail}/>}
 
       </div>{/* end main content */}
 

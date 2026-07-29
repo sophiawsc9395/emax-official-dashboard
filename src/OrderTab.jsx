@@ -1,6 +1,7 @@
 import {useState,useEffect,useRef,useMemo,useCallback,memo} from "react";
 import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
 import {supabase} from "./storage/index.js";
+import {resolveEditorRole} from "./auth/orderRoles.js";
 import * as XLSX from "xlsx";
 
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
@@ -1241,7 +1242,7 @@ function FormCard({title,children}){
   </div>;
 }
 
-function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,orderPermissions}){
+function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,orderPermissions,email}){
   const empty={phoneModel:"",branch:userBranch||"KM",merchant:"Aeon",agreementNumber:"",customerName:"",customerIC:"",customerEmail:"",customerHP:"",customerAddress:"",customerPostCode:"",customerCity:"",salesAgentId:"",salesAgentName:"",aeonApprovalDate:"",financePrice:"",deposit:"",stampingFee:"",agreementFee:"",monthlyInstallment:"",retailPrice:"",stockStatus:"stock_request",orderType:"ccm",depositPaymentDate:"",depositPaymentMethod:"RHB",depositSlip:null,pickUpBranch:""};
   const [f,setF]=useState(order?{...order}:empty);
   const [slipFile,setSlipFile]=useState(null);
@@ -1267,7 +1268,10 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
     let editLog=order?.editLog||[];
     if(order){
       const isSuperAdminEditor=isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all");
-      const editorRole=isSuperAdminEditor?"Super Admin":"Admin";
+      // Prefer resolving the actual role from their login email, same as
+      // Daily Sales Report — falls back to the coarser Super Admin/Admin
+      // guess only if the email isn't recognized.
+      const editorRole=resolveEditorRole(email,["billing","knockoff","purchase","stock","superAdmin"])||(isSuperAdminEditor?"Super Admin":"Admin");
       const FIELD_LABELS={phoneModel:"Device Name",branch:"Branch",merchant:"Merchant",agreementNumber:"Agreement No.",customerName:"Customer Name",customerIC:"Customer IC",customerEmail:"Customer Email",customerHP:"Customer HP",customerAddress:"Customer Address",customerPostCode:"Postcode",customerCity:"City",salesAgentId:"SR ID",salesAgentName:"SR Name",aeonApprovalDate:"Merchant Approval Date",financePrice:"Finance Price",deposit:"Deposit",stampingFee:"Stamping Fee",agreementFee:"Agreement Fee",monthlyInstallment:"Monthly Installment",retailPrice:"Retail Price",stockStatus:"Stock Status",orderType:"Order Type",depositPaymentDate:"Deposit Payment Date",depositPaymentMethod:"Deposit Payment Method",pickUpBranch:"Pick Up Branch"};
       const MONEY_FIELDS=new Set(["financePrice","deposit","stampingFee","agreementFee","monthlyInstallment","retailPrice"]);
       const DATE_FIELDS=new Set(["aeonApprovalDate","depositPaymentDate"]);
@@ -1903,7 +1907,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
   </div>;
 });
 
-export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList=[],isReadOnly=false,orderPermissions=null}){
+export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList=[],isReadOnly=false,orderPermissions=null,email=null}){
   const isMobile=useIsMobile();
   // orderPermissions (when set) narrows a full isAdmin=true session down to
   // specific steps/reports for the restricted Order-page-only roles (billing,
@@ -2079,8 +2083,10 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const agentOptions=useMemo(()=>[...new Set(orders.filter(o=>visibleToBranch(o,userBranch)&&canSeeStep(o.step)).map(o=>o.salesAgentName||o.salesAgentId).filter(Boolean))].sort((a,b)=>a.localeCompare(b)),[orders,userBranch,orderPermissions]);
   const viewingCompleted=filterPhase==="completed";
   const viewingCancelled=filterPhase==="cancelled";
-  const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||filterPhase==="all"||o.step===filterPhase)&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
+  const viewingMerchantRejected=filterPhase==="merchantRejected";
+  const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||(viewingMerchantRejected?(o.step===12&&o.merchantRejected&&!o.knockOffDate):(filterPhase==="all"||o.step===filterPhase)))&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,viewingMerchantRejected,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
   const stepCounts=useMemo(()=>STEPS.filter(s=>s.step!==14).reduce((acc,s)=>{acc[s.step]=activeOrders.filter(o=>o.step===s.step).length;return acc;},{}),[activeOrders]);
+  const merchantRejectedCount=useMemo(()=>activeOrders.filter(o=>o.step===12&&o.merchantRejected&&!o.knockOffDate).length,[activeOrders]);
   // Step cards grouped by phase (Stock Order, Stock Transfer, Billing, etc.)
   // for the redesigned Order Tracking cards — each phase only appears if it
   // has at least one step visible to this role.
@@ -2100,7 +2106,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     if(!live)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading order…</div>;
     return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} orderPermissions={orderPermissions} userBranch={userBranch} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
   }
-  if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} orderPermissions={orderPermissions} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
+  if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} orderPermissions={orderPermissions} email={email} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
   return<div className="fade-in">
     {showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}
@@ -2140,6 +2146,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         for the sequence to still be legible). */}
     <div style={{marginBottom:20}}>
       <div style={isMobile?undefined:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:18,alignItems:"start",marginBottom:20}}>{/* fixed 2 phases per row on desktop */}
+      {(isSuperAdminOrder||canAdminStep(7))&&merchantRejectedCount>0&&<div onClick={()=>setFilterPhase(filterPhase==="merchantRejected"?"all":"merchantRejected")} style={{...card,padding:isMobile?"13px 14px":"12px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",marginBottom:16,border:`1px solid ${filterPhase==="merchantRejected"?"#DC2626":C.border}`,boxShadow:filterPhase==="merchantRejected"?"0 0 0 1.5px #DC2626, 0 6px 16px rgba(10,22,40,.09)":card.boxShadow,maxWidth:isMobile?"none":260}}>
+        <div style={{width:38,height:38,borderRadius:10,background:"#FEF2F2",color:"#DC2626",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{Ic.alertCircle}</div>
+        <div style={{minWidth:0,flex:1}}>
+          <div style={{fontSize:10.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3,whiteSpace:"nowrap"}}>Merchant Rejected</div>
+          <div style={{fontSize:22,fontWeight:800,color:"#DC2626",lineHeight:1}}>{merchantRejectedCount}</div>
+        </div>
+      </div>}
       {groupedPhases.map(ph=>{
         const phaseTotal=ph.steps.reduce((sum,s)=>sum+(stepCounts[s.step]||0),0);
         return isMobile?(

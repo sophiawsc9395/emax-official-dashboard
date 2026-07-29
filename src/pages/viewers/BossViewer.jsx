@@ -785,6 +785,8 @@ export default function App({elevateOrderAccess=false}){
   // auth/orderRoles.js). boss.html never passes this, so it stays pure
   // view-only for everyone, regardless of any order-page role they hold.
   const [orderPermissions,setOrderPermissions]=useState(null);
+  const [currentEmail,setCurrentEmail]=useState(null);
+  useEffect(()=>{supabase.auth.getSession().then(({data})=>setCurrentEmail(data?.session?.user?.email||null));},[]);
   useEffect(()=>{
     if(!elevateOrderAccess)return;
     supabase.auth.getSession().then(({data})=>{
@@ -1192,8 +1194,8 @@ export default function App({elevateOrderAccess=false}){
       </div>}
 
       {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}><RTOSummary branchMeta={bMeta}/></div>}
-      {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!(elevateOrderAccess&&orderPermissions)} orderPermissions={elevateOrderAccess?orderPermissions:null} srList={srList}/></div>}
-      {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} canSubmit={false} canVerify={false}/></div>}
+      {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!(elevateOrderAccess&&orderPermissions)} orderPermissions={elevateOrderAccess?orderPermissions:null} srList={srList} email={currentEmail}/></div>}
+      {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} canSubmit={false} canVerify={false} email={currentEmail}/></div>}
     </div>{/* end main content */}
 
       {/* SIDEBAR — right side, collapsible */}

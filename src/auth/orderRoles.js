@@ -136,3 +136,24 @@ export function getDailySalesAccess(isAdmin, orderPermissions, isReadOnly = fals
     canVerify: isSuperAdminOrder || (isAdmin && canSeeKnockoffReport),
   };
 }
+
+/**
+ * Resolve the most contextually-relevant role label for a specific email —
+ * used for edit-log attribution so someone like Sophia or boontheng2004
+ * (who hold Super Admin alongside Billing/Knock-off/etc.) get attributed by
+ * whichever role is actually relevant to the action, not their broadest
+ * title. priorityRoles lists which role to prefer first, in order, e.g.
+ * ["billing","knockoff","superAdmin"] for a sales-figure edit.
+ * Returns null if the email isn't recognized at all (caller should fall
+ * back to its own capability-based heuristic in that case).
+ */
+const ROLE_DISPLAY_LABELS = { billing: "Billing", knockoff: "Knock-off", purchase: "Purchase", stock: "Stock", superAdmin: "Super Admin" };
+export function resolveEditorRole(email, priorityRoles = ["billing", "knockoff", "purchase", "stock", "superAdmin"]) {
+  const normalizedEmail = (email || "").toLowerCase();
+  const roleKey = Object.keys(ORDER_USER_ROLES).find(k => k.toLowerCase() === normalizedEmail);
+  const roles = roleKey ? ORDER_USER_ROLES[roleKey] : [];
+  if (!roles.length) return null;
+  const best = priorityRoles.find(r => roles.includes(r)) || roles[0];
+  return ROLE_DISPLAY_LABELS[best] || best;
+}
+
