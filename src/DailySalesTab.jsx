@@ -104,7 +104,7 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
   };
   return<div style={{...card,padding:"14px 16px",marginBottom:14}}>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:12}}>
-      <div style={{fontSize:13,fontWeight:700,color:C.text}}>Submit Daily Sales Report — All Branches</div>
+      <div style={{fontSize:13,fontWeight:700,color:C.text}}>{canSubmit?"Submit Daily Sales Report — All Branches":"Daily Sales Report — All Branches"}</div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <L req>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)} max={nowDate()} style={{width:"auto"}}/>
       </div>
@@ -127,6 +127,8 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
         const canDeleteThis=r&&isAdmin;
         const editorRole=isAdmin?"Super Admin":canSubmit?"Billing":"Viewer";
         const editing=editingBranch===b;
+        const everEditedFields=new Set((r?.editLog||[]).flatMap(e=>e.fields||[]));
+        const FieldEditedTag=()=><span style={{marginLeft:4,fontSize:7,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"1px 4px",borderRadius:3,verticalAlign:"middle"}}>Edited</span>;
         return<Fragment key={b}>
           <tr style={{borderBottom:editing?"none":`1px solid ${C.border}`,background:done?C.surface:"#fff"}}>
             <td style={{padding:"6px 8px",fontSize:12,fontWeight:700,color:C.text,whiteSpace:"nowrap"}}>
@@ -136,14 +138,18 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
             {["totalSales","debit","credit","rhbQr","cashSales"].map(k=>(
               <td key={k} style={{padding:"4px 6px"}}>
                 {done
-                  ?<span style={{fontSize:12,color:C.textMid,fontWeight:600,whiteSpace:"nowrap"}}>{fRM(r[k])}</span>
-                  :<input type="number" step="0.01" value={rows[b][k]} onChange={e=>setField(b,k,e.target.value)} placeholder="0.00" style={{width:90,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif"}}/>}
+                  ?<span style={{fontSize:12,color:C.textMid,fontWeight:600,whiteSpace:"nowrap"}}>{fRM(r[k])}{everEditedFields.has(k)&&<FieldEditedTag/>}</span>
+                  :canSubmit
+                    ?<input type="number" step="0.01" value={rows[b][k]} onChange={e=>setField(b,k,e.target.value)} placeholder="0.00" style={{width:90,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif"}}/>
+                    :<span style={{fontSize:12,color:C.textLight}}>—</span>}
               </td>
             ))}
             <td style={{padding:"4px 6px"}}>
               {done
-                ?<span style={{fontSize:11,color:C.textLight}}>{r.remark||"—"}</span>
-                :<input value={rows[b].remark} onChange={e=>setField(b,"remark",e.target.value)} placeholder="Optional" style={{width:130,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif"}}/>}
+                ?<span style={{fontSize:11,color:C.textLight}}>{r.remark||"—"}{everEditedFields.has("remark")&&<FieldEditedTag/>}</span>
+                :canSubmit
+                  ?<input value={rows[b].remark} onChange={e=>setField(b,"remark",e.target.value)} placeholder="Optional" style={{width:130,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif"}}/>
+                  :<span style={{fontSize:11,color:C.textLight}}>—</span>}
             </td>
             <td style={{padding:"4px 6px"}}>
               {done&&<>
@@ -159,7 +165,7 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
             <td colSpan={8} style={{padding:"0 8px 12px"}}>
               <EditBox report={r} isAdmin={isAdmin} editorRole={editorRole} onSaved={async(u)=>{await onSaved(u);setEditingBranch(null);}} onCancel={()=>setEditingBranch(null)}/>
               {editCount>0&&<div style={{fontSize:10,color:"#B45309",marginTop:6}}>
-                {r.editLog.map((e,i)=><div key={i}>Edited by {e.by} — {fDate(e.date)} at {e.time}</div>)}
+                {r.editLog.map((e,i)=><div key={i} style={{marginBottom:2}}>Edited by {e.by} — {fDate(e.date)} at {e.time}{e.changes?` — ${e.changes}`:""}</div>)}
               </div>}
             </td>
           </tr>}
@@ -167,10 +173,9 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
       })}</tbody>
     </table>
     </div>
-    <div style={{display:"flex",alignItems:"center",gap:10,marginTop:12}}>
+    {canSubmit&&<div style={{display:"flex",alignItems:"center",gap:10,marginTop:12}}>
       <PBtn onClick={submitAll} disabled={!filledCount||saving}>{saving?"Saving…":`Submit ${filledCount||""} Report${filledCount!==1?"s":""}`}</PBtn>
-      <span style={{fontSize:11,color:C.textLight}}>Branches already submitted for this date show their figures and actions instead — fill in the rest and submit together.</span>
-    </div>
+    </div>}
   </div>;
 }
 
@@ -278,15 +283,24 @@ function EditBox({report,isAdmin,editorRole,onSaved,onCancel}){
   const canEditVerification=isAdmin&&report.verifiedAt;
   const save=async()=>{
     setSaving(true);
-    // Every edit is logged — date, time, and who (by role) — so super admin
-    // can see how many times a report was edited, and Billing edits flag the
-    // report as changed so the branch notices the figures moved.
-    const logEntry={date:nowDate(),time:nowTime(),by:editorRole};
-    await onSaved({
-      ...report,
+    const newVals={
       totalSales:parseFloat(totalSales)||0,debit:parseFloat(debit)||0,credit:parseFloat(credit)||0,
       rhbQr:parseFloat(rhbQr)||0,cashSales:parseFloat(cashSales)||0,remark:remark||undefined,
       ...(canEditVerification?{paymentMethod:method,actualPaymentDate:actualDate,actualAmountReceived:parseFloat(amount)||0}:{}),
+    };
+    // Every edit is logged with date, time, who (by role), AND a summary of
+    // what actually changed — so super admin can see not just how many
+    // times a report was edited, but exactly what moved each time.
+    const FIELD_LABELS={totalSales:"Total Sales",debit:"Debit",credit:"Credit",rhbQr:"RHB QR",cashSales:"Cash Sales",remark:"Remark",paymentMethod:"Payment Method",actualPaymentDate:"Actual Payment Date",actualAmountReceived:"Actual Amount Received"};
+    const MONEY_FIELDS=new Set(["totalSales","debit","credit","rhbQr","cashSales","actualAmountReceived"]);
+    const DATE_FIELDS=new Set(["actualPaymentDate"]);
+    const fmt=(k,v)=>{if(v==null||v==="")return"—";if(MONEY_FIELDS.has(k))return fRM(v);if(DATE_FIELDS.has(k))return fDate(v);return String(v);};
+    const changedKeys=Object.keys(newVals).filter(k=>String(report[k]??"")!==String(newVals[k]??""));
+    const changes=changedKeys.map(k=>`${FIELD_LABELS[k]||k}: ${fmt(k,report[k])} → ${fmt(k,newVals[k])}`).join("; ");
+    const logEntry={date:nowDate(),time:nowTime(),by:editorRole,changes:changes||"No changes",fields:changedKeys};
+    await onSaved({
+      ...report,
+      ...newVals,
       editLog:[...(report.editLog||[]),logEntry],
     });
     setSaving(false);
@@ -508,7 +522,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       ))}
     </div>}
 
-    {canSubmit&&<BatchSubmitForm branchMeta={branchMeta} reports={reports} isAdmin={isAdmin} canSubmit={canSubmit} onSavedAll={saveAll} onSaved={save} onDelete={deleteReport} existingKeys={existingKeys}/>}
+    <BatchSubmitForm branchMeta={branchMeta} reports={reports} isAdmin={isAdmin} canSubmit={canSubmit} onSavedAll={saveAll} onSaved={save} onDelete={deleteReport} existingKeys={existingKeys}/>
 
     {/* Monthly bank-in report — always one branch's full month, never every branch mixed together */}
     {(isAdmin||userBranch)&&<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>

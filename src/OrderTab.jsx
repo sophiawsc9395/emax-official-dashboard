@@ -1059,6 +1059,7 @@ function ReportCard({allOrders,reportDate,setReportDate}){
 /* ── Order Detail ─────────────────────────────────────────────────────── */
 function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,allOrders,isReadOnly,orderPermissions,userBranch}){
   const [linkCopied,setLinkCopied]=useState(false);
+  const [showEditLog,setShowEditLog]=useState(false);
   const isSuperAdminOrder = isAdmin && (!orderPermissions || orderPermissions.adminSteps==="all");
   // True super admin means accessed WITHOUT any orderPermissions restriction
   // at all (the main dashboard), not just holding the "order admin" role.
@@ -1094,6 +1095,8 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     return !orderPermissions.adminSteps.includes(relevantStep);
   })();
   const s=getStep(order.step),ph=getPhase(order.step),isCash=order.orderType==="cash";
+  const everEditedFields=new Set((order.editLog||[]).flatMap(e=>e.fields||[]));
+  const FieldEditedTag=()=><span style={{marginLeft:5,fontSize:8,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"1px 5px",borderRadius:3,verticalAlign:"middle"}}>Edited</span>;
   return<div className="fade-in">
     {/* Top bar */}
     <div className="detail-topbar">
@@ -1118,12 +1121,17 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
           <StepBadge order={order}/>
           {order.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>Ready Stock</span>}
           {isCash?<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>Cash</span>:<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>CCM</span>}
+          {order.editLog?.length>0&&<button onClick={()=>setShowEditLog(p=>!p)} style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"2px 8px",borderRadius:4,border:"1px solid #FDE68A",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Edited ×{order.editLog.length}</button>}
         </div>
         <div style={{fontSize:11,color:C.textLight,marginTop:3}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}{order.invoiceNo?` · Invoice: ${order.invoiceNo}`:""}</div>
       </div>
       {isSuperAdminOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>{!order.cancelled&&order.step!==14&&<DBtn onClick={()=>{const reason=prompt("Reason for cancelling this order (optional):")||"";if(!confirm("Cancel this order? It will move out of active tracking and won't appear in any reports."))return;onUpdate({...order,cancelled:true,cancelledReason:reason||undefined,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Order Cancelled",cancelledReason:reason||undefined}]});}}>{Ic.x} Cancel Order</DBtn>}<DBtn onClick={onDelete}>{Ic.trash} Delete</DBtn></div>}
       {!isSuperAdminOrder&&canEditOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>{canAdminBilling&&!order.cancelled&&order.step!==14&&<DBtn onClick={()=>{const reason=prompt("Reason for cancelling this order (optional):")||"";if(!confirm("Cancel this order? It will move out of active tracking and won't appear in any reports."))return;onUpdate({...order,cancelled:true,cancelledReason:reason||undefined,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Order Cancelled",cancelledReason:reason||undefined}]});}}>{Ic.x} Cancel Order</DBtn>}</div>}
     </div>
+
+    {showEditLog&&order.editLog?.length>0&&<div style={{marginBottom:14,background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:8,padding:"10px 12px",display:"flex",flexDirection:"column",gap:6}}>
+      {order.editLog.map((e,i)=><div key={i} style={{fontSize:11,color:"#92400E"}}>Edited by {e.by} — {fDate(e.date)} at {e.time} — {e.changes}</div>)}
+    </div>}
 
     {order.cancelled&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"12px 16px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,color:"#DC2626"}}>{Ic.alertCircle}<div><div style={{fontWeight:700,fontSize:13}}>This order has been cancelled</div>{order.cancelledReason&&<div style={{fontSize:11,color:"#B91C1C",marginTop:2}}>{order.cancelledReason}</div>}</div></div>
@@ -1141,19 +1149,19 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
       <div className="order-info-grid" style={{padding:"6px 16px 10px"}}>
         <div style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Device Name</div>
-          {canEditPhoneModelAtOrdered&&order.step===2?<PhoneModelField order={order} onUpdate={onUpdate}/>:<div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.phoneModel||"—"}</div>}
+          {canEditPhoneModelAtOrdered&&order.step===2?<PhoneModelField order={order} onUpdate={onUpdate}/>:<div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.phoneModel||"—"}{everEditedFields.has("phoneModel")&&<FieldEditedTag/>}</div>}
         </div>
-        {[["Customer Name",order.customerName],order.customerIC&&["Customer IC",order.customerIC],order.customerHP&&["Customer HP",order.customerHP],!isCash&&["Merchant",order.merchant],!isCash&&["Agreement No.",order.agreementNumber],!isCash&&["Merchant Approval Date",fDate(order.aeonApprovalDate)],!isCash&&["Finance Price",fRM(order.financePrice)],!isCash&&["Agreement Fee",fRM(order.agreementFee)],!isCash&&["Stamping Fee",fRM(order.stampingFee)],["Deposit",fRM(order.deposit)],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment)],isCash&&["Retail Price",fRM(order.retailPrice)],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate)],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+        {[["Customer Name",order.customerName,"customerName"],order.customerIC&&["Customer IC",order.customerIC,"customerIC"],order.customerHP&&["Customer HP",order.customerHP,"customerHP"],!isCash&&["Merchant",order.merchant,"merchant"],!isCash&&["Agreement No.",order.agreementNumber,"agreementNumber"],!isCash&&["Merchant Approval Date",fDate(order.aeonApprovalDate),"aeonApprovalDate"],!isCash&&["Finance Price",fRM(order.financePrice),"financePrice"],!isCash&&["Agreement Fee",fRM(order.agreementFee),"agreementFee"],!isCash&&["Stamping Fee",fRM(order.stampingFee),"stampingFee"],["Deposit",fRM(order.deposit),"deposit"],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment),"monthlyInstallment"],isCash&&["Retail Price",fRM(order.retailPrice),"retailPrice"],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate),"depositPaymentDate"],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch,"pickUpBranch"],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v,k])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
-          <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}</div>
+          <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}{k&&everEditedFields.has(k)&&<FieldEditedTag/>}</div>
         </div>)}
         {order.customerEmail&&<div className="oi-full" style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Customer Email</div>
-          <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.customerEmail}</div>
+          <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.customerEmail}{everEditedFields.has("customerEmail")&&<FieldEditedTag/>}</div>
         </div>}
         {order.customerAddress&&<div className="oi-full" style={{padding:"7px 0",minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Address{(order.customerPostCode||order.customerCity)?` (${[order.customerPostCode,order.customerCity].filter(Boolean).join(", ")})`:""}</div>
-          <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.customerAddress}</div>
+          <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.customerAddress}{(everEditedFields.has("customerAddress")||everEditedFields.has("customerPostCode")||everEditedFields.has("customerCity"))&&<FieldEditedTag/>}</div>
         </div>}
       </div>
     </div>
@@ -1213,7 +1221,22 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
     if(slipFile)depositSlip=await readFile(slipFile,id);
     const initStep=isReady?3:1;
     const initHist=isReady?[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"},{step:2,date:nowDate(),time:nowTime(),note:"Ready stock"},{step:3,date:nowDate(),time:nowTime(),note:"Arrived HQ"}]:[{step:1,date:nowDate(),time:nowTime(),note:"Submitted"}];
-    onSave({...f,depositSlip,id,step:order?.step||initStep,history:order?.history||initHist});
+    // Edit log — only for editing an EXISTING order (never for new-order
+    // creation), same pattern as the Daily Sales Report's edit log: date,
+    // time, who (by role), and a plain-English summary of what changed.
+    let editLog=order?.editLog||[];
+    if(order){
+      const isSuperAdminEditor=isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all");
+      const editorRole=isSuperAdminEditor?"Super Admin":"Admin";
+      const FIELD_LABELS={phoneModel:"Device Name",branch:"Branch",merchant:"Merchant",agreementNumber:"Agreement No.",customerName:"Customer Name",customerIC:"Customer IC",customerEmail:"Customer Email",customerHP:"Customer HP",customerAddress:"Customer Address",customerPostCode:"Postcode",customerCity:"City",salesAgentId:"SR ID",salesAgentName:"SR Name",aeonApprovalDate:"Merchant Approval Date",financePrice:"Finance Price",deposit:"Deposit",stampingFee:"Stamping Fee",agreementFee:"Agreement Fee",monthlyInstallment:"Monthly Installment",retailPrice:"Retail Price",stockStatus:"Stock Status",orderType:"Order Type",depositPaymentDate:"Deposit Payment Date",depositPaymentMethod:"Deposit Payment Method",pickUpBranch:"Pick Up Branch"};
+      const MONEY_FIELDS=new Set(["financePrice","deposit","stampingFee","agreementFee","monthlyInstallment","retailPrice"]);
+      const DATE_FIELDS=new Set(["aeonApprovalDate","depositPaymentDate"]);
+      const fmt=(k,v)=>{if(v==null||v==="")return"—";if(MONEY_FIELDS.has(k))return fRM(v);if(DATE_FIELDS.has(k))return fDate(v);return String(v);};
+      const changedKeys=Object.keys(FIELD_LABELS).filter(k=>String(order[k]??"")!==String(f[k]??""));
+      const changes=changedKeys.map(k=>`${FIELD_LABELS[k]}: ${fmt(k,order[k])} → ${fmt(k,f[k])}`).join("; ");
+      if(changes)editLog=[...editLog,{date:nowDate(),time:nowTime(),by:editorRole,changes,fields:changedKeys}];
+    }
+    onSave({...f,depositSlip,id,step:order?.step||initStep,history:order?.history||initHist,editLog});
   };
   // Field-level edit restrictions when editing an EXISTING order — only
   // applies to the restricted order-page roles; true super admin / order
