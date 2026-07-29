@@ -72,7 +72,7 @@ function StatusBadge({report}){
   return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#F0FDF4",color:"#15803D"}}>Verified</span>;
 }
 
-function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSaved,onDelete,existingKeys}){
+function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,canVerify,onSavedAll,onSaved,onDelete,existingKeys}){
   const branches=dailySalesBranches(branchMeta);
   const [date,setDate]=useState(nowDate());
   const empty=()=>Object.fromEntries(branches.map(b=>[b,{totalSales:"",debit:"",credit:"",rhbQr:"",cashSales:"",remark:""}]));
@@ -129,7 +129,13 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
         // unverified ones. Delete is super-admin-only, full stop.
         const canEditThis=r&&(r.verifiedAt?isAdmin:canSubmit);
         const canDeleteThis=r&&isAdmin;
-        const editorRole=isAdmin?"Super Admin":canSubmit?"Billing":"Viewer";
+        // Attribute by whichever functional role is actually relevant to
+        // this edit, not the person's overall highest privilege — someone
+        // like Sophia or boontheng2004 holds Super Admin *alongside*
+        // Billing/Knock-off, so without this a routine sales-figure
+        // correction would misleadingly log as "Super Admin" instead of
+        // "Billing", which is really what the action is.
+        const editorRole=canSubmit?"Billing":canVerify?"Knock-off":isAdmin?"Super Admin":"Viewer";
         const editing=editingBranch===b;
         const everEditedFields=new Set((r?.editLog||[]).flatMap(e=>e.fields||[]));
         const fieldLogKey=k=>`${b}_${k}`;
@@ -576,7 +582,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
 
     {userBranch
       ?<BranchMonthlyReport branchMeta={branchMeta} userBranch={userBranch} reports={reports}/>
-      :<BatchSubmitForm branchMeta={branchMeta} reports={reports} isAdmin={isAdmin} canSubmit={canSubmit} onSavedAll={saveAll} onSaved={save} onDelete={deleteReport} existingKeys={existingKeys}/>}
+      :<BatchSubmitForm branchMeta={branchMeta} reports={reports} isAdmin={isAdmin} canSubmit={canSubmit} canVerify={canVerify} onSavedAll={saveAll} onSaved={save} onDelete={deleteReport} existingKeys={existingKeys}/>}
 
     {/* Monthly bank-in report — always one branch's full month, never every branch mixed together */}
     {(isAdmin||userBranch)&&<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>

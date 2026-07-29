@@ -286,10 +286,13 @@ function TrackingNumberEditor({order,onUpdate,canEdit}){
   </div>;
 }
 
-function Timeline({order,isAdmin,canManageTracking,onUpdate}){
+function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions}){
   const cur=order.step;
   const isReady=order.stockStatus==="ready";
   const visSteps=getVisibleSteps(order);
+  const isSuperAdminOrderTL=isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all");
+  const isBillingRoleTL=isAdmin&&!!orderPermissions&&orderPermissions.adminSteps!=="all"&&orderPermissions.adminSteps.includes(7);
+  const canSeeMerchantRejection=isSuperAdminOrderTL||isBillingRoleTL;
   let lastPh=null;
   const renderEntry=(hist,s,isLatest)=><div style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid}}>
     {hist.date&&<div style={{marginBottom:3,fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em"}}>{isLatest?"Latest — ":""}{fDT(hist.date,hist.time)}</div>}
@@ -351,6 +354,10 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate}){
           </div>
           {histEntries.map((hist,hi)=><div key={hi}>{renderEntry(hist,s,hi===histEntries.length-1&&histEntries.length>1)}</div>)}
           {s.step===2&&!isAutoReady&&order.step>=2&&<TrackingNumberEditor order={order} onUpdate={onUpdate} canEdit={canManageTracking}/>}
+          {s.step===12&&order.merchantRejected&&canSeeMerchantRejection&&<div style={{marginTop:4,background:"#FEF2F2",borderRadius:7,padding:"6px 10px",border:"1px solid #FECACA",fontSize:11,color:"#DC2626"}}>
+            <div style={{marginBottom:3,fontSize:9,fontWeight:700,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.04em"}}>Merchant Rejected — {fDate(order.merchantRejectedDate)}</div>
+            <div style={{fontWeight:600}}>Remark: {order.merchantRejectedRemark}</div>
+          </div>}
         </div>
       </div>
     </div>;
@@ -746,11 +753,22 @@ function stepRoleLabel(step,who){
   return who==="admin"?"Admin":"Branch";
 }
 
-function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false}){
+function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,orderPermissions}){
   const step=order.step;
   const isCash=order.orderType==="cash";
   const nextStepN=nextStepNum(order);
   const nextDef=nextStepN?getStep(nextStepN):null;
+  // "Reject by Merchant" is restricted to Billing role, Super Admin, and
+  // Manager/Boss Viewer — NOT Knock-off/Purchase/Stock, even though every
+  // order-system role passes isAdmin=true uniformly from order-main.jsx.
+  // Boss/Manager Viewer naturally qualify here too: when not elevated they
+  // get orderPermissions=null, which this same "!orderPermissions" check
+  // already treats as full access everywhere else in this file.
+  const isSuperAdminOrderPanel=isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all");
+  const isBillingRolePanel=isAdmin&&!!orderPermissions&&orderPermissions.adminSteps!=="all"&&orderPermissions.adminSteps.includes(7);
+  const canRejectByMerchant=isSuperAdminOrderPanel||isBillingRolePanel;
+  const [showRejectPanel,setShowRejectPanel]=useState(false);
+  const [rejectRemark,setRejectRemark]=useState("");
   const [remark,setRemark]=useState("");
   const [invoiceNo,setInvoiceNo]=useState("");
   const [orderDate,setOrderDate]=useState(nowDate());
@@ -1029,6 +1047,28 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false}){
         </div>
       </div>
     )}
+    {/* Merchant Rejected — only after Claim Submitted (step 12), before Claim
+        Released. Doesn't advance order.step at all (stays at 12) so nothing
+        elsewhere that keys off step numbers needs to change; it's tracked
+        as a pure overlay (merchantRejected/merchantRejectedDate/Remark) that
+        only these specific roles can see or act on. */}
+    {step===12&&canRejectByMerchant&&(order.merchantRejected&&!order.knockOffDate
+      ?<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px"}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Merchant Rejected</div>
+        <div style={{fontSize:12,color:C.textMid,marginBottom:2}}>{fDate(order.merchantRejectedDate)} — {order.merchantRejectedRemark}</div>
+      </div>
+      :!showRejectPanel
+        ?<DBtn onClick={()=>setShowRejectPanel(true)} style={{width:"100%",justifyContent:"center"}}>{Ic.x} Reject by Merchant</DBtn>
+        :<div style={card}>
+          <SecHdr icon={Ic.x}><span style={{color:"#DC2626"}}>Reject by Merchant</span></SecHdr>
+          <div style={{padding:"14px 16px"}}>
+            <div style={{marginBottom:12}}><L req>Reason for Rejection</L><TX value={rejectRemark} onChange={e=>setRejectRemark(e.target.value)} rows={3} placeholder="Reason the merchant gave for rejecting this claim…" style={{borderColor:"#FECACA",resize:"none",width:"100%",boxSizing:"border-box",borderRadius:12}}/></div>
+            <div style={{display:"flex",gap:8}}>
+              <GBtn onClick={()=>setShowRejectPanel(false)} style={{flex:1,justifyContent:"center"}}>Cancel</GBtn>
+              <DBtn onClick={async()=>{if(!rejectRemark.trim()){alert("Reason required.");return;}setSaving(true);const rd=nowDate();await onUpdate({...order,merchantRejected:true,merchantRejectedDate:rd,merchantRejectedRemark:rejectRemark});setSaving(false);setShowRejectPanel(false);setRejectRemark("");}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.x} {saving?"Saving…":"Confirm Rejection"}</DBtn>
+            </div>
+          </div>
+        </div>)}
   </div>;
 }
 
@@ -1061,6 +1101,8 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
   const [linkCopied,setLinkCopied]=useState(false);
   const [viewingField,setViewingField]=useState(null);
   const isSuperAdminOrder = isAdmin && (!orderPermissions || orderPermissions.adminSteps==="all");
+  const isBillingRoleDetail = isAdmin && !!orderPermissions && orderPermissions.adminSteps!=="all" && orderPermissions.adminSteps.includes(7);
+  const canSeeMerchantRejectionBadge = isSuperAdminOrder||isBillingRoleDetail;
   // True super admin means accessed WITHOUT any orderPermissions restriction
   // at all (the main dashboard), not just holding the "order admin" role.
   const isTrueSuperAdmin = isAdmin && !orderPermissions;
@@ -1121,7 +1163,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
       <div className="detail-topbar-title">
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
           <span style={{fontSize:14,fontWeight:800,color:C.navy}}>{order.phoneModel}</span>
-          <StepBadge order={order}/>
+          {order.merchantRejected&&!order.knockOffDate&&canSeeMerchantRejectionBadge?<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:"#FEF2F2",color:"#B91C1C",border:"1px solid #FECACA",whiteSpace:"nowrap"}}>Merchant Rejected</span>:<StepBadge order={order}/>}
           {order.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>Ready Stock</span>}
           {isCash?<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>Cash</span>:<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>CCM</span>}
         </div>
@@ -1170,14 +1212,14 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <div className="detail-grid">
       <div style={card}>
         <SecHdr icon={Ic.calendar}>Tracking Timeline</SecHdr>
-        <div style={{padding:"14px 16px"}}><Timeline order={order} isAdmin={isAdmin} canManageTracking={canManageTracking} onUpdate={onUpdate}/></div>
+        <div style={{padding:"14px 16px"}}><Timeline order={order} isAdmin={isAdmin} canManageTracking={canManageTracking} onUpdate={onUpdate} orderPermissions={orderPermissions}/></div>
       </div>
       <div>
         {order.cancelled?<div style={{...card,padding:"16px"}}>
           <div style={{fontSize:12,color:"#DC2626",fontStyle:"italic",textAlign:"center",padding:"12px 0"}}>Order cancelled — no further action available.</div>
         </div>:isReadOnly?<div style={{...card,padding:"16px"}}>
           <div style={{fontSize:12,color:C.textLight,fontStyle:"italic",textAlign:"center",padding:"12px 0"}}>View only — actions disabled for this viewer.</div>
-        </div>:<ActionPanel order={order} isAdmin={isAdmin} onUpdate={onUpdate} allOrders={allOrders} forceViewOnly={forceViewOnly}/>}
+        </div>:<ActionPanel order={order} isAdmin={isAdmin} onUpdate={onUpdate} allOrders={allOrders} forceViewOnly={forceViewOnly} orderPermissions={orderPermissions}/>}
       </div>
     </div>
   </div>;
@@ -1342,6 +1384,7 @@ function alertDotColor(type){
   if(type==="approval_urgent"||type==="overdue_order")return"#B91C1C";
   if(type==="approval_warning")return"#B45309";
   if(type==="cash_balance_payment_overdue")return"#7C3AED";
+  if(type==="merchant_rejected")return"#DC2626";
   return C.blue; // collection_proof_overdue
 }
 function getOrderAlerts(orders,userBranch=null){
@@ -1350,6 +1393,12 @@ function getOrderAlerts(orders,userBranch=null){
   myOrders.filter(o=>o.step===2&&o.orderDate).forEach(o=>{
     const days=daysSince(o.orderDate);
     if(days>=7)alerts.push({type:"overdue_order",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Ordered ${days} days ago — not yet arrived at HQ`});
+  });
+  // Merchant Rejected — fires from the day the admin clicked Reject by
+  // Merchant, until the claim is actually released (knockOffDate set).
+  myOrders.filter(o=>o.step===12&&o.merchantRejected&&!o.knockOffDate).forEach(o=>{
+    const days=daysSince(o.merchantRejectedDate);
+    alerts.push({type:"merchant_rejected",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Rejected by merchant ${days} day${days!==1?"s":""} ago — ${o.merchantRejectedRemark}`});
   });
   myOrders.filter(o=>o.aeonApprovalDate&&o.step>=1&&o.step<=13).forEach(o=>{
     const days=daysSince(o.aeonApprovalDate);
@@ -1383,6 +1432,7 @@ function AlertBanner({alerts,onClickOrder}){
   const warning=alerts.filter(a=>a.type==="approval_warning");
   const collectionOverdue=alerts.filter(a=>a.type==="collection_proof_overdue");
   const cashBalanceOverdue=alerts.filter(a=>a.type==="cash_balance_payment_overdue");
+  const merchantRejected=alerts.filter(a=>a.type==="merchant_rejected");
   const Block=({items,color,title})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
@@ -1402,6 +1452,7 @@ function AlertBanner({alerts,onClickOrder}){
     <Block items={urgent} color="#B91C1C" title="Urgent Attention"/>
     <Block items={collectionOverdue} color="#B91C1C" title="Collection Proof Overdue"/>
     <Block items={cashBalanceOverdue} color="#7C3AED" title="Cash Balance Payment Slip Overdue"/>
+    <Block items={merchantRejected} color="#DC2626" title="Merchant Rejected"/>
     <Block items={warning} color="#B45309" title="Approval Warning"/>
   </div>;
 }
@@ -2035,7 +2086,11 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   // has at least one step visible to this role.
   const groupedPhases=useMemo(()=>PHASES.map(ph=>({...ph,steps:STEPS.filter(s=>s.phase===ph.id&&s.step!==14&&canSeeStepCard(s.step))})).filter(g=>g.steps.length>0),[orderPermissions,userBranch,isAdmin]);
   const completedCount=orders.filter(o=>o.step===14&&visibleToBranch(o,userBranch)).length;
-  const alerts=useMemo(()=>getOrderAlerts(activeOrders,userBranch),[activeOrders,userBranch]);
+  const alerts=useMemo(()=>{
+    const all=getOrderAlerts(activeOrders,userBranch);
+    const canSeeMerchantRejected=isSuperAdminOrder||canAdminStep(7);
+    return canSeeMerchantRejected?all:all.filter(a=>a.type!=="merchant_rejected");
+  },[activeOrders,userBranch,isSuperAdminOrder,orderPermissions]);
   const alertsByOrderId=useMemo(()=>{const m={};alerts.forEach(a=>{if(!m[a.orderId])m[a.orderId]=a;});return m;},[alerts]);
 
   if(loading)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading orders…</div>;
