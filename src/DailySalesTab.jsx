@@ -77,9 +77,10 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
   const [rows,setRows]=useState(empty());
   const [saving,setSaving]=useState(false);
   const [editingBranch,setEditingBranch]=useState(null);
+  const [viewingFieldLog,setViewingFieldLog]=useState(null);
   // Reset the form's inputs whenever the date changes, so numbers from one
   // day don't accidentally get submitted for another.
-  useEffect(()=>{setRows(empty());setEditingBranch(null);// eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(()=>{setRows(empty());setEditingBranch(null);setViewingFieldLog(null);// eslint-disable-next-line react-hooks/exhaustive-deps
   },[date]);
   const setField=(b,k,v)=>setRows(p=>({...p,[b]:{...p[b],[k]:v}}));
   const reportFor=b=>reports.find(r=>r.id===`${b}_${date}`);
@@ -119,7 +120,6 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
       <tbody>{branches.map(b=>{
         const done=alreadySubmitted(b);
         const r=done?reportFor(b):null;
-        const editCount=r?.editLog?.length||0;
         // Super admin can edit/delete any report regardless of verified
         // status; Billing role (canSubmit, non-admin) can only edit
         // unverified ones. Delete is super-admin-only, full stop.
@@ -128,17 +128,23 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
         const editorRole=isAdmin?"Super Admin":canSubmit?"Billing":"Viewer";
         const editing=editingBranch===b;
         const everEditedFields=new Set((r?.editLog||[]).flatMap(e=>e.fields||[]));
-        const FieldEditedTag=()=><span style={{marginLeft:4,fontSize:7,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"1px 4px",borderRadius:3,verticalAlign:"middle"}}>Edited</span>;
+        const fieldLogKey=k=>`${b}_${k}`;
+        const FieldEditedTag=({field})=><button onClick={()=>setViewingFieldLog(viewingFieldLog===fieldLogKey(field)?null:fieldLogKey(field))} style={{marginLeft:4,fontSize:7,fontWeight:700,color:"#B45309",background:"#FFFBEB",border:"1px solid #FDE68A",padding:"1px 4px",borderRadius:3,verticalAlign:"middle",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Edited</button>;
+        const FieldLog=({field})=>viewingFieldLog===fieldLogKey(field)&&<div style={{marginTop:4,background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:6,padding:"6px 8px",display:"flex",flexDirection:"column",gap:3}}>
+          {r.editLog.filter(e=>e.fields?.includes(field)).map((e,i)=><div key={i} style={{fontSize:10,color:"#92400E",whiteSpace:"nowrap"}}>{fDate(e.date)} {e.time} by {e.by}: {e.fieldChanges?.[field]}</div>)}
+        </div>;
         return<Fragment key={b}>
           <tr style={{borderBottom:editing?"none":`1px solid ${C.border}`,background:done?C.surface:"#fff"}}>
             <td style={{padding:"6px 8px",fontSize:12,fontWeight:700,color:C.text,whiteSpace:"nowrap"}}>
               {branchMeta[b]?.name||b}
-              {editCount>0&&<span style={{marginLeft:6,fontSize:8,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"1px 6px",borderRadius:20}}>Edited ×{editCount}</span>}
             </td>
             {["totalSales","debit","credit","rhbQr","cashSales"].map(k=>(
               <td key={k} style={{padding:"4px 6px"}}>
                 {done
-                  ?<span style={{fontSize:12,color:C.textMid,fontWeight:600,whiteSpace:"nowrap"}}>{fRM(r[k])}{everEditedFields.has(k)&&<FieldEditedTag/>}</span>
+                  ?<>
+                    <span style={{fontSize:12,color:C.textMid,fontWeight:600,whiteSpace:"nowrap"}}>{fRM(r[k])}{everEditedFields.has(k)&&<FieldEditedTag field={k}/>}</span>
+                    <FieldLog field={k}/>
+                  </>
                   :canSubmit
                     ?<input type="number" step="0.01" value={rows[b][k]} onChange={e=>setField(b,k,e.target.value)} placeholder="0.00" style={{width:90,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif"}}/>
                     :<span style={{fontSize:12,color:C.textLight}}>—</span>}
@@ -146,7 +152,10 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
             ))}
             <td style={{padding:"4px 6px"}}>
               {done
-                ?<span style={{fontSize:11,color:C.textLight}}>{r.remark||"—"}{everEditedFields.has("remark")&&<FieldEditedTag/>}</span>
+                ?<>
+                  <span style={{fontSize:11,color:C.textLight}}>{r.remark||"—"}{everEditedFields.has("remark")&&<FieldEditedTag field="remark"/>}</span>
+                  <FieldLog field="remark"/>
+                </>
                 :canSubmit
                   ?<input value={rows[b].remark} onChange={e=>setField(b,"remark",e.target.value)} placeholder="Optional" style={{width:130,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif"}}/>
                   :<span style={{fontSize:11,color:C.textLight}}>—</span>}
@@ -164,9 +173,6 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSave
           {editing&&r&&<tr style={{borderBottom:`1px solid ${C.border}`}}>
             <td colSpan={8} style={{padding:"0 8px 12px"}}>
               <EditBox report={r} isAdmin={isAdmin} editorRole={editorRole} onSaved={async(u)=>{await onSaved(u);setEditingBranch(null);}} onCancel={()=>setEditingBranch(null)}/>
-              {editCount>0&&<div style={{fontSize:10,color:"#B45309",marginTop:6}}>
-                {r.editLog.map((e,i)=><div key={i} style={{marginBottom:2}}>Edited by {e.by} — {fDate(e.date)} at {e.time}{e.changes?` — ${e.changes}`:""}</div>)}
-              </div>}
             </td>
           </tr>}
         </Fragment>;
@@ -296,8 +302,9 @@ function EditBox({report,isAdmin,editorRole,onSaved,onCancel}){
     const DATE_FIELDS=new Set(["actualPaymentDate"]);
     const fmt=(k,v)=>{if(v==null||v==="")return"—";if(MONEY_FIELDS.has(k))return fRM(v);if(DATE_FIELDS.has(k))return fDate(v);return String(v);};
     const changedKeys=Object.keys(newVals).filter(k=>String(report[k]??"")!==String(newVals[k]??""));
-    const changes=changedKeys.map(k=>`${FIELD_LABELS[k]||k}: ${fmt(k,report[k])} → ${fmt(k,newVals[k])}`).join("; ");
-    const logEntry={date:nowDate(),time:nowTime(),by:editorRole,changes:changes||"No changes",fields:changedKeys};
+    const fieldChanges=Object.fromEntries(changedKeys.map(k=>[k,`${fmt(k,report[k])} → ${fmt(k,newVals[k])}`]));
+    const changes=changedKeys.map(k=>`${FIELD_LABELS[k]||k}: ${fieldChanges[k]}`).join("; ");
+    const logEntry={date:nowDate(),time:nowTime(),by:editorRole,changes:changes||"No changes",fields:changedKeys,fieldChanges};
     await onSaved({
       ...report,
       ...newVals,
