@@ -611,8 +611,8 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     rows=filtered.map((o,i)=>{const claim=calcClaimAmount(o);total1+=claim;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.branch}</td><td>${o.agreementNumber||"—"}</td><td>${fDate(o.claimSentDate)}</td><td>RM ${claim.toFixed(2)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="5"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
   } else if(isKnockoff){
-    rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;const claim=calcClaimAmount(o);total1+=ka;total2+=claim;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.agreementNumber||"—"}</td><td>RM ${ka.toFixed(2)}</td><td>RM ${claim.toFixed(2)}</td></tr>`;}).join("");
-    rows+=`<tr class="tot"><td colspan="3"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td></tr>`;
+    rows=filtered.map((o,i)=>{const ka=parseFloat(o.knockOffAmount)||0;const claim=calcClaimAmount(o);total1+=ka;total2+=claim;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.agreementNumber||"—"}</td><td>RM ${ka.toFixed(2)}</td><td>RM ${claim.toFixed(2)}</td><td>${o.claimReportKnockOffDate?fDate(o.claimReportKnockOffDate):"Pending"}</td></tr>`;}).join("");
+    rows+=`<tr class="tot"><td colspan="3"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td></tr>`;
   } else if(isCompleted){
     rows=filtered.map((o,i)=>{const claim=calcClaimAmount(o);total1+=claim;const d=o.stepDates?.["14"]?.date;return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.branch}</td><td>${o.agreementNumber||"—"}</td><td>${fDate(d)}</td><td>RM ${claim.toFixed(2)}</td></tr>`;}).join("");
     rows+=`<tr class="tot"><td colspan="5"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td></tr>`;
@@ -628,9 +628,9 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       const balAmt=bal?parseFloat(bal.monthlyInstallment)||0:0;
       const expected=showExpected?(parseFloat(o.retailPrice)||0)-(parseFloat(o.deposit)||0):0;
       total1+=balAmt;total2+=expected;
-      return`<tr><td>${i+1}</td><td>${o.phoneModel}</td><td>${o.branch}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${depositOk?fDate(o.depositPaymentDate):"—"}</td><td>${depositOk?(o.depositPaymentMethod||"—"):"—"}</td><td>${depositOk?`RM ${depositAmt.toFixed(2)}`:"—"}</td><td>${bal?fDate(bal.date):"—"}</td><td>${bal?(bal.paymentMethod||"—"):"—"}</td><td>${bal?`RM ${balAmt.toFixed(2)}`:"—"}</td><td>${showExpected?`RM ${expected.toFixed(2)}`:"—"}</td></tr>`;
+      return`<tr><td>${i+1}</td><td>${o.phoneModel}</td><td>${o.branch}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${depositOk?fDate(o.depositPaymentDate):"—"}</td><td>${depositOk?(o.depositPaymentMethod||"—"):"—"}</td><td>${depositOk?`RM ${depositAmt.toFixed(2)}`:"—"}</td><td>${bal?fDate(bal.date):"—"}</td><td>${bal?(bal.paymentMethod||"—"):"—"}</td><td>${bal?`RM ${balAmt.toFixed(2)}`:"—"}</td><td>${showExpected?`RM ${expected.toFixed(2)}`:"—"}</td><td>${o.cashReportKnockOffDate?fDate(o.cashReportKnockOffDate):"Pending"}</td></tr>`;
     }).join("");
-    rows+=`<tr class="tot"><td colspan="9"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td></tr>`;
+    rows+=`<tr class="tot"><td colspan="9"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td></tr>`;
   } else if(isCollectionOverdue){
     rows=filtered.map((o,i)=>{
       const billingDate=o.billingData?.billingDate;
@@ -664,21 +664,21 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       const upfront1=calcUpfront(o).total;
       const upfront2=parseFloat(h?.monthlyInstallment??o.monthlyInstallment)||0;
       total3+=upfront1;total4+=upfront2;
-      return`<tr><td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.customerName||"—"}</td><td>${o.agreementNumber||"—"}</td><td>${showRow?fDate(h?.upfrontPaymentDate):"—"}</td><td>${showRow&&amt1?`RM ${amt1.toFixed(2)}`:"—"}</td><td>${showRow?(h?.paymentMethod||"—"):"—"}</td><td>${showRow&&h?.secondPaymentDate?fDate(h.secondPaymentDate):"—"}</td><td>${showRow&&amt2?`RM ${amt2.toFixed(2)}`:"—"}</td><td>${showRow&&amt2?(h?.secondPayMethod||"—"):"—"}</td><td>RM ${upfront1.toFixed(2)}</td><td>RM ${upfront2.toFixed(2)}</td></tr>`;
+      return`<tr>${!dateFilter?`<td>${fDate(h?.date)}</td>`:""}<td>${i+1}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${o.customerName||"—"}</td><td>${o.agreementNumber||"—"}</td><td>${showRow?fDate(h?.upfrontPaymentDate):"—"}</td><td>${showRow&&amt1?`RM ${amt1.toFixed(2)}`:"—"}</td><td>${showRow?(h?.paymentMethod||"—"):"—"}</td><td>${showRow&&h?.secondPaymentDate?fDate(h.secondPaymentDate):"—"}</td><td>${showRow&&amt2?`RM ${amt2.toFixed(2)}`:"—"}</td><td>${showRow&&amt2?(h?.secondPayMethod||"—"):"—"}</td><td>RM ${upfront1.toFixed(2)}</td><td>${o.upfront1KnockOffDate?fDate(o.upfront1KnockOffDate):"Pending"}</td><td>RM ${upfront2.toFixed(2)}</td><td>${o.upfront2KnockOffDate?fDate(o.upfront2KnockOffDate):"Pending"}</td></tr>`;
     }).join("");
-    rows+=`<tr class="tot"><td colspan="4"><b>TOTAL (${filtered.length})</b></td><td></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td><td><b>RM ${total3.toFixed(2)}</b></td><td><b>RM ${total4.toFixed(2)}</b></td></tr>`;
+    rows+=`<tr class="tot"><td colspan="${!dateFilter?5:4}"><b>TOTAL (${filtered.length})</b></td><td></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td><td><b>RM ${total3.toFixed(2)}</b></td><td></td><td><b>RM ${total4.toFixed(2)}</b></td><td></td></tr>`;
   }
   const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":isCashKnockoff?"Cash Order Knock Off Report":isCollectionOverdue?"Collection Proof Overdue Report":isFirstInstallmentKnockoff?"First Monthly Installment Knock Off Report":isPurchaseClaim?"Purchase Claim Report":"Upfront Payment Report";
   const heads=isAgreementReceived?`<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Merchant Approval Date</th>${!dateFilter?"<th>Date of Agreement Received by HQ</th>":""}<th>Claim Amount</th>`
     :isCompleted?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Completed Date</th><th>Claim Amount</th>"
-    :isKnockoff?"<th>#</th><th>Invoice No</th><th>Agreement No</th><th>Knock-off Amount</th><th>Expected Claim Amount</th>"
+    :isKnockoff?"<th>#</th><th>Invoice No</th><th>Agreement No</th><th>Knock-off Amount</th><th>Expected Claim Amount</th><th>Reconciled</th>"
     :isClaim?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Claim Sent Date</th><th>Claim Amount</th>"
     :isFirstInstallment?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th>"
-    :isCashKnockoff?"<th>#</th><th>Device Name</th><th>Branch</th><th>Invoice No</th><th>Deposit Payment Date</th><th>Deposit Payment Method</th><th>Deposit Amount</th><th>Balance Payment Date</th><th>Balance Payment Method</th><th>Balance Payment Amount</th><th>Expected Balance Payment Amount</th>"
+    :isCashKnockoff?"<th>#</th><th>Device Name</th><th>Branch</th><th>Invoice No</th><th>Deposit Payment Date</th><th>Deposit Payment Method</th><th>Deposit Amount</th><th>Balance Payment Date</th><th>Balance Payment Method</th><th>Balance Payment Amount</th><th>Expected Balance Payment Amount</th><th>Reconciled</th>"
     :isCollectionOverdue?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Customer Name</th><th>Billing Date</th><th>Days Overdue</th>"
     :isFirstInstallmentKnockoff?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th><th>Knock-off Date</th>"
     :isPurchaseClaim?"<th>#</th><th>Device Name</th><th>Agreement No</th><th>Branch</th><th>PO Number</th><th>Purchaser</th><th>Order Date</th><th>Supplier Name</th>"
-    :"<th>#</th><th>Invoice No</th><th>Customer Name</th><th>Agreement No</th><th>Upfront Payment Date</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Upfront Payment Date</th><th>2nd Payment Proof Amount</th><th>2nd Method</th><th>Upfront 1 Amount</th><th>Upfront 2 Amount</th>";
+    :`${!dateFilter?"<th>Date Verified</th>":""}<th>#</th><th>Invoice No</th><th>Customer Name</th><th>Agreement No</th><th>Upfront Payment Date</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Upfront Payment Date</th><th>2nd Payment Proof Amount</th><th>2nd Method</th><th>Upfront 1 Amount</th><th>Upfront 1 Knocked Off</th><th>Upfront 2 Amount</th><th>Upfront 2 Knocked Off</th>`;
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""} · Merchant: ${merchantLabel}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
   const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();setTimeout(()=>w.print(),400);}
 }
@@ -1863,6 +1863,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [purchaseClaimReportDate,setPurchaseClaimReportDate]=useState(nowDate());
   const [firstInstallmentKnockoffReportDate,setFirstInstallmentKnockoffReportDate]=useState(nowDate());
   const [reportMerchant,setReportMerchant]=useState("all");
+  const [expandedKnockoffReport,setExpandedKnockoffReport]=useState(null);
   const [reportsExpanded,setReportsExpanded]=useState(false);
   // Fully hydrated + signed order (header + history, with every {name,path}
   // Storage ref resolved to a short-lived signed URL) — fetched lazily, one
@@ -2131,6 +2132,44 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
               <PBtn onClick={()=>downloadNewOrderExcel(orders)} style={{padding:"9px 12px",width:38,height:38,justifyContent:"center",flexShrink:0}}>{Ic.download}</PBtn>
             </div>
           </div>}
+          {/* Reconciliation checklists — separate from any order-workflow step;
+              this is purely "I've matched this against my own accounting/bank
+              records", tracked with its own dedicated date fields so it never
+              collides with the Claim Released step's own knockOffDate. */}
+          {(()=>{
+            const upfrontPending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&o.lastVerification&&((parseFloat(o.lastVerification.paymentProofAmount)>0&&!o.upfront1KnockOffDate)||(parseFloat(o.lastVerification.secondPaymentAmount)>0&&!o.upfront2KnockOffDate)));
+            const claimPending=orders.filter(o=>!o.cancelled&&o.knockOffDate&&!o.claimReportKnockOffDate);
+            const cashPending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&o.depositPaymentDate&&!o.cashReportKnockOffDate);
+            const KnockOffBtn=({label,onClick})=><button onClick={onClick} style={{fontSize:10,fontWeight:700,color:C.blueBright,background:"#EFF6FF",border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 9px",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>{label}</button>;
+            const Checklist=({reportType,items,rowRenderer})=>{
+              if(!items.length)return null;
+              const open=expandedKnockoffReport===reportType;
+              return<div style={{gridColumn:"1/-1",border:`1px solid ${C.border}`,borderRadius:10,background:C.surface,padding:"10px 14px",marginTop:-2}}>
+                <div onClick={()=>setExpandedKnockoffReport(open?null:reportType)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+                  <span style={{fontSize:11,fontWeight:700,color:C.text}}>Mark as Knocked Off — {items.length} pending</span>
+                  <span style={{fontSize:11,color:C.blueBright,fontWeight:700}}>{open?"Hide ▲":"Show ▼"}</span>
+                </div>
+                {open&&<div style={{marginTop:8,maxHeight:220,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
+                  {items.map(o=><div key={o.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px",flexWrap:"wrap"}}>
+                    <span style={{fontSize:11,color:C.textMid}}><b>{o.invoiceNo||o.agreementNumber||"—"}</b> · {o.customerName||o.phoneModel}</span>
+                    <div style={{display:"flex",gap:6}}>{rowRenderer(o)}</div>
+                  </div>)}
+                </div>}
+              </div>;
+            };
+            return<>
+              <Checklist reportType="upfront" items={upfrontPending} rowRenderer={o=><>
+                {parseFloat(o.lastVerification?.paymentProofAmount)>0&&!o.upfront1KnockOffDate&&<KnockOffBtn label={`Knock Off Upfront 1 (RM ${parseFloat(o.lastVerification.paymentProofAmount).toFixed(2)})`} onClick={()=>bulkSave([{...o,upfront1KnockOffDate:nowDate()}])}/>}
+                {parseFloat(o.lastVerification?.secondPaymentAmount)>0&&!o.upfront2KnockOffDate&&<KnockOffBtn label={`Knock Off Upfront 2 (RM ${parseFloat(o.lastVerification.secondPaymentAmount).toFixed(2)})`} onClick={()=>bulkSave([{...o,upfront2KnockOffDate:nowDate()}])}/>}
+              </>}/>
+              <Checklist reportType="knockoff" items={claimPending} rowRenderer={o=>
+                <KnockOffBtn label={`Knock Off (RM ${(parseFloat(o.knockOffAmount)||0).toFixed(2)})`} onClick={()=>bulkSave([{...o,claimReportKnockOffDate:nowDate()}])}/>
+              }/>
+              <Checklist reportType="cashKnockoff" items={cashPending} rowRenderer={o=>
+                <KnockOffBtn label="Knock Off" onClick={()=>bulkSave([{...o,cashReportKnockOffDate:nowDate()}])}/>
+              }/>
+            </>;
+          })()}
           {visibleReports.map(([label,type,date,setDate,src])=>{
             // For these report types, leaving the date blank doesn't mean
             // "every record ever" — it means "what's outstanding right now".
