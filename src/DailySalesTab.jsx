@@ -11,7 +11,7 @@
  * keyed under a synthetic `dailysales_{branch}_{date}` id instead of a real
  * order id.
  */
-import {useState,useEffect,useMemo} from "react";
+import {useState,useEffect,useMemo,Fragment} from "react";
 import {loadData,saveData} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl,removeOrderFile} from "./storage/ordersApi.js";
 
@@ -64,21 +64,25 @@ function StatusBadge({report}){
     const late=daysSince(report.submittedAt)>=1;
     return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:late?"#FEF2F2":"#FFFBEB",color:late?"#DC2626":"#B45309"}}>{late?"Bank-in Overdue":"Awaiting Bank-in"}</span>;
   }
+  if(report.shortPayment&&!report.secondPaymentVerifiedAt)return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#FFFBEB",color:"#B45309"}}>{report.balancePaymentSlip?"Awaiting 2nd Payment Entry":"Short Payment — Awaiting Balance Slip"}</span>;
+  if(report.shortPayment&&report.secondPaymentVerifiedAt)return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#F0FDF4",color:"#15803D"}}>Verified (Short Payment Resolved)</span>;
   if(!report.verifiedAt)return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#EFF6FF",color:"#1D4ED8"}}>Awaiting Verification</span>;
   return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#F0FDF4",color:"#15803D"}}>Verified</span>;
 }
 
-function BatchSubmitForm({branchMeta,onSavedAll,existingKeys}){
+function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,onSavedAll,onSaved,onDelete,existingKeys}){
   const branches=dailySalesBranches(branchMeta);
   const [date,setDate]=useState(nowDate());
   const empty=()=>Object.fromEntries(branches.map(b=>[b,{totalSales:"",debit:"",credit:"",rhbQr:"",cashSales:"",remark:""}]));
   const [rows,setRows]=useState(empty());
   const [saving,setSaving]=useState(false);
+  const [editingBranch,setEditingBranch]=useState(null);
   // Reset the form's inputs whenever the date changes, so numbers from one
   // day don't accidentally get submitted for another.
-  useEffect(()=>{setRows(empty());// eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(()=>{setRows(empty());setEditingBranch(null);// eslint-disable-next-line react-hooks/exhaustive-deps
   },[date]);
   const setField=(b,k,v)=>setRows(p=>({...p,[b]:{...p[b],[k]:v}}));
+  const reportFor=b=>reports.find(r=>r.id===`${b}_${date}`);
   const alreadySubmitted=b=>existingKeys.has(`${b}_${date}`);
   const filledCount=branches.filter(b=>!alreadySubmitted(b)&&rows[b].totalSales!=="").length;
   const submitAll=async()=>{
@@ -106,27 +110,66 @@ function BatchSubmitForm({branchMeta,onSavedAll,existingKeys}){
       </div>
     </div>
     <div style={{overflowX:"auto"}}>
-    <table style={{width:"100%",borderCollapse:"collapse",minWidth:760}}>
+    <table style={{width:"100%",borderCollapse:"collapse",minWidth:860}}>
       <thead><tr style={{background:C.surface}}>
-        {["Branch","Total Sales *","Debit","Credit","RHB QR","Cash Sales *","Remark"].map(h=>(
+        {["Branch","Total Sales *","Debit","Credit","RHB QR","Cash Sales *","Remark","Submitted / Actions"].map(h=>(
           <th key={h} style={{padding:"6px 8px",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase",letterSpacing:"0.04em",textAlign:"left",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
         ))}
       </tr></thead>
       <tbody>{branches.map(b=>{
         const done=alreadySubmitted(b);
-        return<tr key={b} style={{borderBottom:`1px solid ${C.border}`,background:done?C.surface:"#fff"}}>
-          <td style={{padding:"6px 8px",fontSize:12,fontWeight:700,color:C.text,whiteSpace:"nowrap"}}>{branchMeta[b]?.name||b}</td>
-          {["totalSales","debit","credit","rhbQr","cashSales"].map(k=>(
-            <td key={k} style={{padding:"4px 6px"}}><input type="number" step="0.01" disabled={done} value={rows[b][k]} onChange={e=>setField(b,k,e.target.value)} placeholder={done?"—":"0.00"} style={{width:90,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif",background:done?C.surface:"#fff"}}/></td>
-          ))}
-          <td style={{padding:"4px 6px"}}><input disabled={done} value={rows[b].remark} onChange={e=>setField(b,"remark",e.target.value)} placeholder={done?"Already submitted":"Optional"} style={{width:130,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif",background:done?C.surface:"#fff"}}/></td>
-        </tr>;
+        const r=done?reportFor(b):null;
+        const editCount=r?.editLog?.length||0;
+        // Super admin can edit/delete any report regardless of verified
+        // status; Billing role (canSubmit, non-admin) can only edit
+        // unverified ones. Delete is super-admin-only, full stop.
+        const canEditThis=r&&(r.verifiedAt?isAdmin:canSubmit);
+        const canDeleteThis=r&&isAdmin;
+        const editorRole=isAdmin?"Super Admin":canSubmit?"Billing":"Viewer";
+        const editing=editingBranch===b;
+        return<Fragment key={b}>
+          <tr style={{borderBottom:editing?"none":`1px solid ${C.border}`,background:done?C.surface:"#fff"}}>
+            <td style={{padding:"6px 8px",fontSize:12,fontWeight:700,color:C.text,whiteSpace:"nowrap"}}>
+              {branchMeta[b]?.name||b}
+              {editCount>0&&<span style={{marginLeft:6,fontSize:8,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"1px 6px",borderRadius:20}}>Edited ×{editCount}</span>}
+            </td>
+            {["totalSales","debit","credit","rhbQr","cashSales"].map(k=>(
+              <td key={k} style={{padding:"4px 6px"}}>
+                {done
+                  ?<span style={{fontSize:12,color:C.textMid,fontWeight:600,whiteSpace:"nowrap"}}>{fRM(r[k])}</span>
+                  :<input type="number" step="0.01" value={rows[b][k]} onChange={e=>setField(b,k,e.target.value)} placeholder="0.00" style={{width:90,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif"}}/>}
+              </td>
+            ))}
+            <td style={{padding:"4px 6px"}}>
+              {done
+                ?<span style={{fontSize:11,color:C.textLight}}>{r.remark||"—"}</span>
+                :<input value={rows[b].remark} onChange={e=>setField(b,"remark",e.target.value)} placeholder="Optional" style={{width:130,padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"Inter,sans-serif"}}/>}
+            </td>
+            <td style={{padding:"4px 6px"}}>
+              {done&&<>
+                <div style={{fontSize:9,color:C.textLight,marginBottom:4,whiteSpace:"nowrap"}}>Submitted {fDate(r.submittedAt)}{r.submittedTime?` ${r.submittedTime}`:""}</div>
+                <div style={{display:"flex",gap:4}}>
+                  {canEditThis&&<button onClick={()=>setEditingBranch(editing?null:b)} style={{fontSize:9,fontWeight:700,color:C.blueBright,background:"#EFF6FF",border:`1px solid ${C.border}`,borderRadius:5,padding:"3px 7px",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>{editing?"Cancel":"Edit"}</button>}
+                  {canDeleteThis&&<button onClick={()=>{if(window.confirm(`Delete the ${fDate(date)} report for ${branchMeta[b]?.name||b}? This cannot be undone.`))onDelete(r.id);}} style={{fontSize:9,fontWeight:700,color:"#DC2626",background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:5,padding:"3px 7px",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>Delete</button>}
+                </div>
+              </>}
+            </td>
+          </tr>
+          {editing&&r&&<tr style={{borderBottom:`1px solid ${C.border}`}}>
+            <td colSpan={8} style={{padding:"0 8px 12px"}}>
+              <EditBox report={r} isAdmin={isAdmin} editorRole={editorRole} onSaved={async(u)=>{await onSaved(u);setEditingBranch(null);}} onCancel={()=>setEditingBranch(null)}/>
+              {editCount>0&&<div style={{fontSize:10,color:"#B45309",marginTop:6}}>
+                {r.editLog.map((e,i)=><div key={i}>Edited by {e.by} — {fDate(e.date)} at {e.time}</div>)}
+              </div>}
+            </td>
+          </tr>}
+        </Fragment>;
       })}</tbody>
     </table>
     </div>
     <div style={{display:"flex",alignItems:"center",gap:10,marginTop:12}}>
       <PBtn onClick={submitAll} disabled={!filledCount||saving}>{saving?"Saving…":`Submit ${filledCount||""} Report${filledCount!==1?"s":""}`}</PBtn>
-      <span style={{fontSize:11,color:C.textLight}}>Branches already submitted for this date are greyed out — fill in the rest and submit together.</span>
+      <span style={{fontSize:11,color:C.textLight}}>Branches already submitted for this date show their figures and actions instead — fill in the rest and submit together.</span>
     </div>
   </div>;
 }
@@ -214,8 +257,8 @@ function SecondPaymentBox({report,onSaved}){
   };
   return<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,alignItems:"end",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginTop:8}}>
     <div><L>2nd Payment Method</L><SEL value={method} onChange={e=>setMethod(e.target.value)}>{BANKS.map(b=><option key={b} value={b}>{b}</option>)}</SEL></div>
-    <div><L>2nd Payment Date</L><I type="date" value={pDate} onChange={e=>setPDate(e.target.value)} max={nowDate()}/></div>
-    <div><L>2nd Payment Amount</L><I type="number" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/></div>
+    <div><L>2nd Actual Payment Date</L><I type="date" value={pDate} onChange={e=>setPDate(e.target.value)} max={nowDate()}/></div>
+    <div><L>2nd Actual Amount Received</L><I type="number" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/></div>
     <PBtn onClick={save} disabled={!amount||saving} style={{height:38,justifyContent:"center"}}>{saving?"Saving…":"Save 2nd Payment"}</PBtn>
   </div>;
 }
@@ -286,7 +329,7 @@ function downloadMonthlyBankInPDF(reports,branchMeta,month,scopeBranch){
   @page{size:A4;margin:12mm;}</style></head><body>
   <h2>Daily Sales Bank-in Report${titleSuffix} — EMAX NETWORK SDN BHD</h2>
   <div class="period">Month: ${monthLabel} · ${rows.length} verified report${rows.length!==1?"s":""}</div>
-  <table><thead><tr><th class="L">Branch</th><th class="L">Sales Date</th><th class="L">Bank-in Date</th><th class="L">Payment Method</th><th>Actual Bank-in Amount</th><th class="L">Remark</th><th class="L">Short Payment Remark</th><th>2nd Payment Amount</th><th class="L">2nd Payment Date</th><th class="L">2nd Payment Method</th></tr></thead>
+  <table><thead><tr><th class="L">Branch</th><th class="L">Sales Date</th><th class="L">Bank-in Date</th><th class="L">Payment Method</th><th>Actual Bank-in Amount</th><th class="L">Remark</th><th class="L">Short Payment Remark</th><th>2nd Actual Amount Received</th><th class="L">2nd Actual Payment Date</th><th class="L">2nd Payment Method</th></tr></thead>
   <tbody>${rows.map(r=>`<tr><td class="L">${branchMeta[r.branch]?.name||r.branch}</td><td class="L">${fDate(r.date)}</td><td class="L">${fDate(r.actualPaymentDate)}</td><td class="L">${r.paymentMethod||"—"}</td><td>${fRM(r.actualAmountReceived)}</td><td class="L">${r.remark||"—"}</td><td class="L">${r.shortPaymentRemark||"—"}</td><td>${r.secondPaymentAmount!=null?fRM(r.secondPaymentAmount):"—"}</td><td class="L">${fDate(r.secondPaymentDate)}</td><td class="L">${r.secondPaymentMethod||"—"}</td></tr>`).join("")}</tbody></table>
   </body></html>`);
   w.document.close();setTimeout(()=>w.print(),400);
@@ -300,7 +343,6 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   const [bankInReportBranch,setBankInReportBranch]=useState(userBranch||"");
   const [expandedBalanceReminder,setExpandedBalanceReminder]=useState(null);
   const [expandedVerify,setExpandedVerify]=useState(null);
-  const [expandedEdit,setExpandedEdit]=useState(null);
   const [expandedShortPayment,setExpandedShortPayment]=useState(null);
   const [expandedReminder,setExpandedReminder]=useState(null);
   const [exportMonth,setExportMonth]=useState(nowDate().slice(0,7));
@@ -448,54 +490,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       ))}
     </div>}
 
-    {canSubmit&&<BatchSubmitForm branchMeta={branchMeta} onSavedAll={saveAll} existingKeys={existingKeys}/>}
-
-    {/* Daily Sales Report — the actual submitted figures, viewable by date for
-        every branch. Edit/Delete live HERE (not in the Verification Queue
-        below), since editing sales figures is a different concern from
-        verifying the bank-in. Viewer mode (no edit/delete) for anyone who
-        isn't Billing or super admin — everyone else just sees what was
-        submitted. */}
-    <div style={{...card,marginBottom:14}}>
-      <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-        <span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Daily Sales Report</span>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:11,color:"rgba(255,255,255,.6)"}}>Date:</span>
-          <input type="date" value={dateFilter} onChange={e=>setDateFilter(e.target.value)} max={nowDate()} style={{padding:"5px 9px",border:"1px solid rgba(255,255,255,.2)",borderRadius:6,fontSize:11,background:"rgba(255,255,255,.06)",color:"#fff",fontFamily:"Inter,sans-serif"}}/>
-        </div>
-      </div>
-      {visible.length===0
-        ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No reports for this date.</div>
-        :<div>{visible.map(r=>{
-          // Super admin can edit/delete any report regardless of verified
-          // status; Billing role (canSubmit, non-admin) can only edit
-          // unverified ones — once verified, only super admin can touch it.
-          // Delete is super-admin-only, full stop — no other role sees it.
-          const canEditThis=r.verifiedAt?isAdmin:canSubmit;
-          const canDeleteThis=isAdmin;
-          const editorRole=isAdmin?"Super Admin":canSubmit?"Billing":"Viewer";
-          const editCount=(r.editLog||[]).length;
-          return<div key={r.id} style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
-              <div>
-                <div style={{fontSize:13,fontWeight:700,color:C.text}}>{branchMeta[r.branch]?.name||r.branch} <span style={{fontWeight:500,color:C.textLight,fontSize:11}}>· {fDate(r.date)}</span>{editCount>0&&<span style={{marginLeft:6,fontSize:9,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"2px 7px",borderRadius:20}}>Edited ×{editCount}</span>}</div>
-                <div style={{fontSize:11,color:C.textMid,marginTop:3}}>Total {fRM(r.totalSales)} · Debit {fRM(r.debit)} · Credit {fRM(r.credit)} · RHB QR {fRM(r.rhbQr)} · Cash {fRM(r.cashSales)}</div>
-                {r.remark&&<div style={{fontSize:11,color:C.textLight,marginTop:2}}>Remark: {r.remark}</div>}
-                <div style={{fontSize:10,color:C.textLight,marginTop:3}}>Submitted {fDate(r.submittedAt)}{r.submittedTime?` at ${r.submittedTime}`:""}</div>
-                {editCount>0&&<div style={{fontSize:10,color:"#B45309",marginTop:3}}>
-                  {r.editLog.map((e,i)=><div key={i}>Edited by {e.by} — {fDate(e.date)} at {e.time}</div>)}
-                </div>}
-              </div>
-              <StatusBadge report={r}/>
-            </div>
-            {(canEditThis||canDeleteThis)&&expandedEdit!==r.id&&<div style={{display:"flex",gap:8,marginTop:8}}>
-              {canEditThis&&<GBtn onClick={()=>setExpandedEdit(r.id)} style={{fontSize:11,padding:"6px 12px"}}>Edit</GBtn>}
-              {canDeleteThis&&<GBtn onClick={()=>{if(window.confirm(`Delete the ${fDate(r.date)} report for ${branchMeta[r.branch]?.name||r.branch}? This cannot be undone.`))deleteReport(r.id);}} style={{fontSize:11,padding:"6px 12px",color:"#DC2626",borderColor:"#FECACA"}}>Delete</GBtn>}
-            </div>}
-            {canEditThis&&expandedEdit===r.id&&<EditBox report={r} isAdmin={isAdmin} editorRole={editorRole} onSaved={async(u)=>{await save(u);setExpandedEdit(null);}} onCancel={()=>setExpandedEdit(null)}/>}
-          </div>;
-        })}</div>}
-    </div>
+    {canSubmit&&<BatchSubmitForm branchMeta={branchMeta} reports={reports} isAdmin={isAdmin} canSubmit={canSubmit} onSavedAll={saveAll} onSaved={save} onDelete={deleteReport} existingKeys={existingKeys}/>}
 
     {/* Monthly bank-in report — always one branch's full month, never every branch mixed together */}
     {(isAdmin||userBranch)&&<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -522,7 +517,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
 
     {canSeeActionPanel&&<div style={{...card}}>
       <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-        <span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Cash Sales Bank In Slip Verification Queue</span>
+        <span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Verification Queue</span>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:11,color:"rgba(255,255,255,.6)"}}>Date:</span>
           <input type="date" value={dateFilter} onChange={e=>setDateFilter(e.target.value)} max={nowDate()} style={{padding:"5px 9px",border:"1px solid rgba(255,255,255,.2)",borderRadius:6,fontSize:11,background:"rgba(255,255,255,.06)",color:"#fff",fontFamily:"Inter,sans-serif"}}/>
@@ -532,11 +527,12 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
         ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No reports for this date.</div>
         :<div>{visible.map(r=>{
           const canUploadSlip=!r.bankInSlip&&isAdmin&&!userBranch;
-          const canVerifyThis=r.bankInSlip&&!r.verifiedAt&&canVerify;
-          // Short payment follow-up — knock-off flags it after verifying a
-          // partial amount, branch uploads the balance slip, knock-off keys
-          // in the 2nd payment to finally resolve it.
-          const canFlagShortPayment=canVerify&&r.verifiedAt&&!r.shortPayment;
+          const canVerifyThis=r.bankInSlip&&!r.verifiedAt&&!r.shortPayment&&canVerify;
+          // Short payment follow-up — knock-off can flag it as soon as a
+          // bank-in slip is uploaded (an alternative to Verify, for when the
+          // slip amount is less than expected), branch uploads the balance
+          // slip, knock-off keys in the 2nd payment to finally resolve it.
+          const canFlagShortPayment=canVerify&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment;
           const canKeyIn2ndPayment=canVerify&&r.shortPayment&&r.balancePaymentSlip&&!r.secondPaymentVerifiedAt;
           return<div key={r.id} style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
