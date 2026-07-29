@@ -144,6 +144,7 @@ const Ic={
   calendar:<svg width="12"height="12"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><rect x="3"y="4"width="18"height="18"rx="2"/><line x1="16"y1="2"x2="16"y2="6"/><line x1="8"y1="2"x2="8"y2="6"/><line x1="3"y1="10"x2="21"y2="10"/></svg>,
   lightning:<svg width="11"height="11"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2.5"strokeLinecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
   cash:<svg width="11"height="11"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><line x1="12"y1="1"x2="12"y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+  share:<svg width="12"height="12"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><circle cx="18"cy="5"r="3"/><circle cx="6"cy="12"r="3"/><circle cx="18"cy="19"r="3"/><line x1="8.59"y1="13.51"x2="15.42"y2="17.49"/><line x1="15.41"y1="6.51"x2="8.59"y2="10.49"/></svg>,
 };
 const PHASE_ICONS={stock:Ic.box,transfer:Ic.truck,billing:Ic.card,agreement_hq:Ic.fileText,unclaimed:Ic.alertCircle,claimed:Ic.checkCircle};
 
@@ -1057,6 +1058,7 @@ function ReportCard({allOrders,reportDate,setReportDate}){
 
 /* ── Order Detail ─────────────────────────────────────────────────────── */
 function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,allOrders,isReadOnly,orderPermissions,userBranch}){
+  const [linkCopied,setLinkCopied]=useState(false);
   const isSuperAdminOrder = isAdmin && (!orderPermissions || orderPermissions.adminSteps==="all");
   // True super admin means accessed WITHOUT any orderPermissions restriction
   // at all (the main dashboard), not just holding the "order admin" role.
@@ -1095,7 +1097,21 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
   return<div className="fade-in">
     {/* Top bar */}
     <div className="detail-topbar">
-      <div className="detail-topbar-back"><GBtn onClick={onBack}>{Ic.chevL} Back</GBtn></div>
+      <div className="detail-topbar-back" style={{display:"flex",gap:6}}>
+        <GBtn onClick={onBack}>{Ic.chevL} Back</GBtn>
+        <GBtn onClick={async()=>{
+          const url=`${window.location.origin}${window.location.pathname}?orderId=${order.id}${window.location.hash||"#orders"}`;
+          try{await navigator.clipboard.writeText(url);}catch{
+            // Clipboard API unavailable (older browser / non-HTTPS) — fall
+            // back to the classic select+execCommand copy trick.
+            const ta=document.createElement("textarea");ta.value=url;ta.style.position="fixed";ta.style.opacity="0";
+            document.body.appendChild(ta);ta.select();
+            try{document.execCommand("copy");}catch{}
+            document.body.removeChild(ta);
+          }
+          setLinkCopied(true);setTimeout(()=>setLinkCopied(false),2000);
+        }}>{linkCopied?<>{Ic.checkCircle} Copied!</>:<>{Ic.share} Copy Link</>}</GBtn>
+      </div>
       <div className="detail-topbar-title">
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
           <span style={{fontSize:14,fontWeight:800,color:C.navy}}>{order.phoneModel}</span>
@@ -1892,6 +1908,26 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     if(view==="detail"&&selected&&!detailCache[selected.id])hydrateOrder(selected.id);
   },[view,selected,detailCache,hydrateOrder]);
 
+  // Shared link support — "?orderId=..." in the URL (from the Copy Link
+  // button on an order's detail page) opens straight to that order, for
+  // whoever opens it (their own access rights/branch filtering still apply
+  // as normal — this only handles navigation, not permissions). Runs once
+  // on mount; the query param is left in place so refreshing keeps you here.
+  useEffect(()=>{
+    const orderId=new URLSearchParams(window.location.search).get("orderId");
+    if(!orderId)return;
+    getOrder(orderId).then(header=>{
+      // Same access rules as the normal list — a shared link doesn't grant
+      // any access the recipient wouldn't already have on their own.
+      if(header&&visibleToBranch(header,userBranch)&&canSeeStep(header.step)){
+        nav("detail",header);
+      }else{
+        alert("You don't have access to this order, or the link is no longer valid.");
+      }
+    }).catch(()=>alert("Couldn't open that order — the link may be invalid."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
   // Live updates — whenever anyone (any branch, any device) changes an order
   // or its history, everyone viewing this page picks it up automatically,
   // no manual refresh needed. Debounced slightly so a burst of changes (e.g.
@@ -2108,7 +2144,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
     {/* Report downloads — admin only, footer */}
     {(()=>{
-      const allReports=[["Upfront Payment","upfront",upfrontDate,setUpfrontDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment Knock Off","firstInstallmentKnockoff",firstInstallmentKnockoffReportDate,setFirstInstallmentKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Cash Order Knock Off","cashKnockoff",cashKnockoffReportDate,setCashKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Collection Proof Overdue","collectionOverdue",collectionOverdueReportDate,setCollectionOverdueReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Purchase Claim","purchaseClaim",purchaseClaimReportDate,setPurchaseClaimReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]];
+      const allReports=[["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Collection Proof Overdue","collectionOverdue",collectionOverdueReportDate,setCollectionOverdueReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Purchase Claim","purchaseClaim",purchaseClaimReportDate,setPurchaseClaimReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]];
       const visibleReports=allReports.filter(([,type])=>canSeeReport(type));
       // New Order Report (Excel) isn't gated by the same canSeeReport/type
       // system as the others — it's a direct step-1 export — but it belongs
@@ -2135,39 +2171,74 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
           {/* Reconciliation checklists — separate from any order-workflow step;
               this is purely "I've matched this against my own accounting/bank
               records", tracked with its own dedicated date fields so it never
-              collides with the Claim Released step's own knockOffDate. */}
-          {(()=>{
-            const upfrontPending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&o.lastVerification&&((parseFloat(o.lastVerification.paymentProofAmount)>0&&!o.upfront1KnockOffDate)||(parseFloat(o.lastVerification.secondPaymentAmount)>0&&!o.upfront2KnockOffDate)));
+              collides with the Claim Released step's own knockOffDate. Only
+              for the Knock-off role (or super admin) — these are their
+              action items regardless of which printable reports still exist. */}
+          {(isSuperAdminOrder||canSeeReport("knockoff"))&&(()=>{
+            const upfront1Pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!o.upfront1KnockOffDate);
+            const upfront2Pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.secondPaymentAmount)>0&&!o.upfront2KnockOffDate);
             const claimPending=orders.filter(o=>!o.cancelled&&o.knockOffDate&&!o.claimReportKnockOffDate);
-            const cashPending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&o.depositPaymentDate&&!o.cashReportKnockOffDate);
-            const KnockOffBtn=({label,onClick})=><button onClick={onClick} style={{fontSize:10,fontWeight:700,color:C.blueBright,background:"#EFF6FF",border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 9px",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>{label}</button>;
-            const Checklist=({reportType,items,rowRenderer})=>{
+            const depositPending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&o.depositPaymentDate&&!o.cashDepositKnockOffDate);
+            const balancePending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!o.cashBalanceKnockOffDate);
+            const Row=({cells,onClick,label})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px",flexWrap:"wrap"}}>
+              <span style={{fontSize:11,color:C.textMid,flex:1,minWidth:0}}>{cells.filter(Boolean).join(" · ")}</span>
+              <button onClick={onClick} style={{fontSize:10,fontWeight:700,color:C.blueBright,background:"#EFF6FF",border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 9px",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap",flexShrink:0}}>{label}</button>
+            </div>;
+            const Checklist=({checklistKey,title,items,rowRenderer})=>{
               if(!items.length)return null;
-              const open=expandedKnockoffReport===reportType;
+              const open=expandedKnockoffReport===checklistKey;
               return<div style={{gridColumn:"1/-1",border:`1px solid ${C.border}`,borderRadius:10,background:C.surface,padding:"10px 14px",marginTop:-2}}>
-                <div onClick={()=>setExpandedKnockoffReport(open?null:reportType)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
-                  <span style={{fontSize:11,fontWeight:700,color:C.text}}>Mark as Knocked Off — {items.length} pending</span>
+                <div onClick={()=>setExpandedKnockoffReport(open?null:checklistKey)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+                  <span style={{fontSize:11,fontWeight:700,color:C.text}}>{title} — {items.length} pending</span>
                   <span style={{fontSize:11,color:C.blueBright,fontWeight:700}}>{open?"Hide ▲":"Show ▼"}</span>
                 </div>
                 {open&&<div style={{marginTop:8,maxHeight:220,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
-                  {items.map(o=><div key={o.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px",flexWrap:"wrap"}}>
-                    <span style={{fontSize:11,color:C.textMid}}><b>{o.invoiceNo||o.agreementNumber||"—"}</b> · {o.customerName||o.phoneModel}</span>
-                    <div style={{display:"flex",gap:6}}>{rowRenderer(o)}</div>
-                  </div>)}
+                  {items.map(o=>rowRenderer(o))}
                 </div>}
               </div>;
             };
             return<>
-              <Checklist reportType="upfront" items={upfrontPending} rowRenderer={o=><>
-                {parseFloat(o.lastVerification?.paymentProofAmount)>0&&!o.upfront1KnockOffDate&&<KnockOffBtn label={`Knock Off Upfront 1 (RM ${parseFloat(o.lastVerification.paymentProofAmount).toFixed(2)})`} onClick={()=>bulkSave([{...o,upfront1KnockOffDate:nowDate()}])}/>}
-                {parseFloat(o.lastVerification?.secondPaymentAmount)>0&&!o.upfront2KnockOffDate&&<KnockOffBtn label={`Knock Off Upfront 2 (RM ${parseFloat(o.lastVerification.secondPaymentAmount).toFixed(2)})`} onClick={()=>bulkSave([{...o,upfront2KnockOffDate:nowDate()}])}/>}
-              </>}/>
-              <Checklist reportType="knockoff" items={claimPending} rowRenderer={o=>
-                <KnockOffBtn label={`Knock Off (RM ${(parseFloat(o.knockOffAmount)||0).toFixed(2)})`} onClick={()=>bulkSave([{...o,claimReportKnockOffDate:nowDate()}])}/>
+              <Checklist checklistKey="upfront1" title="Upfront 1 Knock Off (CCM Order)" items={upfront1Pending} rowRenderer={o=>{
+                const h=o.lastVerification;
+                return<Row key={o.id} label="Knock Off" onClick={()=>bulkSave([{...o,upfront1KnockOffDate:nowDate()}])} cells={[
+                  o.invoiceNo||"—", o.merchant||"—",
+                  h?.upfrontPaymentDate?`Upfront Date: ${fDate(h.upfrontPaymentDate)}`:null,
+                  h?.paymentMethod?`Method: ${h.paymentMethod}`:null,
+                  `Upfront 1: RM ${calcUpfront(o).total.toFixed(2)}`,
+                  `Upfront 2: RM ${(parseFloat(h?.monthlyInstallment??o.monthlyInstallment)||0).toFixed(2)}`,
+                ]}/>;
+              }}/>
+              <Checklist checklistKey="upfront2" title="Upfront 2 Knock Off (CCM Order)" items={upfront2Pending} rowRenderer={o=>{
+                const h=o.lastVerification;
+                return<Row key={o.id} label="Knock Off" onClick={()=>bulkSave([{...o,upfront2KnockOffDate:nowDate()}])} cells={[
+                  o.invoiceNo||"—", o.merchant||"—",
+                  h?.secondPaymentDate?`2nd Upfront Date: ${fDate(h.secondPaymentDate)}`:null,
+                  h?.secondPayMethod?`2nd Method: ${h.secondPayMethod}`:null,
+                  `2nd Payment Proof: RM ${(parseFloat(h?.secondPaymentAmount)||0).toFixed(2)}`,
+                ]}/>;
+              }}/>
+              <Checklist checklistKey="knockoff" title="Claim Released Knock Off (CCM Order)" items={claimPending} rowRenderer={o=>
+                <Row key={o.id} label="Knock Off" onClick={()=>bulkSave([{...o,claimReportKnockOffDate:nowDate()}])} cells={[
+                  o.invoiceNo||"—",o.agreementNumber||"—",`Amount: RM ${(parseFloat(o.knockOffAmount)||0).toFixed(2)}`,
+                ]}/>
               }/>
-              <Checklist reportType="cashKnockoff" items={cashPending} rowRenderer={o=>
-                <KnockOffBtn label="Knock Off" onClick={()=>bulkSave([{...o,cashReportKnockOffDate:nowDate()}])}/>
+              <Checklist checklistKey="deposit" title="Deposit Knock Off (Cash Order)" items={depositPending} rowRenderer={o=>
+                <Row key={o.id} label="Knock Off" onClick={()=>bulkSave([{...o,cashDepositKnockOffDate:nowDate()}])} cells={[
+                  o.invoiceNo||"—",
+                  `Deposit Date: ${fDate(o.depositPaymentDate)}`,
+                  o.depositPaymentMethod?`Method: ${o.depositPaymentMethod}`:null,
+                  `Amount: RM ${(parseFloat(o.deposit)||0).toFixed(2)}`,
+                ]}/>
               }/>
+              <Checklist checklistKey="balance" title="Balance Payment Knock Off (Cash Order)" items={balancePending} rowRenderer={o=>{
+                const h=o.lastVerification;
+                return<Row key={o.id} label="Knock Off" onClick={()=>bulkSave([{...o,cashBalanceKnockOffDate:nowDate()}])} cells={[
+                  o.invoiceNo||"—",
+                  h?.upfrontPaymentDate?`Balance Date: ${fDate(h.upfrontPaymentDate)}`:null,
+                  h?.paymentMethod?`Method: ${h.paymentMethod}`:null,
+                  `Amount: RM ${(parseFloat(h?.paymentProofAmount)||0).toFixed(2)}`,
+                ]}/>;
+              }}/>
             </>;
           })()}
           {visibleReports.map(([label,type,date,setDate,src])=>{
