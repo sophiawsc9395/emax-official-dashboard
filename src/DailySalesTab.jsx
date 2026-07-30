@@ -75,7 +75,7 @@ function StatusBadge({report}){
 
 function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,canVerify,email,onSavedAll,onSaved,onDelete,existingKeys}){
   const branches=dailySalesBranches(branchMeta);
-  const [date,setDate]=useState(nowDate());
+  const [date,setDate]=useState(yesterday());
   const empty=()=>Object.fromEntries(branches.map(b=>[b,{totalSales:"",debit:"",credit:"",rhbQr:"",cashSales:"",remark:""}]));
   const [rows,setRows]=useState(empty());
   const [saving,setSaving]=useState(false);
@@ -355,7 +355,7 @@ function EditBox({report,isAdmin,editorRole,onSaved,onCancel}){
 
 
 function BranchMonthlyReport({branchMeta,userBranch,reports}){
-  const [month,setMonth]=useState(nowDate().slice(0,7));
+  const [month,setMonth]=useState(yesterday().slice(0,7));
   const [y,m]=month.split("-").map(Number);
   const daysInMonth=new Date(y,m,0).getDate();
   const rows=Array.from({length:daysInMonth},(_,i)=>{
