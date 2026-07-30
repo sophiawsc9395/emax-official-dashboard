@@ -2146,13 +2146,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         for the sequence to still be legible). */}
     <div style={{marginBottom:20}}>
       <div style={isMobile?undefined:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:18,alignItems:"start",marginBottom:20}}>{/* fixed 2 phases per row on desktop */}
-      {(isSuperAdminOrder||canAdminStep(7))&&<div onClick={()=>setFilterPhase(filterPhase==="merchantRejected"?"all":"merchantRejected")} style={{...card,padding:isMobile?"13px 14px":"12px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",marginBottom:16,border:`1px solid ${filterPhase==="merchantRejected"?"#DC2626":C.border}`,boxShadow:filterPhase==="merchantRejected"?"0 0 0 1.5px #DC2626, 0 6px 16px rgba(10,22,40,.09)":card.boxShadow,maxWidth:isMobile?"none":260}}>
-        <div style={{width:38,height:38,borderRadius:10,background:merchantRejectedCount>0?"#FEF2F2":C.surface,color:merchantRejectedCount>0?"#DC2626":C.textLight,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{Ic.alertCircle}</div>
-        <div style={{minWidth:0,flex:1}}>
-          <div style={{fontSize:10.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3,whiteSpace:"nowrap"}}>Merchant Rejected</div>
-          <div style={{fontSize:22,fontWeight:800,color:merchantRejectedCount>0?"#DC2626":C.text,lineHeight:1}}>{merchantRejectedCount}</div>
-        </div>
-      </div>}
       {groupedPhases.map(ph=>{
         const phaseTotal=ph.steps.reduce((sum,s)=>sum+(stepCounts[s.step]||0),0);
         return isMobile?(
@@ -2176,6 +2169,15 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
                   </div>
                 </div>;
               })}
+              {ph.id==="claimed"&&(isSuperAdminOrder||canAdminStep(7))&&<div style={{position:"relative"}}>
+                <div onClick={()=>setFilterPhase(filterPhase==="merchantRejected"?"all":"merchantRejected")} style={{...card,padding:"13px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",border:`1px solid ${filterPhase==="merchantRejected"?"#DC2626":C.border}`,boxShadow:filterPhase==="merchantRejected"?"0 0 0 1.5px #DC2626, 0 6px 16px rgba(10,22,40,.09)":card.boxShadow}}>
+                  <div style={{width:38,height:38,borderRadius:10,background:merchantRejectedCount>0?"#FEF2F2":C.surface,color:merchantRejectedCount>0?"#DC2626":C.textLight,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{Ic.alertCircle}</div>
+                  <div style={{minWidth:0,flex:1}}>
+                    <div style={{fontSize:10.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3,whiteSpace:"nowrap"}}>Merchant Rejected</div>
+                    <div style={{fontSize:22,fontWeight:800,color:merchantRejectedCount>0?"#DC2626":"#C3CCDA",lineHeight:1}}>{merchantRejectedCount}</div>
+                  </div>
+                </div>
+              </div>}
             </div>
           </div>
         ):(
@@ -2196,6 +2198,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
                   </div>
                 </div>;
               })}
+              {ph.id==="claimed"&&(isSuperAdminOrder||canAdminStep(7))&&<div onClick={()=>setFilterPhase(filterPhase==="merchantRejected"?"all":"merchantRejected")} style={{...card,border:`1px solid ${filterPhase==="merchantRejected"?"#DC2626":C.border}`,borderTop:"3px solid #DC2626",padding:"12px 14px 11px",display:"flex",flexDirection:"column",gap:9,cursor:"pointer",boxShadow:filterPhase==="merchantRejected"?"0 0 0 1.5px #DC2626, 0 6px 16px rgba(10,22,40,.08)":card.boxShadow,transition:"all .12s"}}>
+                <div style={{width:30,height:30,borderRadius:8,background:merchantRejectedCount>0?"#FEF2F2":C.surface,color:merchantRejectedCount>0?"#DC2626":C.textLight,display:"flex",alignItems:"center",justifyContent:"center"}}>{Ic.alertCircle}</div>
+                <div>
+                  <div style={{fontSize:9.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:3}}>Merchant Rejected</div>
+                  <div style={{fontSize:21,fontWeight:800,color:merchantRejectedCount>0?"#DC2626":"#C3CCDA",lineHeight:1}}>{merchantRejectedCount}</div>
+                </div>
+              </div>}
             </div>
           </div>
         );
