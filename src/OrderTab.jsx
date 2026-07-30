@@ -1230,7 +1230,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Device Name</div>
           {canEditPhoneModelAtOrdered&&order.step===2?<PhoneModelField order={order} onUpdate={onUpdate}/>:<div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.phoneModel||"—"}{everEditedFields.has("phoneModel")&&<FieldEditedTag field="phoneModel"/>}<FieldLog field="phoneModel"/></div>}
         </div>
-        {[["Customer Name",order.customerName,"customerName"],order.customerIC&&["Customer IC",order.customerIC,"customerIC"],order.customerHP&&["Customer HP",order.customerHP,"customerHP"],!isCash&&["Merchant",order.merchant,"merchant"],!isCash&&["Agreement No.",order.agreementNumber,"agreementNumber"],!isCash&&["Merchant Approval Date",fDate(order.aeonApprovalDate),"aeonApprovalDate"],!isCash&&["Finance Price",fRM(order.financePrice),"financePrice"],!isCash&&["Agreement Fee",fRM(order.agreementFee),"agreementFee"],!isCash&&["Stamping Fee",fRM(order.stampingFee),"stampingFee"],["Deposit",fRM(order.deposit),"deposit"],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment),"monthlyInstallment"],isCash&&["Retail Price",fRM(order.retailPrice),"retailPrice"],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate),"depositPaymentDate"],order.invoiceNo&&["Invoice No.",order.invoiceNo],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch,"pickUpBranch"],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v,k])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+        {[["Customer Name",order.customerName,"customerName"],order.customerIC&&["Customer IC",order.customerIC,"customerIC"],order.customerHP&&["Customer HP",order.customerHP,"customerHP"],!isCash&&["Merchant",order.merchant,"merchant"],!isCash&&["Agreement No.",order.agreementNumber,"agreementNumber"],!isCash&&["Merchant Approval Date",fDate(order.aeonApprovalDate),"aeonApprovalDate"],!isCash&&["Finance Price",fRM(order.financePrice),"financePrice"],!isCash&&["Agreement Fee",fRM(order.agreementFee),"agreementFee"],!isCash&&["Stamping Fee",fRM(order.stampingFee),"stampingFee"],["Deposit",fRM(order.deposit),"deposit"],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment),"monthlyInstallment"],isCash&&["Retail Price",fRM(order.retailPrice),"retailPrice"],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate),"depositPaymentDate"],order.invoiceNo&&["Invoice No.",order.invoiceNo,"invoiceNo"],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch,"pickUpBranch"],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v,k])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
           <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}{k&&everEditedFields.has(k)&&<FieldEditedTag field={k}/>}{k&&<FieldLog field={k}/>}</div>
         </div>)}
@@ -1310,7 +1310,7 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
       // Daily Sales Report — falls back to the coarser Super Admin/Admin
       // guess only if the email isn't recognized.
       const editorRole=resolveEditorRole(email,["billing","knockoff","purchase","stock","superAdmin"])||(isSuperAdminEditor?"Super Admin":"Admin");
-      const FIELD_LABELS={phoneModel:"Device Name",branch:"Branch",merchant:"Merchant",agreementNumber:"Agreement No.",customerName:"Customer Name",customerIC:"Customer IC",customerEmail:"Customer Email",customerHP:"Customer HP",customerAddress:"Customer Address",customerPostCode:"Postcode",customerCity:"City",salesAgentId:"SR ID",salesAgentName:"SR Name",aeonApprovalDate:"Merchant Approval Date",financePrice:"Finance Price",deposit:"Deposit",stampingFee:"Stamping Fee",agreementFee:"Agreement Fee",monthlyInstallment:"Monthly Installment",retailPrice:"Retail Price",stockStatus:"Stock Status",orderType:"Order Type",depositPaymentDate:"Deposit Payment Date",depositPaymentMethod:"Deposit Payment Method",pickUpBranch:"Pick Up Branch"};
+      const FIELD_LABELS={phoneModel:"Device Name",branch:"Branch",merchant:"Merchant",agreementNumber:"Agreement No.",invoiceNo:"Invoice Number",customerName:"Customer Name",customerIC:"Customer IC",customerEmail:"Customer Email",customerHP:"Customer HP",customerAddress:"Customer Address",customerPostCode:"Postcode",customerCity:"City",salesAgentId:"SR ID",salesAgentName:"SR Name",aeonApprovalDate:"Merchant Approval Date",financePrice:"Finance Price",deposit:"Deposit",stampingFee:"Stamping Fee",agreementFee:"Agreement Fee",monthlyInstallment:"Monthly Installment",retailPrice:"Retail Price",stockStatus:"Stock Status",orderType:"Order Type",depositPaymentDate:"Deposit Payment Date",depositPaymentMethod:"Deposit Payment Method",pickUpBranch:"Pick Up Branch"};
       const MONEY_FIELDS=new Set(["financePrice","deposit","stampingFee","agreementFee","monthlyInstallment","retailPrice"]);
       const DATE_FIELDS=new Set(["aeonApprovalDate","depositPaymentDate"]);
       const fmt=(k,v)=>{if(v==null||v==="")return"—";if(MONEY_FIELDS.has(k))return fRM(v);if(DATE_FIELDS.has(k))return fDate(v);return String(v);};
@@ -1377,6 +1377,9 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
       {row("customerPostCode","Postcode","text",true)}
       {row("customerCity","City","text",true)}
     </FormCard>
+    {order&&(isSuperAdminForm||isBillingRole)&&<FormCard title="Invoice">
+      {row("invoiceNo","Invoice Number","text")}
+    </FormCard>}
     {!isCash&&<FormCard title="CCM / Financing Details">
       <div><L req>Merchant</L><SEL value={f.merchant} onChange={e=>set("merchant",e.target.value)} disabled={isFieldLocked("merchant")} style={isFieldLocked("merchant")?lockedStyle:{}}>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
       {row("agreementNumber","Agreement No.","text",true)}
@@ -1427,6 +1430,7 @@ function alertDotColor(type){
   if(type==="approval_warning")return"#B45309";
   if(type==="cash_balance_payment_overdue")return"#7C3AED";
   if(type==="merchant_rejected")return"#DC2626";
+  if(type==="agreement_received_overdue")return"#B45309";
   return C.blue; // collection_proof_overdue
 }
 function getOrderAlerts(orders,userBranch=null){
@@ -1442,6 +1446,14 @@ function getOrderAlerts(orders,userBranch=null){
   myOrders.filter(o=>o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate).forEach(o=>{
     const days=daysSince(o.merchantRejectedDate);
     alerts.push({type:"merchant_rejected",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Rejected by merchant ${days} day${days!==1?"s":""} ago — ${o.merchantRejectedRemark}`});
+  });
+  // Agreement Received by HQ — fires once an order has sat at step 11 for
+  // more than 5 days without either being sent out to merchant (advances to
+  // step 12) or returned to branch (reverts to step 10) — both of those
+  // move o.step away from 11, which naturally clears this alert.
+  myOrders.filter(o=>o.step===11&&o.stepDates?.["11"]?.date).forEach(o=>{
+    const days=daysSince(o.stepDates["11"].date);
+    if(days>5)alerts.push({type:"agreement_received_overdue",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Agreement Received by HQ ${days} days ago — not yet sent to merchant or returned to branch`});
   });
   myOrders.filter(o=>o.aeonApprovalDate&&o.step>=1&&o.step<=13).forEach(o=>{
     const days=daysSince(o.aeonApprovalDate);
@@ -1476,6 +1488,7 @@ function AlertBanner({alerts,onClickOrder}){
   const collectionOverdue=alerts.filter(a=>a.type==="collection_proof_overdue");
   const cashBalanceOverdue=alerts.filter(a=>a.type==="cash_balance_payment_overdue");
   const merchantRejected=alerts.filter(a=>a.type==="merchant_rejected");
+  const agreementReceivedOverdue=alerts.filter(a=>a.type==="agreement_received_overdue");
   const Block=({items,color,title})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
@@ -1496,6 +1509,7 @@ function AlertBanner({alerts,onClickOrder}){
     <Block items={collectionOverdue} color="#B91C1C" title="Collection Proof Overdue"/>
     <Block items={cashBalanceOverdue} color="#7C3AED" title="Cash Balance Payment Slip Overdue"/>
     <Block items={merchantRejected} color="#DC2626" title="Merchant Rejected"/>
+    <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out"/>
     <Block items={warning} color="#B45309" title="Approval Warning"/>
   </div>;
 }
@@ -2348,6 +2362,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
                   h?.paymentMethod?`Method: ${h.paymentMethod}`:null,
                   `Upfront 1: RM ${calcUpfront(o).total.toFixed(2)}`,
                   `Upfront 2: RM ${(parseFloat(h?.monthlyInstallment??o.monthlyInstallment)||0).toFixed(2)}`,
+                  h?.verificationRemark?`Remark: ${h.verificationRemark}`:null,
                 ]}/>;
               }}/>
               <Checklist checklistKey="upfront2" title="Upfront 2 Knock Off (CCM Order)" items={upfront2Pending} rowRenderer={o=>{
