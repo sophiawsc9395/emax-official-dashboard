@@ -937,6 +937,26 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
     return true;
   };
 
+  // Blocks the normal "Confirm: Claim Released" panel entirely while a
+  // rejection is unresolved — you can't release a claim that was just
+  // rejected without resubmitting it first.
+  if(nextDef.step===13&&order.merchantRejected&&!order.resubmittedDate&&canRejectByMerchant){
+    return<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px"}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Merchant Rejected</div>
+      <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>{fDate(order.merchantRejectedDate)} — {order.merchantRejectedRemark}</div>
+      {!showResubmitPanel
+        ?<PBtn onClick={()=>setShowResubmitPanel(true)} style={{width:"100%",justifyContent:"center"}}>{Ic.rotate} Resubmitted to Merchant</PBtn>
+        :<div style={{borderTop:"1px solid #FECACA",paddingTop:10}}>
+          <div style={{marginBottom:10}}><L req>Resubmitted Date</L><I type="date" value={resubmitDate} onChange={e=>setResubmitDate(e.target.value)} max={nowDate()} style={{width:"100%",boxSizing:"border-box"}}/></div>
+          <div style={{marginBottom:12}}><L req>Consignment Note No.</L><I value={resubmitConsignmentNote} onChange={e=>setResubmitConsignmentNote(e.target.value)} placeholder="e.g. CN-123456" style={{width:"100%",boxSizing:"border-box"}}/></div>
+          <div style={{display:"flex",gap:8}}>
+            <GBtn onClick={()=>setShowResubmitPanel(false)} style={{flex:1,justifyContent:"center"}}>Cancel</GBtn>
+            <PBtn onClick={async()=>{if(!resubmitDate||!resubmitConsignmentNote.trim()){alert("Resubmitted date and consignment note are both required.");return;}setSaving(true);await onUpdate({...order,resubmittedDate:resubmitDate,resubmittedConsignmentNote:resubmitConsignmentNote});setSaving(false);setShowResubmitPanel(false);}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Confirm Resubmission"}</PBtn>
+          </div>
+        </div>}
+    </div>;
+  }
+
   return<div style={{display:"flex",flexDirection:"column",gap:12}}>
     <ActionBox icon={Ic.chevR} title={`Next: ${nextDef.label}`} desc={nextDef.desc}>
       {!branchOk?<div style={{fontSize:12,color:C.textLight,fontStyle:"italic",padding:"2px 0"}}>Waiting for admin to process this step.</div>:<>
@@ -1060,26 +1080,18 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
         elsewhere that keys off step numbers needs to change; it's tracked
         as a pure overlay (merchantRejected/merchantRejectedDate/Remark, then
         resubmittedDate/resubmittedConsignmentNote) that only these specific
-        roles can see or act on. */}
+        roles can see or act on. The "rejected, not yet resubmitted" case is
+        handled entirely by the early return above (blocks Claim Released
+        outright) — this only ever renders the initial Reject button, or the
+        resolved read-only info once already resubmitted. */}
     {step===12&&canRejectByMerchant&&(order.merchantRejected
       ?<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px"}}>
         <div style={{fontSize:11,fontWeight:700,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Merchant Rejected</div>
-        <div style={{fontSize:12,color:C.textMid,marginBottom:order.resubmittedDate?10:0}}>{fDate(order.merchantRejectedDate)} — {order.merchantRejectedRemark}</div>
-        {order.resubmittedDate
-          ?<div style={{borderTop:"1px solid #FECACA",paddingTop:10}}>
-            <div style={{fontSize:11,fontWeight:700,color:"#15803D",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Resubmitted to Merchant</div>
-            <div style={{fontSize:12,color:C.textMid}}>{fDate(order.resubmittedDate)} — Consignment Note: {order.resubmittedConsignmentNote}</div>
-          </div>
-          :!showResubmitPanel
-            ?<PBtn onClick={()=>setShowResubmitPanel(true)} style={{width:"100%",justifyContent:"center",marginTop:10}}>{Ic.rotate} Resubmitted to Merchant</PBtn>
-            :<div style={{marginTop:10,borderTop:"1px solid #FECACA",paddingTop:10}}>
-              <div style={{marginBottom:10}}><L req>Resubmitted Date</L><I type="date" value={resubmitDate} onChange={e=>setResubmitDate(e.target.value)} max={nowDate()} style={{width:"100%",boxSizing:"border-box"}}/></div>
-              <div style={{marginBottom:12}}><L req>Consignment Note No.</L><I value={resubmitConsignmentNote} onChange={e=>setResubmitConsignmentNote(e.target.value)} placeholder="e.g. CN-123456" style={{width:"100%",boxSizing:"border-box"}}/></div>
-              <div style={{display:"flex",gap:8}}>
-                <GBtn onClick={()=>setShowResubmitPanel(false)} style={{flex:1,justifyContent:"center"}}>Cancel</GBtn>
-                <PBtn onClick={async()=>{if(!resubmitDate||!resubmitConsignmentNote.trim()){alert("Resubmitted date and consignment note are both required.");return;}setSaving(true);await onUpdate({...order,resubmittedDate:resubmitDate,resubmittedConsignmentNote:resubmitConsignmentNote});setSaving(false);setShowResubmitPanel(false);}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Confirm Resubmission"}</PBtn>
-              </div>
-            </div>}
+        <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>{fDate(order.merchantRejectedDate)} — {order.merchantRejectedRemark}</div>
+        <div style={{borderTop:"1px solid #FECACA",paddingTop:10}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#15803D",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Resubmitted to Merchant</div>
+          <div style={{fontSize:12,color:C.textMid}}>{fDate(order.resubmittedDate)} — Consignment Note: {order.resubmittedConsignmentNote}</div>
+        </div>
       </div>
       :!showRejectPanel
         ?<DBtn onClick={()=>setShowRejectPanel(true)} style={{width:"100%",justifyContent:"center"}}>{Ic.x} Reject by Merchant</DBtn>
