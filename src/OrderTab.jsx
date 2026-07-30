@@ -2331,14 +2331,20 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
               for the Knock-off role (or super admin) — these are their
               action items regardless of which printable reports still exist. */}
           {(isSuperAdminOrder||canSeeReport("knockoff"))&&(()=>{
-            const upfront1Pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!o.upfront1KnockOffDate);
+            const upfront1Pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!(o.upfront1KnockOffDate&&o.upfront1KnockOff2Date));
             const upfront2Pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.secondPaymentAmount)>0&&!o.upfront2KnockOffDate);
             const claimPending=orders.filter(o=>!o.cancelled&&o.knockOffDate&&!o.claimReportKnockOffDate);
             const depositPending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&o.depositPaymentDate&&!o.cashDepositKnockOffDate);
             const balancePending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!o.cashBalanceKnockOffDate);
-            const Row=({cells,onClick,label})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px",flexWrap:"wrap"}}>
+            // buttons: array of {label,onClick,done} — each shown independently
+            // with its own done state; the row itself only leaves the pending
+            // list once every button in the row is done (handled by each
+            // checklist's own pending filter above).
+            const Row=({cells,buttons})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px",flexWrap:"wrap"}}>
               <span style={{fontSize:11,color:C.textMid,flex:1,minWidth:0}}>{cells.filter(Boolean).join(" · ")}</span>
-              <button onClick={onClick} style={{fontSize:10,fontWeight:700,color:C.blueBright,background:"#EFF6FF",border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 9px",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap",flexShrink:0}}>{label}</button>
+              <div style={{display:"flex",gap:6,flexShrink:0}}>
+                {buttons.map((b,i)=><button key={i} onClick={b.onClick} disabled={b.done} style={{fontSize:10,fontWeight:700,color:b.done?"#15803D":C.blueBright,background:b.done?"#F0FDF4":"#EFF6FF",border:`1px solid ${b.done?"#BBF7D0":C.border}`,borderRadius:6,padding:"4px 9px",cursor:b.done?"default":"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>{b.done?`✓ ${b.label}`:b.label}</button>)}
+              </div>
             </div>;
             const Checklist=({checklistKey,title,items,rowRenderer})=>{
               if(!items.length)return null;
@@ -2356,7 +2362,10 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             return<>
               <Checklist checklistKey="upfront1" title="Upfront 1 Knock Off (CCM Order)" items={upfront1Pending} rowRenderer={o=>{
                 const h=o.lastVerification;
-                return<Row key={o.id} label="Knock Off" onClick={()=>bulkSave([{...o,upfront1KnockOffDate:nowDate()}])} cells={[
+                return<Row key={o.id} buttons={[
+                  {label:"K/O 1",done:!!o.upfront1KnockOffDate,onClick:()=>bulkSave([{...o,upfront1KnockOffDate:nowDate()}])},
+                  {label:"K/O 2",done:!!o.upfront1KnockOff2Date,onClick:()=>bulkSave([{...o,upfront1KnockOff2Date:nowDate()}])},
+                ]} cells={[
                   o.invoiceNo||"—", o.merchant||"—",
                   h?.upfrontPaymentDate?`Upfront Date: ${fDate(h.upfrontPaymentDate)}`:null,
                   h?.paymentMethod?`Method: ${h.paymentMethod}`:null,
@@ -2367,7 +2376,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
               }}/>
               <Checklist checklistKey="upfront2" title="Upfront 2 Knock Off (CCM Order)" items={upfront2Pending} rowRenderer={o=>{
                 const h=o.lastVerification;
-                return<Row key={o.id} label="Knock Off" onClick={()=>bulkSave([{...o,upfront2KnockOffDate:nowDate()}])} cells={[
+                return<Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,upfront2KnockOffDate:nowDate()}])}]} cells={[
                   o.invoiceNo||"—", o.merchant||"—",
                   h?.secondPaymentDate?`2nd Upfront Date: ${fDate(h.secondPaymentDate)}`:null,
                   h?.secondPayMethod?`2nd Method: ${h.secondPayMethod}`:null,
@@ -2375,12 +2384,12 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
                 ]}/>;
               }}/>
               <Checklist checklistKey="knockoff" title="Claim Released Knock Off (CCM Order)" items={claimPending} rowRenderer={o=>
-                <Row key={o.id} label="Knock Off" onClick={()=>bulkSave([{...o,claimReportKnockOffDate:nowDate()}])} cells={[
+                <Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,claimReportKnockOffDate:nowDate()}])}]} cells={[
                   o.invoiceNo||"—",o.agreementNumber||"—",`Amount: RM ${(parseFloat(o.knockOffAmount)||0).toFixed(2)}`,
                 ]}/>
               }/>
               <Checklist checklistKey="deposit" title="Deposit Knock Off (Cash Order)" items={depositPending} rowRenderer={o=>
-                <Row key={o.id} label="Knock Off" onClick={()=>bulkSave([{...o,cashDepositKnockOffDate:nowDate()}])} cells={[
+                <Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,cashDepositKnockOffDate:nowDate()}])}]} cells={[
                   o.invoiceNo||"—",
                   `Deposit Date: ${fDate(o.depositPaymentDate)}`,
                   o.depositPaymentMethod?`Method: ${o.depositPaymentMethod}`:null,
@@ -2389,7 +2398,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
               }/>
               <Checklist checklistKey="balance" title="Balance Payment Knock Off (Cash Order)" items={balancePending} rowRenderer={o=>{
                 const h=o.lastVerification;
-                return<Row key={o.id} label="Knock Off" onClick={()=>bulkSave([{...o,cashBalanceKnockOffDate:nowDate()}])} cells={[
+                return<Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,cashBalanceKnockOffDate:nowDate()}])}]} cells={[
                   o.invoiceNo||"—",
                   h?.upfrontPaymentDate?`Balance Date: ${fDate(h.upfrontPaymentDate)}`:null,
                   h?.paymentMethod?`Method: ${h.paymentMethod}`:null,
