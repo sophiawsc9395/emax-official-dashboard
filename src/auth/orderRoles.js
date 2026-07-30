@@ -129,7 +129,12 @@ export function getDailySalesAccess(isAdmin, orderPermissions, isReadOnly = fals
   const isSuperAdminOrder = isAdmin && (!orderPermissions || orderPermissions.adminSteps === "all");
   if (isReadOnly) return { isSuperAdminOrder: false, canSubmit: false, canVerify: false };
   const canAdminStep7 = !orderPermissions || orderPermissions.adminSteps === "all" || orderPermissions.adminSteps.includes(7);
-  const canSeeKnockoffReport = !orderPermissions || orderPermissions.reports === "all" || orderPermissions.reports.includes("knockoff");
+  // "knockoff" alone isn't a safe proxy for "holds the Knock-off role" —
+  // Billing also legitimately has that report type (for the Claim Released
+  // Knock-off Report), which was incorrectly granting Billing verify access
+  // in Daily Sales Report too. "firstInstallmentKnockoff" is unique to the
+  // actual Knock-off role definition, so it's used as the real signal here.
+  const canSeeKnockoffReport = !orderPermissions || orderPermissions.reports === "all" || orderPermissions.reports.includes("firstInstallmentKnockoff");
   return {
     isSuperAdminOrder,
     canSubmit: isSuperAdminOrder || (isAdmin && canAdminStep7),

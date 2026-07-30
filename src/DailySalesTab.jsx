@@ -304,8 +304,12 @@ function EditBox({report,isAdmin,editorRole,onSaved,onCancel}){
   const [method,setMethod]=useState(report.paymentMethod||BANKS[0]);
   const [actualDate,setActualDate]=useState(report.actualPaymentDate||nowDate());
   const [amount,setAmount]=useState(report.actualAmountReceived!=null?String(report.actualAmountReceived):"");
+  const [secondMethod,setSecondMethod]=useState(report.secondPaymentMethod||BANKS[0]);
+  const [secondDate,setSecondDate]=useState(report.secondPaymentDate||nowDate());
+  const [secondAmount,setSecondAmount]=useState(report.secondPaymentAmount!=null?String(report.secondPaymentAmount):"");
   const [saving,setSaving]=useState(false);
   const canEditVerification=isAdmin&&report.verifiedAt;
+  const canEditSecondPayment=isAdmin&&report.secondPaymentVerifiedAt;
   const autoTotal=(parseFloat(debit)||0)+(parseFloat(credit)||0)+(parseFloat(rhbQr)||0)+(parseFloat(cashSales)||0);
   const save=async()=>{
     setSaving(true);
@@ -313,13 +317,14 @@ function EditBox({report,isAdmin,editorRole,onSaved,onCancel}){
       totalSales:autoTotal,debit:parseFloat(debit)||0,credit:parseFloat(credit)||0,
       rhbQr:parseFloat(rhbQr)||0,cashSales:parseFloat(cashSales)||0,remark:remark||undefined,
       ...(canEditVerification?{paymentMethod:method,actualPaymentDate:actualDate,actualAmountReceived:parseFloat(amount)||0}:{}),
+      ...(canEditSecondPayment?{secondPaymentMethod:secondMethod,secondPaymentDate:secondDate,secondPaymentAmount:parseFloat(secondAmount)||0}:{}),
     };
     // Every edit is logged with date, time, who (by role), AND a summary of
     // what actually changed — so super admin can see not just how many
     // times a report was edited, but exactly what moved each time.
-    const FIELD_LABELS={totalSales:"Total Sales",debit:"Debit",credit:"Credit",rhbQr:"RHB QR",cashSales:"Cash Sales",remark:"Remark",paymentMethod:"Payment Method",actualPaymentDate:"Actual Payment Date",actualAmountReceived:"Actual Amount Received"};
-    const MONEY_FIELDS=new Set(["totalSales","debit","credit","rhbQr","cashSales","actualAmountReceived"]);
-    const DATE_FIELDS=new Set(["actualPaymentDate"]);
+    const FIELD_LABELS={totalSales:"Total Sales",debit:"Debit",credit:"Credit",rhbQr:"RHB QR",cashSales:"Cash Sales",remark:"Remark",paymentMethod:"Payment Method",actualPaymentDate:"Actual Payment Date",actualAmountReceived:"Actual Amount Received",secondPaymentMethod:"2nd Payment Method",secondPaymentDate:"2nd Actual Payment Date",secondPaymentAmount:"2nd Actual Amount Received"};
+    const MONEY_FIELDS=new Set(["totalSales","debit","credit","rhbQr","cashSales","actualAmountReceived","secondPaymentAmount"]);
+    const DATE_FIELDS=new Set(["actualPaymentDate","secondPaymentDate"]);
     const fmt=(k,v)=>{if(v==null||v==="")return"—";if(MONEY_FIELDS.has(k))return fRM(v);if(DATE_FIELDS.has(k))return fDate(v);return String(v);};
     const changedKeys=Object.keys(newVals).filter(k=>String(report[k]??"")!==String(newVals[k]??""));
     const fieldChanges=Object.fromEntries(changedKeys.map(k=>[k,`${fmt(k,report[k])} → ${fmt(k,newVals[k])}`]));
@@ -341,10 +346,15 @@ function EditBox({report,isAdmin,editorRole,onSaved,onCancel}){
       <div><L>Cash Sales</L><I type="number" step="0.01" value={cashSales} onChange={e=>setCashSales(e.target.value)}/></div>
       <div><L>Remark</L><I value={remark} onChange={e=>setRemark(e.target.value)}/></div>
     </div>
-    {canEditVerification&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8}}>
+    {canEditVerification&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8,marginBottom:canEditSecondPayment?10:0}}>
       <div><L>Payment Method</L><SEL value={method} onChange={e=>setMethod(e.target.value)}>{BANKS.map(b=><option key={b} value={b}>{b}</option>)}</SEL></div>
       <div><L>Actual Payment Date</L><I type="date" value={actualDate} onChange={e=>setActualDate(e.target.value)} max={nowDate()}/></div>
       <div><L>Actual Amount Received</L><I type="number" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/></div>
+    </div>}
+    {canEditSecondPayment&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8}}>
+      <div><L>2nd Payment Method</L><SEL value={secondMethod} onChange={e=>setSecondMethod(e.target.value)}>{BANKS.map(b=><option key={b} value={b}>{b}</option>)}</SEL></div>
+      <div><L>2nd Actual Payment Date</L><I type="date" value={secondDate} onChange={e=>setSecondDate(e.target.value)} max={nowDate()}/></div>
+      <div><L>2nd Actual Amount Received</L><I type="number" step="0.01" value={secondAmount} onChange={e=>setSecondAmount(e.target.value)}/></div>
     </div>}
     <div style={{display:"flex",gap:8,marginTop:10}}>
       <PBtn onClick={save} disabled={saving} style={{fontSize:11,padding:"7px 12px"}}>{saving?"Saving…":"Save Changes"}</PBtn>
@@ -497,6 +507,16 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   // update), not the sales date it's reporting on. A report entered today
   // for last week's sales isn't "already late" the moment it's saved.
   const lateAlerts=useMemo(()=>reports.filter(r=>r.cashSales>0&&!r.bankInSlip&&daysSince(r.submittedAt)>=1),[reports]);
+  // Slip uploaded but knock-off/admin hasn't verified it yet — a different
+  // problem from the branch being slow to upload (this one's on the HQ
+  // side). Short-payment cases have their own dedicated tracking, so they're
+  // excluded here to avoid double-counting the same report two ways.
+  const unverifiedAlerts=useMemo(()=>reports.filter(r=>r.cashSales>0&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment&&daysSince(r.bankInUploadedAt)>=1),[reports]);
+  const unverifiedAlertsByBranch=useMemo(()=>{
+    const groups={};
+    unverifiedAlerts.forEach(r=>{(groups[r.branch]=groups[r.branch]||[]).push(r);});
+    return Object.keys(groups).sort((a,b)=>(branchMeta[a]?.name||a).localeCompare(branchMeta[b]?.name||b)).map(b=>[b,groups[b]]);
+  },[unverifiedAlerts,branchMeta]);
   // Grouped branch-by-branch for the HQ view, instead of one flat mixed list.
   const lateAlertsByBranch=useMemo(()=>{
     const groups={};
@@ -585,19 +605,33 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       ))}
     </div>}
 
+    {/* HQ-level — slip uploaded but not yet verified by knock-off/admin */}
+    {!userBranch&&unverifiedAlerts.length>0&&<div style={{...card,borderLeft:"3px solid #1D4ED8",padding:"12px 14px",marginBottom:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Payment Slip Not Verified</span>
+        <span style={{fontSize:10,fontWeight:700,color:"#1D4ED8",background:"#EFF6FF",padding:"1px 8px",borderRadius:20}}>{unverifiedAlerts.length}</span>
+      </div>
+      {unverifiedAlertsByBranch.map(([b,items])=>(
+        <div key={b} style={{marginBottom:8}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.text,marginBottom:3}}>{branchMeta[b]?.name||b}</div>
+          {items.map(r=><div key={r.id} style={{fontSize:12,color:"#1D4ED8",padding:"2px 0 2px 10px"}}>Report dated {fDate(r.date)}, slip uploaded {daysSince(r.bankInUploadedAt)} day{daysSince(r.bankInUploadedAt)>1?"s":""} ago — still not verified</div>)}
+        </div>
+      ))}
+    </div>}
+
     {userBranch
       ?<BranchMonthlyReport branchMeta={branchMeta} userBranch={userBranch} reports={reports}/>
       :<BatchSubmitForm branchMeta={branchMeta} reports={reports} isAdmin={isAdmin} canSubmit={canSubmit} canVerify={canVerify} email={email} onSavedAll={saveAll} onSaved={save} onDelete={deleteReport} existingKeys={existingKeys}/>}
 
-    {/* Monthly bank-in report — always one branch's full month, never every branch mixed together */}
-    {(isAdmin||userBranch)&&<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+    {/* Monthly bank-in report — always one branch's full month, never every branch mixed together. Super admin only now — branch viewers no longer get this download. */}
+    {isAdmin&&<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
       <span style={{fontSize:12,fontWeight:700,color:C.text}}>Daily Sales Bank-in Report</span>
-      {!userBranch&&<SEL value={bankInReportBranch} onChange={e=>setBankInReportBranch(e.target.value)} style={{width:"auto",padding:"7px 9px",fontSize:12}}>
+      <SEL value={bankInReportBranch} onChange={e=>setBankInReportBranch(e.target.value)} style={{width:"auto",padding:"7px 9px",fontSize:12}}>
         <option value="">Choose a branch…</option>
         {dailySalesBranches(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}
-      </SEL>}
+      </SEL>
       <input type="month" value={exportMonth} onChange={e=>setExportMonth(e.target.value)} style={{padding:"7px 9px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,fontFamily:"Inter,sans-serif"}}/>
-      <GBtn onClick={()=>downloadMonthlyBankInPDF(reports,branchMeta,exportMonth,userBranch||bankInReportBranch)} disabled={!userBranch&&!bankInReportBranch} style={{fontSize:11,padding:"7px 12px"}}>Download (PDF)</GBtn>
+      <GBtn onClick={()=>downloadMonthlyBankInPDF(reports,branchMeta,exportMonth,bankInReportBranch)} disabled={!bankInReportBranch} style={{fontSize:11,padding:"7px 12px"}}>Download (PDF)</GBtn>
       <span style={{fontSize:10,color:C.textLight}}>One branch, one full month — sales date, bank-in date, method, amount.</span>
     </div>}
 
