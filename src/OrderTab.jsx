@@ -359,6 +359,10 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions}){
             <div style={{marginBottom:3,fontSize:9,fontWeight:700,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.04em"}}>Merchant Rejected — {fDate(order.merchantRejectedDate)}</div>
             <div style={{fontWeight:600}}>Remark: {order.merchantRejectedRemark}</div>
           </div>}
+          {s.step===12&&order.resubmittedDate&&canSeeMerchantRejection&&<div style={{marginTop:4,background:"#F0FDF4",borderRadius:7,padding:"6px 10px",border:"1px solid #BBF7D0",fontSize:11,color:"#15803D"}}>
+            <div style={{marginBottom:3,fontSize:9,fontWeight:700,color:"#15803D",textTransform:"uppercase",letterSpacing:"0.04em"}}>Resubmitted to Merchant — {fDate(order.resubmittedDate)}</div>
+            <div style={{fontWeight:600}}>Consignment Note: {order.resubmittedConsignmentNote}</div>
+          </div>}
         </div>
       </div>
     </div>;
@@ -770,6 +774,9 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
   const canRejectByMerchant=isSuperAdminOrderPanel||isBillingRolePanel;
   const [showRejectPanel,setShowRejectPanel]=useState(false);
   const [rejectRemark,setRejectRemark]=useState("");
+  const [showResubmitPanel,setShowResubmitPanel]=useState(false);
+  const [resubmitDate,setResubmitDate]=useState(nowDate());
+  const [resubmitConsignmentNote,setResubmitConsignmentNote]=useState("");
   const [remark,setRemark]=useState("");
   const [invoiceNo,setInvoiceNo]=useState("");
   const [orderDate,setOrderDate]=useState(nowDate());
@@ -1051,12 +1058,28 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
     {/* Merchant Rejected — only after Claim Submitted (step 12), before Claim
         Released. Doesn't advance order.step at all (stays at 12) so nothing
         elsewhere that keys off step numbers needs to change; it's tracked
-        as a pure overlay (merchantRejected/merchantRejectedDate/Remark) that
-        only these specific roles can see or act on. */}
-    {step===12&&canRejectByMerchant&&(order.merchantRejected&&!order.knockOffDate
+        as a pure overlay (merchantRejected/merchantRejectedDate/Remark, then
+        resubmittedDate/resubmittedConsignmentNote) that only these specific
+        roles can see or act on. */}
+    {step===12&&canRejectByMerchant&&(order.merchantRejected
       ?<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px"}}>
         <div style={{fontSize:11,fontWeight:700,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Merchant Rejected</div>
-        <div style={{fontSize:12,color:C.textMid,marginBottom:2}}>{fDate(order.merchantRejectedDate)} — {order.merchantRejectedRemark}</div>
+        <div style={{fontSize:12,color:C.textMid,marginBottom:order.resubmittedDate?10:0}}>{fDate(order.merchantRejectedDate)} — {order.merchantRejectedRemark}</div>
+        {order.resubmittedDate
+          ?<div style={{borderTop:"1px solid #FECACA",paddingTop:10}}>
+            <div style={{fontSize:11,fontWeight:700,color:"#15803D",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Resubmitted to Merchant</div>
+            <div style={{fontSize:12,color:C.textMid}}>{fDate(order.resubmittedDate)} — Consignment Note: {order.resubmittedConsignmentNote}</div>
+          </div>
+          :!showResubmitPanel
+            ?<PBtn onClick={()=>setShowResubmitPanel(true)} style={{width:"100%",justifyContent:"center",marginTop:10}}>{Ic.rotate} Resubmitted to Merchant</PBtn>
+            :<div style={{marginTop:10,borderTop:"1px solid #FECACA",paddingTop:10}}>
+              <div style={{marginBottom:10}}><L req>Resubmitted Date</L><I type="date" value={resubmitDate} onChange={e=>setResubmitDate(e.target.value)} max={nowDate()} style={{width:"100%",boxSizing:"border-box"}}/></div>
+              <div style={{marginBottom:12}}><L req>Consignment Note No.</L><I value={resubmitConsignmentNote} onChange={e=>setResubmitConsignmentNote(e.target.value)} placeholder="e.g. CN-123456" style={{width:"100%",boxSizing:"border-box"}}/></div>
+              <div style={{display:"flex",gap:8}}>
+                <GBtn onClick={()=>setShowResubmitPanel(false)} style={{flex:1,justifyContent:"center"}}>Cancel</GBtn>
+                <PBtn onClick={async()=>{if(!resubmitDate||!resubmitConsignmentNote.trim()){alert("Resubmitted date and consignment note are both required.");return;}setSaving(true);await onUpdate({...order,resubmittedDate:resubmitDate,resubmittedConsignmentNote:resubmitConsignmentNote});setSaving(false);setShowResubmitPanel(false);}} disabled={saving} style={{flex:2,justifyContent:"center"}}>{Ic.rotate} {saving?"Saving…":"Confirm Resubmission"}</PBtn>
+              </div>
+            </div>}
       </div>
       :!showRejectPanel
         ?<DBtn onClick={()=>setShowRejectPanel(true)} style={{width:"100%",justifyContent:"center"}}>{Ic.x} Reject by Merchant</DBtn>
@@ -1164,7 +1187,10 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
       <div className="detail-topbar-title">
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
           <span style={{fontSize:14,fontWeight:800,color:C.navy}}>{order.phoneModel}</span>
-          {order.merchantRejected&&!order.knockOffDate&&canSeeMerchantRejectionBadge?<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:"#FEF2F2",color:"#B91C1C",border:"1px solid #FECACA",whiteSpace:"nowrap"}}>Merchant Rejected</span>:<StepBadge order={order}/>}
+          {order.merchantRejected&&!order.knockOffDate&&canSeeMerchantRejectionBadge?(order.resubmittedDate
+            ?<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:"#F0FDF4",color:"#15803D",border:"1px solid #BBF7D0",whiteSpace:"nowrap"}}>Resubmitted to Merchant</span>
+            :<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:"#FEF2F2",color:"#B91C1C",border:"1px solid #FECACA",whiteSpace:"nowrap"}}>Merchant Rejected</span>
+          ):<StepBadge order={order}/>}
           {order.stockStatus==="ready"&&<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>Ready Stock</span>}
           {isCash?<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>Cash</span>:<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,padding:"2px 8px",borderRadius:4,border:`1px solid ${C.border}`}}>CCM</span>}
         </div>
@@ -1399,8 +1425,9 @@ function getOrderAlerts(orders,userBranch=null){
     if(days>=7)alerts.push({type:"overdue_order",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Ordered ${days} days ago — not yet arrived at HQ`});
   });
   // Merchant Rejected — fires from the day the admin clicked Reject by
-  // Merchant, until the claim is actually released (knockOffDate set).
-  myOrders.filter(o=>o.step===12&&o.merchantRejected&&!o.knockOffDate).forEach(o=>{
+  // Merchant, until it's resubmitted (admin has acted) or the claim is
+  // actually released (knockOffDate set).
+  myOrders.filter(o=>o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate).forEach(o=>{
     const days=daysSince(o.merchantRejectedDate);
     alerts.push({type:"merchant_rejected",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Rejected by merchant ${days} day${days!==1?"s":""} ago — ${o.merchantRejectedRemark}`});
   });
@@ -2084,9 +2111,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const viewingCompleted=filterPhase==="completed";
   const viewingCancelled=filterPhase==="cancelled";
   const viewingMerchantRejected=filterPhase==="merchantRejected";
-  const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||(viewingMerchantRejected?(o.step===12&&o.merchantRejected&&!o.knockOffDate):(filterPhase==="all"||o.step===filterPhase)))&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,viewingMerchantRejected,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
+  const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||(viewingMerchantRejected?(o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate):(filterPhase==="all"||o.step===filterPhase)))&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,viewingMerchantRejected,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
   const stepCounts=useMemo(()=>STEPS.filter(s=>s.step!==14).reduce((acc,s)=>{acc[s.step]=activeOrders.filter(o=>o.step===s.step).length;return acc;},{}),[activeOrders]);
-  const merchantRejectedCount=useMemo(()=>activeOrders.filter(o=>o.step===12&&o.merchantRejected&&!o.knockOffDate).length,[activeOrders]);
+  const merchantRejectedCount=useMemo(()=>activeOrders.filter(o=>o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate).length,[activeOrders]);
   // Step cards grouped by phase (Stock Order, Stock Transfer, Billing, etc.)
   // for the redesigned Order Tracking cards — each phase only appears if it
   // has at least one step visible to this role.
