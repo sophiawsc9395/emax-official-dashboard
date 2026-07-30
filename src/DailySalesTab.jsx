@@ -11,7 +11,7 @@
  * keyed under a synthetic `dailysales_{branch}_{date}` id instead of a real
  * order id.
  */
-import {useState,useEffect,useMemo,Fragment} from "react";
+import {useState,useEffect,useMemo,useRef,Fragment} from "react";
 import {loadData,saveData} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl,removeOrderFile} from "./storage/ordersApi.js";
 import {resolveEditorRole} from "./auth/orderRoles.js";
@@ -435,6 +435,12 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   const [bankInReportBranch,setBankInReportBranch]=useState(userBranch||"");
   const [expandedVerify,setExpandedVerify]=useState(null);
   const [expandedShortPayment,setExpandedShortPayment]=useState(null);
+  const [expandedVerificationEdit,setExpandedVerificationEdit]=useState(null);
+  const verificationQueueRef=useRef(null);
+  const jumpToReport=(r)=>{
+    setDateFilter(r.date);
+    setTimeout(()=>verificationQueueRef.current?.scrollIntoView({behavior:"smooth",block:"start"}),50);
+  };
   const [exportMonth,setExportMonth]=useState(nowDate().slice(0,7));
   const [cleanupMonth,setCleanupMonth]=useState(nowDate().slice(0,7));
   const [showBulkDelete,setShowBulkDelete]=useState(false);
@@ -614,7 +620,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       {unverifiedAlertsByBranch.map(([b,items])=>(
         <div key={b} style={{marginBottom:8}}>
           <div style={{fontSize:11,fontWeight:700,color:C.text,marginBottom:3}}>{branchMeta[b]?.name||b}</div>
-          {items.map(r=><div key={r.id} style={{fontSize:12,color:"#1D4ED8",padding:"2px 0 2px 10px"}}>Report dated {fDate(r.date)}, slip uploaded {daysSince(r.bankInUploadedAt)} day{daysSince(r.bankInUploadedAt)>1?"s":""} ago — still not verified</div>)}
+          {items.map(r=><div key={r.id} onClick={()=>jumpToReport(r)} style={{fontSize:12,color:"#1D4ED8",padding:"2px 0 2px 10px",cursor:"pointer",textDecoration:"underline",textDecorationColor:"transparent"}} onMouseEnter={e=>e.currentTarget.style.textDecorationColor="#1D4ED8"} onMouseLeave={e=>e.currentTarget.style.textDecorationColor="transparent"}>Report dated {fDate(r.date)}, slip uploaded {daysSince(r.bankInUploadedAt)} day{daysSince(r.bankInUploadedAt)>1?"s":""} ago — still not verified</div>)}
         </div>
       ))}
     </div>}
@@ -635,7 +641,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       <span style={{fontSize:10,color:C.textLight}}>One branch, one full month — sales date, bank-in date, method, amount.</span>
     </div>}
 
-    {canSeeActionPanel&&<div style={{...card}}>
+    {canSeeActionPanel&&<div ref={verificationQueueRef} style={{...card}}>
       <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
         <span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Verification Queue</span>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -654,6 +660,15 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
           // alternative to Verify for when the slip amount is short.
           const canFlagShortPayment=r.cashSales>0&&canVerify&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment;
           const canKeyIn2ndPayment=canVerify&&r.shortPayment&&r.balancePaymentSlip&&!r.secondPaymentVerifiedAt;
+          // Edit lives here too now, not just in the Daily Sales Report
+          // table — no need to go hunt for the same report under a
+          // different date picker just to fix a payment method mistake.
+          // Edit here is super-admin-only — unlike the Daily Sales Report
+          // table below, where Billing can still edit their own unverified
+          // submissions.
+          const canEditThis=isAdmin;
+          const editorRole=resolveEditorRole(email,["billing","knockoff","purchase","stock","superAdmin"])||(canSubmit?"Billing":canVerify?"Knock-off":isAdmin?"Super Admin":"Viewer");
+          const editingHere=expandedVerificationEdit===r.id;
           return<div key={r.id} style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
               <div>
@@ -676,6 +691,8 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
               ?<ShortPaymentBox report={r} onSaved={async(u)=>{await save(u);setExpandedShortPayment(null);}} onCancel={()=>setExpandedShortPayment(null)}/>
               :<GBtn onClick={()=>setExpandedShortPayment(r.id)} style={{marginTop:8,marginLeft:8,fontSize:11,padding:"6px 12px",color:"#B45309",borderColor:"#FDE68A"}}>Short Payment</GBtn>)}
             {canKeyIn2ndPayment&&<SecondPaymentBox report={r} onSaved={save}/>}
+            {canEditThis&&!editingHere&&<GBtn onClick={()=>setExpandedVerificationEdit(r.id)} style={{marginTop:8,marginLeft:8,fontSize:11,padding:"6px 12px"}}>Edit</GBtn>}
+            {canEditThis&&editingHere&&<div style={{marginTop:8}}><EditBox report={r} isAdmin={isAdmin} editorRole={editorRole} onSaved={async(u)=>{await save(u);setExpandedVerificationEdit(null);}} onCancel={()=>setExpandedVerificationEdit(null)}/></div>}
           </div>;
         })}</div>}
     </div>}
