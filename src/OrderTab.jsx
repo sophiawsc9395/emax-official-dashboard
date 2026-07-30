@@ -1,4 +1,4 @@
-import {useState,useEffect,useRef,useMemo,useCallback,memo} from "react";
+import {useState,useEffect,useRef,useMemo,useCallback,memo,Fragment} from "react";
 import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
 import {supabase} from "./storage/index.js";
 import {resolveEditorRole} from "./auth/orderRoles.js";
@@ -2159,25 +2159,27 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
               <div style={{position:"absolute",left:5,top:8,bottom:8,width:2,borderRadius:2,background:ph.bg}}/>
               {ph.steps.map((s,i)=>{
                 const count=stepCounts[s.step]||0,active=filterPhase===s.step;
-                return<div key={s.step} style={{position:"relative",marginBottom:i===ph.steps.length-1?0:10}}>
-                  <div onClick={()=>setFilterPhase(active?"all":s.step)} style={{...card,padding:"13px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",border:`1px solid ${active?ph.color:C.border}`,boxShadow:active?`0 0 0 1.5px ${ph.color}, 0 6px 16px rgba(10,22,40,.09)`:card.boxShadow,transition:"all .12s"}}>
-                    <div style={{width:38,height:38,borderRadius:10,background:ph.bg,color:ph.color,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{PHASE_ICONS[ph.id]}</div>
-                    <div style={{minWidth:0,flex:1}}>
-                      <div style={{fontSize:10.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.label}</div>
-                      <div style={{fontSize:22,fontWeight:800,color:count?C.navy:"#C3CCDA",lineHeight:1}}>{count}</div>
+                return<Fragment key={s.step}>
+                  <div style={{position:"relative",marginBottom:i===ph.steps.length-1?0:10}}>
+                    <div onClick={()=>setFilterPhase(active?"all":s.step)} style={{...card,padding:"13px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",border:`1px solid ${active?ph.color:C.border}`,boxShadow:active?`0 0 0 1.5px ${ph.color}, 0 6px 16px rgba(10,22,40,.09)`:card.boxShadow,transition:"all .12s"}}>
+                      <div style={{width:38,height:38,borderRadius:10,background:ph.bg,color:ph.color,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{PHASE_ICONS[ph.id]}</div>
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{fontSize:10.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.label}</div>
+                        <div style={{fontSize:22,fontWeight:800,color:count?C.navy:"#C3CCDA",lineHeight:1}}>{count}</div>
+                      </div>
                     </div>
                   </div>
-                </div>;
+                  {ph.id==="claimed"&&s.step===12&&(isSuperAdminOrder||canAdminStep(7))&&<div style={{position:"relative",marginBottom:10}}>
+                    <div onClick={()=>setFilterPhase(filterPhase==="merchantRejected"?"all":"merchantRejected")} style={{...card,padding:"13px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",border:`1px solid ${filterPhase==="merchantRejected"?"#DC2626":C.border}`,boxShadow:filterPhase==="merchantRejected"?"0 0 0 1.5px #DC2626, 0 6px 16px rgba(10,22,40,.09)":card.boxShadow}}>
+                      <div style={{width:38,height:38,borderRadius:10,background:merchantRejectedCount>0?"#FEF2F2":C.surface,color:merchantRejectedCount>0?"#DC2626":C.textLight,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{Ic.alertCircle}</div>
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{fontSize:10.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3,whiteSpace:"nowrap"}}>Merchant Rejected</div>
+                        <div style={{fontSize:22,fontWeight:800,color:merchantRejectedCount>0?"#DC2626":"#C3CCDA",lineHeight:1}}>{merchantRejectedCount}</div>
+                      </div>
+                    </div>
+                  </div>}
+                </Fragment>;
               })}
-              {ph.id==="claimed"&&(isSuperAdminOrder||canAdminStep(7))&&<div style={{position:"relative"}}>
-                <div onClick={()=>setFilterPhase(filterPhase==="merchantRejected"?"all":"merchantRejected")} style={{...card,padding:"13px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",border:`1px solid ${filterPhase==="merchantRejected"?"#DC2626":C.border}`,boxShadow:filterPhase==="merchantRejected"?"0 0 0 1.5px #DC2626, 0 6px 16px rgba(10,22,40,.09)":card.boxShadow}}>
-                  <div style={{width:38,height:38,borderRadius:10,background:merchantRejectedCount>0?"#FEF2F2":C.surface,color:merchantRejectedCount>0?"#DC2626":C.textLight,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{Ic.alertCircle}</div>
-                  <div style={{minWidth:0,flex:1}}>
-                    <div style={{fontSize:10.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:3,whiteSpace:"nowrap"}}>Merchant Rejected</div>
-                    <div style={{fontSize:22,fontWeight:800,color:merchantRejectedCount>0?"#DC2626":"#C3CCDA",lineHeight:1}}>{merchantRejectedCount}</div>
-                  </div>
-                </div>
-              </div>}
             </div>
           </div>
         ):(
@@ -2190,21 +2192,23 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10}}>
               {ph.steps.map(s=>{
                 const count=stepCounts[s.step]||0,active=filterPhase===s.step;
-                return<div key={s.step} onClick={()=>setFilterPhase(active?"all":s.step)} style={{...card,border:`1px solid ${active?ph.color:C.border}`,borderTop:`3px solid ${ph.color}`,padding:"12px 14px 11px",display:"flex",flexDirection:"column",gap:9,cursor:"pointer",boxShadow:active?`0 0 0 1.5px ${ph.color}, 0 6px 16px rgba(10,22,40,.08)`:card.boxShadow,transition:"all .12s"}}>
-                  <div style={{width:30,height:30,borderRadius:8,background:ph.bg,color:ph.color,display:"flex",alignItems:"center",justifyContent:"center"}}>{PHASE_ICONS[ph.id]}</div>
-                  <div>
-                    <div style={{fontSize:9.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:3}}>{s.label}</div>
-                    <div style={{fontSize:21,fontWeight:800,color:count?C.navy:"#C3CCDA",lineHeight:1}}>{count}</div>
+                return<Fragment key={s.step}>
+                  <div onClick={()=>setFilterPhase(active?"all":s.step)} style={{...card,border:`1px solid ${active?ph.color:C.border}`,borderTop:`3px solid ${ph.color}`,padding:"12px 14px 11px",display:"flex",flexDirection:"column",gap:9,cursor:"pointer",boxShadow:active?`0 0 0 1.5px ${ph.color}, 0 6px 16px rgba(10,22,40,.08)`:card.boxShadow,transition:"all .12s"}}>
+                    <div style={{width:30,height:30,borderRadius:8,background:ph.bg,color:ph.color,display:"flex",alignItems:"center",justifyContent:"center"}}>{PHASE_ICONS[ph.id]}</div>
+                    <div>
+                      <div style={{fontSize:9.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:3}}>{s.label}</div>
+                      <div style={{fontSize:21,fontWeight:800,color:count?C.navy:"#C3CCDA",lineHeight:1}}>{count}</div>
+                    </div>
                   </div>
-                </div>;
+                  {ph.id==="claimed"&&s.step===12&&(isSuperAdminOrder||canAdminStep(7))&&<div onClick={()=>setFilterPhase(filterPhase==="merchantRejected"?"all":"merchantRejected")} style={{...card,border:`1px solid ${filterPhase==="merchantRejected"?"#DC2626":C.border}`,borderTop:"3px solid #DC2626",padding:"12px 14px 11px",display:"flex",flexDirection:"column",gap:9,cursor:"pointer",boxShadow:filterPhase==="merchantRejected"?"0 0 0 1.5px #DC2626, 0 6px 16px rgba(10,22,40,.08)":card.boxShadow,transition:"all .12s"}}>
+                    <div style={{width:30,height:30,borderRadius:8,background:merchantRejectedCount>0?"#FEF2F2":C.surface,color:merchantRejectedCount>0?"#DC2626":C.textLight,display:"flex",alignItems:"center",justifyContent:"center"}}>{Ic.alertCircle}</div>
+                    <div>
+                      <div style={{fontSize:9.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:3}}>Merchant Rejected</div>
+                      <div style={{fontSize:21,fontWeight:800,color:merchantRejectedCount>0?"#DC2626":"#C3CCDA",lineHeight:1}}>{merchantRejectedCount}</div>
+                    </div>
+                  </div>}
+                </Fragment>;
               })}
-              {ph.id==="claimed"&&(isSuperAdminOrder||canAdminStep(7))&&<div onClick={()=>setFilterPhase(filterPhase==="merchantRejected"?"all":"merchantRejected")} style={{...card,border:`1px solid ${filterPhase==="merchantRejected"?"#DC2626":C.border}`,borderTop:"3px solid #DC2626",padding:"12px 14px 11px",display:"flex",flexDirection:"column",gap:9,cursor:"pointer",boxShadow:filterPhase==="merchantRejected"?"0 0 0 1.5px #DC2626, 0 6px 16px rgba(10,22,40,.08)":card.boxShadow,transition:"all .12s"}}>
-                <div style={{width:30,height:30,borderRadius:8,background:merchantRejectedCount>0?"#FEF2F2":C.surface,color:merchantRejectedCount>0?"#DC2626":C.textLight,display:"flex",alignItems:"center",justifyContent:"center"}}>{Ic.alertCircle}</div>
-                <div>
-                  <div style={{fontSize:9.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:3}}>Merchant Rejected</div>
-                  <div style={{fontSize:21,fontWeight:800,color:merchantRejectedCount>0?"#DC2626":"#C3CCDA",lineHeight:1}}>{merchantRejectedCount}</div>
-                </div>
-              </div>}
             </div>
           </div>
         );
