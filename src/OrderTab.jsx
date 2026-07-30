@@ -2414,7 +2414,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             return<Row key={o.id} buttons={[
               {label:"K/O 1",done:!!o.upfront1KnockOffDate,onClick:()=>bulkSave([{...o,upfront1KnockOffDate:nowDate()}])},
               {label:"K/O 2",done:!!o.upfront1KnockOff2Date,onClick:()=>bulkSave([{...o,upfront1KnockOff2Date:nowDate()}])},
-            ]} amounts={<>
+            ]} meta={`Invoice: ${o.invoiceNo||"—"}`} amounts={<>
               <AmtBadge label="Upfront 1" value={calcUpfront(o).total} bg="#EFF6FF" fg="#1D4ED8"/>
               <AmtBadge label="Upfront 2" value={parseFloat(h?.monthlyInstallment??o.monthlyInstallment)||0} bg="#F5F0FF" fg="#7C3AED"/>
             </>} remark={h?.verificationRemark}/>;

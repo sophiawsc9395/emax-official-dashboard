@@ -436,6 +436,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   const [expandedVerify,setExpandedVerify]=useState(null);
   const [expandedShortPayment,setExpandedShortPayment]=useState(null);
   const [expandedVerificationEdit,setExpandedVerificationEdit]=useState(null);
+  const [expandedResolvedDetails,setExpandedResolvedDetails]=useState(null);
   const verificationQueueRef=useRef(null);
   const jumpToReport=(r)=>{
     setDateFilter(r.date);
@@ -669,30 +670,46 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
           const canEditThis=isAdmin;
           const editorRole=resolveEditorRole(email,["billing","knockoff","purchase","stock","superAdmin"])||(canSubmit?"Billing":canVerify?"Knock-off":isAdmin?"Super Admin":"Viewer");
           const editingHere=expandedVerificationEdit===r.id;
+          // Fully resolved (verified, and no short-payment still pending) —
+          // condense the row behind a "Details" toggle instead of always
+          // showing the slip link/verified line/Edit button. Anything still
+          // needing action keeps full detail visible, since those buttons
+          // need to stay directly usable.
+          const isResolved=r.verifiedAt&&(!r.shortPayment||r.secondPaymentVerifiedAt);
+          const detailsOpen=expandedResolvedDetails===r.id;
           return<div key={r.id} style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
               <div>
                 <div style={{fontSize:13,fontWeight:700,color:C.text}}>{branchMeta[r.branch]?.name||r.branch} <span style={{fontWeight:500,color:C.textLight,fontSize:11}}>· {fDate(r.date)}</span></div>
                 <div style={{marginTop:5}}><span style={{fontSize:11,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#F0FDF4",color:"#15803D"}}>Cash: {fRM(r.cashSales)}</span></div>
                 {r.remark&&<div style={{fontSize:11,color:C.textLight,marginTop:5}}>Remark: {r.remark}</div>}
-                {r.verifiedAt&&<div style={{fontSize:11,color:"#15803D",marginTop:3,fontWeight:600}}>Verified — {r.paymentMethod} · {fDate(r.actualPaymentDate)} · {fRM(r.actualAmountReceived)} received</div>}
+                {!isResolved&&r.verifiedAt&&<div style={{fontSize:11,color:"#15803D",marginTop:3,fontWeight:600}}>Verified — {r.paymentMethod} · {fDate(r.actualPaymentDate)} · {fRM(r.actualAmountReceived)} received</div>}
                 {r.shortPayment&&<div style={{fontSize:11,color:"#B45309",marginTop:3,fontWeight:600}}>Short Payment — {r.shortPaymentRemark}</div>}
-                {r.secondPaymentVerifiedAt&&<div style={{fontSize:11,color:"#15803D",marginTop:3,fontWeight:600}}>2nd Payment — {r.secondPaymentMethod} · {fDate(r.secondPaymentDate)} · {fRM(r.secondPaymentAmount)} received</div>}
+                {!isResolved&&r.secondPaymentVerifiedAt&&<div style={{fontSize:11,color:"#15803D",marginTop:3,fontWeight:600}}>2nd Payment — {r.secondPaymentMethod} · {fDate(r.secondPaymentDate)} · {fRM(r.secondPaymentAmount)} received</div>}
               </div>
               <StatusBadge report={r}/>
             </div>
-            {r.bankInSlip&&<div style={{marginTop:6}}>{slipUrls[r.id]?<a href={slipUrls[r.id]} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600}}>View Bank-in Slip: {r.bankInSlip.name}</a>:<span style={{fontSize:11,color:C.textLight}}>Loading slip link…</span>}</div>}
-            {r.balancePaymentSlip&&<div style={{marginTop:2}}>{slipUrls[r.id+"_balance"]?<a href={slipUrls[r.id+"_balance"]} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:"#B45309",fontWeight:600}}>View Balance Payment Slip: {r.balancePaymentSlip.name}</a>:<span style={{fontSize:11,color:C.textLight}}>Loading slip link…</span>}</div>}
-            {canUploadSlip&&<div style={{marginTop:8}}><UploadSlipBox report={r} onSaved={save}/></div>}
-            {canVerifyThis&&(expandedVerify===r.id
-              ?<VerifyBox report={r} onSaved={async(u)=>{await save(u);setExpandedVerify(null);}}/>
-              :<GBtn onClick={()=>setExpandedVerify(r.id)} style={{marginTop:8,fontSize:11,padding:"6px 12px"}}>Verify Bank-in</GBtn>)}
-            {canFlagShortPayment&&(expandedShortPayment===r.id
-              ?<ShortPaymentBox report={r} onSaved={async(u)=>{await save(u);setExpandedShortPayment(null);}} onCancel={()=>setExpandedShortPayment(null)}/>
-              :<GBtn onClick={()=>setExpandedShortPayment(r.id)} style={{marginTop:8,marginLeft:8,fontSize:11,padding:"6px 12px",color:"#B45309",borderColor:"#FDE68A"}}>Short Payment</GBtn>)}
-            {canKeyIn2ndPayment&&<SecondPaymentBox report={r} onSaved={save}/>}
-            {canEditThis&&!editingHere&&<GBtn onClick={()=>setExpandedVerificationEdit(r.id)} style={{marginTop:8,marginLeft:8,fontSize:11,padding:"6px 12px"}}>Edit</GBtn>}
-            {canEditThis&&editingHere&&<div style={{marginTop:8}}><EditBox report={r} isAdmin={isAdmin} editorRole={editorRole} onSaved={async(u)=>{await save(u);setExpandedVerificationEdit(null);}} onCancel={()=>setExpandedVerificationEdit(null)}/></div>}
+            {isResolved
+              ?<button onClick={()=>setExpandedResolvedDetails(detailsOpen?null:r.id)} style={{marginTop:6,fontSize:11,fontWeight:700,color:C.blueBright,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",padding:0}}>{detailsOpen?"Hide Details ▲":"Show Details ▼"}</button>
+              :null}
+            {(!isResolved||detailsOpen)&&<>
+              {isResolved&&<>
+                <div style={{fontSize:11,color:"#15803D",marginTop:6,fontWeight:600}}>Verified — {r.paymentMethod} · {fDate(r.actualPaymentDate)} · {fRM(r.actualAmountReceived)} received</div>
+                {r.secondPaymentVerifiedAt&&<div style={{fontSize:11,color:"#15803D",marginTop:3,fontWeight:600}}>2nd Payment — {r.secondPaymentMethod} · {fDate(r.secondPaymentDate)} · {fRM(r.secondPaymentAmount)} received</div>}
+              </>}
+              {r.bankInSlip&&<div style={{marginTop:6}}>{slipUrls[r.id]?<a href={slipUrls[r.id]} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600}}>View Bank-in Slip: {r.bankInSlip.name}</a>:<span style={{fontSize:11,color:C.textLight}}>Loading slip link…</span>}</div>}
+              {r.balancePaymentSlip&&<div style={{marginTop:2}}>{slipUrls[r.id+"_balance"]?<a href={slipUrls[r.id+"_balance"]} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:"#B45309",fontWeight:600}}>View Balance Payment Slip: {r.balancePaymentSlip.name}</a>:<span style={{fontSize:11,color:C.textLight}}>Loading slip link…</span>}</div>}
+              {canUploadSlip&&<div style={{marginTop:8}}><UploadSlipBox report={r} onSaved={save}/></div>}
+              {canVerifyThis&&(expandedVerify===r.id
+                ?<VerifyBox report={r} onSaved={async(u)=>{await save(u);setExpandedVerify(null);}}/>
+                :<GBtn onClick={()=>setExpandedVerify(r.id)} style={{marginTop:8,fontSize:11,padding:"6px 12px"}}>Verify Bank-in</GBtn>)}
+              {canFlagShortPayment&&(expandedShortPayment===r.id
+                ?<ShortPaymentBox report={r} onSaved={async(u)=>{await save(u);setExpandedShortPayment(null);}} onCancel={()=>setExpandedShortPayment(null)}/>
+                :<GBtn onClick={()=>setExpandedShortPayment(r.id)} style={{marginTop:8,marginLeft:8,fontSize:11,padding:"6px 12px",color:"#B45309",borderColor:"#FDE68A"}}>Short Payment</GBtn>)}
+              {canKeyIn2ndPayment&&<SecondPaymentBox report={r} onSaved={save}/>}
+              {canEditThis&&!editingHere&&<GBtn onClick={()=>setExpandedVerificationEdit(r.id)} style={{marginTop:8,marginLeft:8,fontSize:11,padding:"6px 12px"}}>Edit</GBtn>}
+              {canEditThis&&editingHere&&<div style={{marginTop:8}}><EditBox report={r} isAdmin={isAdmin} editorRole={editorRole} onSaved={async(u)=>{await save(u);setExpandedVerificationEdit(null);}} onCancel={()=>setExpandedVerificationEdit(null)}/></div>}
+            </>}
           </div>;
         })}</div>}
     </div>}
