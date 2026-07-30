@@ -2283,6 +2283,11 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       </div>}
     </div>
 
+    {order.firstInstallmentKnockOffDate&&(isSuperAdminOrder||(isAdmin&&!!orderPermissions&&(orderPermissions.reports==="all"||orderPermissions.reports.includes("firstInstallmentKnockoff"))))&&<div style={{...card,borderLeft:"3px solid #15803D",padding:"10px 14px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <div style={{fontSize:12,color:C.textMid}}><b style={{color:"#15803D"}}>First Monthly Installment Knocked Off</b> — {fDate(order.firstInstallmentKnockOffDate)}</div>
+      <GBtn onClick={()=>{if(window.confirm("Undo this knock-off? The order will show as pending again."))onUpdate({...order,firstInstallmentKnockOffDate:null});}} style={{fontSize:11,padding:"6px 12px",color:"#DC2626",borderColor:"#FECACA"}}>Undo</GBtn>
+    </div>}
+
     {/* Search + filter */}
     <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
       <I placeholder="Search customer, model, agreement, invoice…" value={searchInput} onChange={e=>setSearchInput(e.target.value)} style={{flex:2,minWidth:160}}/>
