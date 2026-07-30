@@ -2011,6 +2011,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [reportMerchant,setReportMerchant]=useState("all");
   const [expandedKnockoffReport,setExpandedKnockoffReport]=useState(null);
   const [reportsExpanded,setReportsExpanded]=useState(false);
+  const [knockOffExpanded,setKnockOffExpanded]=useState(false);
   // Fully hydrated + signed order (header + history, with every {name,path}
   // Storage ref resolved to a short-lived signed URL) — fetched lazily, one
   // entry per order opened in Detail. The list/board never touches this.
@@ -2324,89 +2325,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
               <PBtn onClick={()=>downloadNewOrderExcel(orders)} style={{padding:"9px 12px",width:38,height:38,justifyContent:"center",flexShrink:0}}>{Ic.download}</PBtn>
             </div>
           </div>}
-          {/* Reconciliation checklists — separate from any order-workflow step;
-              this is purely "I've matched this against my own accounting/bank
-              records", tracked with its own dedicated date fields so it never
-              collides with the Claim Released step's own knockOffDate. Only
-              for the Knock-off role (or super admin) — these are their
-              action items regardless of which printable reports still exist. */}
-          {(isSuperAdminOrder||canSeeReport("knockoff"))&&(()=>{
-            const upfront1Pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!(o.upfront1KnockOffDate&&o.upfront1KnockOff2Date));
-            const upfront2Pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.secondPaymentAmount)>0&&!o.upfront2KnockOffDate);
-            const claimPending=orders.filter(o=>!o.cancelled&&o.knockOffDate&&!o.claimReportKnockOffDate);
-            const depositPending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&o.depositPaymentDate&&!o.cashDepositKnockOffDate);
-            const balancePending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!o.cashBalanceKnockOffDate);
-            // buttons: array of {label,onClick,done} — each shown independently
-            // with its own done state; the row itself only leaves the pending
-            // list once every button in the row is done (handled by each
-            // checklist's own pending filter above).
-            const Row=({cells,buttons})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px",flexWrap:"wrap"}}>
-              <span style={{fontSize:11,color:C.textMid,flex:1,minWidth:0}}>{cells.filter(Boolean).join(" · ")}</span>
-              <div style={{display:"flex",gap:6,flexShrink:0}}>
-                {buttons.map((b,i)=><button key={i} onClick={b.onClick} disabled={b.done} style={{fontSize:10,fontWeight:700,color:b.done?"#15803D":C.blueBright,background:b.done?"#F0FDF4":"#EFF6FF",border:`1px solid ${b.done?"#BBF7D0":C.border}`,borderRadius:6,padding:"4px 9px",cursor:b.done?"default":"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>{b.done?`✓ ${b.label}`:b.label}</button>)}
-              </div>
-            </div>;
-            const Checklist=({checklistKey,title,items,rowRenderer})=>{
-              if(!items.length)return null;
-              const open=expandedKnockoffReport===checklistKey;
-              return<div style={{gridColumn:"1/-1",border:`1px solid ${C.border}`,borderRadius:10,background:C.surface,padding:"10px 14px",marginTop:-2}}>
-                <div onClick={()=>setExpandedKnockoffReport(open?null:checklistKey)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
-                  <span style={{fontSize:11,fontWeight:700,color:C.text}}>{title} — {items.length} pending</span>
-                  <span style={{fontSize:11,color:C.blueBright,fontWeight:700}}>{open?"Hide ▲":"Show ▼"}</span>
-                </div>
-                {open&&<div style={{marginTop:8,maxHeight:220,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
-                  {items.map(o=>rowRenderer(o))}
-                </div>}
-              </div>;
-            };
-            return<>
-              <Checklist checklistKey="upfront1" title="Upfront 1 Knock Off (CCM Order)" items={upfront1Pending} rowRenderer={o=>{
-                const h=o.lastVerification;
-                return<Row key={o.id} buttons={[
-                  {label:"K/O 1",done:!!o.upfront1KnockOffDate,onClick:()=>bulkSave([{...o,upfront1KnockOffDate:nowDate()}])},
-                  {label:"K/O 2",done:!!o.upfront1KnockOff2Date,onClick:()=>bulkSave([{...o,upfront1KnockOff2Date:nowDate()}])},
-                ]} cells={[
-                  o.invoiceNo||"—", o.merchant||"—",
-                  h?.upfrontPaymentDate?`Upfront Date: ${fDate(h.upfrontPaymentDate)}`:null,
-                  h?.paymentMethod?`Method: ${h.paymentMethod}`:null,
-                  `Upfront 1: RM ${calcUpfront(o).total.toFixed(2)}`,
-                  `Upfront 2: RM ${(parseFloat(h?.monthlyInstallment??o.monthlyInstallment)||0).toFixed(2)}`,
-                  h?.verificationRemark?`Remark: ${h.verificationRemark}`:null,
-                ]}/>;
-              }}/>
-              <Checklist checklistKey="upfront2" title="Upfront 2 Knock Off (CCM Order)" items={upfront2Pending} rowRenderer={o=>{
-                const h=o.lastVerification;
-                return<Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,upfront2KnockOffDate:nowDate()}])}]} cells={[
-                  o.invoiceNo||"—", o.merchant||"—",
-                  h?.secondPaymentDate?`2nd Upfront Date: ${fDate(h.secondPaymentDate)}`:null,
-                  h?.secondPayMethod?`2nd Method: ${h.secondPayMethod}`:null,
-                  `2nd Payment Proof: RM ${(parseFloat(h?.secondPaymentAmount)||0).toFixed(2)}`,
-                ]}/>;
-              }}/>
-              <Checklist checklistKey="knockoff" title="Claim Released Knock Off (CCM Order)" items={claimPending} rowRenderer={o=>
-                <Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,claimReportKnockOffDate:nowDate()}])}]} cells={[
-                  o.invoiceNo||"—",o.agreementNumber||"—",`Amount: RM ${(parseFloat(o.knockOffAmount)||0).toFixed(2)}`,
-                ]}/>
-              }/>
-              <Checklist checklistKey="deposit" title="Deposit Knock Off (Cash Order)" items={depositPending} rowRenderer={o=>
-                <Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,cashDepositKnockOffDate:nowDate()}])}]} cells={[
-                  o.invoiceNo||"—",
-                  `Deposit Date: ${fDate(o.depositPaymentDate)}`,
-                  o.depositPaymentMethod?`Method: ${o.depositPaymentMethod}`:null,
-                  `Amount: RM ${(parseFloat(o.deposit)||0).toFixed(2)}`,
-                ]}/>
-              }/>
-              <Checklist checklistKey="balance" title="Balance Payment Knock Off (Cash Order)" items={balancePending} rowRenderer={o=>{
-                const h=o.lastVerification;
-                return<Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,cashBalanceKnockOffDate:nowDate()}])}]} cells={[
-                  o.invoiceNo||"—",
-                  h?.upfrontPaymentDate?`Balance Date: ${fDate(h.upfrontPaymentDate)}`:null,
-                  h?.paymentMethod?`Method: ${h.paymentMethod}`:null,
-                  `Amount: RM ${(parseFloat(h?.paymentProofAmount)||0).toFixed(2)}`,
-                ]}/>;
-              }}/>
-            </>;
-          })()}
+          {/* Knock Off checklists moved to their own standalone section below */}
           {visibleReports.map(([label,type,date,setDate,src])=>{
             // For these report types, leaving the date blank doesn't mean
             // "every record ever" — it means "what's outstanding right now".
@@ -2432,6 +2351,98 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         </div>
       </div>}
     </div>;
+    })()}
+
+    {/* Knock Off — its own bar, separate from Reports. Reconciliation
+        checklists ("I've matched this against my own accounting/bank
+        records"), tracked with dedicated date fields so they never collide
+        with the Claim Released step's own knockOffDate. Only for the
+        Knock-off role (or super admin) — these are their action items
+        regardless of which printable reports still exist. */}
+    {(isSuperAdminOrder||canSeeReport("knockoff"))&&(()=>{
+      const upfront1Pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!(o.upfront1KnockOffDate&&o.upfront1KnockOff2Date));
+      const upfront2Pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.secondPaymentAmount)>0&&!o.upfront2KnockOffDate);
+      const claimPending=orders.filter(o=>!o.cancelled&&o.knockOffDate&&!o.claimReportKnockOffDate);
+      const depositPending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&o.depositPaymentDate&&!o.cashDepositKnockOffDate);
+      const balancePending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!o.cashBalanceKnockOffDate);
+      const totalPending=upfront1Pending.length+upfront2Pending.length+claimPending.length+depositPending.length+balancePending.length;
+      if(!totalPending)return null;
+      // Small colored pill for an amount — badge style, so different amount
+      // types (Upfront 1 vs Upfront 2, etc.) are easy to tell apart at a glance.
+      const AmtBadge=({label,value,bg,fg})=><span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:bg,color:fg,whiteSpace:"nowrap"}}>{label}: RM {value.toFixed(2)}</span>;
+      // buttons: array of {label,onClick,done} — each shown independently
+      // with its own done state; the row itself only leaves the pending
+      // list once every button in the row is done (handled by each
+      // checklist's own pending filter above).
+      const Row=({meta,amounts,remark,buttons})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:0}}>
+          {meta&&<div style={{fontSize:10,color:C.textLight,marginBottom:5}}>{meta}</div>}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:remark?5:0}}>{amounts}</div>
+          {remark&&<div style={{fontSize:11,color:C.textMid}}>Remark: {remark}</div>}
+        </div>
+        <div style={{display:"flex",gap:6,flexShrink:0}}>
+          {buttons.map((b,i)=><button key={i} onClick={b.onClick} disabled={b.done} style={{fontSize:10,fontWeight:700,color:b.done?"#15803D":C.blueBright,background:b.done?"#F0FDF4":"#EFF6FF",border:`1px solid ${b.done?"#BBF7D0":C.border}`,borderRadius:6,padding:"4px 9px",cursor:b.done?"default":"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>{b.done?`✓ ${b.label}`:b.label}</button>)}
+        </div>
+      </div>;
+      const Checklist=({checklistKey,title,items,rowRenderer})=>{
+        if(!items.length)return null;
+        const open=expandedKnockoffReport===checklistKey;
+        return<div style={{border:`1px solid ${C.border}`,borderRadius:10,background:C.surface,padding:"10px 14px"}}>
+          <div onClick={()=>setExpandedKnockoffReport(open?null:checklistKey)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+            <span style={{fontSize:11,fontWeight:700,color:C.text}}>{title} — {items.length} pending</span>
+            <span style={{fontSize:11,color:C.blueBright,fontWeight:700}}>{open?"Hide ▲":"Show ▼"}</span>
+          </div>
+          {open&&<div style={{marginTop:8,maxHeight:260,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
+            {items.map(o=>rowRenderer(o))}
+          </div>}
+        </div>;
+      };
+      return<div style={{...card,marginTop:12}}>
+        <div onClick={()=>setKnockOffExpanded(p=>!p)} style={{cursor:"pointer",userSelect:"none",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              <span style={{color:"rgba(255,255,255,.85)"}}>{Ic.checkCircle}</span>
+              <span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Knock Off</span>
+              <span style={{fontSize:10,fontWeight:700,color:"#fff",background:"rgba(255,255,255,.15)",padding:"1px 8px",borderRadius:20}}>{totalPending}</span>
+            </div>
+            <span style={{color:"rgba(255,255,255,.85)",transition:"transform .15s",transform:knockOffExpanded?"rotate(180deg)":"none"}}>{Ic.chevDown}</span>
+          </div>
+        </div>
+        {knockOffExpanded&&<div style={{padding:"14px 16px",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:10}}>
+          <Checklist checklistKey="upfront1" title="Upfront 1 Knock Off (CCM Order)" items={upfront1Pending} rowRenderer={o=>{
+            const h=o.lastVerification;
+            return<Row key={o.id} buttons={[
+              {label:"K/O 1",done:!!o.upfront1KnockOffDate,onClick:()=>bulkSave([{...o,upfront1KnockOffDate:nowDate()}])},
+              {label:"K/O 2",done:!!o.upfront1KnockOff2Date,onClick:()=>bulkSave([{...o,upfront1KnockOff2Date:nowDate()}])},
+            ]} amounts={<>
+              <AmtBadge label="Upfront 1" value={calcUpfront(o).total} bg="#EFF6FF" fg="#1D4ED8"/>
+              <AmtBadge label="Upfront 2" value={parseFloat(h?.monthlyInstallment??o.monthlyInstallment)||0} bg="#F5F0FF" fg="#7C3AED"/>
+            </>} remark={h?.verificationRemark}/>;
+          }}/>
+          <Checklist checklistKey="upfront2" title="Upfront 2 Knock Off (CCM Order)" items={upfront2Pending} rowRenderer={o=>{
+            const h=o.lastVerification;
+            return<Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,upfront2KnockOffDate:nowDate()}])}]}
+              meta={[o.invoiceNo||"—",o.merchant||"—",h?.secondPaymentDate?`2nd Upfront Date: ${fDate(h.secondPaymentDate)}`:null,h?.secondPayMethod?`Method: ${h.secondPayMethod}`:null].filter(Boolean).join(" · ")}
+              amounts={<AmtBadge label="2nd Payment Proof" value={parseFloat(h?.secondPaymentAmount)||0} bg="#F5F0FF" fg="#7C3AED"/>}/>;
+          }}/>
+          <Checklist checklistKey="knockoff" title="Claim Released Knock Off (CCM Order)" items={claimPending} rowRenderer={o=>
+            <Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,claimReportKnockOffDate:nowDate()}])}]}
+              meta={[o.invoiceNo||"—",o.agreementNumber||"—"].filter(Boolean).join(" · ")}
+              amounts={<AmtBadge label="Amount" value={parseFloat(o.knockOffAmount)||0} bg="#F0FDF4" fg="#15803D"/>}/>
+          }/>
+          <Checklist checklistKey="deposit" title="Deposit Knock Off (Cash Order)" items={depositPending} rowRenderer={o=>
+            <Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,cashDepositKnockOffDate:nowDate()}])}]}
+              meta={[o.invoiceNo||"—",`Deposit Date: ${fDate(o.depositPaymentDate)}`,o.depositPaymentMethod?`Method: ${o.depositPaymentMethod}`:null].filter(Boolean).join(" · ")}
+              amounts={<AmtBadge label="Deposit" value={parseFloat(o.deposit)||0} bg="#EFF6FF" fg="#1D4ED8"/>}/>
+          }/>
+          <Checklist checklistKey="balance" title="Balance Payment Knock Off (Cash Order)" items={balancePending} rowRenderer={o=>{
+            const h=o.lastVerification;
+            return<Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,cashBalanceKnockOffDate:nowDate()}])}]}
+              meta={[o.invoiceNo||"—",h?.upfrontPaymentDate?`Balance Date: ${fDate(h.upfrontPaymentDate)}`:null,h?.paymentMethod?`Method: ${h.paymentMethod}`:null].filter(Boolean).join(" · ")}
+              amounts={<AmtBadge label="Amount" value={parseFloat(h?.paymentProofAmount)||0} bg="#FFFBEB" fg="#B45309"/>}/>;
+          }}/>
+        </div>}
+      </div>;
     })()}
   </div>;
 }

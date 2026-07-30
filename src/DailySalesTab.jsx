@@ -673,8 +673,8 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
               <div>
                 <div style={{fontSize:13,fontWeight:700,color:C.text}}>{branchMeta[r.branch]?.name||r.branch} <span style={{fontWeight:500,color:C.textLight,fontSize:11}}>· {fDate(r.date)}</span></div>
-                <div style={{fontSize:11,color:C.textMid,marginTop:3}}>Total {fRM(r.totalSales)} · Debit {fRM(r.debit)} · Credit {fRM(r.credit)} · RHB QR {fRM(r.rhbQr)} · Cash {fRM(r.cashSales)}</div>
-                {r.remark&&<div style={{fontSize:11,color:C.textLight,marginTop:2}}>Remark: {r.remark}</div>}
+                <div style={{marginTop:5}}><span style={{fontSize:11,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#F0FDF4",color:"#15803D"}}>Cash: {fRM(r.cashSales)}</span></div>
+                {r.remark&&<div style={{fontSize:11,color:C.textLight,marginTop:5}}>Remark: {r.remark}</div>}
                 {r.verifiedAt&&<div style={{fontSize:11,color:"#15803D",marginTop:3,fontWeight:600}}>Verified — {r.paymentMethod} · {fDate(r.actualPaymentDate)} · {fRM(r.actualAmountReceived)} received</div>}
                 {r.shortPayment&&<div style={{fontSize:11,color:"#B45309",marginTop:3,fontWeight:600}}>Short Payment — {r.shortPaymentRemark}</div>}
                 {r.secondPaymentVerifiedAt&&<div style={{fontSize:11,color:"#15803D",marginTop:3,fontWeight:600}}>2nd Payment — {r.secondPaymentMethod} · {fDate(r.secondPaymentDate)} · {fRM(r.secondPaymentAmount)} received</div>}
