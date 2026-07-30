@@ -2414,7 +2414,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             return<Row key={o.id} buttons={[
               {label:"K/O 1",done:!!o.upfront1KnockOffDate,onClick:()=>bulkSave([{...o,upfront1KnockOffDate:nowDate()}])},
               {label:"K/O 2",done:!!o.upfront1KnockOff2Date,onClick:()=>bulkSave([{...o,upfront1KnockOff2Date:nowDate()}])},
-            ]} meta={`Invoice: ${o.invoiceNo||"—"}`} amounts={<>
+            ]} meta={`Invoice: ${o.invoiceNo||"—"} · Agreement: ${o.agreementNumber||"—"}`} amounts={<>
               <AmtBadge label="Upfront 1" value={calcUpfront(o).total} bg="#EFF6FF" fg="#1D4ED8"/>
               <AmtBadge label="Upfront 2" value={parseFloat(h?.monthlyInstallment??o.monthlyInstallment)||0} bg="#F5F0FF" fg="#7C3AED"/>
             </>} remark={h?.verificationRemark}/>;
@@ -2422,7 +2422,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
           <Checklist checklistKey="upfront2" title="Upfront 2 Knock Off (CCM Order)" items={upfront2Pending} rowRenderer={o=>{
             const h=o.lastVerification;
             return<Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,upfront2KnockOffDate:nowDate()}])}]}
-              meta={[o.invoiceNo||"—",o.merchant||"—",h?.secondPaymentDate?`2nd Upfront Date: ${fDate(h.secondPaymentDate)}`:null,h?.secondPayMethod?`Method: ${h.secondPayMethod}`:null].filter(Boolean).join(" · ")}
+              meta={[o.invoiceNo||"—",o.agreementNumber||"—",o.merchant||"—",h?.secondPaymentDate?`2nd Upfront Date: ${fDate(h.secondPaymentDate)}`:null,h?.secondPayMethod?`Method: ${h.secondPayMethod}`:null].filter(Boolean).join(" · ")}
               amounts={<AmtBadge label="2nd Payment Proof" value={parseFloat(h?.secondPaymentAmount)||0} bg="#F5F0FF" fg="#7C3AED"/>}/>;
           }}/>
           <Checklist checklistKey="knockoff" title="Claim Released Knock Off (CCM Order)" items={claimPending} rowRenderer={o=>
@@ -2432,7 +2432,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
           }/>
           <Checklist checklistKey="deposit" title="Deposit Knock Off (Cash Order)" items={depositPending} rowRenderer={o=>
             <Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,cashDepositKnockOffDate:nowDate()}])}]}
-              meta={[o.invoiceNo||"—",`Deposit Date: ${fDate(o.depositPaymentDate)}`,o.depositPaymentMethod?`Method: ${o.depositPaymentMethod}`:null].filter(Boolean).join(" · ")}
+              meta={[o.invoiceNo||"—",o.customerName||"—",o.phoneModel||"—",o.branch||"—",`Deposit Date: ${fDate(o.depositPaymentDate)}`,o.depositPaymentMethod?`Method: ${o.depositPaymentMethod}`:null].filter(Boolean).join(" · ")}
               amounts={<AmtBadge label="Deposit" value={parseFloat(o.deposit)||0} bg="#EFF6FF" fg="#1D4ED8"/>}/>
           }/>
           <Checklist checklistKey="balance" title="Balance Payment Knock Off (Cash Order)" items={balancePending} rowRenderer={o=>{
