@@ -614,12 +614,12 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
         ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No reports for this date.</div>
         :<div>{visible.map(r=>{
           const canUploadSlip=r.cashSales>0&&!r.bankInSlip&&isAdmin&&!userBranch;
-          const canVerifyThis=r.cashSales>0&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment&&isAdmin;
-          // Verify/Short Payment/2nd Payment are now super-admin-only actions
-          // — Knock-off role can still see this queue but not act on it,
-          // since payment method mix-ups were happening at this step.
-          const canFlagShortPayment=r.cashSales>0&&isAdmin&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment;
-          const canKeyIn2ndPayment=isAdmin&&r.shortPayment&&r.balancePaymentSlip&&!r.secondPaymentVerifiedAt;
+          const canVerifyThis=r.cashSales>0&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment&&canVerify;
+          // Short payment follow-up — Knock-off role (canVerify) or Super
+          // Admin can flag it as soon as a bank-in slip is uploaded, an
+          // alternative to Verify for when the slip amount is short.
+          const canFlagShortPayment=r.cashSales>0&&canVerify&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment;
+          const canKeyIn2ndPayment=canVerify&&r.shortPayment&&r.balancePaymentSlip&&!r.secondPaymentVerifiedAt;
           return<div key={r.id} style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
               <div>

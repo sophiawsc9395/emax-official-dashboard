@@ -138,18 +138,27 @@ export function getDailySalesAccess(isAdmin, orderPermissions, isReadOnly = fals
 }
 
 /**
- * Resolve the most contextually-relevant role label for a specific email —
- * used for edit-log attribution so someone like Sophia or boontheng2004
- * (who hold Super Admin alongside Billing/Knock-off/etc.) get attributed by
- * whichever role is actually relevant to the action, not their broadest
- * title. priorityRoles lists which role to prefer first, in order, e.g.
- * ["billing","knockoff","superAdmin"] for a sales-figure edit.
+ * Resolve the display label for a specific email's edit-log attribution.
+ * Named individuals (Sophia, the Manager) get their actual title directly —
+ * checking PERSON_TITLES first means Sophia always shows as "Super Admin"
+ * and boontheng2004 always shows as "Manager", regardless of which other
+ * order-roles they also hold underneath. Shared/dedicated role accounts
+ * (emaxbilling@gmail.com etc.) fall through to the role-priority inference,
+ * which picks whichever held role is most relevant to the action —
+ * priorityRoles lists which to prefer first, e.g. ["billing","knockoff"].
  * Returns null if the email isn't recognized at all (caller should fall
  * back to its own capability-based heuristic in that case).
  */
+const PERSON_TITLES = {
+  "sophiawsc9395@gmail.com": "Super Admin",
+  "boontheng2004@gmail.com": "Manager",
+  "wingfeii@gmail.com": "Boss",
+};
 const ROLE_DISPLAY_LABELS = { billing: "Billing", knockoff: "Knock-off", purchase: "Purchase", stock: "Stock", superAdmin: "Super Admin" };
 export function resolveEditorRole(email, priorityRoles = ["billing", "knockoff", "purchase", "stock", "superAdmin"]) {
   const normalizedEmail = (email || "").toLowerCase();
+  const personKey = Object.keys(PERSON_TITLES).find(k => k.toLowerCase() === normalizedEmail);
+  if (personKey) return PERSON_TITLES[personKey];
   const roleKey = Object.keys(ORDER_USER_ROLES).find(k => k.toLowerCase() === normalizedEmail);
   const roles = roleKey ? ORDER_USER_ROLES[roleKey] : [];
   if (!roles.length) return null;
