@@ -2,12 +2,20 @@ import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import OrderTab from './OrderTab.jsx'
 import DailySalesTab from './DailySalesTab.jsx'
+import JCLTab from './JCLTab.jsx'
 import AuthGate from './auth/AuthGate.jsx'
 import { mergeOrderPermissions, ORDER_USER_ROLES, getDailySalesAccess } from './auth/orderRoles.js'
 import { supabase, loadData } from './storage/index.js'
 
-// Only emails with a role in orderRoles.js can even reach this page.
-const ALLOWED = Object.keys(ORDER_USER_ROLES)
+// emaxjcl@gmail.com is JCL-admin only — deliberately NOT added to
+// ORDER_USER_ROLES, since an unmapped email there gets treated as full
+// Super Admin on Order Tracking/Daily Sales Report (same null-permissions
+// fallback behavior used everywhere else in this app). Kept separate here
+// and the Orders/Daily Sales tabs are hidden entirely for this email below.
+const JCL_ONLY_EMAILS = ["emaxjcl@gmail.com"]
+
+// Only emails with a role in orderRoles.js, plus JCL-only admins, can reach this page.
+const ALLOWED = [...Object.keys(ORDER_USER_ROLES), ...JCL_ONLY_EMAILS]
 
 const SR_KEY = "emax_v5_sr_list", BM_KEY = "emax_v5_branch_meta"
 
@@ -77,7 +85,7 @@ function OrderOnlyApp(){
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTab, setPageTabRaw] = useState(() => {
     const h = window.location.hash.replace('#', '')
-    return ['orders', 'dailySales'].includes(h) ? h : 'orders'
+    return ['orders', 'dailySales', 'jclApplications'].includes(h) ? h : 'orders'
   })
   const setPageTab = (t) => { setPageTabRaw(t); window.location.hash = t }
 
@@ -93,6 +101,13 @@ function OrderOnlyApp(){
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [])
+
+  const isJCLOnly = JCL_ONLY_EMAILS.map(e=>e.toLowerCase()).includes((email||"").toLowerCase())
+
+  useEffect(() => {
+    if (isJCLOnly && pageTab !== 'jclApplications') setPageTab('jclApplications')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isJCLOnly])
 
   if (loading || !email) {
     return <div style={{ height:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#0A1628", fontFamily:"Inter,sans-serif" }}>
@@ -131,15 +146,16 @@ function OrderOnlyApp(){
         {/* MAIN CONTENT */}
         <div style={{ flex:1, minWidth:0, padding:"20px", maxWidth:1180 }}>
           <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-            {[["orders","Order Tracking"],["dailySales","Daily Sales Report"]].map(([id,label])=>(
+            {(isJCLOnly?[["jclApplications","JCL Applications"]]:[["orders","Order Tracking"],["dailySales","Daily Sales Report"],["jclApplications","JCL Applications"]]).map(([id,label])=>(
               <button key={id} onClick={()=>setPageTab(id)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${pageTab===id?"#0A1628":"#E4EAF2"}`,background:pageTab===id?"#0A1628":"#fff",color:pageTab===id?"#fff":"#4A5568",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{label}</button>
             ))}
           </div>
-          {pageTab==="orders" && <OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} isReadOnly={false} orderPermissions={orderPermissions} email={email} />}
-          {pageTab==="dailySales" && (()=>{
+          {!isJCLOnly && pageTab==="orders" && <OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} isReadOnly={false} orderPermissions={orderPermissions} email={email} />}
+          {!isJCLOnly && pageTab==="dailySales" && (()=>{
             const {isSuperAdminOrder,canSubmit,canVerify} = getDailySalesAccess(true, orderPermissions, false)
             return <DailySalesTab branchMeta={branchMeta} isAdmin={isSuperAdminOrder} canSubmit={canSubmit} canVerify={canVerify} email={email} />
           })()}
+          {pageTab==="jclApplications" && <JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={email} />}
         </div>
 
         {/* SIDEBAR — right side, collapsible, same treatment as the main dashboard's */}

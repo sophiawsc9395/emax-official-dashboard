@@ -6,6 +6,11 @@
  * created on the Order page, on behalf of the branch, pre-filled with the
  * application's customer/device/finance details.
  *
+ * UI follows the same list → click-to-detail pattern as the Order page:
+ * KPI cards, branch/agent filters, search, "+ New Application" button, and
+ * clicking a row opens full detail + tracking timeline + action panel,
+ * instead of an inline expand arrow.
+ *
  * Storage: same simple key-value table pattern as Daily Sales Report, so
  * this ships without any manual Supabase schema migration.
  */
@@ -31,13 +36,15 @@ const nowDate=()=>new Date().toISOString().split("T")[0];
 const nowTime=()=>new Date().toTimeString().slice(0,5);
 const fDate=s=>{if(!s)return"—";const[y,m,d]=s.split("-");return`${d}/${m}/${y}`;};
 const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
+const daysSince=d=>{if(!d)return 0;const then=new Date(d+"T00:00:00"),now=new Date();now.setHours(0,0,0,0);return Math.round((now-then)/86400000);};
+const sellingBranches=bm=>Object.keys(bm||{}).filter(b=>b!=="HQ"&&b!=="SDK");
 
 const L=({children,req})=><label style={{display:"block",fontSize:11,fontWeight:600,color:C.textMid,marginBottom:4}}>{children}{req&&<span style={{color:"#DC2626"}}> *</span>}</label>;
 const I=props=><input {...props} style={{width:"100%",padding:"9px 11px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontFamily:"Inter,sans-serif",boxSizing:"border-box",...(props.style||{})}}/>;
 const TX=props=><textarea {...props} style={{width:"100%",padding:"9px 11px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontFamily:"Inter,sans-serif",boxSizing:"border-box",resize:"vertical",...(props.style||{})}}/>;
+const SEL=props=><select {...props} style={{width:"100%",padding:"9px 11px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontFamily:"Inter,sans-serif",background:"#fff",boxSizing:"border-box",...(props.style||{})}}/>;
 const PBtn=({children,...p})=><button {...p} style={{display:"inline-flex",alignItems:"center",gap:6,background:C.blueBright,color:"#fff",border:"none",borderRadius:8,padding:"9px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",opacity:p.disabled?.5:1,...(p.style||{})}}>{children}</button>;
 const GBtn=({children,...p})=><button {...p} style={{display:"inline-flex",alignItems:"center",gap:6,background:"#fff",color:C.text,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 16px",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif",...(p.style||{})}}>{children}</button>;
-const SEL=props=><select {...props} style={{width:"100%",padding:"9px 11px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontFamily:"Inter,sans-serif",background:"#fff",boxSizing:"border-box",...(props.style||{})}}/>;
 const DBtnLocal=({children,...p})=><button {...p} style={{display:"inline-flex",alignItems:"center",gap:6,background:"#DC2626",color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",opacity:p.disabled?.5:1}}>{children}</button>;
 
 function StepBadge({step}){
@@ -68,16 +75,32 @@ function readAppFile(f,syntheticId){
   });
 }
 
-/* ── New Application form (branch) ────────────────────────────────────── */
-const emptyApp=()=>({
-  customerName:"",phoneModel:"",financePrice:"",tenure:"12",salesAgentName:"",
-  customerIC:"",race:"Malay",gender:"Male",residencyStatus:"Bumiputera",maritalStatus:"Single",housingStatus:"Own Property",
-  customerHP:"",customerEmail:"",address:"",postcode:"",city:"",lengthOfStay:"",bestTimeContact:"Anytime",
-  bankName:"",bankAccountType:"Savings",bankAccountHolderName:"",bankAccountNumber:"",
-  occupation:"",workDepartment:"",companyNatureOfBusiness:"",yearsOfService:"",monthsOfService:"",salaryDate:"",netSalary:"",employmentType:"Permanent",workLocation:"Malaysia",companyName:"",officeAddress:"",officePostcode:"",officeTel:"",
-  ec1Name:"",ec1Relationship:"Spouse",ec1StayWith:"Yes",ec1Address:"",ec1ContactNumber:"",ec1BestTime:"Anytime",
-  ec2Name:"",ec2Relationship:"Spouse",ec2StayWith:"Yes",ec2Address:"",ec2ContactNumber:"",ec2BestTime:"Anytime",
-});
+const DOC_FIELDS=[
+  {key:"icFrontFile",label:"IC Front"},
+  {key:"icBackFile",label:"IC Back"},
+  {key:"salarySlipFile",label:"Latest Salary Slip"},
+  {key:"epfStatementFile",label:"EPF Statement"},
+  {key:"bankStatementFile",label:"Latest Bank Statement"},
+];
+
+/* ── Timeline ──────────────────────────────────────────────────────────── */
+function Timeline({app}){
+  const hist=app.history||[];
+  if(!hist.length)return<div style={{fontSize:11,color:C.textLight}}>No history yet.</div>;
+  return<div style={{display:"flex",flexDirection:"column",gap:8}}>
+    {hist.map((h,i)=>{
+      const d=stepDef(h.step);
+      return<div key={i} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+        <div style={{width:9,height:9,borderRadius:"50%",background:d.color,marginTop:4,flexShrink:0}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.text}}>{d.label} <span style={{fontWeight:500,color:C.textLight}}>· {fDate(h.date)} {h.time||""}</span></div>
+          {h.note&&<div style={{fontSize:11,color:C.textMid,marginTop:1}}>{h.note}</div>}
+        </div>
+      </div>;
+    })}
+  </div>;
+}
+
 const Section=({title,children})=><div style={{marginBottom:18}}>
   <div style={{fontSize:11,fontWeight:700,color:C.blueBright,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:10,paddingBottom:6,borderBottom:`2px solid ${C.border}`}}>{title}</div>
   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10}}>{children}</div>
@@ -85,14 +108,32 @@ const Section=({title,children})=><div style={{marginBottom:18}}>
 const TIMES=["Morning","Noon","Evening","Anytime"];
 const RELATIONS=["Spouse","Sibling","Parent"];
 
-function NewApplicationForm({branchMeta,userBranch,onSaved}){
-  const [f,setF]=useState(emptyApp);
-  const [icFiles,setIcFiles]=useState([]);
-  const [incomeFiles,setIncomeFiles]=useState([]);
+const emptyApp=(branch="")=>({
+  branch,customerName:"",phoneModel:"",financePrice:"",tenure:"12",salesAgentId:"",salesAgentName:"",
+  customerIC:"",race:"Malay",gender:"Male",residencyStatus:"Bumiputera",maritalStatus:"Single",housingStatus:"Own Property",
+  customerHP:"",customerEmail:"",address:"",postcode:"",city:"",lengthOfStay:"",bestTimeContact:"Anytime",
+  bankName:"",bankAccountType:"Savings",bankAccountHolderName:"",bankAccountNumber:"",
+  occupation:"",workDepartment:"",companyNatureOfBusiness:"",yearsOfService:"",monthsOfService:"",salaryDate:"",netSalary:"",employmentType:"Permanent",workLocation:"Malaysia",companyName:"",officeAddress:"",officePostcode:"",officeTel:"",
+  ec1Name:"",ec1Relationship:"Spouse",ec1StayWith:"Yes",ec1Address:"",ec1ContactNumber:"",ec1BestTime:"Anytime",
+  ec2Name:"",ec2Relationship:"Spouse",ec2StayWith:"Yes",ec2Address:"",ec2ContactNumber:"",ec2BestTime:"Anytime",
+});
+
+/* ── Application form — used for both New Application and Edit ─────────── */
+function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSaved,onCancel}){
+  const [f,setF]=useState(()=>editingApp?{...emptyApp(),...editingApp}:emptyApp(userBranch||""));
+  const [docs,setDocs]=useState(()=>{
+    const d={};
+    DOC_FIELDS.forEach(({key})=>{d[key]=editingApp?.[key]||null;});
+    return d;
+  });
+  const [docFiles,setDocFiles]=useState({});
   const [saving,setSaving]=useState(false);
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const formBranch=userBranch||f.branch;
+  const branchSRs=(srList||[]).filter(s=>s.branch===formBranch);
+
   const required=[
-    "customerName","phoneModel","financePrice","tenure","salesAgentName",
+    "branch","customerName","phoneModel","financePrice","tenure","salesAgentId",
     "customerIC","race","gender","residencyStatus","maritalStatus","housingStatus",
     "customerHP","customerEmail","address","postcode","city","lengthOfStay","bestTimeContact",
     "bankName","bankAccountType","bankAccountHolderName","bankAccountNumber",
@@ -101,36 +142,47 @@ function NewApplicationForm({branchMeta,userBranch,onSaved}){
     "ec2Name","ec2Relationship","ec2StayWith","ec2Address","ec2ContactNumber","ec2BestTime",
   ];
   const missing=required.filter(k=>!String(f[k]||"").trim());
+  const missingDocs=DOC_FIELDS.filter(({key})=>!docs[key]&&!docFiles[key]);
+
   const submit=async()=>{
-    if(missing.length||!icFiles.length||!incomeFiles.length){alert("Please fill in every field and upload both document sets before submitting.");return;}
+    if(missing.length||missingDocs.length){alert("Please fill in every field and upload every document before submitting.");return;}
     setSaving(true);
-    const id=`jcl_${Date.now()}`;
-    const icDocuments=await Promise.all(icFiles.map(file=>readAppFile(file,`${id}_ic`)));
-    const incomeDocuments=await Promise.all(incomeFiles.map(file=>readAppFile(file,`${id}_income`)));
-    const app={
-      id,branch:userBranch,step:1,merchant:"JCL",
-      ...f,financePrice:parseFloat(f.financePrice)||0,
-      icDocuments,incomeDocuments,
+    const id=editingApp?.id||`jcl_${Date.now()}`;
+    const uploadedDocs={};
+    for(const{key} of DOC_FIELDS){
+      if(docFiles[key])uploadedDocs[key]=await readAppFile(docFiles[key],`${id}_${key}`);
+      else uploadedDocs[key]=docs[key];
+    }
+    const base=editingApp||{
+      step:1,merchant:"JCL",
       submittedAt:nowDate(),submittedTime:nowTime(),
       submittedToJCLDate:null,followUpRemark:null,followUpRequestedDate:null,
       followUpResponseFiles:[],followUpRespondedDate:null,
       approvedDate:null,approvedRemark:null,rejectedDate:null,rejectedRemark:null,
-      linkedOrderId:null,history:[{step:1,date:nowDate(),time:nowTime(),note:"New Application submitted by branch"}],
+      linkedOrderId:null,history:[{step:1,date:nowDate(),time:nowTime(),note:"New Application submitted"}],
+    };
+    const app={
+      ...base,id,...f,financePrice:parseFloat(f.financePrice)||0,...uploadedDocs,
+      history:editingApp?[...(editingApp.history||[]),{step:editingApp.step,date:nowDate(),time:nowTime(),note:"Application details edited"}]:base.history,
     };
     await onSaved(app);
     setSaving(false);
-    setF(emptyApp());setIcFiles([]);setIncomeFiles([]);
   };
+
   return<div style={{...card,padding:"16px 18px",marginBottom:14}}>
-    <div style={{fontSize:14,fontWeight:800,color:C.text,marginBottom:16}}>New Application — {branchMeta[userBranch]?.name||userBranch}</div>
+    <div style={{fontSize:14,fontWeight:800,color:C.text,marginBottom:16}}>{editingApp?"Edit Application":"New Application"}</div>
 
     <Section title="Application &amp; Device">
+      {isAdmin&&<div><L req>Branch</L><SEL value={f.branch} onChange={e=>{set("branch",e.target.value);set("salesAgentId","");set("salesAgentName","");}}><option value="">— Select Branch —</option>{sellingBranches(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}</SEL></div>}
+      {!isAdmin&&<div><L>Branch</L><I value={branchMeta[userBranch]?.name||userBranch} disabled/></div>}
       <div><L req>Customer Name</L><I value={f.customerName} onChange={e=>set("customerName",e.target.value)}/></div>
       <div><L req>Phone Model / Item</L><I value={f.phoneModel} onChange={e=>set("phoneModel",e.target.value)}/></div>
       <div><L req>Finance Price (RM)</L><I type="number" step="0.01" value={f.financePrice} onChange={e=>set("financePrice",e.target.value)}/></div>
       <div><L req>CCM Device Tenure</L><SEL value={f.tenure} onChange={e=>set("tenure",e.target.value)}><option value="12">12 Months</option><option value="24">24 Months</option><option value="36">36 Months</option></SEL></div>
-      <div><L req>Sales Agent</L><I value={f.salesAgentName} onChange={e=>set("salesAgentName",e.target.value)}/></div>
-      <div><L>Branch</L><I value={branchMeta[userBranch]?.name||userBranch} disabled/></div>
+      <div><L req>Sales Agent</L>{branchSRs.length>0
+        ?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}} disabled={!formBranch}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>
+        :<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder={formBranch?"Agent ID":"Pick a branch first"} disabled={!formBranch}/>}
+      </div>
     </Section>
 
     <Section title="Personal Details">
@@ -176,8 +228,12 @@ function NewApplicationForm({branchMeta,userBranch,onSaved}){
     <div style={{marginTop:-8,marginBottom:16}}><L req>Office Address</L><TX rows={2} value={f.officeAddress} onChange={e=>set("officeAddress",e.target.value)}/></div>
 
     <Section title="Document Uploads">
-      <div><L req>Customer IC — Front &amp; Back</L><input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setIcFiles(Array.from(e.target.files||[]))} style={{fontSize:11}}/>{icFiles.length>0&&<div style={{fontSize:10,color:C.textLight,marginTop:3}}>{icFiles.length} file(s) selected</div>}</div>
-      <div><L req>Salary Slip, EPF &amp; Bank Statement</L><input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setIncomeFiles(Array.from(e.target.files||[]))} style={{fontSize:11}}/>{incomeFiles.length>0&&<div style={{fontSize:10,color:C.textLight,marginTop:3}}>{incomeFiles.length} file(s) selected</div>}</div>
+      {DOC_FIELDS.map(({key,label})=><div key={key}>
+        <L req>{label}</L>
+        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setDocFiles(p=>({...p,[key]:e.target.files[0]||null}))} style={{fontSize:11}}/>
+        {docFiles[key]?<div style={{fontSize:10,color:"#15803D",marginTop:3}}>New file selected: {docFiles[key].name}</div>
+          :docs[key]?<div style={{fontSize:10,color:C.textLight,marginTop:3}}>On file: {docs[key].name}</div>:null}
+      </div>)}
     </Section>
 
     <Section title="Emergency Contact #1">
@@ -198,7 +254,10 @@ function NewApplicationForm({branchMeta,userBranch,onSaved}){
     </Section>
     <div style={{marginBottom:16}}><L req>Address</L><TX rows={2} value={f.ec2Address} onChange={e=>set("ec2Address",e.target.value)}/></div>
 
-    <PBtn onClick={submit} disabled={saving}>{saving?"Submitting…":"Submit Application"}</PBtn>
+    <div style={{display:"flex",gap:8}}>
+      <PBtn onClick={submit} disabled={saving}>{saving?"Submitting…":editingApp?"Save Changes":"Submit Application"}</PBtn>
+      <GBtn onClick={onCancel}>Cancel</GBtn>
+    </div>
   </div>;
 }
 
@@ -226,8 +285,8 @@ function FollowUpResponseBox({app,onSaved}){
   </div>;
 }
 
-/* ── Admin action panel for one application ───────────────────────────── */
-function AdminActions({app,branchMeta,onSaved,onCreateOrder}){
+/* ── Admin action panel ───────────────────────────────────────────────── */
+function AdminActions({app,onSaved,onCreateOrder}){
   const [showFollowUp,setShowFollowUp]=useState(false);
   const [followUpRemark,setFollowUpRemark]=useState("");
   const [showApprove,setShowApprove]=useState(false);
@@ -265,17 +324,17 @@ function AdminActions({app,branchMeta,onSaved,onCreateOrder}){
     setSaving(false);setShowReject(false);
   };
 
-  if(app.step===4)return<div style={{fontSize:11,color:"#15803D",fontWeight:600}}>Approved {fDate(app.approvedDate)}{app.linkedOrderId?" — order created":""}{app.approvedRemark?` — ${app.approvedRemark}`:""}</div>;
-  if(app.step===5)return<div style={{fontSize:11,color:"#DC2626",fontWeight:600}}>Rejected {fDate(app.rejectedDate)} — {app.rejectedRemark}</div>;
+  if(app.step===4)return<div style={{fontSize:12,color:"#15803D",fontWeight:600}}>Approved {fDate(app.approvedDate)}{app.linkedOrderId?" — order created on Order page":""}{app.approvedRemark?` — ${app.approvedRemark}`:""}</div>;
+  if(app.step===5)return<div style={{fontSize:12,color:"#DC2626",fontWeight:600}}>Rejected {fDate(app.rejectedDate)} — {app.rejectedRemark}</div>;
 
-  return<div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8}}>
-    {app.step===1&&<GBtn onClick={submitToJCL} disabled={saving} style={{fontSize:11,padding:"7px 12px"}}>{saving?"Saving…":"Submit to JCL"}</GBtn>}
-    {app.step===3&&!app.followUpRespondedDate&&<div style={{fontSize:11,color:"#B45309"}}>Waiting on branch to respond to follow-up request.</div>}
+  return<div style={{display:"flex",flexDirection:"column",gap:8}}>
+    {app.step===1&&<GBtn onClick={submitToJCL} disabled={saving} style={{fontSize:12}}>{saving?"Saving…":"Submit to JCL"}</GBtn>}
+    {app.step===3&&!app.followUpRespondedDate&&<div style={{fontSize:12,color:"#B45309"}}>Waiting on branch to respond to follow-up request.</div>}
     {(app.step===2||(app.step===3&&app.followUpRespondedDate))&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-      {!showFollowUp?<GBtn onClick={()=>setShowFollowUp(true)} style={{fontSize:11,padding:"7px 12px",color:"#B45309",borderColor:"#FDE68A"}}>Request Follow-Up</GBtn>:null}
+      {!showFollowUp?<GBtn onClick={()=>setShowFollowUp(true)} style={{fontSize:12,color:"#B45309",borderColor:"#FDE68A"}}>Request Follow-Up</GBtn>:null}
       {!showApprove&&!showReject?<>
-        <PBtn onClick={()=>setShowApprove(true)} style={{fontSize:11,padding:"7px 12px",background:"#15803D"}}>Approved by JCL</PBtn>
-        <GBtn onClick={()=>setShowReject(true)} style={{fontSize:11,padding:"7px 12px",color:"#DC2626",borderColor:"#FECACA"}}>Rejected by JCL</GBtn>
+        <PBtn onClick={()=>setShowApprove(true)} style={{fontSize:12,background:"#15803D"}}>Approved by JCL</PBtn>
+        <GBtn onClick={()=>setShowReject(true)} style={{fontSize:12,color:"#DC2626",borderColor:"#FECACA"}}>Rejected by JCL</GBtn>
       </>:null}
     </div>}
     {showFollowUp&&<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
@@ -306,29 +365,120 @@ function AdminActions({app,branchMeta,onSaved,onCreateOrder}){
   </div>;
 }
 
-function Timeline({app}){
-  const hist=app.history||[];
-  if(!hist.length)return<div style={{fontSize:11,color:C.textLight}}>No history yet.</div>;
-  return<div style={{display:"flex",flexDirection:"column",gap:8}}>
-    {hist.map((h,i)=>{
-      const d=stepDef(h.step);
-      return<div key={i} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-        <div style={{width:9,height:9,borderRadius:"50%",background:d.color,marginTop:4,flexShrink:0}}/>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:11,fontWeight:700,color:C.text}}>{d.label} <span style={{fontWeight:500,color:C.textLight}}>· {fDate(h.date)} {h.time||""}</span></div>
-          {h.note&&<div style={{fontSize:11,color:C.textMid,marginTop:1}}>{h.note}</div>}
+/* ── Detail view — click a row to get here, same idea as the Order page ─ */
+function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDelete,onEdit,onCreateOrder,fileUrls}){
+  const InfoRow=({label,value})=><div style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+    <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{label}</div>
+    <div style={{fontSize:12,color:C.text,fontWeight:600}}>{value||"—"}</div>
+  </div>;
+  return<div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:700,fontSize:12,color:C.blueBright,padding:0}}>← Back to List</button>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <StepBadge step={app.step}/>
+        {isAdmin&&<GBtn onClick={onEdit} style={{fontSize:11,padding:"6px 12px"}}>Edit</GBtn>}
+        {canDelete&&<DBtnLocal onClick={onDelete}>Delete</DBtnLocal>}
+      </div>
+    </div>
+
+    <div style={{...card,padding:"16px 18px",marginBottom:14}}>
+      <div style={{fontSize:15,fontWeight:800,color:C.text,marginBottom:2}}>{app.customerName}</div>
+      <div style={{fontSize:11,color:C.textLight,marginBottom:14}}>{branchMeta[app.branch]?.name||app.branch} · Submitted {fDate(app.submittedAt)}</div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))"}}>
+        <InfoRow label="Phone Model / Item" value={app.phoneModel}/>
+        <InfoRow label="Finance Price" value={fRM(app.financePrice)}/>
+        <InfoRow label="Tenure" value={`${app.tenure} Months`}/>
+        <InfoRow label="Sales Agent" value={app.salesAgentName?`${app.salesAgentName} (${app.salesAgentId})`:app.salesAgentId}/>
+        <InfoRow label="Customer IC" value={app.customerIC}/>
+        <InfoRow label="Race" value={app.race}/>
+        <InfoRow label="Gender" value={app.gender}/>
+        <InfoRow label="Residency Status" value={app.residencyStatus}/>
+        <InfoRow label="Marital Status" value={app.maritalStatus}/>
+        <InfoRow label="Housing Status" value={app.housingStatus}/>
+        <InfoRow label="Customer HP" value={app.customerHP}/>
+        <InfoRow label="Customer Email" value={app.customerEmail}/>
+        <InfoRow label="Length of Stay" value={app.lengthOfStay}/>
+        <InfoRow label="Postcode" value={app.postcode}/>
+        <InfoRow label="City" value={app.city}/>
+        <InfoRow label="Best Time to Contact" value={app.bestTimeContact}/>
+      </div>
+      <InfoRow label="Address" value={app.address}/>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",marginTop:4}}>
+        <InfoRow label="Bank Name" value={app.bankName}/>
+        <InfoRow label="Account Type" value={app.bankAccountType}/>
+        <InfoRow label="Account Holder" value={app.bankAccountHolderName}/>
+        <InfoRow label="Account Number" value={app.bankAccountNumber}/>
+        <InfoRow label="Occupation" value={app.occupation}/>
+        <InfoRow label="Work Department" value={app.workDepartment}/>
+        <InfoRow label="Nature of Business" value={app.companyNatureOfBusiness}/>
+        <InfoRow label="Years / Months of Service" value={`${app.yearsOfService||0}y ${app.monthsOfService||0}m`}/>
+        <InfoRow label="Salary Date" value={app.salaryDate}/>
+        <InfoRow label="Net Salary" value={fRM(app.netSalary)}/>
+        <InfoRow label="Employment Type" value={app.employmentType}/>
+        <InfoRow label="Work Location" value={app.workLocation}/>
+        <InfoRow label="Company Name" value={app.companyName}/>
+        <InfoRow label="Office Postcode" value={app.officePostcode}/>
+        <InfoRow label="Office Tel" value={app.officeTel}/>
+      </div>
+      <InfoRow label="Office Address" value={app.officeAddress}/>
+
+      <div style={{marginTop:14,marginBottom:6,fontSize:11,fontWeight:700,color:C.blueBright,textTransform:"uppercase",letterSpacing:"0.05em"}}>Documents</div>
+      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+        {DOC_FIELDS.map(({key,label})=>{
+          const doc=app[key];
+          return<div key={key} style={{fontSize:12}}>
+            <span style={{color:C.textMid,fontWeight:600}}>{label}: </span>
+            {doc?(fileUrls[`${app.id}_${key}`]?<a href={fileUrls[`${app.id}_${key}`]} target="_blank" rel="noopener noreferrer" style={{color:C.blueBright,fontWeight:600}}>{doc.name}</a>:<span style={{color:C.textLight}}>Loading…</span>):<span style={{color:"#DC2626"}}>Not uploaded</span>}
+          </div>;
+        })}
+      </div>
+
+      <div style={{marginTop:14,marginBottom:6,fontSize:11,fontWeight:700,color:C.blueBright,textTransform:"uppercase",letterSpacing:"0.05em"}}>Emergency Contact #1</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))"}}>
+        <InfoRow label="Name" value={app.ec1Name}/><InfoRow label="Relationship" value={app.ec1Relationship}/>
+        <InfoRow label="Stay With Applicant?" value={app.ec1StayWith}/><InfoRow label="Contact Number" value={app.ec1ContactNumber}/>
+        <InfoRow label="Best Time to Contact" value={app.ec1BestTime}/>
+      </div>
+      <InfoRow label="Address" value={app.ec1Address}/>
+
+      <div style={{marginTop:14,marginBottom:6,fontSize:11,fontWeight:700,color:C.blueBright,textTransform:"uppercase",letterSpacing:"0.05em"}}>Emergency Contact #2</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))"}}>
+        <InfoRow label="Name" value={app.ec2Name}/><InfoRow label="Relationship" value={app.ec2Relationship}/>
+        <InfoRow label="Stay With Applicant?" value={app.ec2StayWith}/><InfoRow label="Contact Number" value={app.ec2ContactNumber}/>
+        <InfoRow label="Best Time to Contact" value={app.ec2BestTime}/>
+      </div>
+      <InfoRow label="Address" value={app.ec2Address}/>
+    </div>
+
+    <div className="detail-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+      <div style={card}>
+        <div style={{padding:"11px 16px",borderBottom:`1px solid ${C.border}`,fontSize:11,fontWeight:700,color:C.text,textTransform:"uppercase",letterSpacing:"0.05em"}}>Tracking Timeline</div>
+        <div style={{padding:"14px 16px"}}><Timeline app={app}/></div>
+      </div>
+      <div style={card}>
+        <div style={{padding:"11px 16px",borderBottom:`1px solid ${C.border}`,fontSize:11,fontWeight:700,color:C.text,textTransform:"uppercase",letterSpacing:"0.05em"}}>Action</div>
+        <div style={{padding:"14px 16px"}}>
+          {app.step===3&&!app.followUpRespondedDate&&!isAdmin&&<FollowUpResponseBox app={app} onSaved={onSaved}/>}
+          {isAdmin&&<AdminActions app={app} onSaved={onSaved} onCreateOrder={onCreateOrder}/>}
+          {!isAdmin&&!(app.step===3&&!app.followUpRespondedDate)&&<div style={{fontSize:12,color:C.textLight}}>No action needed from your side right now — admin handles the rest of this application.</div>}
         </div>
-      </div>;
-    })}
+      </div>
+    </div>
   </div>;
 }
 
-export default function JCLTab({branchMeta,isAdmin,userBranch}){
+export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=null}){
   const [apps,setApps]=useState([]);
   const [loading,setLoading]=useState(true);
+  const [view,setView]=useState("list"); // list | form | detail
+  const [selectedId,setSelectedId]=useState(null);
+  const [editingApp,setEditingApp]=useState(null);
   const [branchFilter,setBranchFilter]=useState("all");
+  const [agentFilter,setAgentFilter]=useState("all");
   const [stepFilter,setStepFilter]=useState("all");
-  const [expandedTimeline,setExpandedTimeline]=useState(null);
+  const [search,setSearch]=useState("");
   const [fileUrls,setFileUrls]=useState({});
 
   useEffect(()=>{loadData(JCL_KEY).then(d=>{setApps(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>setLoading(false));},[]);
@@ -337,6 +487,14 @@ export default function JCLTab({branchMeta,isAdmin,userBranch}){
     const next=[...apps.filter(a=>a.id!==updated.id),updated].sort((a,b)=>b.submittedAt.localeCompare(a.submittedAt));
     setApps(next);
     await saveData(JCL_KEY,next);
+  };
+
+  const deleteApp=async(id)=>{
+    if(!window.confirm("Delete this application permanently? This cannot be undone."))return;
+    const next=apps.filter(a=>a.id!==id);
+    setApps(next);
+    await saveData(JCL_KEY,next);
+    setView("list");setSelectedId(null);
   };
 
   // Approval auto-creates a CCM order on the Order page, on behalf of the
@@ -350,7 +508,7 @@ export default function JCLTab({branchMeta,isAdmin,userBranch}){
       phoneModel:app.phoneModel,customerName:app.customerName,customerIC:app.customerIC,
       customerHP:app.customerHP,customerEmail:app.customerEmail,customerAddress:app.address,
       customerPostCode:app.postcode,customerCity:app.city,
-      financePrice:app.financePrice,salesAgentName:app.salesAgentName,
+      financePrice:app.financePrice,salesAgentId:app.salesAgentId,salesAgentName:app.salesAgentName,
       history:[{step:1,date:nowDate(),time:nowTime(),note:`Submitted — auto-created from approved JCL Application (${app.id})`}],
     };
     const result=await reconcile([],[order]);
@@ -358,13 +516,23 @@ export default function JCLTab({branchMeta,isAdmin,userBranch}){
   };
 
   useEffect(()=>{
-    apps.forEach(a=>(a.followUpResponseFiles||[]).forEach(async(f,i)=>{
-      const key=`${a.id}_followup${i}`;
-      if(f.path&&!fileUrls[key]){
-        const url=await signFileUrl(f.path);
-        if(url)setFileUrls(p=>({...p,[key]:url}));
-      }
-    }));
+    apps.forEach(a=>{
+      DOC_FIELDS.forEach(async({key})=>{
+        const doc=a[key];
+        const fkey=`${a.id}_${key}`;
+        if(doc?.path&&!fileUrls[fkey]){
+          const url=await signFileUrl(doc.path);
+          if(url)setFileUrls(p=>({...p,[fkey]:url}));
+        }
+      });
+      (a.followUpResponseFiles||[]).forEach(async(f,i)=>{
+        const key=`${a.id}_followup${i}`;
+        if(f.path&&!fileUrls[key]){
+          const url=await signFileUrl(f.path);
+          if(url)setFileUrls(p=>({...p,[key]:url}));
+        }
+      });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[apps]);
 
@@ -372,21 +540,56 @@ export default function JCLTab({branchMeta,isAdmin,userBranch}){
     let list=apps;
     if(userBranch)list=list.filter(a=>a.branch===userBranch);
     else if(branchFilter!=="all")list=list.filter(a=>a.branch===branchFilter);
+    if(agentFilter!=="all")list=list.filter(a=>(a.salesAgentName||a.salesAgentId||"—")===agentFilter);
     return list;
-  },[apps,userBranch,branchFilter]);
+  },[apps,userBranch,branchFilter,agentFilter]);
 
   const stepCounts=useMemo(()=>STEPS.reduce((acc,s)=>{acc[s.step]=scoped.filter(a=>a.step===s.step).length;return acc;},{}),[scoped]);
 
   const visible=useMemo(()=>{
-    if(stepFilter==="all")return scoped;
-    return scoped.filter(a=>a.step===stepFilter);
-  },[scoped,stepFilter]);
+    let list=stepFilter==="all"?scoped:scoped.filter(a=>a.step===stepFilter);
+    if(search.trim()){
+      const q=search.trim().toLowerCase();
+      list=list.filter(a=>[a.customerName,a.customerIC].some(v=>v?.toLowerCase().includes(q)));
+    }
+    return list;
+  },[scoped,stepFilter,search]);
+
+  const agentOptions=useMemo(()=>{
+    const set=new Set(scoped.map(a=>a.salesAgentName||a.salesAgentId).filter(Boolean));
+    return Array.from(set).sort();
+  },[scoped]);
 
   const needsBranchAction=useMemo(()=>userBranch?apps.filter(a=>a.branch===userBranch&&a.step===3&&!a.followUpRespondedDate):[],[apps,userBranch]);
 
+  // Alert — admin hasn't submitted to JCL within 1 day of the branch's New
+  // Application. Clears itself the moment it actually gets submitted
+  // (step moves to 2), so it only ever nags about the ones still sitting.
+  const overdueSubmissions=useMemo(()=>isAdmin?apps.filter(a=>a.step===1&&daysSince(a.submittedAt)>=1):[],[apps,isAdmin]);
+
+  const selectedApp=useMemo(()=>apps.find(a=>a.id===selectedId)||null,[apps,selectedId]);
+
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
 
+  if(view==="form")return<ApplicationForm branchMeta={branchMeta} userBranch={userBranch} isAdmin={isAdmin} srList={srList} editingApp={editingApp}
+    onSaved={async(app)=>{await save(app);setView("detail");setSelectedId(app.id);setEditingApp(null);}}
+    onCancel={()=>{setView(editingApp?"detail":"list");setEditingApp(null);}}/>;
+
+  const isSuperAdmin=(email||"").toLowerCase()==="sophiawsc9395@gmail.com";
+
+  if(view==="detail"&&selectedApp)return<ApplicationDetail app={selectedApp} branchMeta={branchMeta} isAdmin={isAdmin} canDelete={isSuperAdmin} fileUrls={fileUrls}
+    onBack={()=>{setView("list");setSelectedId(null);}}
+    onSaved={save}
+    onDelete={()=>deleteApp(selectedApp.id)}
+    onEdit={()=>{setEditingApp(selectedApp);setView("form");}}
+    onCreateOrder={createOrderFromApp}/>;
+
   return<div>
+    {overdueSubmissions.length>0&&<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:14}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Not Yet Submitted to JCL</div>
+      {overdueSubmissions.map(a=><div key={a.id} onClick={()=>{setView("detail");setSelectedId(a.id);}} style={{fontSize:12,color:"#DC2626",padding:"3px 0",cursor:"pointer"}}>{a.customerName} — {branchMeta[a.branch]?.name||a.branch} — submitted {daysSince(a.submittedAt)} day{daysSince(a.submittedAt)>1?"s":""} ago, still not sent to JCL</div>)}
+    </div>}
+
     {needsBranchAction.length>0&&<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Follow-Up Needed From You</div>
       {needsBranchAction.map(a=><div key={a.id} style={{borderTop:`1px solid ${C.border}`,padding:"8px 0"}}>
@@ -406,35 +609,31 @@ export default function JCLTab({branchMeta,isAdmin,userBranch}){
       })}
     </div>
 
-    {userBranch&&<NewApplicationForm branchMeta={branchMeta} userBranch={userBranch} onSaved={save}/>}
+    <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
+      {(isAdmin||userBranch)&&<PBtn onClick={()=>{setEditingApp(null);setView("form");}}>+ New Application</PBtn>}
+      <I value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by customer name or IC…" style={{flex:1,minWidth:200}}/>
+      {!userBranch&&<SEL value={branchFilter} onChange={e=>setBranchFilter(e.target.value)} style={{width:"auto",minWidth:140}}>
+        <option value="all">All Branches</option>
+        {sellingBranches(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}
+      </SEL>}
+      <SEL value={agentFilter} onChange={e=>setAgentFilter(e.target.value)} style={{width:"auto",minWidth:140}}>
+        <option value="all">All Agents</option>
+        {agentOptions.map(a=><option key={a} value={a}>{a}</option>)}
+      </SEL>
+    </div>
 
     <div style={{...card}}>
-      <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-        <span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>JCL Applications</span>
-        {!userBranch&&<select value={branchFilter} onChange={e=>setBranchFilter(e.target.value)} style={{padding:"5px 9px",fontSize:11,borderRadius:6,border:"1px solid rgba(255,255,255,.2)",background:"rgba(255,255,255,.06)",color:"#fff"}}>
-          <option value="all">All Branches</option>
-          {Object.keys(branchMeta||{}).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}
-        </select>}
-      </div>
       {visible.length===0
-        ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No applications yet.</div>
-        :<div>{visible.map(a=>{
-          const timelineOpen=expandedTimeline===a.id;
-          return<div key={a.id} style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
+        ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No applications found.</div>
+        :<div>{visible.map(a=><div key={a.id} onClick={()=>{setView("detail");setSelectedId(a.id);}} style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,cursor:"pointer"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
             <div>
               <div style={{fontSize:13,fontWeight:700,color:C.text}}>{a.customerName} <span style={{fontWeight:500,color:C.textLight,fontSize:11}}>· {branchMeta[a.branch]?.name||a.branch} · {fDate(a.submittedAt)}</span></div>
-              <div style={{fontSize:11,color:C.textMid,marginTop:3}}>{a.phoneModel} · {fRM(a.financePrice)} · IC {a.customerIC} · {a.customerHP}</div>
+              <div style={{fontSize:11,color:C.textMid,marginTop:3}}>{a.phoneModel} · {fRM(a.financePrice)} · IC {a.customerIC} · {a.customerHP} · Agent: {a.salesAgentName||a.salesAgentId||"—"}</div>
             </div>
             <StepBadge step={a.step}/>
           </div>
-          {a.step===3&&<div style={{fontSize:11,color:"#B45309",marginTop:4,fontWeight:600}}>Follow-Up: {a.followUpRemark}{a.followUpRespondedDate?` — branch responded ${fDate(a.followUpRespondedDate)}`:""}</div>}
-          {(a.followUpResponseFiles||[]).map((f,i)=><div key={i} style={{marginTop:4}}>{fileUrls[`${a.id}_followup${i}`]?<a href={fileUrls[`${a.id}_followup${i}`]} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600}}>View Follow-up File: {f.name}</a>:<span style={{fontSize:11,color:C.textLight}}>Loading…</span>}</div>)}
-          <button onClick={()=>setExpandedTimeline(timelineOpen?null:a.id)} style={{marginTop:8,fontSize:11,fontWeight:700,color:C.blueBright,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",padding:0}}>{timelineOpen?"Hide Timeline ▲":"View Timeline ▼"}</button>
-          {timelineOpen&&<div style={{marginTop:8,background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px"}}><Timeline app={a}/></div>}
-          {isAdmin&&<AdminActions app={a} branchMeta={branchMeta} onSaved={save} onCreateOrder={createOrderFromApp}/>}
-        </div>;
-        })}</div>}
+        </div>)}</div>}
     </div>
   </div>;
 }

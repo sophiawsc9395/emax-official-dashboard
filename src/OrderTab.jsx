@@ -37,7 +37,9 @@ const STEPS=[
   {step:13,label:"Claim Released",desc:"Claim released by merchant. Enter knock-off date and amount.",who:"admin",phase:"claimed",needsKnockOff:true},
   {step:14,label:"Completed",desc:"Order completed and archived.",who:"admin",phase:"claimed"},
 ];
-const CHECKLIST_ITEMS=["Aeon Application Form (3 pages)","Invoice","Result List","Notice 1 — Application (2 pages × 2 sets)","Notice 2 — Approval (8 pages)","Agreement (16 pages)","IC Copy","AutoDebit Form (Personal Account)","Bank Proof (Personal Account)"];
+const AEON_CHECKLIST_ITEMS=["Aeon Application Form (3 pages)","Invoice","Result List","Notice 1 — Application (2 pages × 2 sets)","Notice 2 — Approval (8 pages)","Agreement (16 pages)","IC Copy","AutoDebit Form (Personal Account)","Bank Proof (Personal Account)"];
+const JCL_CHECKLIST_ITEMS=["JCL Application Form (2 pages)","JCL Summary Form (2 pages)","Notice II (14 pages)","Notice II (20 pages)","Credit Acknowledgement Form","IMEI Photo","eMandate Photo","JCLick Photo","Phone Collection (2 photos)"];
+const checklistItemsFor=merchant=>merchant==="JCL"?JCL_CHECKLIST_ITEMS:AEON_CHECKLIST_ITEMS;
 const FILE_LABELS=STEPS.reduce((m,s)=>{(s.needsFiles||[]).forEach(f=>{m[f.key]=f.label;});return m;},{});
 
 // Returns steps visible in timeline for a given order
@@ -429,8 +431,8 @@ function BillingForm({order,onSubmit,onCancel}){
 }
 
 /* ── Checklist Form ───────────────────────────────────────────────────── */
-function ChecklistForm({onSubmit,onCancel,issueItems=[]}){
-  const [items,setItems]=useState(CHECKLIST_ITEMS.map(name=>({name,checked:false,issue:issueItems.includes(name)})));
+function ChecklistForm({onSubmit,onCancel,issueItems=[],merchant}){
+  const [items,setItems]=useState(checklistItemsFor(merchant).map(name=>({name,checked:false,issue:issueItems.includes(name)})));
   const [consignmentNo,setConsignmentNo]=useState("");
   const [saving,setSaving]=useState(false);
   const allChecked=items.every(x=>x.checked);
@@ -482,7 +484,7 @@ function downloadNewOrderExcel(orders){
   const rows=orders.filter(o=>!o.cancelled&&o.step===1).map(o=>({
     "Device Name":o.phoneModel||"",
     "Branch":o.branch||"",
-    "Agreement No.":o.agreementNumber||"",
+    "Agreement No. / Case ID No.":o.agreementNumber||"",
     "Finance Price":o.financePrice?parseFloat(o.financePrice):"",
   }));
   const ws=XLSX.utils.json_to_sheet(rows);
@@ -805,7 +807,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
   const [showChecklist,setShowChecklist]=useState(false);
   const [showReturn,setShowReturn]=useState(false);
   const [returnRemark,setReturnRemark]=useState("");
-  const [returnItems,setReturnItems]=useState(CHECKLIST_ITEMS.map(n=>({name:n,issue:false})));
+  const [returnItems,setReturnItems]=useState(checklistItemsFor(order.merchant).map(n=>({name:n,issue:false})));
   const [showShortPayment,setShowShortPayment]=useState(false);
   const [shortPayRemark,setShortPayRemark]=useState("");
   const upfront=calcUpfront(order);
@@ -876,7 +878,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
     const lastReturn=(order.history||[]).filter(h=>h.issueItems).slice(-1)[0];
     const lastChecklist=(order.history||[]).filter(h=>h.checklistItems).slice(-1)[0];
     const pending=lastReturn&&(!lastChecklist||(order.history||[]).indexOf(lastReturn)>(order.history||[]).indexOf(lastChecklist));
-    if(showChecklist)return<ChecklistForm issueItems={lastReturn?.issueItems||[]} onCancel={()=>setShowChecklist(false)} onSubmit={async(items,consignmentNo)=>{setSaving(true);const h={step:10,date:nowDate(),time:nowTime(),note:"Checklist Completed",checklistItems:items,agreementConsignmentNo:consignmentNo};await onUpdate({...order,step:10,checklistItems:items,agreementConsignmentNo:consignmentNo,history:[...(order.history||[]),h]});setSaving(false);setShowChecklist(false);}}/>;
+    if(showChecklist)return<ChecklistForm merchant={order.merchant} issueItems={lastReturn?.issueItems||[]} onCancel={()=>setShowChecklist(false)} onSubmit={async(items,consignmentNo)=>{setSaving(true);const h={step:10,date:nowDate(),time:nowTime(),note:"Checklist Completed",checklistItems:items,agreementConsignmentNo:consignmentNo};await onUpdate({...order,step:10,checklistItems:items,agreementConsignmentNo:consignmentNo,history:[...(order.history||[]),h]});setSaving(false);setShowChecklist(false);}}/>;
     return<div style={{display:"flex",flexDirection:"column",gap:12}}>
       {pending&&<div style={{...card}}>
         <SecHdr icon={Ic.alertCircle}><span style={{color:"#DC2626"}}>Rejected by HQ</span></SecHdr>
@@ -1230,7 +1232,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Device Name</div>
           {canEditPhoneModelAtOrdered&&order.step===2?<PhoneModelField order={order} onUpdate={onUpdate}/>:<div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.phoneModel||"—"}{everEditedFields.has("phoneModel")&&<FieldEditedTag field="phoneModel"/>}<FieldLog field="phoneModel"/></div>}
         </div>
-        {[["Customer Name",order.customerName,"customerName"],order.customerIC&&["Customer IC",order.customerIC,"customerIC"],order.customerHP&&["Customer HP",order.customerHP,"customerHP"],!isCash&&["Merchant",order.merchant,"merchant"],!isCash&&["Agreement No.",order.agreementNumber,"agreementNumber"],!isCash&&["Merchant Approval Date",fDate(order.aeonApprovalDate),"aeonApprovalDate"],!isCash&&["Finance Price",fRM(order.financePrice),"financePrice"],!isCash&&["Agreement Fee",fRM(order.agreementFee),"agreementFee"],!isCash&&["Stamping Fee",fRM(order.stampingFee),"stampingFee"],["Deposit",fRM(order.deposit),"deposit"],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment),"monthlyInstallment"],isCash&&["Retail Price",fRM(order.retailPrice),"retailPrice"],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate),"depositPaymentDate"],order.invoiceNo&&["Invoice No.",order.invoiceNo,"invoiceNo"],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch,"pickUpBranch"],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v,k])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+        {[["Customer Name",order.customerName,"customerName"],order.customerIC&&["Customer IC",order.customerIC,"customerIC"],order.customerHP&&["Customer HP",order.customerHP,"customerHP"],!isCash&&["Merchant",order.merchant,"merchant"],!isCash&&["Agreement No. / Case ID No.",order.agreementNumber,"agreementNumber"],!isCash&&["Merchant Approval Date",fDate(order.aeonApprovalDate),"aeonApprovalDate"],!isCash&&["Finance Price",fRM(order.financePrice),"financePrice"],!isCash&&["Agreement Fee",fRM(order.agreementFee),"agreementFee"],!isCash&&["Stamping Fee",fRM(order.stampingFee),"stampingFee"],["Deposit",fRM(order.deposit),"deposit"],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment),"monthlyInstallment"],isCash&&["Retail Price",fRM(order.retailPrice),"retailPrice"],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate),"depositPaymentDate"],order.invoiceNo&&["Invoice No.",order.invoiceNo,"invoiceNo"],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch,"pickUpBranch"],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v,k])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
           <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}{k&&everEditedFields.has(k)&&<FieldEditedTag field={k}/>}{k&&<FieldLog field={k}/>}</div>
         </div>)}
@@ -1315,7 +1317,7 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
       // Daily Sales Report — falls back to the coarser Super Admin/Admin
       // guess only if the email isn't recognized.
       const editorRole=resolveEditorRole(email,["billing","knockoff","purchase","stock","superAdmin"])||(isSuperAdminEditor?"Super Admin":"Admin");
-      const FIELD_LABELS={phoneModel:"Device Name",branch:"Branch",merchant:"Merchant",agreementNumber:"Agreement No.",invoiceNo:"Invoice Number",customerName:"Customer Name",customerIC:"Customer IC",customerEmail:"Customer Email",customerHP:"Customer HP",customerAddress:"Customer Address",customerPostCode:"Postcode",customerCity:"City",salesAgentId:"SR ID",salesAgentName:"SR Name",aeonApprovalDate:"Merchant Approval Date",financePrice:"Finance Price",deposit:"Deposit",stampingFee:"Stamping Fee",agreementFee:"Agreement Fee",monthlyInstallment:"Monthly Installment",retailPrice:"Retail Price",stockStatus:"Stock Status",orderType:"Order Type",depositPaymentDate:"Deposit Payment Date",depositPaymentMethod:"Deposit Payment Method",pickUpBranch:"Pick Up Branch"};
+      const FIELD_LABELS={phoneModel:"Device Name",branch:"Branch",merchant:"Merchant",agreementNumber:"Agreement No. / Case ID No.",invoiceNo:"Invoice Number",customerName:"Customer Name",customerIC:"Customer IC",customerEmail:"Customer Email",customerHP:"Customer HP",customerAddress:"Customer Address",customerPostCode:"Postcode",customerCity:"City",salesAgentId:"SR ID",salesAgentName:"SR Name",aeonApprovalDate:"Merchant Approval Date",financePrice:"Finance Price",deposit:"Deposit",stampingFee:"Stamping Fee",agreementFee:"Agreement Fee",monthlyInstallment:"Monthly Installment",retailPrice:"Retail Price",stockStatus:"Stock Status",orderType:"Order Type",depositPaymentDate:"Deposit Payment Date",depositPaymentMethod:"Deposit Payment Method",pickUpBranch:"Pick Up Branch"};
       const MONEY_FIELDS=new Set(["financePrice","deposit","stampingFee","agreementFee","monthlyInstallment","retailPrice"]);
       const DATE_FIELDS=new Set(["aeonApprovalDate","depositPaymentDate"]);
       const fmt=(k,v)=>{if(v==null||v==="")return"—";if(MONEY_FIELDS.has(k))return fRM(v);if(DATE_FIELDS.has(k))return fDate(v);return String(v);};
@@ -1387,7 +1389,7 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
     </FormCard>}
     {!isCash&&<FormCard title="CCM / Financing Details">
       <div><L req>Merchant</L><SEL value={f.merchant} onChange={e=>set("merchant",e.target.value)} disabled={isFieldLocked("merchant")} style={isFieldLocked("merchant")?lockedStyle:{}}>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
-      {row("agreementNumber","Agreement No.","text",true)}
+      {row("agreementNumber","Agreement No. / Case ID No.","text",true)}
       {row("aeonApprovalDate","Merchant Approval Date","date",true)}
       {row("financePrice","Finance Price (RM)","number",true)}
       {row("stampingFee","Stamping Fee (RM)","number",true)}
