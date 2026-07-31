@@ -366,11 +366,15 @@ function AdminActions({app,onSaved,onCreateOrder}){
 }
 
 /* ── Detail view — click a row to get here, same idea as the Order page ─ */
+function DetailSecHdr({children}){
+  return<div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>{children}</div>;
+}
 function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDelete,onEdit,onCreateOrder,fileUrls}){
-  const InfoRow=({label,value})=><div style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+  const InfoCell=({label,value})=><div style={{minWidth:0,padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
     <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{label}</div>
-    <div style={{fontSize:12,color:C.text,fontWeight:600}}>{value||"—"}</div>
+    <div style={{fontSize:12,color:C.text,fontWeight:600,wordBreak:"break-word"}}>{value||"—"}</div>
   </div>;
+  const Grid=({children})=><div style={{padding:"4px 16px 0",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",columnGap:20}}>{children}</div>;
   return<div>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:16,flexWrap:"wrap"}}>
       <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:700,fontSize:12,color:C.blueBright,padding:0}}>← Back to List</button>
@@ -383,49 +387,78 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
 
     <div style={{...card,padding:"16px 18px",marginBottom:14}}>
       <div style={{fontSize:15,fontWeight:800,color:C.text,marginBottom:2}}>{app.customerName}</div>
-      <div style={{fontSize:11,color:C.textLight,marginBottom:14}}>{branchMeta[app.branch]?.name||app.branch} · Submitted {fDate(app.submittedAt)}</div>
+      <div style={{fontSize:11,color:C.textLight}}>{branchMeta[app.branch]?.name||app.branch} · Submitted {fDate(app.submittedAt)}</div>
+    </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))"}}>
-        <InfoRow label="Phone Model / Item" value={app.phoneModel}/>
-        <InfoRow label="Finance Price" value={fRM(app.financePrice)}/>
-        <InfoRow label="Tenure" value={`${app.tenure} Months`}/>
-        <InfoRow label="Sales Agent" value={app.salesAgentName?`${app.salesAgentName} (${app.salesAgentId})`:app.salesAgentId}/>
-        <InfoRow label="Customer IC" value={app.customerIC}/>
-        <InfoRow label="Race" value={app.race}/>
-        <InfoRow label="Gender" value={app.gender}/>
-        <InfoRow label="Residency Status" value={app.residencyStatus}/>
-        <InfoRow label="Marital Status" value={app.maritalStatus}/>
-        <InfoRow label="Housing Status" value={app.housingStatus}/>
-        <InfoRow label="Customer HP" value={app.customerHP}/>
-        <InfoRow label="Customer Email" value={app.customerEmail}/>
-        <InfoRow label="Length of Stay" value={app.lengthOfStay}/>
-        <InfoRow label="Postcode" value={app.postcode}/>
-        <InfoRow label="City" value={app.city}/>
-        <InfoRow label="Best Time to Contact" value={app.bestTimeContact}/>
-      </div>
-      <InfoRow label="Address" value={app.address}/>
+    <div style={{...card,marginBottom:14}}>
+      <DetailSecHdr>Application &amp; Device</DetailSecHdr>
+      <Grid>
+        <InfoCell label="Phone Model / Item" value={app.phoneModel}/>
+        <InfoCell label="Finance Price" value={fRM(app.financePrice)}/>
+        <InfoCell label="Tenure" value={`${app.tenure} Months`}/>
+        <InfoCell label="Sales Agent" value={app.salesAgentName?`${app.salesAgentName} (${app.salesAgentId})`:app.salesAgentId}/>
+      </Grid>
+      <div style={{height:12}}/>
+    </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",marginTop:4}}>
-        <InfoRow label="Bank Name" value={app.bankName}/>
-        <InfoRow label="Account Type" value={app.bankAccountType}/>
-        <InfoRow label="Account Holder" value={app.bankAccountHolderName}/>
-        <InfoRow label="Account Number" value={app.bankAccountNumber}/>
-        <InfoRow label="Occupation" value={app.occupation}/>
-        <InfoRow label="Work Department" value={app.workDepartment}/>
-        <InfoRow label="Nature of Business" value={app.companyNatureOfBusiness}/>
-        <InfoRow label="Years / Months of Service" value={`${app.yearsOfService||0}y ${app.monthsOfService||0}m`}/>
-        <InfoRow label="Salary Date" value={app.salaryDate}/>
-        <InfoRow label="Net Salary" value={fRM(app.netSalary)}/>
-        <InfoRow label="Employment Type" value={app.employmentType}/>
-        <InfoRow label="Work Location" value={app.workLocation}/>
-        <InfoRow label="Company Name" value={app.companyName}/>
-        <InfoRow label="Office Postcode" value={app.officePostcode}/>
-        <InfoRow label="Office Tel" value={app.officeTel}/>
-      </div>
-      <InfoRow label="Office Address" value={app.officeAddress}/>
+    <div style={{...card,marginBottom:14}}>
+      <DetailSecHdr>Personal Details</DetailSecHdr>
+      <Grid>
+        <InfoCell label="Customer IC" value={app.customerIC}/>
+        <InfoCell label="Race" value={app.race}/>
+        <InfoCell label="Gender" value={app.gender}/>
+        <InfoCell label="Residency Status" value={app.residencyStatus}/>
+        <InfoCell label="Marital Status" value={app.maritalStatus}/>
+        <InfoCell label="Housing Status" value={app.housingStatus}/>
+      </Grid>
+      <div style={{height:12}}/>
+    </div>
 
-      <div style={{marginTop:14,marginBottom:6,fontSize:11,fontWeight:700,color:C.blueBright,textTransform:"uppercase",letterSpacing:"0.05em"}}>Documents</div>
-      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+    <div style={{...card,marginBottom:14}}>
+      <DetailSecHdr>Contact &amp; Address</DetailSecHdr>
+      <Grid>
+        <InfoCell label="Customer HP" value={app.customerHP}/>
+        <InfoCell label="Customer Email" value={app.customerEmail}/>
+        <InfoCell label="Length of Stay" value={app.lengthOfStay}/>
+        <InfoCell label="Postcode" value={app.postcode}/>
+        <InfoCell label="City" value={app.city}/>
+        <InfoCell label="Best Time to Contact" value={app.bestTimeContact}/>
+      </Grid>
+      <div style={{padding:"4px 16px 12px"}}><InfoCell label="Address" value={app.address}/></div>
+    </div>
+
+    <div style={{...card,marginBottom:14}}>
+      <DetailSecHdr>Bank Details</DetailSecHdr>
+      <Grid>
+        <InfoCell label="Bank Name" value={app.bankName}/>
+        <InfoCell label="Account Type" value={app.bankAccountType}/>
+        <InfoCell label="Account Holder" value={app.bankAccountHolderName}/>
+        <InfoCell label="Account Number" value={app.bankAccountNumber}/>
+      </Grid>
+      <div style={{height:12}}/>
+    </div>
+
+    <div style={{...card,marginBottom:14}}>
+      <DetailSecHdr>Employment &amp; Income</DetailSecHdr>
+      <Grid>
+        <InfoCell label="Occupation" value={app.occupation}/>
+        <InfoCell label="Work Department" value={app.workDepartment}/>
+        <InfoCell label="Nature of Business" value={app.companyNatureOfBusiness}/>
+        <InfoCell label="Years / Months of Service" value={`${app.yearsOfService||0}y ${app.monthsOfService||0}m`}/>
+        <InfoCell label="Salary Date" value={app.salaryDate}/>
+        <InfoCell label="Net Salary" value={fRM(app.netSalary)}/>
+        <InfoCell label="Employment Type" value={app.employmentType}/>
+        <InfoCell label="Work Location" value={app.workLocation}/>
+        <InfoCell label="Company Name" value={app.companyName}/>
+        <InfoCell label="Office Postcode" value={app.officePostcode}/>
+        <InfoCell label="Office Tel" value={app.officeTel}/>
+      </Grid>
+      <div style={{padding:"4px 16px 12px"}}><InfoCell label="Office Address" value={app.officeAddress}/></div>
+    </div>
+
+    <div style={{...card,marginBottom:14}}>
+      <DetailSecHdr>Documents</DetailSecHdr>
+      <div style={{padding:"12px 16px",display:"flex",flexDirection:"column",gap:6}}>
         {DOC_FIELDS.map(({key,label})=>{
           const doc=app[key];
           return<div key={key} style={{fontSize:12}}>
@@ -434,31 +467,35 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
           </div>;
         })}
       </div>
+    </div>
 
-      <div style={{marginTop:14,marginBottom:6,fontSize:11,fontWeight:700,color:C.blueBright,textTransform:"uppercase",letterSpacing:"0.05em"}}>Emergency Contact #1</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))"}}>
-        <InfoRow label="Name" value={app.ec1Name}/><InfoRow label="Relationship" value={app.ec1Relationship}/>
-        <InfoRow label="Stay With Applicant?" value={app.ec1StayWith}/><InfoRow label="Contact Number" value={app.ec1ContactNumber}/>
-        <InfoRow label="Best Time to Contact" value={app.ec1BestTime}/>
-      </div>
-      <InfoRow label="Address" value={app.ec1Address}/>
+    <div style={{...card,marginBottom:14}}>
+      <DetailSecHdr>Emergency Contact #1</DetailSecHdr>
+      <Grid>
+        <InfoCell label="Name" value={app.ec1Name}/><InfoCell label="Relationship" value={app.ec1Relationship}/>
+        <InfoCell label="Stay With Applicant?" value={app.ec1StayWith}/><InfoCell label="Contact Number" value={app.ec1ContactNumber}/>
+        <InfoCell label="Best Time to Contact" value={app.ec1BestTime}/>
+      </Grid>
+      <div style={{padding:"4px 16px 12px"}}><InfoCell label="Address" value={app.ec1Address}/></div>
+    </div>
 
-      <div style={{marginTop:14,marginBottom:6,fontSize:11,fontWeight:700,color:C.blueBright,textTransform:"uppercase",letterSpacing:"0.05em"}}>Emergency Contact #2</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))"}}>
-        <InfoRow label="Name" value={app.ec2Name}/><InfoRow label="Relationship" value={app.ec2Relationship}/>
-        <InfoRow label="Stay With Applicant?" value={app.ec2StayWith}/><InfoRow label="Contact Number" value={app.ec2ContactNumber}/>
-        <InfoRow label="Best Time to Contact" value={app.ec2BestTime}/>
-      </div>
-      <InfoRow label="Address" value={app.ec2Address}/>
+    <div style={{...card,marginBottom:14}}>
+      <DetailSecHdr>Emergency Contact #2</DetailSecHdr>
+      <Grid>
+        <InfoCell label="Name" value={app.ec2Name}/><InfoCell label="Relationship" value={app.ec2Relationship}/>
+        <InfoCell label="Stay With Applicant?" value={app.ec2StayWith}/><InfoCell label="Contact Number" value={app.ec2ContactNumber}/>
+        <InfoCell label="Best Time to Contact" value={app.ec2BestTime}/>
+      </Grid>
+      <div style={{padding:"4px 16px 12px"}}><InfoCell label="Address" value={app.ec2Address}/></div>
     </div>
 
     <div className="detail-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
       <div style={card}>
-        <div style={{padding:"11px 16px",borderBottom:`1px solid ${C.border}`,fontSize:11,fontWeight:700,color:C.text,textTransform:"uppercase",letterSpacing:"0.05em"}}>Tracking Timeline</div>
+        <DetailSecHdr>Tracking Timeline</DetailSecHdr>
         <div style={{padding:"14px 16px"}}><Timeline app={app}/></div>
       </div>
       <div style={card}>
-        <div style={{padding:"11px 16px",borderBottom:`1px solid ${C.border}`,fontSize:11,fontWeight:700,color:C.text,textTransform:"uppercase",letterSpacing:"0.05em"}}>Action</div>
+        <DetailSecHdr>Action</DetailSecHdr>
         <div style={{padding:"14px 16px"}}>
           {app.step===3&&!app.followUpRespondedDate&&!isAdmin&&<FollowUpResponseBox app={app} onSaved={onSaved}/>}
           {isAdmin&&<AdminActions app={app} onSaved={onSaved} onCreateOrder={onCreateOrder}/>}
