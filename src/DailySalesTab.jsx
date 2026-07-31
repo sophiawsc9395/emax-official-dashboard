@@ -63,7 +63,7 @@ const GBtn=({children,...p})=><button {...p} style={{display:"inline-flex",align
 
 function StatusBadge({report}){
   if(!report.cashSales)return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#F0FDF4",color:"#15803D"}}>No Cash — N/A</span>;
-  if(!report.bankInSlip){
+  if(!getSlips(report).length){
     const late=daysSince(report.submittedAt)>=1;
     return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:late?"#FEF2F2":"#FFFBEB",color:late?"#DC2626":"#B45309"}}>{late?"Bank-in Overdue":"Awaiting Bank-in"}</span>;
   }
@@ -203,39 +203,88 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,canVerify,email,o
   </div>;
 }
 
+// A report's slips may still be on the old single bankInSlip field (older
+// data) and/or the new bankInSlips array — this always returns the full
+// combined list so nothing from before this change gets lost.
+const getSlips=r=>{
+  const slips=[...(r.bankInSlips||[])];
+  if(r.bankInSlip&&!slips.some(s=>s.path===r.bankInSlip.path))slips.unshift(r.bankInSlip);
+  return slips;
+};
+// Same idea for verification — multiple payment entries (different methods,
+// summing to the total) live in paymentEntries; older single-entry reports
+// fall back to the legacy paymentMethod/actualPaymentDate/actualAmountReceived.
+const getPaymentEntries=r=>{
+  if(r.paymentEntries&&r.paymentEntries.length)return r.paymentEntries;
+  if(r.paymentMethod)return[{method:r.paymentMethod,date:r.actualPaymentDate,amount:r.actualAmountReceived}];
+  return[];
+};
+const totalVerifiedAmount=r=>getPaymentEntries(r).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+
 function UploadSlipBox({report,onSaved}){
   const [file,setFile]=useState(null);
   const [saving,setSaving]=useState(false);
-  const isReplace=!!report.bankInSlip;
+  const slips=getSlips(report);
   const upload=async()=>{
     if(!file)return;
     setSaving(true);
-    if(report.bankInSlip?.path)await removeOrderFile(report.bankInSlip.path);
     const f=await readSlipFile(file,`dailysales_${report.branch}_${report.date}`);
-    await onSaved({...report,bankInSlip:f,bankInUploadedAt:nowDate()});
+    await onSaved({...report,bankInSlips:[...slips,f],bankInSlip:null,bankInUploadedAt:report.bankInUploadedAt||nowDate()});
     setSaving(false);
   };
-  return<div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-    <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFile(e.target.files[0]||null)} style={{fontSize:11}}/>
-    <PBtn onClick={upload} disabled={!file||saving} style={{padding:"7px 12px",fontSize:11}}>{saving?"Uploading…":isReplace?"Replace Bank-in Slip":"Upload Bank-in Slip"}</PBtn>
+  const removeSlip=async(idx)=>{
+    if(!window.confirm("Remove this bank-in slip?"))return;
+    const target=slips[idx];
+    if(target?.path)await removeOrderFile(target.path);
+    const next=slips.filter((_,i)=>i!==idx);
+    await onSaved({...report,bankInSlips:next,bankInSlip:null});
+  };
+  return<div>
+    {slips.length>0&&<div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:8}}>
+      {slips.map((s,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:11}}>
+        <span style={{color:C.textLight}}>Slip {i+1}: {s.name}</span>
+        <button onClick={()=>removeSlip(i)} style={{fontSize:10,color:"#DC2626",background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",padding:0}}>Remove</button>
+      </div>)}
+    </div>}
+    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+      <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFile(e.target.files[0]||null)} style={{fontSize:11}}/>
+      <PBtn onClick={upload} disabled={!file||saving} style={{padding:"7px 12px",fontSize:11}}>{saving?"Uploading…":slips.length?"Add Another Slip":"Upload Bank-in Slip"}</PBtn>
+    </div>
   </div>;
 }
 
 function VerifyBox({report,onSaved}){
-  const [method,setMethod]=useState(BANKS[0]);
-  const [actualDate,setActualDate]=useState(nowDate());
-  const [amount,setAmount]=useState(report.cashSales?String(report.cashSales):"");
+  const [entries,setEntries]=useState(()=>{
+    const existing=getPaymentEntries(report);
+    return existing.length?existing.map(e=>({method:e.method||BANKS[0],date:e.date||nowDate(),amount:e.amount!=null?String(e.amount):""})):[{method:BANKS[0],date:nowDate(),amount:report.cashSales?String(report.cashSales):""}];
+  });
   const [saving,setSaving]=useState(false);
+  const total=entries.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  const matches=Math.abs(total-(parseFloat(report.cashSales)||0))<0.005;
+  const setEntry=(i,k,v)=>setEntries(p=>p.map((e,idx)=>idx===i?{...e,[k]:v}:e));
+  const addEntry=()=>setEntries(p=>[...p,{method:BANKS[0],date:nowDate(),amount:""}]);
+  const removeEntry=(i)=>setEntries(p=>p.filter((_,idx)=>idx!==i));
   const verify=async()=>{
     setSaving(true);
-    await onSaved({...report,verifiedBy:true,verifiedAt:nowDate(),paymentMethod:method,actualPaymentDate:actualDate,actualAmountReceived:parseFloat(amount)||0});
+    const cleanEntries=entries.map(e=>({method:e.method,date:e.date,amount:parseFloat(e.amount)||0}));
+    await onSaved({...report,verifiedBy:true,verifiedAt:nowDate(),paymentEntries:cleanEntries,
+      // keep the legacy fields populated too (first entry), so anything
+      // still reading the old single-value fields doesn't break
+      paymentMethod:cleanEntries[0]?.method,actualPaymentDate:cleanEntries[0]?.date,actualAmountReceived:cleanEntries.reduce((s,e)=>s+e.amount,0)});
     setSaving(false);
   };
-  return<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:8,alignItems:"end",background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginTop:8}}>
-    <div><L>Payment Method</L><SEL value={method} onChange={e=>setMethod(e.target.value)}>{BANKS.map(b=><option key={b} value={b}>{b}</option>)}</SEL></div>
-    <div><L>Actual Payment Date</L><I type="date" value={actualDate} onChange={e=>setActualDate(e.target.value)} max={nowDate()}/></div>
-    <div><L>Actual Amount Received</L><I type="number" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/></div>
-    <PBtn onClick={verify} disabled={saving} style={{height:38,justifyContent:"center"}}>{saving?"Saving…":"Verify"}</PBtn>
+  return<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:10,marginTop:8}}>
+    {entries.map((e,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8,alignItems:"end",marginBottom:8}}>
+      <div><L>Payment Method</L><SEL value={e.method} onChange={ev=>setEntry(i,"method",ev.target.value)}>{BANKS.map(b=><option key={b} value={b}>{b}</option>)}</SEL></div>
+      <div><L>Actual Payment Date</L><I type="date" value={e.date} onChange={ev=>setEntry(i,"date",ev.target.value)} max={nowDate()}/></div>
+      <div><L>Amount Received</L><I type="number" step="0.01" value={e.amount} onChange={ev=>setEntry(i,"amount",ev.target.value)}/></div>
+      {entries.length>1&&<button onClick={()=>removeEntry(i)} style={{height:38,fontSize:10,color:"#DC2626",background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Remove</button>}
+    </div>)}
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+      <button onClick={addEntry} style={{fontSize:11,fontWeight:700,color:C.blueBright,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",padding:0}}>+ Add Another Payment</button>
+      <span style={{fontSize:11,fontWeight:700,color:matches?"#15803D":"#B45309"}}>Total: {fRM(total)} {matches?"✓ matches Cash Sales":`(Cash Sales: ${fRM(report.cashSales)})`}</span>
+    </div>
+    <PBtn onClick={verify} disabled={saving} style={{marginTop:10,width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Verify"}</PBtn>
   </div>;
 }
 
@@ -422,7 +471,7 @@ function downloadMonthlyBankInPDF(reports,branchMeta,month,scopeBranch){
   <h2>Daily Sales Bank-in Report${titleSuffix} — EMAX NETWORK SDN BHD</h2>
   <div class="period">Month: ${monthLabel} · ${rows.length} verified report${rows.length!==1?"s":""}</div>
   <table><thead><tr><th class="L">Branch</th><th class="L">Sales Date</th><th class="L">Bank-in Date</th><th class="L">Payment Method</th><th>Actual Bank-in Amount</th><th class="L">Remark</th><th class="L">Short Payment Remark</th><th>2nd Actual Amount Received</th><th class="L">2nd Actual Payment Date</th><th class="L">2nd Payment Method</th></tr></thead>
-  <tbody>${rows.map(r=>`<tr><td class="L">${branchMeta[r.branch]?.name||r.branch}</td><td class="L">${fDate(r.date)}</td><td class="L">${fDate(r.actualPaymentDate)}</td><td class="L">${r.paymentMethod||"—"}</td><td>${fRM(r.actualAmountReceived)}</td><td class="L">${r.remark||"—"}</td><td class="L">${r.shortPaymentRemark||"—"}</td><td>${r.secondPaymentAmount!=null?fRM(r.secondPaymentAmount):"—"}</td><td class="L">${fDate(r.secondPaymentDate)}</td><td class="L">${r.secondPaymentMethod||"—"}</td></tr>`).join("")}</tbody></table>
+  <tbody>${rows.map(r=>`<tr><td class="L">${branchMeta[r.branch]?.name||r.branch}</td><td class="L">${fDate(r.date)}</td><td class="L">${fDate(r.actualPaymentDate)}</td><td class="L">${getPaymentEntries(r).map(e=>e.method).join(" + ")||"—"}</td><td>${fRM(totalVerifiedAmount(r))}</td><td class="L">${r.remark||"—"}</td><td class="L">${r.shortPaymentRemark||"—"}</td><td>${r.secondPaymentAmount!=null?fRM(r.secondPaymentAmount):"—"}</td><td class="L">${fDate(r.secondPaymentDate)}</td><td class="L">${r.secondPaymentMethod||"—"}</td></tr>`).join("")}</tbody></table>
   </body></html>`);
   w.document.close();setTimeout(()=>w.print(),400);
 }
@@ -471,24 +520,29 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   // The underlying report itself (sales figures, verification status) is
   // left untouched — only the file attachments are cleared.
   const bulkDeleteSlipsForMonth=async(month)=>{
-    const affected=reports.filter(r=>r.date.slice(0,7)===month&&(r.bankInSlip||r.balancePaymentSlip));
+    const affected=reports.filter(r=>r.date.slice(0,7)===month&&(getSlips(r).length||r.balancePaymentSlip));
     if(!affected.length)return;
     setCleaningUp(true);
     await Promise.all(affected.flatMap(r=>[
-      r.bankInSlip?.path?removeOrderFile(r.bankInSlip.path):null,
+      ...getSlips(r).map(s=>s.path?removeOrderFile(s.path):null),
       r.balancePaymentSlip?.path?removeOrderFile(r.balancePaymentSlip.path):null,
     ].filter(Boolean)));
     const affectedIds=new Set(affected.map(r=>r.id));
-    const next=reports.map(r=>affectedIds.has(r.id)?{...r,bankInSlip:null,bankInUploadedAt:null,balancePaymentSlip:null,balancePaymentUploadedAt:null}:r);
+    const next=reports.map(r=>affectedIds.has(r.id)?{...r,bankInSlip:null,bankInSlips:[],bankInUploadedAt:null,balancePaymentSlip:null,balancePaymentUploadedAt:null}:r);
     setReports(next);
     await saveData(DAILY_SALES_KEY,next);
     setCleaningUp(false);
   };
 
   useEffect(()=>{
-    reports.filter(r=>r.bankInSlip?.path&&!slipUrls[r.id]).forEach(async r=>{
-      const url=await signFileUrl(r.bankInSlip.path);
-      if(url)setSlipUrls(p=>({...p,[r.id]:url}));
+    reports.forEach(r=>{
+      getSlips(r).forEach(async(s,i)=>{
+        const key=`${r.id}_slip${i}`;
+        if(s.path&&!slipUrls[key]){
+          const url=await signFileUrl(s.path);
+          if(url)setSlipUrls(p=>({...p,[key]:url}));
+        }
+      });
     });
     reports.filter(r=>r.balancePaymentSlip?.path&&!slipUrls[r.id+"_balance"]).forEach(async r=>{
       const url=await signFileUrl(r.balancePaymentSlip.path);
@@ -513,12 +567,12 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   // Late bank-in alert — based on when the report was SUBMITTED (admin's
   // update), not the sales date it's reporting on. A report entered today
   // for last week's sales isn't "already late" the moment it's saved.
-  const lateAlerts=useMemo(()=>reports.filter(r=>r.cashSales>0&&!r.bankInSlip&&daysSince(r.submittedAt)>=1),[reports]);
+  const lateAlerts=useMemo(()=>reports.filter(r=>r.cashSales>0&&!getSlips(r).length&&daysSince(r.submittedAt)>=1),[reports]);
   // Slip uploaded but knock-off/admin hasn't verified it yet — a different
   // problem from the branch being slow to upload (this one's on the HQ
   // side). Short-payment cases have their own dedicated tracking, so they're
   // excluded here to avoid double-counting the same report two ways.
-  const unverifiedAlerts=useMemo(()=>reports.filter(r=>r.cashSales>0&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment&&daysSince(r.bankInUploadedAt)>=1),[reports]);
+  const unverifiedAlerts=useMemo(()=>reports.filter(r=>r.cashSales>0&&getSlips(r).length&&!r.verifiedAt&&!r.shortPayment&&daysSince(r.bankInUploadedAt)>=1),[reports]);
   const unverifiedAlertsByBranch=useMemo(()=>{
     const groups={};
     unverifiedAlerts.forEach(r=>{(groups[r.branch]=groups[r.branch]||[]).push(r);});
@@ -555,7 +609,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
         and confirm only appear once clicked, instead of a permanent card
         taking up space in the middle of the page. */}
     {isAdmin&&(()=>{
-      const affectedCount=reports.filter(r=>r.date.slice(0,7)===cleanupMonth&&(r.bankInSlip||r.balancePaymentSlip)).length;
+      const affectedCount=reports.filter(r=>r.date.slice(0,7)===cleanupMonth&&(getSlips(r).length||r.balancePaymentSlip)).length;
       return<div style={{marginBottom:14}}>
         {!showBulkDelete
           ?<GBtn onClick={()=>setShowBulkDelete(true)} style={{fontSize:11,padding:"7px 12px",color:"#DC2626",borderColor:"#FECACA"}}>Bulk Delete Bank-in Slips</GBtn>
@@ -576,10 +630,11 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       </div>
       {myPending.map(r=>{
         const late=daysSince(r.submittedAt)>=1;
+        const slips=getSlips(r);
         return<div key={r.id} style={{borderTop:`1px solid ${C.border}`,padding:"8px 0"}}>
           <div style={{fontSize:12,color:late?"#DC2626":C.text,fontWeight:600,marginBottom:6}}>
-            {r.bankInSlip?"Replace bank-in slip for ":"Bank in "}{!r.bankInSlip&&`${fRM(r.cashSales)} for `}{fDate(r.date)}{late?` — ${daysSince(r.submittedAt)} day${daysSince(r.submittedAt)>1?"s":""} late`:""}
-            {r.bankInSlip&&<span style={{color:C.textLight,fontWeight:500}}> (currently: {r.bankInSlip.name} — replace if this was uploaded by mistake)</span>}
+            {slips.length?`${slips.length} slip${slips.length>1?"s":""} uploaded for `:`Bank in ${fRM(r.cashSales)} for `}{fDate(r.date)}{late?` — ${daysSince(r.submittedAt)} day${daysSince(r.submittedAt)>1?"s":""} late`:""}
+            {slips.length>0&&<span style={{color:C.textLight,fontWeight:500}}> — add another if you banked in across more than one transaction, or remove one below if it was a mistake</span>}
           </div>
           <UploadSlipBox report={r} onSaved={save}/>
         </div>;
@@ -654,12 +709,12 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       {visible.length===0
         ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No reports for this date.</div>
         :<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:10,padding:"12px 16px"}}>{visible.map(r=>{
-          const canUploadSlip=r.cashSales>0&&!r.bankInSlip&&isAdmin&&!userBranch;
-          const canVerifyThis=r.cashSales>0&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment&&canVerify;
+          const canUploadSlip=r.cashSales>0&&!r.verifiedAt&&isAdmin&&!userBranch;
+          const canVerifyThis=r.cashSales>0&&getSlips(r).length>0&&!r.verifiedAt&&!r.shortPayment&&canVerify;
           // Short payment follow-up — Knock-off role (canVerify) or Super
           // Admin can flag it as soon as a bank-in slip is uploaded, an
           // alternative to Verify for when the slip amount is short.
-          const canFlagShortPayment=r.cashSales>0&&canVerify&&r.bankInSlip&&!r.verifiedAt&&!r.shortPayment;
+          const canFlagShortPayment=r.cashSales>0&&canVerify&&getSlips(r).length>0&&!r.verifiedAt&&!r.shortPayment;
           const canKeyIn2ndPayment=canVerify&&r.shortPayment&&r.balancePaymentSlip&&!r.secondPaymentVerifiedAt;
           // Edit lives here too now, not just in the Daily Sales Report
           // table — no need to go hunt for the same report under a
@@ -688,9 +743,9 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
             <button onClick={()=>setExpandedResolvedDetails(detailsOpen?null:r.id)} style={{marginTop:7,fontSize:10,fontWeight:700,color:C.blueBright,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",padding:0}}>{detailsOpen?"Hide Details ▲":"Details ▼"}</button>
             {detailsOpen&&<div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${C.border}`}}>
               {r.remark&&<div style={{fontSize:11,color:C.textLight,marginBottom:5}}>Remark: {r.remark}</div>}
-              {r.verifiedAt&&<div style={{fontSize:11,color:"#15803D",marginBottom:3,fontWeight:600}}>Verified — {r.paymentMethod} · {fDate(r.actualPaymentDate)} · {fRM(r.actualAmountReceived)} received</div>}
+              {r.verifiedAt&&<div style={{fontSize:11,color:"#15803D",marginBottom:3,fontWeight:600}}>Verified — {getPaymentEntries(r).map((e,i)=>`${e.method} · ${fDate(e.date)} · ${fRM(e.amount)}`).join(" + ")} = {fRM(totalVerifiedAmount(r))} received</div>}
               {r.secondPaymentVerifiedAt&&<div style={{fontSize:11,color:"#15803D",marginBottom:3,fontWeight:600}}>2nd Payment — {r.secondPaymentMethod} · {fDate(r.secondPaymentDate)} · {fRM(r.secondPaymentAmount)} received</div>}
-              {r.bankInSlip&&<div style={{marginBottom:4}}>{slipUrls[r.id]?<a href={slipUrls[r.id]} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600}}>View Bank-in Slip: {r.bankInSlip.name}</a>:<span style={{fontSize:11,color:C.textLight}}>Loading slip link…</span>}</div>}
+              {getSlips(r).map((s,i)=><div key={i} style={{marginBottom:4}}>{slipUrls[`${r.id}_slip${i}`]?<a href={slipUrls[`${r.id}_slip${i}`]} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600}}>View Bank-in Slip {getSlips(r).length>1?i+1:""}: {s.name}</a>:<span style={{fontSize:11,color:C.textLight}}>Loading slip link…</span>}</div>)}
               {r.balancePaymentSlip&&<div style={{marginBottom:4}}>{slipUrls[r.id+"_balance"]?<a href={slipUrls[r.id+"_balance"]} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:"#B45309",fontWeight:600}}>View Balance Payment Slip: {r.balancePaymentSlip.name}</a>:<span style={{fontSize:11,color:C.textLight}}>Loading slip link…</span>}</div>}
               {canUploadSlip&&<div style={{marginTop:6}}><UploadSlipBox report={r} onSaved={save}/></div>}
               {canVerifyThis&&(expandedVerify===r.id
