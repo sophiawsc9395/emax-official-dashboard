@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
+import JCLTab from "../../JCLTab.jsx";
 import { mergeOrderPermissions } from "../../auth/orderRoles.js";
 import { RTOSummaryInner } from "../../RTOSummary.jsx";
 
@@ -762,7 +763,7 @@ export default function App({elevateOrderAccess=false}){
   const [selEndDay,setSelEndDay]=useState(daysInMonth(now.getMonth()+1,now.getFullYear()));
   const periodDays=days.filter(d=>d>=selStartDay&&d<=selEndDay);
   const [selBranch,setSelBranch]=useState(BRANCH_ORDER[0]);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","repair","rto","orders","dailySales"].includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications"].includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
 
@@ -979,7 +980,7 @@ export default function App({elevateOrderAccess=false}){
     return{name:s.canon,status:s.status,branch:s.branch,sub:(bMeta[s.branch]?.name||s.branch).toUpperCase(),wi:rankSRTotals[s.id]?.wi||0,ae:rankSRTotals[s.id]?.ae||0,profit,target,bonus,bonusEarned:branchHit&&profit>=target&&bonus>0,branchPct,role:"sr",points:calcRewardPoints(p,branchPct)};
   }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target));
 
-  const TABS=[{id:"overview",label:"Overview"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"report",label:"Monthly Report"},{id:"repair",label:"Repair & Service"},{id:"rto",label:"RTO Summary"},{id:"orders",label:"Order Tracking"},{id:"dailySales",label:"Daily Sales Report"}];
+  const TABS=[{id:"overview",label:"Overview"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"report",label:"Monthly Report"},{id:"repair",label:"Repair & Service"},{id:"rto",label:"RTO Summary"},{id:"orders",label:"Order Tracking"},{id:"dailySales",label:"Daily Sales Report"},{id:"jclApplications",label:"JCL Applications"}];
 
   if(loading)return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
     <div style={{textAlign:"center"}}>
@@ -1196,6 +1197,7 @@ export default function App({elevateOrderAccess=false}){
       {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}><RTOSummary branchMeta={bMeta}/></div>}
       {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!(elevateOrderAccess&&orderPermissions)} orderPermissions={elevateOrderAccess?orderPermissions:null} srList={srList} email={currentEmail}/></div>}
       {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} canSubmit={false} canVerify={elevateOrderAccess} email={currentEmail}/></div>}
+      {tab==="jclApplications"&&<div className="fade-in"><JCLTab branchMeta={bMeta} isAdmin={elevateOrderAccess} userBranch={null}/></div>}
     </div>{/* end main content */}
 
       {/* SIDEBAR — right side, collapsible */}
@@ -1217,13 +1219,6 @@ export default function App({elevateOrderAccess=false}){
           ))}
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
 
-          <a href="/jcl.html" target="_blank" rel="noopener noreferrer" style={{
-            display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
-            border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
-            background:"rgba(124,58,237,.12)",color:"#A78BFA",transition:"background .15s",textDecoration:"none",boxSizing:"border-box",
-          }}>
-            📄 JCL Applications
-          </a>
           <button onClick={()=>supabase.auth.signOut()} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,

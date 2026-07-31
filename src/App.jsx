@@ -7,6 +7,7 @@ import { loadData, saveData, supabase } from "./storage/index.js";
 import RTOTab from "./RTOTab.jsx";
 import OrderTab from "./OrderTab.jsx";
 import DailySalesTab from "./DailySalesTab.jsx";
+import JCLTab from "./JCLTab.jsx";
 import DailyReportPanel from "./DailyReportPanel.jsx";
 
 const T = {
@@ -2041,7 +2042,7 @@ export default function App(){
   const [loading,setLoading]       = useState(true);
   const [tab,setTabRaw]             = useState(()=>{
     const h=window.location.hash.replace("#","");
-    return ["overview","rankings","points","report","daily","repair","rto","orders","dailySales"].includes(h)?h:"overview";
+    return ["overview","rankings","points","report","daily","repair","rto","orders","dailySales","jclApplications"].includes(h)?h:"overview";
   });
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen] = useState(false);
@@ -2629,6 +2630,7 @@ export default function App(){
     {id:"rto",label:"Rent to Own"},
     {id:"orders",label:"Order Tracking"},
     {id:"dailySales",label:"Daily Sales Report"},
+    {id:"jclApplications",label:"JCL Applications"},
   ];
 
   if(loading)return <div style={{display:"flex",height:"100vh",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
@@ -2847,6 +2849,7 @@ export default function App(){
       {tab==="rto"&&<RTOTab branchMeta={branchMeta}/>}
       {tab==="orders"&&<OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} email={currentEmail}/>}
       {tab==="dailySales"&&<DailySalesTab branchMeta={branchMeta} isAdmin={true} canSubmit={true} canVerify={true} email={currentEmail}/>}
+      {tab==="jclApplications"&&<JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null}/>}
 
       </div>{/* end main content */}
 
@@ -2906,13 +2909,6 @@ export default function App(){
           }}>
             📊 Daily Financial Report
           </button>
-          <a href="/jcl.html" target="_blank" rel="noopener noreferrer" style={{
-            display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
-            border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
-            background:"rgba(124,58,237,.12)",color:"#A78BFA",transition:"background .15s",textDecoration:"none",boxSizing:"border-box",
-          }}>
-            📄 JCL Applications
-          </a>
           <button onClick={()=>supabase.auth.signOut()} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,

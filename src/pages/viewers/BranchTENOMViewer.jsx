@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from "react";
 import { loadData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
+import JCLTab from "../../JCLTab.jsx";
 
 const BRANCH_ID = "TENOM";
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
@@ -379,7 +380,7 @@ export default function App(){
   const [allSRList,setAllSRList]=useState(DEFAULT_SR); // all branches, for company-wide ranking
   const [bMeta,setBMeta]=useState(DEFAULT_BRANCH_META);
   const [loading,setLoading]=useState(true);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales"].includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications"].includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
   const [isMobile,setIsMobile]=useState(typeof window!=="undefined"&&window.innerWidth<=760);
@@ -603,6 +604,7 @@ export default function App(){
 
       {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
       {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} canSubmit={false} canVerify={false}/></div>}
+      {tab==="jclApplications"&&<div className="fade-in"><JCLTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID}/></div>}
       {tab==="rankings"&&<div className="fade-in" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:20}}>
         <RankingTable title="Branch Manager Ranking" rows={bmRankRows} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
         <RankingTable title="Online SR Ranking — Company" rows={srRankRows.filter(r=>r.type==="Online")} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
@@ -886,7 +888,7 @@ export default function App(){
         minHeight:"calc(100vh - 49px)",position:"sticky",top:49,alignSelf:"flex-start",
       }}>
         <div style={{width:220,padding:"16px 10px",visibility:sidebarOpen?"visible":"hidden"}}>
-          {[{id:"overview",label:"Performance"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"orders",label:"Order Request"},{id:"dailySales",label:"Daily Sales Report"}].map(t=>(
+          {[{id:"overview",label:"Performance"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"orders",label:"Order Request"},{id:"dailySales",label:"Daily Sales Report"},{id:"jclApplications",label:"JCL Applications"}].map(t=>(
             <button key={t.id} onClick={()=>{setTab(t.id);setSidebarOpen(false);}} style={{
               display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
               border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
@@ -898,13 +900,6 @@ export default function App(){
           ))}
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
 
-          <a href={`/jcl.html?branch=${BRANCH_ID}`} target="_blank" rel="noopener noreferrer" style={{
-            display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
-            border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
-            background:"rgba(124,58,237,.12)",color:"#A78BFA",transition:"background .15s",textDecoration:"none",boxSizing:"border-box",
-          }}>
-            📄 JCL Applications
-          </a>
           <button onClick={()=>supabase.auth.signOut()} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
