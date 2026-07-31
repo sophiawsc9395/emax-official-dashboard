@@ -2227,7 +2227,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       return<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:16}}>
         <div style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Out of Stock — Order Cancelled</div>
         {outOfStockUnacked.map(o=><div key={o.id} style={{borderTop:`1px solid ${C.border}`,padding:"8px 0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-          <div style={{fontSize:12,color:C.text}}>{o.customerName} — {o.phoneModel} — {o.branch} — refunded {fDate(o.refundSlipDate)}</div>
+          <div onClick={()=>nav("detail",o)} style={{fontSize:12,color:C.text,cursor:"pointer",textDecoration:"underline",textDecorationColor:"transparent"}} onMouseEnter={e=>e.currentTarget.style.textDecorationColor=C.text} onMouseLeave={e=>e.currentTarget.style.textDecorationColor="transparent"}>{o.customerName} — {o.phoneModel} — {o.branch} — refunded {fDate(o.refundSlipDate)}</div>
           <div style={{display:"flex",gap:6}}>
             {isAdmin&&!o.outOfStockAckAdmin&&<GBtn onClick={()=>bulkSave([{...o,outOfStockAckAdmin:nowDate()}])} style={{fontSize:11,padding:"6px 12px"}}>Acknowledge (Admin)</GBtn>}
             {(!isAdmin||userBranch===o.branch)&&!o.outOfStockAckBranch&&<GBtn onClick={()=>bulkSave([{...o,outOfStockAckBranch:nowDate()}])} style={{fontSize:11,padding:"6px 12px"}}>Acknowledge (Branch)</GBtn>}

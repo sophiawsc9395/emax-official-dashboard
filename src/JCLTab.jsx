@@ -87,18 +87,20 @@ const DOC_FIELDS=[
 function Timeline({app}){
   const hist=app.history||[];
   if(!hist.length)return<div style={{fontSize:11,color:C.textLight}}>No history yet.</div>;
-  return<div style={{display:"flex",flexDirection:"column",gap:8}}>
-    {hist.map((h,i)=>{
-      const d=stepDef(h.step);
-      return<div key={i} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-        <div style={{width:9,height:9,borderRadius:"50%",background:d.color,marginTop:4,flexShrink:0}}/>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:11,fontWeight:700,color:C.text}}>{d.label} <span style={{fontWeight:500,color:C.textLight}}>· {fDate(h.date)} {h.time||""}</span></div>
-          {h.note&&<div style={{fontSize:11,color:C.textMid,marginTop:1}}>{h.note}</div>}
-        </div>
-      </div>;
-    })}
-  </div>;
+  return<div>{hist.map((h,i)=>{
+    const d=stepDef(h.step);
+    const isLast=i===hist.length-1;
+    return<div key={i} style={{display:"flex",position:"relative"}}>
+      {!isLast&&<div style={{position:"absolute",left:11,top:24,width:1,height:"calc(100% + 2px)",background:C.border,zIndex:0}}/>}
+      <div style={{flexShrink:0,width:22,height:22,borderRadius:"50%",background:d.color,border:`2px solid ${d.color}`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,marginRight:10,marginTop:1,color:"#fff"}}>
+        <div style={{width:6,height:6,borderRadius:"50%",background:"#fff"}}/>
+      </div>
+      <div style={{flex:1,paddingBottom:isLast?0:14,paddingTop:1,minWidth:0}}>
+        <div style={{fontSize:12,fontWeight:700,color:C.text}}>{d.label} <span style={{fontWeight:500,color:C.textLight,fontSize:11}}>· {fDate(h.date)} {h.time||""}</span></div>
+        {h.note&&<div style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid}}>{h.note}</div>}
+      </div>
+    </div>;
+  })}</div>;
 }
 
 function FormCard({title,children}){
