@@ -350,32 +350,46 @@ function EditBox({report,isAdmin,editorRole,onSaved,onCancel}){
   const [rhbQr,setRhbQr]=useState(String(report.rhbQr??""));
   const [cashSales,setCashSales]=useState(String(report.cashSales??""));
   const [remark,setRemark]=useState(report.remark||"");
-  const [method,setMethod]=useState(report.paymentMethod||BANKS[0]);
-  const [actualDate,setActualDate]=useState(report.actualPaymentDate||nowDate());
-  const [amount,setAmount]=useState(report.actualAmountReceived!=null?String(report.actualAmountReceived):"");
+  const canEditVerification=isAdmin&&report.verifiedAt;
+  // Every payment entry from the original verification is editable here now
+  // — not just the first one — so a mistake in the 2nd (or 3rd...) payment
+  // of a multi-payment verification can actually be corrected.
+  const [entries,setEntries]=useState(()=>{
+    const existing=getPaymentEntries(report);
+    return existing.length?existing.map(e=>({method:e.method||BANKS[0],date:e.date||nowDate(),amount:e.amount!=null?String(e.amount):""})):[{method:BANKS[0],date:nowDate(),amount:""}];
+  });
+  const setEntry=(i,k,v)=>setEntries(p=>p.map((e,idx)=>idx===i?{...e,[k]:v}:e));
+  const addEntry=()=>setEntries(p=>[...p,{method:BANKS[0],date:nowDate(),amount:""}]);
+  const removeEntry=(i)=>setEntries(p=>p.filter((_,idx)=>idx!==i));
+  const entriesTotal=entries.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  const entriesMatch=Math.abs(entriesTotal-(parseFloat(cashSales)||0))<0.005;
   const [secondMethod,setSecondMethod]=useState(report.secondPaymentMethod||BANKS[0]);
   const [secondDate,setSecondDate]=useState(report.secondPaymentDate||nowDate());
   const [secondAmount,setSecondAmount]=useState(report.secondPaymentAmount!=null?String(report.secondPaymentAmount):"");
   const [saving,setSaving]=useState(false);
-  const canEditVerification=isAdmin&&report.verifiedAt;
   const canEditSecondPayment=isAdmin&&report.secondPaymentVerifiedAt;
   const autoTotal=(parseFloat(debit)||0)+(parseFloat(credit)||0)+(parseFloat(rhbQr)||0)+(parseFloat(cashSales)||0);
   const save=async()=>{
     setSaving(true);
+    const cleanEntries=canEditVerification?entries.map(e=>({method:e.method,date:e.date,amount:parseFloat(e.amount)||0})):null;
     const newVals={
       totalSales:autoTotal,debit:parseFloat(debit)||0,credit:parseFloat(credit)||0,
       rhbQr:parseFloat(rhbQr)||0,cashSales:parseFloat(cashSales)||0,remark:remark||undefined,
-      ...(canEditVerification?{paymentMethod:method,actualPaymentDate:actualDate,actualAmountReceived:parseFloat(amount)||0}:{}),
+      ...(canEditVerification?{paymentEntries:cleanEntries,paymentMethod:cleanEntries[0]?.method,actualPaymentDate:cleanEntries[0]?.date,actualAmountReceived:cleanEntries.reduce((s,e)=>s+e.amount,0)}:{}),
       ...(canEditSecondPayment?{secondPaymentMethod:secondMethod,secondPaymentDate:secondDate,secondPaymentAmount:parseFloat(secondAmount)||0}:{}),
     };
     // Every edit is logged with date, time, who (by role), AND a summary of
     // what actually changed — so super admin can see not just how many
-    // times a report was edited, but exactly what moved each time.
-    const FIELD_LABELS={totalSales:"Total Sales",debit:"Debit",credit:"Credit",rhbQr:"RHB QR",cashSales:"Cash Sales",remark:"Remark",paymentMethod:"Payment Method",actualPaymentDate:"Actual Payment Date",actualAmountReceived:"Actual Amount Received",secondPaymentMethod:"2nd Payment Method",secondPaymentDate:"2nd Actual Payment Date",secondPaymentAmount:"2nd Actual Amount Received"};
-    const MONEY_FIELDS=new Set(["totalSales","debit","credit","rhbQr","cashSales","actualAmountReceived","secondPaymentAmount"]);
-    const DATE_FIELDS=new Set(["actualPaymentDate","secondPaymentDate"]);
-    const fmt=(k,v)=>{if(v==null||v==="")return"—";if(MONEY_FIELDS.has(k))return fRM(v);if(DATE_FIELDS.has(k))return fDate(v);return String(v);};
-    const changedKeys=Object.keys(newVals).filter(k=>String(report[k]??"")!==String(newVals[k]??""));
+    // times a report was edited, but exactly what moved each time. Payment
+    // entries are compared as a whole (not field-by-field) since they're a
+    // list, not a single value.
+    const FIELD_LABELS={totalSales:"Total Sales",debit:"Debit",credit:"Credit",rhbQr:"RHB QR",cashSales:"Cash Sales",remark:"Remark",paymentEntries:"Payment Entries",secondPaymentMethod:"2nd Payment Method",secondPaymentDate:"2nd Actual Payment Date",secondPaymentAmount:"2nd Actual Amount Received"};
+    const MONEY_FIELDS=new Set(["totalSales","debit","credit","rhbQr","cashSales","secondPaymentAmount"]);
+    const DATE_FIELDS=new Set(["secondPaymentDate"]);
+    const fmtEntries=es=>es&&es.length?es.map(e=>`${e.method} ${fRM(e.amount)}`).join(" + "):"—";
+    const fmt=(k,v)=>{if(k==="paymentEntries")return fmtEntries(v);if(v==null||v==="")return"—";if(MONEY_FIELDS.has(k))return fRM(v);if(DATE_FIELDS.has(k))return fDate(v);return String(v);};
+    const compareKeys=Object.keys(newVals).filter(k=>k!=="paymentMethod"&&k!=="actualPaymentDate"&&k!=="actualAmountReceived");
+    const changedKeys=compareKeys.filter(k=>k==="paymentEntries"?JSON.stringify(report.paymentEntries||[])!==JSON.stringify(newVals.paymentEntries||[]):String(report[k]??"")!==String(newVals[k]??""));
     const fieldChanges=Object.fromEntries(changedKeys.map(k=>[k,`${fmt(k,report[k])} → ${fmt(k,newVals[k])}`]));
     const changes=changedKeys.map(k=>`${FIELD_LABELS[k]||k}: ${fieldChanges[k]}`).join("; ");
     const logEntry={date:nowDate(),time:nowTime(),by:editorRole,changes:changes||"No changes",fields:changedKeys,fieldChanges};
@@ -395,10 +409,17 @@ function EditBox({report,isAdmin,editorRole,onSaved,onCancel}){
       <div><L>Cash Sales</L><I type="number" step="0.01" value={cashSales} onChange={e=>setCashSales(e.target.value)}/></div>
       <div><L>Remark</L><I value={remark} onChange={e=>setRemark(e.target.value)}/></div>
     </div>
-    {canEditVerification&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8,marginBottom:canEditSecondPayment?10:0}}>
-      <div><L>Payment Method</L><SEL value={method} onChange={e=>setMethod(e.target.value)}>{BANKS.map(b=><option key={b} value={b}>{b}</option>)}</SEL></div>
-      <div><L>Actual Payment Date</L><I type="date" value={actualDate} onChange={e=>setActualDate(e.target.value)} max={nowDate()}/></div>
-      <div><L>Actual Amount Received</L><I type="number" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)}/></div>
+    {canEditVerification&&<div style={{marginBottom:canEditSecondPayment?10:0}}>
+      {entries.map((e,i)=><div key={i} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8,alignItems:"end",marginBottom:8}}>
+        <div><L>Payment Method {entries.length>1?i+1:""}</L><SEL value={e.method} onChange={ev=>setEntry(i,"method",ev.target.value)}>{BANKS.map(b=><option key={b} value={b}>{b}</option>)}</SEL></div>
+        <div><L>Actual Payment Date</L><I type="date" value={e.date} onChange={ev=>setEntry(i,"date",ev.target.value)} max={nowDate()}/></div>
+        <div><L>Amount Received</L><I type="number" step="0.01" value={e.amount} onChange={ev=>setEntry(i,"amount",ev.target.value)}/></div>
+        {entries.length>1&&<button onClick={()=>removeEntry(i)} style={{height:38,fontSize:10,color:"#DC2626",background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Remove</button>}
+      </div>)}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+        <button onClick={addEntry} style={{fontSize:11,fontWeight:700,color:C.blueBright,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",padding:0}}>+ Add Another Payment</button>
+        <span style={{fontSize:11,fontWeight:700,color:entriesMatch?"#15803D":"#B45309"}}>Total: {fRM(entriesTotal)} {entriesMatch?"✓ matches Cash Sales":`(Cash Sales: ${fRM(cashSales)})`}</span>
+      </div>
     </div>}
     {canEditSecondPayment&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8}}>
       <div><L>2nd Payment Method</L><SEL value={secondMethod} onChange={e=>setSecondMethod(e.target.value)}>{BANKS.map(b=><option key={b} value={b}>{b}</option>)}</SEL></div>
