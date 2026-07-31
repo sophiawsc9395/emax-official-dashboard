@@ -101,10 +101,14 @@ function Timeline({app}){
   </div>;
 }
 
-const Section=({title,children})=><div style={{marginBottom:18}}>
-  <div style={{fontSize:11,fontWeight:700,color:C.blueBright,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:10,paddingBottom:6,borderBottom:`2px solid ${C.border}`}}>{title}</div>
-  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10}}>{children}</div>
-</div>;
+function FormCard({title,children}){
+  return<div style={{...card,marginBottom:16}}>
+    <div style={{padding:"12px 18px",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
+      <div style={{fontSize:12,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.07em"}}>{title}</div>
+    </div>
+    <div style={{padding:"20px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:18,minWidth:0}}>{children}</div>
+  </div>;
+}
 const TIMES=["Morning","Noon","Evening","Anytime"];
 const RELATIONS=["Spouse","Sibling","Parent"];
 
@@ -169,10 +173,13 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     setSaving(false);
   };
 
-  return<div style={{...card,padding:"16px 18px",marginBottom:14}}>
-    <div style={{fontSize:14,fontWeight:800,color:C.text,marginBottom:16}}>{editingApp?"Edit Application":"New Application"}</div>
+  return<div className="fade-in">
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+      <GBtn onClick={onCancel}>← Back</GBtn>
+      <div style={{fontSize:15,fontWeight:800,color:C.navy}}>{editingApp?"Edit Application":"New Application"}</div>
+    </div>
 
-    <Section title="Application &amp; Device">
+    <FormCard title="Application & Device">
       {isAdmin&&<div><L req>Branch</L><SEL value={f.branch} onChange={e=>{set("branch",e.target.value);set("salesAgentId","");set("salesAgentName","");}}><option value="">— Select Branch —</option>{sellingBranches(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}</SEL></div>}
       {!isAdmin&&<div><L>Branch</L><I value={branchMeta[userBranch]?.name||userBranch} disabled/></div>}
       <div><L req>Customer Name</L><I value={f.customerName} onChange={e=>set("customerName",e.target.value)}/></div>
@@ -183,35 +190,35 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
         ?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}} disabled={!formBranch}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>
         :<I value={f.salesAgentId} onChange={e=>set("salesAgentId",e.target.value)} placeholder={formBranch?"Agent ID":"Pick a branch first"} disabled={!formBranch}/>}
       </div>
-    </Section>
+    </FormCard>
 
-    <Section title="Personal Details">
+    <FormCard title="Personal Details">
       <div><L req>Customer IC</L><I value={f.customerIC} onChange={e=>set("customerIC",e.target.value)}/></div>
       <div><L req>Race</L><SEL value={f.race} onChange={e=>set("race",e.target.value)}>{["Chinese","Indian","Malay","Other"].map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Gender</L><SEL value={f.gender} onChange={e=>set("gender",e.target.value)}>{["Male","Female"].map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Residency Status</L><SEL value={f.residencyStatus} onChange={e=>set("residencyStatus",e.target.value)}>{["Bumiputera","Non-Bumiputera"].map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Marital Status</L><SEL value={f.maritalStatus} onChange={e=>set("maritalStatus",e.target.value)}>{["Single","Married","Widowed","Divorced"].map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Housing Status</L><SEL value={f.housingStatus} onChange={e=>set("housingStatus",e.target.value)}>{["Company's Apartment","Parent's Property","Renting","Own Property","Family's Property"].map(x=><option key={x}>{x}</option>)}</SEL></div>
-    </Section>
+    </FormCard>
 
-    <Section title="Contact &amp; Address">
+    <FormCard title="Contact & Address">
       <div><L req>Customer HP No.</L><I value={f.customerHP} onChange={e=>set("customerHP",e.target.value)}/></div>
       <div><L req>Customer Email Address</L><I type="email" value={f.customerEmail} onChange={e=>set("customerEmail",e.target.value)}/></div>
       <div><L req>Length of Stay</L><I value={f.lengthOfStay} onChange={e=>set("lengthOfStay",e.target.value)} placeholder="e.g. 3 years"/></div>
       <div><L req>Postcode</L><I value={f.postcode} onChange={e=>set("postcode",e.target.value)}/></div>
       <div><L req>City</L><I value={f.city} onChange={e=>set("city",e.target.value)}/></div>
       <div><L req>Best Time to Contact Applicant</L><SEL value={f.bestTimeContact} onChange={e=>set("bestTimeContact",e.target.value)}>{TIMES.map(x=><option key={x}>{x}</option>)}</SEL></div>
-    </Section>
-    <div style={{marginTop:-8,marginBottom:16}}><L req>Address</L><TX rows={2} value={f.address} onChange={e=>set("address",e.target.value)}/></div>
+      <div style={{gridColumn:"1/-1"}}><L req>Address</L><TX rows={2} value={f.address} onChange={e=>set("address",e.target.value)}/></div>
+    </FormCard>
 
-    <Section title="Bank Details">
+    <FormCard title="Bank Details">
       <div><L req>Bank Name</L><I value={f.bankName} onChange={e=>set("bankName",e.target.value)}/></div>
       <div><L req>Bank Account Type</L><SEL value={f.bankAccountType} onChange={e=>set("bankAccountType",e.target.value)}>{["Savings","Current"].map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Bank Account Holder Name</L><I value={f.bankAccountHolderName} onChange={e=>set("bankAccountHolderName",e.target.value)}/></div>
       <div><L req>Bank Account Number</L><I value={f.bankAccountNumber} onChange={e=>set("bankAccountNumber",e.target.value)}/></div>
-    </Section>
+    </FormCard>
 
-    <Section title="Employment &amp; Income">
+    <FormCard title="Employment & Income">
       <div><L req>Customer Occupation</L><I value={f.occupation} onChange={e=>set("occupation",e.target.value)}/></div>
       <div><L req>Customer Work Department</L><I value={f.workDepartment} onChange={e=>set("workDepartment",e.target.value)}/></div>
       <div><L req>Company Nature of Business</L><I value={f.companyNatureOfBusiness} onChange={e=>set("companyNatureOfBusiness",e.target.value)}/></div>
@@ -224,39 +231,39 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
       <div><L req>Company Name</L><I value={f.companyName} onChange={e=>set("companyName",e.target.value)}/></div>
       <div><L req>Office Postcode</L><I value={f.officePostcode} onChange={e=>set("officePostcode",e.target.value)}/></div>
       <div><L req>Office Tel No.</L><I value={f.officeTel} onChange={e=>set("officeTel",e.target.value)}/></div>
-    </Section>
-    <div style={{marginTop:-8,marginBottom:16}}><L req>Office Address</L><TX rows={2} value={f.officeAddress} onChange={e=>set("officeAddress",e.target.value)}/></div>
+      <div style={{gridColumn:"1/-1"}}><L req>Office Address</L><TX rows={2} value={f.officeAddress} onChange={e=>set("officeAddress",e.target.value)}/></div>
+    </FormCard>
 
-    <Section title="Document Uploads">
+    <FormCard title="Document Uploads">
       {DOC_FIELDS.map(({key,label})=><div key={key}>
         <L req>{label}</L>
         <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setDocFiles(p=>({...p,[key]:e.target.files[0]||null}))} style={{fontSize:11}}/>
         {docFiles[key]?<div style={{fontSize:10,color:"#15803D",marginTop:3}}>New file selected: {docFiles[key].name}</div>
           :docs[key]?<div style={{fontSize:10,color:C.textLight,marginTop:3}}>On file: {docs[key].name}</div>:null}
       </div>)}
-    </Section>
+    </FormCard>
 
-    <Section title="Emergency Contact #1">
+    <FormCard title="Emergency Contact #1">
       <div><L req>Name</L><I value={f.ec1Name} onChange={e=>set("ec1Name",e.target.value)}/></div>
       <div><L req>Relationship</L><SEL value={f.ec1Relationship} onChange={e=>set("ec1Relationship",e.target.value)}>{RELATIONS.map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Stay With Applicant?</L><SEL value={f.ec1StayWith} onChange={e=>set("ec1StayWith",e.target.value)}>{["Yes","No"].map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Contact Number</L><I value={f.ec1ContactNumber} onChange={e=>set("ec1ContactNumber",e.target.value)}/></div>
       <div><L req>Best Time to Contact</L><SEL value={f.ec1BestTime} onChange={e=>set("ec1BestTime",e.target.value)}>{TIMES.map(x=><option key={x}>{x}</option>)}</SEL></div>
-    </Section>
-    <div style={{marginTop:-8,marginBottom:16}}><L req>Address</L><TX rows={2} value={f.ec1Address} onChange={e=>set("ec1Address",e.target.value)}/></div>
+      <div style={{gridColumn:"1/-1"}}><L req>Address</L><TX rows={2} value={f.ec1Address} onChange={e=>set("ec1Address",e.target.value)}/></div>
+    </FormCard>
 
-    <Section title="Emergency Contact #2">
+    <FormCard title="Emergency Contact #2">
       <div><L req>Name</L><I value={f.ec2Name} onChange={e=>set("ec2Name",e.target.value)}/></div>
       <div><L req>Relationship</L><SEL value={f.ec2Relationship} onChange={e=>set("ec2Relationship",e.target.value)}>{RELATIONS.map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Stay With Applicant?</L><SEL value={f.ec2StayWith} onChange={e=>set("ec2StayWith",e.target.value)}>{["Yes","No"].map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Contact Number</L><I value={f.ec2ContactNumber} onChange={e=>set("ec2ContactNumber",e.target.value)}/></div>
       <div><L req>Best Time to Contact</L><SEL value={f.ec2BestTime} onChange={e=>set("ec2BestTime",e.target.value)}>{TIMES.map(x=><option key={x}>{x}</option>)}</SEL></div>
-    </Section>
-    <div style={{marginBottom:16}}><L req>Address</L><TX rows={2} value={f.ec2Address} onChange={e=>set("ec2Address",e.target.value)}/></div>
+      <div style={{gridColumn:"1/-1"}}><L req>Address</L><TX rows={2} value={f.ec2Address} onChange={e=>set("ec2Address",e.target.value)}/></div>
+    </FormCard>
 
-    <div style={{display:"flex",gap:8}}>
-      <PBtn onClick={submit} disabled={saving}>{saving?"Submitting…":editingApp?"Save Changes":"Submit Application"}</PBtn>
+    <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
       <GBtn onClick={onCancel}>Cancel</GBtn>
+      <PBtn onClick={submit} disabled={saving}>{saving?"Submitting…":editingApp?"Save Changes":"Submit Application"}</PBtn>
     </div>
   </div>;
 }
@@ -375,13 +382,27 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
     <div style={{fontSize:12,color:C.text,fontWeight:600,wordBreak:"break-word"}}>{value||"—"}</div>
   </div>;
   const Grid=({children})=><div style={{padding:"4px 16px 0",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",columnGap:20}}>{children}</div>;
+  const [linkCopied,setLinkCopied]=useState(false);
+  const copyLink=async()=>{
+    const url=`${window.location.origin}${window.location.pathname}?jclId=${app.id}${window.location.hash||"#jclApplications"}`;
+    try{await navigator.clipboard.writeText(url);}catch{
+      const ta=document.createElement("textarea");ta.value=url;ta.style.position="fixed";ta.style.opacity="0";
+      document.body.appendChild(ta);ta.select();
+      try{document.execCommand("copy");}catch{}
+      document.body.removeChild(ta);
+    }
+    setLinkCopied(true);setTimeout(()=>setLinkCopied(false),2000);
+  };
   return<div>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:700,fontSize:12,color:C.blueBright,padding:0}}>← Back to List</button>
+      <div style={{display:"flex",gap:6}}>
+        <GBtn onClick={onBack}>← Back</GBtn>
+        <GBtn onClick={copyLink}>{linkCopied?"✓ Copied!":"🔗 Copy Link"}</GBtn>
+      </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <StepBadge step={app.step}/>
-        {isAdmin&&<GBtn onClick={onEdit} style={{fontSize:11,padding:"6px 12px"}}>Edit</GBtn>}
-        {canDelete&&<DBtnLocal onClick={onDelete}>Delete</DBtnLocal>}
+        {isAdmin&&<GBtn onClick={onEdit}>✎ Edit</GBtn>}
+        {canDelete&&<DBtnLocal onClick={onDelete} style={{padding:"9px 16px",fontSize:12}}>🗑 Delete</DBtnLocal>}
       </div>
     </div>
 
@@ -519,6 +540,23 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
   const [fileUrls,setFileUrls]=useState({});
 
   useEffect(()=>{loadData(JCL_KEY).then(d=>{setApps(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>setLoading(false));},[]);
+
+  // Shared link support — "?jclId=..." in the URL (from the Copy Link
+  // button on an application's detail page) opens straight to it, for
+  // whoever opens it (their own access rights/branch filtering still apply
+  // as normal — this only handles navigation, not permissions).
+  useEffect(()=>{
+    if(loading)return;
+    const jclId=new URLSearchParams(window.location.search).get("jclId");
+    if(!jclId)return;
+    const app=apps.find(a=>a.id===jclId);
+    if(app&&(!userBranch||app.branch===userBranch)){
+      setView("detail");setSelectedId(jclId);
+    }else if(app){
+      alert("You don't have access to this application.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[loading]);
 
   const save=async(updated)=>{
     const next=[...apps.filter(a=>a.id!==updated.id),updated].sort((a,b)=>b.submittedAt.localeCompare(a.submittedAt));

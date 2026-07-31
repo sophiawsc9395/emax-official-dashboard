@@ -779,6 +779,8 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
   const [showResubmitPanel,setShowResubmitPanel]=useState(false);
   const [resubmitDate,setResubmitDate]=useState(nowDate());
   const [resubmitConsignmentNote,setResubmitConsignmentNote]=useState("");
+  const [refundFile,setRefundFile]=useState(null);
+  const [refundUploading,setRefundUploading]=useState(false);
   const [remark,setRemark]=useState("");
   const [invoiceNo,setInvoiceNo]=useState("");
   const [orderDate,setOrderDate]=useState(nowDate());
@@ -939,6 +941,25 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
     return true;
   };
 
+  // Out of Stock (cash orders, step 1 only) — once flagged, blocks the
+  // normal "Confirm" panel entirely until admin uploads the refund slip,
+  // at which point the order auto-cancels. Anyone who can act at step 1
+  // can flag it (branch usually notices stock isn't available first), but
+  // only admin can actually upload the refund proof and complete the
+  // cancellation, since that's a financial action.
+  if(isCash&&step===1&&order.outOfStock&&!order.cancelled){
+    return<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px"}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Out of Stock</div>
+      <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Flagged {fDate(order.outOfStockDate)} — waiting for the customer's deposit to be refunded and proof uploaded before this order is cancelled.</div>
+      {isAdmin
+        ?<>
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setRefundFile(e.target.files[0]||null)} style={{fontSize:12,marginBottom:10}}/>
+          <PBtn onClick={async()=>{if(!refundFile)return;setRefundUploading(true);const f=await readFile(refundFile,order.id);const cd=nowDate();await onUpdate({...order,cancelled:true,refundSlip:f,refundSlipDate:cd,cancelledReason:"Out of Stock — Customer Refunded",history:[...(order.history||[]),{step:order.step,date:cd,time:nowTime(),note:"Out of Stock — Refund slip uploaded, order cancelled",files:{refundSlip:f}}]});setRefundUploading(false);}} disabled={!refundFile||refundUploading} style={{width:"100%",justifyContent:"center"}}>{refundUploading?"Uploading…":"Upload Refund Slip & Cancel Order"}</PBtn>
+        </>
+        :<div style={{fontSize:12,color:C.textLight,fontStyle:"italic"}}>Waiting for admin to upload the refund slip and complete the cancellation.</div>}
+    </div>;
+  }
+
   // Blocks the normal "Confirm: Claim Released" panel entirely while a
   // rejection is unresolved — you can't release a claim that was just
   // rejected without resubmitting it first.
@@ -1077,6 +1098,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
         </div>
       </div>
     )}
+    {isCash&&step===1&&!order.outOfStock&&<DBtn onClick={()=>{if(!window.confirm("Mark this order as out of stock? The customer's deposit will need to be refunded before it's cancelled."))return;onUpdate({...order,outOfStock:true,outOfStockDate:nowDate(),history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Marked Out of Stock"}]});}} style={{width:"100%",justifyContent:"center"}}>Out of Stock</DBtn>}
     {/* Merchant Rejected — only after Claim Submitted (step 12), before Claim
         Released. Doesn't advance order.step at all (stays at 12) so nothing
         elsewhere that keys off step numbers needs to change; it's tracked
@@ -2198,6 +2220,21 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
     {/* Alerts */}
     <AlertBanner alerts={alerts} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
+
+    {(()=>{
+      const outOfStockUnacked=cancelledOrders.filter(o=>o.outOfStock&&!(o.outOfStockAckAdmin&&o.outOfStockAckBranch));
+      if(!outOfStockUnacked.length)return null;
+      return<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:16}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Out of Stock — Order Cancelled</div>
+        {outOfStockUnacked.map(o=><div key={o.id} style={{borderTop:`1px solid ${C.border}`,padding:"8px 0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <div style={{fontSize:12,color:C.text}}>{o.customerName} — {o.phoneModel} — {o.branch} — refunded {fDate(o.refundSlipDate)}</div>
+          <div style={{display:"flex",gap:6}}>
+            {isAdmin&&!o.outOfStockAckAdmin&&<GBtn onClick={()=>bulkSave([{...o,outOfStockAckAdmin:nowDate()}])} style={{fontSize:11,padding:"6px 12px"}}>Acknowledge (Admin)</GBtn>}
+            {(!isAdmin||userBranch===o.branch)&&!o.outOfStockAckBranch&&<GBtn onClick={()=>bulkSave([{...o,outOfStockAckBranch:nowDate()}])} style={{fontSize:11,padding:"6px 12px"}}>Acknowledge (Branch)</GBtn>}
+          </div>
+        </div>)}
+      </div>;
+    })()}
 
     {/* Step progress cards — grouped by phase. Mobile: cards connected by a
         colored rail per phase (echoes the physical hand-off of stock/
