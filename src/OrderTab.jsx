@@ -1247,6 +1247,11 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
 
 
 
+    {order.firstInstallmentKnockOffDate&&isSuperAdminOrder&&<div style={{...card,borderLeft:"3px solid #15803D",padding:"10px 14px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <div style={{fontSize:12,color:C.textMid}}><b style={{color:"#15803D"}}>First Monthly Installment Knocked Off</b> — {fDate(order.firstInstallmentKnockOffDate)}</div>
+      <GBtn onClick={()=>{if(window.confirm("Undo this knock-off? The order will show as pending again."))onUpdate({...order,firstInstallmentKnockOffDate:null});}} style={{fontSize:11,padding:"6px 12px",color:"#DC2626",borderColor:"#FECACA"}}>Undo</GBtn>
+    </div>}
+
     {/* Two-col: timeline | action */}
     <div className="detail-grid">
       <div style={card}>
