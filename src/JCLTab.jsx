@@ -306,10 +306,29 @@ function AdminActions({app,branchMeta,onSaved,onCreateOrder}){
   </div>;
 }
 
+function Timeline({app}){
+  const hist=app.history||[];
+  if(!hist.length)return<div style={{fontSize:11,color:C.textLight}}>No history yet.</div>;
+  return<div style={{display:"flex",flexDirection:"column",gap:8}}>
+    {hist.map((h,i)=>{
+      const d=stepDef(h.step);
+      return<div key={i} style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+        <div style={{width:9,height:9,borderRadius:"50%",background:d.color,marginTop:4,flexShrink:0}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.text}}>{d.label} <span style={{fontWeight:500,color:C.textLight}}>· {fDate(h.date)} {h.time||""}</span></div>
+          {h.note&&<div style={{fontSize:11,color:C.textMid,marginTop:1}}>{h.note}</div>}
+        </div>
+      </div>;
+    })}
+  </div>;
+}
+
 export default function JCLTab({branchMeta,isAdmin,userBranch}){
   const [apps,setApps]=useState([]);
   const [loading,setLoading]=useState(true);
   const [branchFilter,setBranchFilter]=useState("all");
+  const [stepFilter,setStepFilter]=useState("all");
+  const [expandedTimeline,setExpandedTimeline]=useState(null);
   const [fileUrls,setFileUrls]=useState({});
 
   useEffect(()=>{loadData(JCL_KEY).then(d=>{setApps(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>setLoading(false));},[]);
@@ -349,12 +368,19 @@ export default function JCLTab({branchMeta,isAdmin,userBranch}){
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[apps]);
 
-  const visible=useMemo(()=>{
+  const scoped=useMemo(()=>{
     let list=apps;
     if(userBranch)list=list.filter(a=>a.branch===userBranch);
     else if(branchFilter!=="all")list=list.filter(a=>a.branch===branchFilter);
     return list;
   },[apps,userBranch,branchFilter]);
+
+  const stepCounts=useMemo(()=>STEPS.reduce((acc,s)=>{acc[s.step]=scoped.filter(a=>a.step===s.step).length;return acc;},{}),[scoped]);
+
+  const visible=useMemo(()=>{
+    if(stepFilter==="all")return scoped;
+    return scoped.filter(a=>a.step===stepFilter);
+  },[scoped,stepFilter]);
 
   const needsBranchAction=useMemo(()=>userBranch?apps.filter(a=>a.branch===userBranch&&a.step===3&&!a.followUpRespondedDate):[],[apps,userBranch]);
 
@@ -369,6 +395,17 @@ export default function JCLTab({branchMeta,isAdmin,userBranch}){
       </div>)}
     </div>}
 
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:14}}>
+      {STEPS.map(s=>{
+        const active=stepFilter===s.step;
+        const count=stepCounts[s.step]||0;
+        return<div key={s.step} onClick={()=>setStepFilter(active?"all":s.step)} style={{...card,border:`1px solid ${active?s.color:C.border}`,borderTop:`3px solid ${s.color}`,padding:"11px 12px 10px",cursor:"pointer",boxShadow:active?`0 0 0 1.5px ${s.color}, 0 6px 16px rgba(10,22,40,.08)`:card.boxShadow}}>
+          <div style={{fontSize:9.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.label}</div>
+          <div style={{fontSize:21,fontWeight:800,color:count?s.color:"#C3CCDA",lineHeight:1}}>{count}</div>
+        </div>;
+      })}
+    </div>
+
     {userBranch&&<NewApplicationForm branchMeta={branchMeta} userBranch={userBranch} onSaved={save}/>}
 
     <div style={{...card}}>
@@ -381,7 +418,9 @@ export default function JCLTab({branchMeta,isAdmin,userBranch}){
       </div>
       {visible.length===0
         ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No applications yet.</div>
-        :<div>{visible.map(a=><div key={a.id} style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
+        :<div>{visible.map(a=>{
+          const timelineOpen=expandedTimeline===a.id;
+          return<div key={a.id} style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
             <div>
               <div style={{fontSize:13,fontWeight:700,color:C.text}}>{a.customerName} <span style={{fontWeight:500,color:C.textLight,fontSize:11}}>· {branchMeta[a.branch]?.name||a.branch} · {fDate(a.submittedAt)}</span></div>
@@ -391,8 +430,11 @@ export default function JCLTab({branchMeta,isAdmin,userBranch}){
           </div>
           {a.step===3&&<div style={{fontSize:11,color:"#B45309",marginTop:4,fontWeight:600}}>Follow-Up: {a.followUpRemark}{a.followUpRespondedDate?` — branch responded ${fDate(a.followUpRespondedDate)}`:""}</div>}
           {(a.followUpResponseFiles||[]).map((f,i)=><div key={i} style={{marginTop:4}}>{fileUrls[`${a.id}_followup${i}`]?<a href={fileUrls[`${a.id}_followup${i}`]} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600}}>View Follow-up File: {f.name}</a>:<span style={{fontSize:11,color:C.textLight}}>Loading…</span>}</div>)}
+          <button onClick={()=>setExpandedTimeline(timelineOpen?null:a.id)} style={{marginTop:8,fontSize:11,fontWeight:700,color:C.blueBright,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",padding:0}}>{timelineOpen?"Hide Timeline ▲":"View Timeline ▼"}</button>
+          {timelineOpen&&<div style={{marginTop:8,background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px"}}><Timeline app={a}/></div>}
           {isAdmin&&<AdminActions app={a} branchMeta={branchMeta} onSaved={save} onCreateOrder={createOrderFromApp}/>}
-        </div>)}</div>}
+        </div>;
+        })}</div>}
     </div>
   </div>;
 }

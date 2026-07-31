@@ -5,15 +5,21 @@ import AuthGate from './auth/AuthGate.jsx'
 import { supabase, loadData } from './storage/index.js'
 
 // Admin/Manager — full manage access (submit to JCL, request follow-up,
-// approve/reject, sees every branch). Add more names here as needed.
-const JCL_ADMIN_EMAILS = ["sophiawsc9395@gmail.com", "boontheng2004@gmail.com", "wingfeii@gmail.com"]
+// approve/reject, sees every branch). Boss Viewer is deliberately NOT here —
+// same view-only-vs-elevated split as Daily Sales Report (Manager gets
+// elevated access there too, Boss doesn't).
+const JCL_ADMIN_EMAILS = ["sophiawsc9395@gmail.com", "boontheng2004@gmail.com"]
 
-// Everyone who should be able to log into this page at all — admins above,
-// plus every branch email that should be able to submit a New Application.
-// This list is almost certainly incomplete for branch staff — add the real
-// branch emails here as you roll this out.
+// Read-only across every branch, no submit/manage actions, no branch picker
+// — Boss Viewer.
+const JCL_VIEWER_EMAILS = ["wingfeii@gmail.com"]
+
+// Everyone who should be able to log into this page at all — admins/viewers
+// above, plus every branch email that should be able to submit a New
+// Application. This list is almost certainly incomplete for branch staff —
+// add the real branch emails here as you roll this out.
 const ALLOWED = [
-  ...JCL_ADMIN_EMAILS,
+  ...JCL_ADMIN_EMAILS, ...JCL_VIEWER_EMAILS,
   "emaxbilling@gmail.com", "emaxknockoff@gmail.com", "emaxpurchase@gmail.com", "emaxstock@gmail.com",
   "eddy.suhaidi61@gmail.com",
 ]
@@ -45,7 +51,14 @@ function JCLApp(){
   const [branchMeta, setBranchMeta] = useState(DEFAULT_BRANCH_META)
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [selectedBranch, setSelectedBranch] = useState(() => sessionStorage.getItem(JCL_BRANCH_SESSION_KEY) || "")
+  const [selectedBranch, setSelectedBranch] = useState(() => {
+    // A branch viewer's sidebar link passes ?branch=T5 so their own staff
+    // never have to manually pick — falls back to whatever was remembered
+    // for this browser session otherwise.
+    const fromUrl = new URLSearchParams(window.location.search).get("branch")
+    if (fromUrl) { sessionStorage.setItem(JCL_BRANCH_SESSION_KEY, fromUrl); return fromUrl }
+    return sessionStorage.getItem(JCL_BRANCH_SESSION_KEY) || ""
+  })
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setEmail(data.session?.user?.email || null))
@@ -68,12 +81,13 @@ function JCLApp(){
   }
 
   const isAdmin = JCL_ADMIN_EMAILS.map(e=>e.toLowerCase()).includes(email.toLowerCase())
+  const isGlobalViewer = JCL_VIEWER_EMAILS.map(e=>e.toLowerCase()).includes(email.toLowerCase())
 
-  // Branch (non-admin) sessions pick which branch they're submitting for
-  // once per browser session — this app's access control is primarily
-  // "who is allowed to log in at all" (same trust model as the rest of the
-  // app), not a hard per-branch lock at this layer.
-  if (!isAdmin && !selectedBranch) {
+  // Branch (non-admin, non-global-viewer) sessions pick which branch they're
+  // submitting for once per browser session — this app's access control is
+  // primarily "who is allowed to log in at all" (same trust model as the
+  // rest of the app), not a hard per-branch lock at this layer.
+  if (!isAdmin && !isGlobalViewer && !selectedBranch) {
     return <div style={{ minHeight:"100vh", background:"#F7F9FC", fontFamily:"Inter,-apple-system,sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
       <style>{CSS}</style>
       <div style={{ background:"#fff", border:"1px solid #E4EAF2", borderRadius:12, padding:24, maxWidth:360, width:"100%" }}>
@@ -103,7 +117,7 @@ function JCLApp(){
 
       <div style={{ display:"flex", maxWidth:1200, margin:"0 auto" }}>
         <div style={{ flex:1, minWidth:0, padding:"20px", maxWidth:1000 }} className="fade-in">
-          <JCLTab branchMeta={branchMeta} isAdmin={isAdmin} userBranch={isAdmin ? null : selectedBranch} />
+          <JCLTab branchMeta={branchMeta} isAdmin={isAdmin} userBranch={(isAdmin||isGlobalViewer) ? null : selectedBranch} />
         </div>
 
         <div style={{
@@ -113,9 +127,9 @@ function JCLApp(){
         }}>
           <div style={{ width:220, padding:"16px 10px", visibility:sidebarOpen?"visible":"hidden" }}>
             <div style={{ padding:"9px 12px", marginBottom:3, fontSize:11, color:"rgba(255,255,255,.35)", wordBreak:"break-all" }}>{email}</div>
-            {!isAdmin && <div style={{ padding:"0 12px 9px", fontSize:11, color:"rgba(255,255,255,.35)" }}>Branch: {branchMeta[selectedBranch]?.name || selectedBranch}</div>}
+            {!isAdmin && !isGlobalViewer && <div style={{ padding:"0 12px 9px", fontSize:11, color:"rgba(255,255,255,.35)" }}>Branch: {branchMeta[selectedBranch]?.name || selectedBranch}</div>}
             <div style={{ width:"100%", height:1, background:"rgba(255,255,255,.08)", margin:"6px 0 10px" }}/>
-            {!isAdmin && <button onClick={()=>{ sessionStorage.removeItem(JCL_BRANCH_SESSION_KEY); setSelectedBranch("") }} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", textAlign:"left", padding:"9px 12px", border:"none", cursor:"pointer", fontFamily:"Inter,sans-serif", fontWeight:600, fontSize:12, borderRadius:8, background:"transparent", color:"rgba(255,255,255,.45)", marginBottom:4 }}>Change Branch</button>}
+            {!isAdmin && !isGlobalViewer && <button onClick={()=>{ sessionStorage.removeItem(JCL_BRANCH_SESSION_KEY); setSelectedBranch("") }} style={{ display:"flex", alignItems:"center", gap:8, width:"100%", textAlign:"left", padding:"9px 12px", border:"none", cursor:"pointer", fontFamily:"Inter,sans-serif", fontWeight:600, fontSize:12, borderRadius:8, background:"transparent", color:"rgba(255,255,255,.45)", marginBottom:4 }}>Change Branch</button>}
             <button onClick={()=>supabase.auth.signOut()} style={{
               display:"flex", alignItems:"center", gap:8, width:"100%", textAlign:"left", padding:"9px 12px",
               border:"none", cursor:"pointer", fontFamily:"Inter,sans-serif", fontWeight:600, fontSize:12, borderRadius:8,

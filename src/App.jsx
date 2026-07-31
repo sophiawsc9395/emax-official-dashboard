@@ -2906,6 +2906,13 @@ export default function App(){
           }}>
             📊 Daily Financial Report
           </button>
+          <a href="/jcl.html" target="_blank" rel="noopener noreferrer" style={{
+            display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+            border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+            background:"rgba(124,58,237,.12)",color:"#A78BFA",transition:"background .15s",textDecoration:"none",boxSizing:"border-box",
+          }}>
+            📄 JCL Applications
+          </a>
           <button onClick={()=>supabase.auth.signOut()} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,

@@ -898,6 +898,13 @@ export default function App(){
           ))}
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
 
+          <a href={`/jcl.html?branch=${BRANCH_ID}`} target="_blank" rel="noopener noreferrer" style={{
+            display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+            border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+            background:"rgba(124,58,237,.12)",color:"#A78BFA",transition:"background .15s",textDecoration:"none",boxSizing:"border-box",
+          }}>
+            📄 JCL Applications
+          </a>
           <button onClick={()=>supabase.auth.signOut()} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
