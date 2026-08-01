@@ -99,19 +99,26 @@ const DOC_FIELDS=[
 
 /* ── Timeline ──────────────────────────────────────────────────────────── */
 function Timeline({app}){
-  const hist=app.history||[];
-  if(!hist.length)return<div style={{fontSize:11,color:C.textLight}}>No history yet.</div>;
-  return<div>{hist.map((h,i)=>{
-    const d=stepDef(h.step);
-    const isLast=i===hist.length-1;
-    return<div key={i} style={{display:"flex",position:"relative"}}>
-      {!isLast&&<div style={{position:"absolute",left:11,top:24,width:1,height:"calc(100% + 2px)",background:C.border,zIndex:0}}/>}
-      <div style={{flexShrink:0,width:22,height:22,borderRadius:"50%",background:d.color,border:`2px solid ${d.color}`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,marginRight:10,marginTop:1,color:"#fff"}}>
-        <div style={{width:6,height:6,borderRadius:"50%",background:"#fff"}}/>
+  const cur=app.step;
+  return<div>{STEPS.map((s,i)=>{
+    const done=cur>s.step;
+    const active=cur===s.step;
+    const histEntries=(app.history||[]).filter(h=>h.step===s.step);
+    const isLast=i===STEPS.length-1;
+    return<div key={s.step} style={{display:"flex",position:"relative"}}>
+      {!isLast&&<div style={{position:"absolute",left:11,top:24,width:1,height:"calc(100% + 2px)",background:done?C.navy+"30":C.border,zIndex:0}}/>}
+      <div style={{flexShrink:0,width:22,height:22,borderRadius:"50%",background:done?C.navy:active?C.blueBright:C.surface,border:`2px solid ${done?C.navy:active?C.blueBright:C.border}`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,marginRight:10,marginTop:1,color:"#fff"}}>
+        {done?<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>:active?<div style={{width:6,height:6,borderRadius:"50%",background:"#fff"}}/>:<span style={{fontSize:8,fontWeight:700,color:C.textLight}}>{s.step}</span>}
       </div>
       <div style={{flex:1,paddingBottom:isLast?0:14,paddingTop:1,minWidth:0}}>
-        <div style={{fontSize:12,fontWeight:700,color:C.text}}>{d.label} <span style={{fontWeight:500,color:C.textLight,fontSize:11}}>· {fDate(h.date)} {h.time||""}</span></div>
-        {h.note&&<div style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid}}>{h.note}</div>}
+        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+          <span style={{fontSize:12,fontWeight:done||active?700:400,color:done||active?C.text:"#9CA3AF"}}>{s.label}</span>
+          {active&&<span style={{background:C.surface,color:C.blueBright,padding:"1px 7px",borderRadius:4,fontSize:9,fontWeight:700,border:`1px solid ${C.border}`}}>Current</span>}
+        </div>
+        {histEntries.map((h,hi)=><div key={hi} style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid}}>
+          <div style={{marginBottom:3,fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em"}}>{fDate(h.date)} {h.time||""}</div>
+          {h.note&&<div>{h.note}</div>}
+        </div>)}
       </div>
     </div>;
   })}</div>;
@@ -347,25 +354,38 @@ function AdminActions({app,onSaved,onCreateOrder}){
     setSaving(false);setShowReject(false);
   };
 
-  if(app.step===4)return<div style={{fontSize:12,color:"#15803D",fontWeight:600}}>Approved {fDate(app.approvedDate)}{app.linkedOrderId?" — order created on Order page":""}{app.approvedRemark?` — ${app.approvedRemark}`:""}</div>;
-  if(app.step===5)return<div style={{fontSize:12,color:"#DC2626",fontWeight:600}}>Rejected {fDate(app.rejectedDate)} — {app.rejectedRemark}</div>;
+  if(app.step===4)return<ActionBox title="Approved by JCL">
+    <div style={{fontSize:12,color:"#15803D",fontWeight:600}}>Approved {fDate(app.approvedDate)}{app.linkedOrderId?" — order created on Order page":""}{app.approvedRemark?` — ${app.approvedRemark}`:""}</div>
+  </ActionBox>;
+  if(app.step===5)return<ActionBox title="Rejected by JCL">
+    <div style={{fontSize:12,color:"#DC2626",fontWeight:600}}>Rejected {fDate(app.rejectedDate)} — {app.rejectedRemark}</div>
+  </ActionBox>;
 
-  return<div style={{display:"flex",flexDirection:"column",gap:8}}>
-    {app.step===1&&<GBtn onClick={submitToJCL} disabled={saving} style={{fontSize:12}}>{saving?"Saving…":"Submit to JCL"}</GBtn>}
-    {app.step===3&&!app.followUpRespondedDate&&<div style={{fontSize:12,color:"#B45309"}}>Waiting on branch to respond to follow-up request.</div>}
-    {(app.step===2||(app.step===3&&app.followUpRespondedDate))&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-      {!showFollowUp?<GBtn onClick={()=>setShowFollowUp(true)} style={{fontSize:12,color:"#B45309",borderColor:"#FDE68A"}}>Request Follow-Up</GBtn>:null}
-      {!showApprove&&!showReject?<>
-        <PBtn onClick={()=>setShowApprove(true)} style={{fontSize:12,background:"#15803D"}}>Approved by JCL</PBtn>
-        <GBtn onClick={()=>setShowReject(true)} style={{fontSize:12,color:"#DC2626",borderColor:"#FECACA"}}>Rejected by JCL</GBtn>
-      </>:null}
-    </div>}
+  if(app.step===3&&!app.followUpRespondedDate)return<ActionBox title="Follow-Up Required" desc={`What JCL needs: ${app.followUpRemark}`}>
+    <div style={{fontSize:12,color:"#B45309"}}>Waiting on branch to respond to this follow-up request.</div>
+  </ActionBox>;
+
+  if(app.step===1)return<ActionBox title="Next: Submit to JCL" desc="New application ready to be submitted to JCL for review.">
+    <PBtn onClick={submitToJCL} disabled={saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Submit to JCL"}</PBtn>
+  </ActionBox>;
+
+  // step 2, or step 3 with a branch response already in — either way it's
+  // sitting with JCL awaiting a decision.
+  return<ActionBox title="Next: JCL Decision" desc="Waiting for JCL to approve, reject, or request more information on this application.">
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {!showFollowUp&&!showApprove&&!showReject?<>
+          <GBtn onClick={()=>setShowFollowUp(true)} style={{fontSize:12,color:"#B45309",borderColor:"#FDE68A"}}>Request Follow-Up</GBtn>
+          <PBtn onClick={()=>setShowApprove(true)} style={{fontSize:12,background:"#15803D",boxShadow:"none"}}>Approved by JCL</PBtn>
+          <GBtn onClick={()=>setShowReject(true)} style={{fontSize:12,color:"#DC2626",borderColor:"#FECACA"}}>Rejected by JCL</GBtn>
+        </>:null}
+      </div>
     {showFollowUp&&<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
       <L req>Follow-Up Remark (what JCL needs)</L>
       <TX rows={2} value={followUpRemark} onChange={e=>setFollowUpRemark(e.target.value)} style={{marginBottom:8}}/>
       <div style={{display:"flex",gap:8}}>
         <GBtn onClick={()=>setShowFollowUp(false)} style={{fontSize:11,padding:"6px 12px"}}>Cancel</GBtn>
-        <PBtn onClick={requestFollowUp} disabled={saving} style={{fontSize:11,padding:"6px 12px",background:"#B45309"}}>{saving?"Saving…":"Confirm"}</PBtn>
+        <PBtn onClick={requestFollowUp} disabled={saving} style={{fontSize:11,padding:"6px 12px",background:"#B45309",boxShadow:"none"}}>{saving?"Saving…":"Confirm"}</PBtn>
       </div>
     </div>}
     {showApprove&&<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
@@ -374,7 +394,7 @@ function AdminActions({app,onSaved,onCreateOrder}){
       <div style={{fontSize:10,color:C.textLight,marginBottom:8}}>This will automatically create a new CCM order on the Order page, pre-filled with this application's details.</div>
       <div style={{display:"flex",gap:8}}>
         <GBtn onClick={()=>setShowApprove(false)} style={{fontSize:11,padding:"6px 12px"}}>Cancel</GBtn>
-        <PBtn onClick={approve} disabled={saving} style={{fontSize:11,padding:"6px 12px",background:"#15803D"}}>{saving?"Saving…":"Confirm Approval"}</PBtn>
+        <PBtn onClick={approve} disabled={saving} style={{fontSize:11,padding:"6px 12px",background:"#15803D",boxShadow:"none"}}>{saving?"Saving…":"Confirm Approval"}</PBtn>
       </div>
     </div>}
     {showReject&&<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
@@ -385,12 +405,20 @@ function AdminActions({app,onSaved,onCreateOrder}){
         <DBtnLocal onClick={reject} disabled={saving}>{Ic.x} {saving?"Saving…":"Confirm Rejection"}</DBtnLocal>
       </div>
     </div>}
-  </div>;
+    </div>
+  </ActionBox>;
 }
 
 /* ── Detail view — click a row to get here, same idea as the Order page ─ */
-function DetailSecHdr({children}){
-  return<div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>{children}</div>;
+function DetailSecHdr({icon,children}){
+  return<div style={{display:"flex",alignItems:"center",gap:7,padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>{icon&&<span style={{color:"rgba(255,255,255,.85)"}}>{icon}</span>}{children}</div>;
+}
+function ActionBox({icon,title,desc,children}){
+  return<div style={card}>
+    <DetailSecHdr icon={icon}>{title}</DetailSecHdr>
+    {desc&&<div style={{padding:"8px 16px",fontSize:11,color:C.textMid,background:C.surface,borderBottom:`1px solid ${C.border}`}}>{desc}</div>}
+    <div style={{padding:"14px 16px"}}>{children}</div>
+  </div>;
 }
 function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDelete,onEdit,onCreateOrder,fileUrls}){
   const InfoCell=({label,value})=><div style={{minWidth:0,padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
@@ -526,20 +554,16 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
       <div style={{padding:"4px 16px 12px"}}><InfoCell label="Address" value={app.ec2Address}/></div>
     </div>
 
-    <div className="detail-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-      <div style={card}>
-        <DetailSecHdr>Tracking Timeline</DetailSecHdr>
-        <div style={{padding:"14px 16px"}}><Timeline app={app}/></div>
-      </div>
-      <div style={card}>
-        <DetailSecHdr>Action</DetailSecHdr>
-        <div style={{padding:"14px 16px"}}>
-          {app.step===3&&!app.followUpRespondedDate&&!isAdmin&&<FollowUpResponseBox app={app} onSaved={onSaved}/>}
-          {isAdmin&&<AdminActions app={app} onSaved={onSaved} onCreateOrder={onCreateOrder}/>}
-          {!isAdmin&&!(app.step===3&&!app.followUpRespondedDate)&&<div style={{fontSize:12,color:C.textLight}}>No action needed from your side right now — admin handles the rest of this application.</div>}
-        </div>
-      </div>
+    <div style={{...card,marginBottom:14}}>
+      <DetailSecHdr icon={Ic.fileText}>Tracking Timeline</DetailSecHdr>
+      <div style={{padding:"14px 16px"}}><Timeline app={app}/></div>
     </div>
+
+    {isAdmin&&<AdminActions app={app} onSaved={onSaved} onCreateOrder={onCreateOrder}/>}
+    {!isAdmin&&app.step===3&&!app.followUpRespondedDate&&<FollowUpResponseBox app={app} onSaved={onSaved}/>}
+    {!isAdmin&&!(app.step===3&&!app.followUpRespondedDate)&&<ActionBox title="Action">
+      <div style={{fontSize:12,color:C.textLight}}>No action needed from your side right now — admin handles the rest of this application.</div>
+    </ActionBox>}
   </div>;
 }
 
@@ -705,15 +729,13 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
 
     {(isAdmin||userBranch)&&<div style={{marginBottom:10}}><PBtn onClick={()=>{setEditingApp(null);setView("form");}} style={{background:C.navy,boxShadow:"0 2px 8px rgba(10,22,40,.35)"}}>{Ic.plus} New Application</PBtn></div>}
 
-    <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10,flexWrap:"wrap"}}>
-      <I value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by customer name or IC…" style={{flex:1,minWidth:200}}/>
-      {!userBranch&&<SEL value={branchFilter} onChange={e=>setBranchFilter(e.target.value)} style={{width:"auto",minWidth:140}}>
+    <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+      <I value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by customer name or IC…" style={{flex:2,minWidth:160}}/>
+      {!userBranch&&<SEL value={branchFilter} onChange={e=>setBranchFilter(e.target.value)} style={{flex:1,minWidth:120}}>
         <option value="all">All Branches</option>
         {sellingBranches(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}
       </SEL>}
-    </div>
-    <div style={{marginBottom:14}}>
-      <SEL value={agentFilter} onChange={e=>setAgentFilter(e.target.value)} style={{width:"auto",minWidth:140}}>
+      <SEL value={agentFilter} onChange={e=>setAgentFilter(e.target.value)} style={{flex:1,minWidth:140}}>
         <option value="all">All Agents</option>
         {agentOptions.map(a=><option key={a} value={a}>{a}</option>)}
       </SEL>
