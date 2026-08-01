@@ -9,6 +9,7 @@ export default defineConfig({
         main:  'index.html',
         boss:  'boss.html',
         manager: 'manager.html',
+        hr: 'hr.html',
         order: 'order.html',
         km:    'branch-KM.html',
         t1:    'branch-T1.html',

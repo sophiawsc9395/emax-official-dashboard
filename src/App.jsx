@@ -100,7 +100,7 @@ const DEFAULT_BRANCH_META={
   SDK:{name:"EC SDK",manager:"",mStatus:""},
 };
 
-const DEFAULT_SR=[
+export const DEFAULT_SR=[
   {id:"EM0285",canon:"ESTHER",branch:"KM",type:"Online",status:"Confirmed (P4 F0)"},
   {id:"EM0264",canon:"LYFIE MIEHCHIE",branch:"KM",type:"Offline",status:"Confirmed (P5 F0)"},
   {id:"EM0069",canon:"EFFIEARZERRA",branch:"KM",type:"Offline",status:"Confirmed (P5 F0)"},
@@ -138,7 +138,25 @@ const DEFAULT_SR=[
   {id:"EM0290",canon:"ABD FERHAN",branch:"TENOM",type:"Online",status:"Probation (P0 F0)"},
 ];
 
-const STORE_KEY="emax_v5_records",SR_KEY="emax_v5_sr_list",BM_KEY="emax_v5_branch_meta",REPAIR_KEY="emax_v5_repair";
+export const DEFAULT_TARGETS = {
+  bm:{KM:50000,T1:50000,TW2:50000,TW1:55000,LD:45000,KB:50000,T5:38000,ITCC:50000,TENOM:45000,HQ:36000},
+  bmBonus:{KM:0,T1:0,TW2:0,TW1:0,LD:0,KB:0,T5:0,ITCC:0,TENOM:0,HQ:0},
+  bmBasic:{KM:0,T1:0,TW2:0,TW1:0,LD:0,KB:0,T5:0,ITCC:0,TENOM:0,HQ:0},
+  sr:{
+    EM0285:{target:12250,bonus:500},EM0264:{target:12250,bonus:500},EM0069:{target:12250,bonus:500},EM0243:{target:12250,bonus:500},EM0187:{target:6000,bonus:0},
+    EM0033:{target:27000,bonus:600},EM0045:{target:7000,bonus:400},EM0056:{target:7000,bonus:400},EM0078:{target:7000,bonus:300},EM0089:{target:7000,bonus:300},
+    EM0090:{target:16000,bonus:500},EM0103:{target:16000,bonus:500},EM0112:{target:16000,bonus:500},EM0121:{target:7000,bonus:500},
+    EM0197:{target:21000,bonus:600},EM0229:{target:21000,bonus:600},EM0231:{target:6000,bonus:0},EM0232:{target:6000,bonus:300},EM0233:{target:6000,bonus:0},
+    EM0282:{target:12500,bonus:500},EM0299:{target:12500,bonus:500},EM0300:{target:12500,bonus:500},EM0301:{target:12500,bonus:500},
+    EM0204:{target:18334,bonus:500},EM0236:{target:18334,bonus:500},EM0267:{target:18334,bonus:500},
+    EM0199:{target:21500,bonus:500},EM0306:{target:21500,bonus:500},
+    EM0253:{target:18300,bonus:500},EM0281:{target:18400,bonus:500},EM0305:{target:18300,bonus:500},
+    EM0240:{target:18000,bonus:700},EM0263:{target:18000,bonus:700},EM0270:{target:7000,bonus:300},EM0290:{target:7000,bonus:300},
+  }
+};
+
+
+export const STORE_KEY="emax_v5_records",SR_KEY="emax_v5_sr_list",BM_KEY="emax_v5_branch_meta",REPAIR_KEY="emax_v5_repair";
 
 // Resolves which branch/role/status applied to an SR during a SPECIFIC
 // month, using their progressionHistory (if any) — walks backward to the
@@ -150,7 +168,7 @@ const STORE_KEY="emax_v5_records",SR_KEY="emax_v5_sr_list",BM_KEY="emax_v5_branc
 // past months are read — only the month a change was made effective from
 // onward sees the new branch/role/status; everything before it keeps
 // reading whatever was actually true at the time.
-function resolveSRForMonth(sr,year,month){
+export function resolveSRForMonth(sr,year,month){
   const ym=`${year}-${String(month).padStart(2,"0")}`;
   const hist=sr.progressionHistory||[];
   const applicable=hist.filter(h=>h.effectiveFrom<=ym).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom));
@@ -1005,7 +1023,7 @@ function UploadPanel({records,setRecords,srList,defaultBranch,recordsKey:rKey}){
 }
 
 // ─── TARGET MODAL ──────────────────────────────────────────
-function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,currentYear,onSaveForMonth,onConvertBMtoSR}){
+export function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,currentYear,onSaveForMonth}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [tgtMonth,setTgtMonth]=useState(currentMonth);
   const [tgtYear,setTgtYear]=useState(currentYear);
@@ -1036,7 +1054,6 @@ function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,
   const setBM=(b,v)=>setLocal(p=>({...p,bm:{...p.bm,[b]:parseFloat(v)||0}}));
   const setBMB=(b,v)=>setLocal(p=>({...p,bmBonus:{...p.bmBonus,[b]:parseFloat(v)||0}}));
   const setBMBasic=(b,v)=>setLocal(p=>({...p,bmBasic:{...(p.bmBasic||{}),[b]:parseFloat(v)||0}}));
-  const setBMName=(b,v)=>setLocal(p=>({...p,bmName:{...(p.bmName||{}),[b]:v}}));
   const setSR=(id,field,v)=>setLocal(p=>({...p,sr:{...p.sr,[id]:{...p.sr?.[id],[field]:parseFloat(v)||0}}}));
 
   const branches=selBranch==="ALL"?BRANCH_ORDER:[selBranch];
@@ -1074,41 +1091,17 @@ function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,
           <p style={{fontSize:11,color:"#8A96A8",marginBottom:16}}>Each branch shows BM settings followed by SR targets. Achievement bonus auto-calculated.</p>
           {branches.map(b=>{
             const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,tgtMonth,tgtYear));
-            const bmName=local.bmName?.[b]??branchMeta[b]?.manager??"";
-            const allStaffNames=[...srList.map(s=>s.canon),...BRANCH_ORDER.map(br=>branchMeta[br]?.manager).filter(Boolean)].filter((v,i,a)=>v&&a.indexOf(v)===i).sort();
-            const curBMStatus=local.bmStatus?.[b]??branchMeta[b]?.mStatus??"Probation (P0 F0)";
-            const bps=parseStatus(curBMStatus);
-            const setBS=(v)=>setLocal(p=>({...p,bmStatus:{...(p.bmStatus||{}),[b]:v}}));
+            const bmName=branchMeta[b]?.manager??"";
             return <div key={b} style={{marginBottom:24,border:"1px solid #E4EAF2",borderRadius:12,overflow:"hidden"}}>
               {/* Branch header */}
               <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>{branchMeta[b]?.name}</div>
+                <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>{branchMeta[b]?.name}{bmName&&<span style={{fontWeight:500,color:"rgba(255,255,255,.5)"}}> — {bmName}</span>}</div>
                 <div style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>{b}</div>
               </div>
-              {/* BM settings */}
+              {/* BM targets */}
               <div style={{padding:"14px 16px",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2"}}>
+                <div style={{fontSize:10,fontWeight:700,color:"#1E6FDB",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>Branch Manager Targets</div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
-                  <div>
-                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch Manager</label>
-                    <select className="input select" value={bmName} onChange={e=>setBMName(b,e.target.value)} style={{fontSize:12}}>
-                      <option value="">— Select Staff —</option>
-                      {allStaffNames.map(n=><option key={n} value={n}>{n}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>BM Status</label>
-                    <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
-                      <select className="input select" value={bps.base} onChange={e=>setBS(buildStatus(e.target.value,bps.p,bps.f))} style={{width:"auto",minWidth:90,padding:"4px 20px 4px 6px",fontSize:11}}>
-                        {["Probation","Confirmed","Director","Resigned"].map(s=><option key={s} value={s}>{s}</option>)}
-                      </select>
-                      {bps.base!=="Director"&&bps.base!=="Resigned"&&<>
-                        <span style={{fontSize:10,color:"#8A96A8"}}>P</span>
-                        <input type="number" min="0" className="input" value={bps.p} onChange={e=>setBS(buildStatus(bps.base,Math.max(0,parseInt(e.target.value)||0),bps.f))} style={{width:38,padding:"4px",fontSize:11,textAlign:"center"}}/>
-                        <span style={{fontSize:10,color:"#8A96A8"}}>F</span>
-                        <input type="number" min="0" className="input" value={bps.f} onChange={e=>setBS(buildStatus(bps.base,bps.p,Math.max(0,parseInt(e.target.value)||0)))} style={{width:38,padding:"4px",fontSize:11,textAlign:"center"}}/>
-                      </>}
-                    </div>
-                  </div>
                   <div>
                     <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch Target (RM)</label>
                     <input className="input" type="number" value={local.bm?.[b]||""} onChange={e=>setBM(b,e.target.value)} placeholder="0" style={{fontSize:12}}/>
@@ -1122,13 +1115,6 @@ function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,
                     <input className="input" type="number" value={local.bmBasic?.[b]||""} onChange={e=>setBMBasic(b,e.target.value)} placeholder="0" style={{fontSize:12}}/>
                   </div>
                 </div>
-                {onConvertBMtoSR&&bmName&&<button onClick={()=>{
-                  if(!confirm(`Convert "${bmName}" from BM to SR for ${MONTHS_LABEL[tgtMonth-1]} ${tgtYear} onwards?`))return;
-                  onConvertBMtoSR(b,bmName,curBMStatus,tgtMonth,tgtYear);
-                  setLocal(p=>({...p,bmName:{...(p.bmName||{}),[b]:""},bmStatus:{...(p.bmStatus||{}),[b]:""}}));
-                }} style={{marginTop:10,padding:"6px 14px",fontSize:11,fontWeight:700,border:"1px solid #F59E0B",borderRadius:7,background:"#FFFBEB",color:"#92400E",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
-                  ⇄ Move {bmName} to SR from {MONTHS_LABEL[tgtMonth-1]} {tgtYear}
-                </button>}
               </div>
               {/* SR targets */}
               {bSRs.length>0&&<div style={{padding:"12px 16px"}}>
@@ -1253,13 +1239,13 @@ function AdjustBalanceWidget({personId,balance,adjustBalance}){
   </div>;
 }
 
-function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,migrateRecordsForMonth}){
+export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,migrateRecordsForMonth}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [tab,setTab]=useState("bm");
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
   const [localSR,setLocalSR]=useState(JSON.parse(JSON.stringify(srList)));
   const [editSR,setEditSR]=useState(null);
-  const [progressionSR,setProgressionSR]=useState(null);
+  const [updatePerson,setUpdatePerson]=useState(null);
   const [editSRId,setEditSRId]=useState(null); // {oldId, value} — separate from editSR (name) since renaming an ID needs its own validation/migration path
   const [srIdError,setSrIdError]=useState(null);
   const [showFixRecords,setShowFixRecords]=useState(false);
@@ -1338,42 +1324,96 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
     setStatusHistory(newHist);
     await saveData("emax_v5_status_history",newHist);
   };
-  // Records a progression change (resignation, confirmation, SR↔BM role
-  // change) with an effective month, WITHOUT touching how any past month
-  // reads this SR — resolveSRForMonth() is what makes historical reports
-  // keep seeing the old branch/role/status for months before effectiveFrom.
-  // Only updates the SR's flat "current" fields if the change is effective
-  // now or in the past, so the rest of the app (which reads sr.branch/
-  // sr.status directly) reflects it immediately; a future-dated change is
-  // recorded but the flat fields stay as-is until that month arrives.
-  const saveProgressionChange=async(id,{effectiveFrom,branch,role,status})=>{
+  // Handles every kind of staff update from the unified panel: a plain
+  // status/branch/type change, or a role change bridging SR list and
+  // branchMeta correctly in either direction (SR promoted to Branch
+  // Manager, or Branch Manager moved back to a regular SR) — something the
+  // two data structures never automatically kept in sync before. Only
+  // touches the "current" flat state if effectiveFrom is now or in the
+  // past; a future-dated change is recorded in history only, same
+  // now-vs-past-vs-future rule as everything else here.
+  const saveStaffUpdate=async(person,{effectiveFrom,newRole,newBranch,newType,status})=>{
     const nowYM=`${year}-${String(month).padStart(2,"0")}`;
-    const entry={effectiveFrom,branch:branch||undefined,role:role||undefined,status,loggedAt:new Date().toISOString()};
-    const updated=localSR.map(s=>{
-      if(s.id!==id)return s;
-      const nextHist=[...(s.progressionHistory||[]),entry];
-      const isNowOrPast=effectiveFrom<=nowYM;
-      return{
+    const isNowOrPast=effectiveFrom<=nowYM;
+    const isSR=person.kind==="sr";
+    const roleChanging=newRole!==(isSR?"sr":"bm");
+    const historyKey=isSR?person.sr.id:`BM_${person.branch}`;
+    const resolvedStatus=status==="continue"?(isSR?person.sr.status:person.status):status;
+    const logNote=(parts)=>{
+      const hist=statusHistory[historyKey]||[];
+      const note=`Staff update (effective ${effectiveFrom}): ${parts.join(", ")}`;
+      const newHist={...statusHistory,[historyKey]:[...hist,{date:new Date().toISOString(),status:status==="continue"?"—":status,note}]};
+      setStatusHistory(newHist);
+      saveData("emax_v5_status_history",newHist);
+    };
+
+    if(isSR&&!roleChanging){
+      const sr=person.sr;
+      const entry={effectiveFrom,branch:newBranch!==sr.branch?newBranch:undefined,status:resolvedStatus,loggedAt:new Date().toISOString()};
+      const updated=localSR.map(s=>s.id!==sr.id?s:{
         ...s,
-        progressionHistory:nextHist,
-        ...(isNowOrPast?{
-          branch:branch||s.branch,
-          role:role||s.role||"sr",
-          status:status==="continue"?s.status:status,
-        }:{}),
-      };
-    });
-    setLocalSR(updated);
-    await saveSR(updated);
-    const hist=statusHistory[id]||[];
-    const parts=[];
-    if(branch)parts.push(`branch → ${branch}`);
-    if(role)parts.push(`role → ${role==="bm"?"Branch Manager":"SR"}`);
-    if(status)parts.push(status==="continue"?"employment status unchanged":`status → ${status}`);
-    const noteStr=`Progression update (effective ${effectiveFrom}): ${parts.join(", ")}`;
-    const newHist={...statusHistory,[id]:[...hist,{date:new Date().toISOString(),status:status==="continue"?"—":status,note:noteStr}]};
-    setStatusHistory(newHist);
-    await saveData("emax_v5_status_history",newHist);
+        progressionHistory:[...(s.progressionHistory||[]),entry],
+        ...(isNowOrPast?{branch:newBranch,status:resolvedStatus}:{}),
+      });
+      setLocalSR(updated);
+      await saveSR(updated);
+      if(isNowOrPast&&newType&&newType!==sr.type){
+        const typeKey=`emax_v5_sr_types_${nowYM.split("-")[0]}_${parseInt(nowYM.split("-")[1])}`;
+        const curTypes=(await loadData(typeKey))||{};
+        await saveData(typeKey,{...curTypes,[sr.id]:newType});
+      }
+      logNote([newBranch!==sr.branch?`branch → ${newBranch}`:null,`status → ${resolvedStatus}`].filter(Boolean));
+
+    }else if(isSR&&roleChanging){
+      // SR → Branch Manager
+      const sr=person.sr;
+      if(isNowOrPast){
+        const updatedMeta={...localBM,[newBranch]:{...localBM[newBranch],manager:sr.canon,mStatus:resolvedStatus}};
+        setLocalBM(updatedMeta);
+        setBranchMeta(updatedMeta);
+        await saveData(BM_KEY,updatedMeta);
+        const updated=localSR.map(s=>s.id!==sr.id?s:{
+          ...s,
+          status:"Promoted to Branch Manager",
+          progressionHistory:[...(s.progressionHistory||[]),{effectiveFrom,role:"bm",branch:newBranch,status:resolvedStatus,loggedAt:new Date().toISOString()}],
+        });
+        setLocalSR(updated);
+        await saveSR(updated);
+      }else{
+        const updated=localSR.map(s=>s.id!==sr.id?s:{...s,progressionHistory:[...(s.progressionHistory||[]),{effectiveFrom,role:"bm",branch:newBranch,status:resolvedStatus,loggedAt:new Date().toISOString()}]});
+        setLocalSR(updated);
+        await saveSR(updated);
+      }
+      logNote([`role → Branch Manager (${branchMeta[newBranch]?.name||newBranch})`,`status → ${resolvedStatus}`]);
+
+    }else if(!isSR&&!roleChanging){
+      const b=person.branch;
+      if(isNowOrPast){
+        const updatedMeta={...localBM,[b]:{...localBM[b],mStatus:resolvedStatus}};
+        setLocalBM(updatedMeta);
+        setBranchMeta(updatedMeta);
+        await saveData(BM_KEY,updatedMeta);
+      }
+      logNote([`status → ${resolvedStatus}`]);
+
+    }else{
+      // Branch Manager → SR
+      const b=person.branch;
+      if(isNowOrPast){
+        let newId="BM"+b+nowYM.replace("-","");
+        let suffix=1;
+        while(localSR.find(s=>s.id===newId)){newId="BM"+b+nowYM.replace("-","")+"_"+suffix;suffix++;}
+        const newSR={id:newId,canon:person.name,branch:b,type:newType||"Online",status:resolvedStatus,joinDate:effectiveFrom};
+        const updatedSRList=[...localSR,newSR];
+        setLocalSR(updatedSRList);
+        await saveSR(updatedSRList);
+        const updatedMeta={...localBM,[b]:{...localBM[b],manager:"",mStatus:""}};
+        setLocalBM(updatedMeta);
+        setBranchMeta(updatedMeta);
+        await saveData(BM_KEY,updatedMeta);
+      }
+      logNote([`role → SR`,`status → ${resolvedStatus}`]);
+    }
   };
   const saveBMStatus=async(b,newStatus,desc)=>{
     const updatedMeta={...branchMeta,[b]:{...branchMeta[b],mStatus:newStatus}};
@@ -1507,177 +1547,178 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
         {BRANCH_ORDER.map(b=>{
           const {active,resigned}=allStaffForBranch(b);
           const bm=localBM[b];
-          return <div key={b} style={{marginBottom:28}}>
+          return <div key={b} style={{marginBottom:20,border:"1px solid #E4EAF2",borderRadius:14,overflow:"hidden",boxShadow:"0 1px 3px rgba(10,22,40,.05)"}}>
             {/* Branch header */}
-            <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",borderRadius:"10px 10px 0 0",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>{bm?.name||b}</div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>{b}</div>
+            <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"12px 18px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontWeight:800,fontSize:14,color:"#fff"}}>{branchMeta[b]?.name||b}</div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>{active.length} SR{active.length!==1?"s":""}</div>
             </div>
 
-            {/* BM row */}
-            <div style={{background:"#0F2040",padding:"10px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-              <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em",minWidth:24}}>BM</div>
-              <div style={{flex:1,minWidth:140}}>
-                <input className="input" value={bm?.manager||""} onChange={e=>setLocalBM(p=>({...p,[b]:{...p[b],manager:e.target.value}}))} placeholder="Branch Manager Name" style={{fontSize:12,background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.15)",color:"#fff",width:"100%"}}/>
+            {/* BM card */}
+            <div style={{padding:"14px 18px",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
+              <div style={{width:34,height:34,borderRadius:10,background:"#EFF6FF",color:"#1E6FDB",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:11,flexShrink:0}}>BM</div>
+              <div style={{flex:1,minWidth:160}}>
+                <input className="input" value={bm?.manager||""} onChange={e=>setLocalBM(p=>({...p,[b]:{...p[b],manager:e.target.value}}))} onBlur={saveBM} placeholder="Branch Manager Name" style={{fontSize:13,fontWeight:700,border:"none",background:"transparent",padding:"2px 0",width:"100%"}}/>
+                <div style={{fontSize:11,color:"#8A96A8",marginTop:2}}>{bm?.mStatus||"No status set"}</div>
               </div>
-              <div style={{minWidth:200}}>
-                <StatusEditWidget status={bm?.mStatus||""} onSave={(newStatus,desc)=>saveBMStatus(b,newStatus,desc)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(`BM_${b}`);setShowStatusHistoryModal(true);}:null}/>
-              </div>
-              <div style={{minWidth:160}}>
-                <AdjustBalanceWidget personId={`BM_${b}`} balance={rewardBalances?.[`BM_${b}`]?.balance||0} adjustBalance={adjustBalance}/>
-              </div>
-              <button className="btn btn-primary" onClick={saveBM} style={{fontSize:11,padding:"5px 12px",flexShrink:0}}>{saved?"Saved!":"Save BM"}</button>
+              <AdjustBalanceWidget personId={`BM_${b}`} balance={rewardBalances?.[`BM_${b}`]?.balance||0} adjustBalance={adjustBalance}/>
+              {bm?.manager&&<button className="btn" onClick={()=>setUpdatePerson({kind:"bm",branch:b,name:bm.manager,status:bm.mStatus})} style={{fontSize:11,padding:"6px 12px"}}>Update</button>}
+              {setShowStatusHistoryModal&&<button className="btn btn-ghost" onClick={()=>{setStatusModalPerson(`BM_${b}`);setShowStatusHistoryModal(true);}} style={{fontSize:11,padding:"6px 10px"}}>History</button>}
             </div>
 
-            {/* SR rows */}
-            {active.length>0&&<div style={{border:"1px solid #E4EAF2",borderTop:"none",borderRadius:"0 0 0 0",overflow:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:700}}>
-                <thead><tr style={{background:"#F7F9FC"}}>
-                  <th style={{padding:"7px 12px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>ID</th>
-                  <th style={{padding:"7px 12px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Name</th>
-                  <th style={{padding:"7px 12px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Type ({MONTHS_LABEL[typeMonth-1].slice(0,3)} {typeYear})</th>
-                  <th style={{padding:"7px 12px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Start</th>
-                  <th style={{padding:"7px 12px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Status</th>
-                  <th style={{padding:"7px 12px",textAlign:"left",fontWeight:700,fontSize:10,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Points</th>
-                  <th/>
-                </tr></thead>
-                <tbody>{active.map((sr,i)=>(
-                  <tr key={sr.id} style={{borderTop:"1px solid #F0F2F5",background:i%2===0?"#fff":"#FAFBFC"}}>
-                    <td style={{padding:"7px 12px",color:"#8A96A8",fontSize:10}}>
+            {/* Active SR cards */}
+            {active.length>0&&<div style={{padding:"14px 18px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:10}}>
+              {active.map(sr=>(
+                <div key={sr.id} style={{border:"1px solid #E4EAF2",borderRadius:10,padding:12,background:"#fff"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6,gap:8}}>
+                    <div style={{minWidth:0,flex:1}}>
+                      {editSR?.id===sr.id
+                        ?<input autoFocus className="input" style={{width:"100%",padding:"3px 7px",fontSize:13,fontWeight:700}} value={editSR.canon} onChange={e=>setEditSR(p=>({...p,canon:e.target.value.toUpperCase()}))} onBlur={async()=>{await updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}} onKeyDown={e=>{if(e.key==="Enter"){updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}if(e.key==="Escape")setEditSR(null);}}/>
+                        :<div style={{fontWeight:700,fontSize:13,color:"#0A1628",cursor:"pointer"}} onClick={()=>setEditSR({...sr})} title="Click to edit name">{sr.canon}</div>}
                       {editSRId?.oldId===sr.id
-                        ?<div style={{display:"flex",flexDirection:"column",gap:2}}>
-                          <input autoFocus className="input" style={{width:80,padding:"3px 7px",fontSize:11}} value={editSRId.value} onChange={e=>{setEditSRId(p=>({...p,value:e.target.value}));setSrIdError(null);}} onKeyDown={e=>{
-                            if(e.key==="Enter")trySaveSRId(sr.id,editSRId.value);
-                            if(e.key==="Escape"){setEditSRId(null);setSrIdError(null);}
-                          }}/>
+                        ?<div style={{display:"flex",flexDirection:"column",gap:2,marginTop:3}}>
+                          <input autoFocus className="input" style={{width:90,padding:"2px 6px",fontSize:10}} value={editSRId.value} onChange={e=>{setEditSRId(p=>({...p,value:e.target.value}));setSrIdError(null);}} onKeyDown={e=>{if(e.key==="Enter")trySaveSRId(sr.id,editSRId.value);if(e.key==="Escape"){setEditSRId(null);setSrIdError(null);}}}/>
                           <div style={{display:"flex",gap:4}}>
                             <button onClick={()=>trySaveSRId(sr.id,editSRId.value)} style={{fontSize:9,padding:"1px 6px",background:"#1E6FDB",color:"#fff",border:"none",borderRadius:4,cursor:"pointer"}}>Save</button>
                             <button onClick={()=>{setEditSRId(null);setSrIdError(null);}} style={{fontSize:9,padding:"1px 6px",background:"none",border:"1px solid #E4EAF2",borderRadius:4,cursor:"pointer",color:"#8A96A8"}}>✕</button>
                           </div>
-                          {srIdError&&<div style={{fontSize:9,color:"#DC2626",maxWidth:100}}>{srIdError}</div>}
+                          {srIdError&&<div style={{fontSize:9,color:"#DC2626"}}>{srIdError}</div>}
                         </div>
-                        :<span style={{cursor:"pointer",borderBottom:"1px dashed #E4EAF2"}} title="Click to edit ID — only changes tracking in this dashboard; won't update past Order Tracking records" onClick={()=>{setEditSRId({oldId:sr.id,value:sr.id});setSrIdError(null);}}>{sr.id}</span>}
-                    </td>
-                    <td style={{padding:"7px 12px"}}>
-                      {editSR?.id===sr.id
-                        ?<input autoFocus className="input" style={{width:140,padding:"3px 7px",fontSize:12}} value={editSR.canon} onChange={e=>setEditSR(p=>({...p,canon:e.target.value.toUpperCase()}))} onBlur={async()=>{await updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}} onKeyDown={e=>{if(e.key==="Enter"){updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}if(e.key==="Escape")setEditSR(null);}}/>
-                        :<span style={{fontWeight:700,color:"#0A1628",cursor:"pointer",borderBottom:"1px dashed #E4EAF2"}} onClick={()=>setEditSR({...sr})}>{sr.canon}</span>}
-                    </td>
-                    <td style={{padding:"7px 12px"}}>
-                      <select className="input select" value={getType(sr)} onChange={e=>setTypeOverride(sr.id,e.target.value)} style={{width:"auto",padding:"3px 20px 3px 6px",fontSize:11,background:typeOverrides[sr.id]?"#EFF6FF":"",borderColor:typeOverrides[sr.id]?"#1E6FDB":""}}>
-                        <option value="Online">Online</option><option value="Offline">Offline</option>
-                      </select>
-                    </td>
-                    <td style={{padding:"7px 12px",fontSize:11,color:"#4A5568"}}>{sr.joinDate?sr.joinDate.replace(/(\d{4})-(\d{2})/,(f,y,m)=>["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m-1]+" "+y):"—"}</td>
-                    <td style={{padding:"7px 12px"}}><StatusEditWidget status={sr.status} onSave={(newStatus,desc,rd)=>saveSRStatus(sr.id,newStatus,desc,rd)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}:null}/></td>
-                    <td style={{padding:"7px 12px"}}><AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/></td>
-                    <td style={{padding:"7px 12px",textAlign:"right"}}><button className="btn" onClick={()=>setProgressionSR(sr)} style={{fontSize:10,padding:"3px 8px",marginRight:4}}>Progression</button><button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"3px 8px"}}>Remove</button></td>
-                  </tr>
-                ))}</tbody>
-              </table>
+                        :<div style={{fontSize:10,color:"#8A96A8",cursor:"pointer",marginTop:2}} onClick={()=>{setEditSRId({oldId:sr.id,value:sr.id});setSrIdError(null);}} title="Click to edit ID">{sr.id}</div>}
+                    </div>
+                    <TypeTag type={getType(sr)}/>
+                  </div>
+                  <div style={{fontSize:11,color:"#4A5568",marginBottom:4}}>Joined {sr.joinDate?sr.joinDate.replace(/(\d{4})-(\d{2})/,(f,y,m)=>["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m-1]+" "+y):"—"}</div>
+                  <div style={{fontSize:11,color:"#0A1628",fontWeight:600,marginBottom:8}}>{sr.status||"—"}</div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,flexWrap:"wrap"}}>
+                    <AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/>
+                    <div style={{display:"flex",gap:4}}>
+                      <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} style={{fontSize:10,padding:"4px 9px"}}>Update</button>
+                      <button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"4px 9px"}}>Remove</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>}
 
-            {/* Resigned rows */}
-            {resigned.length>0&&<div style={{border:"1px solid #FECACA",borderTop:"none",borderRadius:"0 0 10px 10px",overflow:"auto"}}>
-              <div style={{padding:"5px 12px",background:"#FEF2F2",fontSize:10,fontWeight:700,color:"#B91C1C",textTransform:"uppercase",letterSpacing:"0.07em"}}>Resigned ({resigned.length})</div>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:700}}>
-                <tbody>{resigned.map((sr,i)=>(
-                  <tr key={sr.id} style={{borderTop:"1px solid #FEE2E2",background:i%2===0?"#FFF5F5":"#FEF2F2"}}>
-                    <td style={{padding:"7px 12px",color:"#B91C1C",fontSize:10}}>
-                      {editSRId?.oldId===sr.id
-                        ?<div style={{display:"flex",flexDirection:"column",gap:2}}>
-                          <input autoFocus className="input" style={{width:80,padding:"3px 7px",fontSize:11}} value={editSRId.value} onChange={e=>{setEditSRId(p=>({...p,value:e.target.value}));setSrIdError(null);}} onKeyDown={e=>{
-                            if(e.key==="Enter")trySaveSRId(sr.id,editSRId.value);
-                            if(e.key==="Escape"){setEditSRId(null);setSrIdError(null);}
-                          }}/>
-                          <div style={{display:"flex",gap:4}}>
-                            <button onClick={()=>trySaveSRId(sr.id,editSRId.value)} style={{fontSize:9,padding:"1px 6px",background:"#1E6FDB",color:"#fff",border:"none",borderRadius:4,cursor:"pointer"}}>Save</button>
-                            <button onClick={()=>{setEditSRId(null);setSrIdError(null);}} style={{fontSize:9,padding:"1px 6px",background:"none",border:"1px solid #FECACA",borderRadius:4,cursor:"pointer",color:"#B91C1C"}}>✕</button>
-                          </div>
-                          {srIdError&&<div style={{fontSize:9,color:"#DC2626",maxWidth:100}}>{srIdError}</div>}
-                        </div>
-                        :<span style={{cursor:"pointer",borderBottom:"1px dashed #FECACA"}} title="Click to edit ID — only changes tracking in this dashboard; won't update past Order Tracking records" onClick={()=>{setEditSRId({oldId:sr.id,value:sr.id});setSrIdError(null);}}>{sr.id}</span>}
-                    </td>
-                    <td style={{padding:"7px 12px",fontWeight:700,color:"#7F1D1D"}}>{sr.canon}</td>
-                    <td style={{padding:"7px 12px",color:"#B91C1C",fontSize:11}}>{sr.type}</td>
-                    <td style={{padding:"7px 12px",color:"#B91C1C",fontSize:11}}>{sr.resignDate?sr.resignDate.split("-").reverse().join("/"):"—"}</td>
-                    <td style={{padding:"7px 12px"}}><StatusEditWidget status={sr.status} onSave={(newStatus,desc,rd)=>saveSRStatus(sr.id,newStatus,desc,rd)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}:null}/></td>
-                    <td style={{padding:"7px 12px"}}><AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/></td>
-                    <td style={{padding:"7px 12px",textAlign:"right"}}><button className="btn" onClick={()=>setProgressionSR(sr)} style={{fontSize:10,padding:"3px 8px",marginRight:4}}>Progression</button><button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"3px 8px"}}>Remove</button></td>
-                  </tr>
-                ))}</tbody>
-              </table>
+            {/* Resigned / inactive */}
+            {resigned.length>0&&<div style={{borderTop:"1px solid #FECACA",background:"#FFF9F9"}}>
+              <div style={{padding:"6px 18px",fontSize:10,fontWeight:700,color:"#B91C1C",textTransform:"uppercase",letterSpacing:"0.07em"}}>Resigned / Inactive ({resigned.length})</div>
+              <div style={{padding:"0 18px 14px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:8}}>
+                {resigned.map(sr=>(
+                  <div key={sr.id} style={{border:"1px solid #FECACA",borderRadius:10,padding:10,background:"#fff"}}>
+                    <div style={{fontWeight:700,fontSize:12,color:"#7F1D1D"}}>{sr.canon}</div>
+                    <div style={{fontSize:10,color:"#B91C1C",marginBottom:4}}>{sr.id} · {sr.type}{sr.resignDate?` · Resigned ${sr.resignDate.split("-").reverse().join("/")}`:""}</div>
+                    <div style={{fontSize:11,color:"#B91C1C",marginBottom:8}}>{sr.status}</div>
+                    <div style={{display:"flex",gap:4}}>
+                      <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} style={{fontSize:10,padding:"4px 9px"}}>Update</button>
+                      <button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"4px 9px"}}>Remove</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>}
 
-            {active.length===0&&resigned.length===0&&<div style={{border:"1px solid #E4EAF2",borderTop:"none",borderRadius:"0 0 10px 10px",padding:"12px 16px",color:"#8A96A8",fontSize:12}}>No staff in this branch.</div>}
+            {active.length===0&&resigned.length===0&&<div style={{padding:"14px 18px",color:"#8A96A8",fontSize:12}}>No staff in this branch.</div>}
           </div>;
         })}
         <p style={{fontSize:11,color:"#8A96A8",marginTop:4}}>Click SR name to edit inline. Type changes apply to selected month.</p>
       </div>
     </div>
-    {progressionSR&&<ProgressionPanel sr={progressionSR} branchMeta={branchMeta} year={year} month={month} onClose={()=>setProgressionSR(null)} onSave={saveProgressionChange}/>}
+    {updatePerson&&<StaffUpdatePanel person={updatePerson} branchMeta={branchMeta} year={year} month={month} onClose={()=>setUpdatePerson(null)} onSave={saveStaffUpdate}/>}
   </div>;
 }
 
-function ProgressionPanel({sr,branchMeta,year,month,onClose,onSave}){
+function StaffUpdatePanel({person,branchMeta,year,month,onClose,onSave}){
+  // person: {kind:'sr', sr} for a sales rep, or {kind:'bm', branch, name, status} for a branch manager
+  const isSR=person.kind==="sr";
+  const currentBranch=isSR?person.sr.branch:person.branch;
+  const currentName=isSR?person.sr.canon:person.name;
+  const currentStatus=isSR?person.sr.status:(person.status||"Probation (P0 F0)");
   const nowYM=`${year}-${String(month).padStart(2,"0")}`;
   const [effectiveFrom,setEffectiveFrom]=useState(nowYM);
-  const [changeBranch,setChangeBranch]=useState(false);
-  const [newBranch,setNewBranch]=useState(sr.branch);
-  const [changeRole,setChangeRole]=useState(false);
-  const [newRole,setNewRole]=useState(sr.role==="bm"?"bm":"sr");
-  const [statusChoice,setStatusChoice]=useState("continue"); // continue | reset
+  const [roleChoice,setRoleChoice]=useState(isSR?"sr":"bm"); // sr | bm — the role AFTER this update
+  const [newBranch,setNewBranch]=useState(currentBranch);
+  const [newType,setNewType]=useState(isSR?person.sr.type:"Online");
+  const [statusMode,setStatusMode]=useState("continue"); // continue | set
+  const [statusBase,setStatusBase]=useState("Probation");
+  const [statusP,setStatusP]=useState(0);
+  const [statusF,setStatusF]=useState(0);
   const [saving,setSaving]=useState(false);
+  const roleChanging=roleChoice!==(isSR?"sr":"bm");
+  const branchChanging=isSR&&newBranch!==currentBranch;
+
   const save=async()=>{
     setSaving(true);
-    await onSave(sr.id,{
-      effectiveFrom,
-      branch:changeBranch?newBranch:undefined,
-      role:changeRole?newRole:undefined,
-      status:statusChoice==="reset"?"Probation (P0 F0)":"continue",
-    });
+    const status=statusMode==="continue"?"continue":buildStatus(statusBase,statusP,statusF);
+    await onSave(person,{effectiveFrom,newRole:roleChoice,newBranch,newType,status});
     setSaving(false);
     onClose();
   };
+
   return<div className="modal-overlay" style={{zIndex:1000}}>
-    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:440,padding:"20px 22px"}}>
-      <h3 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:"0 0 3px"}}>Progression Update</h3>
-      <div style={{fontSize:12,color:"#8A96A8",marginBottom:16}}>{sr.canon} ({sr.id}) — currently {branchMeta[sr.branch]?.name||sr.branch}, {sr.role==="bm"?"Branch Manager":"SR"}</div>
+    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:460,maxHeight:"90vh",overflow:"auto"}}>
+      <div style={{padding:"18px 22px",borderBottom:"1px solid #E4EAF2"}}>
+        <h3 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:"0 0 3px"}}>Update Staff</h3>
+        <div style={{fontSize:12,color:"#8A96A8"}}>{currentName} — currently {branchMeta[currentBranch]?.name||currentBranch}, {isSR?"Sales Rep":"Branch Manager"}</div>
+      </div>
 
-      <label style={{fontSize:10,fontWeight:700,color:"#4A5568",display:"block",marginBottom:3,textTransform:"uppercase"}}>Effective Month</label>
-      <input type="month" className="input" value={effectiveFrom} onChange={e=>setEffectiveFrom(e.target.value)} style={{fontSize:13,marginBottom:14,width:"100%",boxSizing:"border-box"}}/>
-      <div style={{fontSize:10,color:"#8A96A8",marginTop:-10,marginBottom:14}}>Only this month onward is affected — every earlier month keeps reading whatever was true at the time.</div>
+      <div style={{padding:"18px 22px"}}>
+        <label style={{fontSize:10,fontWeight:700,color:"#4A5568",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>Effective Month</label>
+        <input type="month" className="input" value={effectiveFrom} onChange={e=>setEffectiveFrom(e.target.value)} style={{fontSize:13,marginBottom:6,width:"100%",boxSizing:"border-box"}}/>
+        <div style={{fontSize:10,color:"#8A96A8",marginBottom:18}}>Only this month onward is affected — every earlier month's report keeps reading whatever was true at the time.</div>
 
-      <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,cursor:"pointer"}}>
-        <input type="checkbox" checked={changeBranch} onChange={e=>setChangeBranch(e.target.checked)}/>
-        <span style={{fontSize:12,fontWeight:600,color:"#0A1628"}}>Change Branch</span>
-      </label>
-      {changeBranch&&<select className="input select" value={newBranch} onChange={e=>setNewBranch(e.target.value)} style={{fontSize:13,marginBottom:14,width:"100%"}}>
-        {Object.keys(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}
-      </select>}
+        <div style={{background:"#F7F9FC",borderRadius:10,padding:14,marginBottom:14}}>
+          <label style={{fontSize:10,fontWeight:700,color:"#4A5568",display:"block",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em"}}>Role</label>
+          <div style={{display:"flex",gap:8,marginBottom:branchChanging||roleChanging?10:0}}>
+            <button onClick={()=>setRoleChoice("sr")} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${roleChoice==="sr"?"#1E6FDB":"#E4EAF2"}`,background:roleChoice==="sr"?"#EFF6FF":"#fff",color:roleChoice==="sr"?"#1E6FDB":"#4A5568",fontWeight:700,fontSize:12,cursor:"pointer"}}>Sales Rep</button>
+            <button onClick={()=>setRoleChoice("bm")} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${roleChoice==="bm"?"#1E6FDB":"#E4EAF2"}`,background:roleChoice==="bm"?"#EFF6FF":"#fff",color:roleChoice==="bm"?"#1E6FDB":"#4A5568",fontWeight:700,fontSize:12,cursor:"pointer"}}>Branch Manager</button>
+          </div>
+          {roleChanging&&<div style={{fontSize:11,color:"#B45309",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:6,padding:"6px 8px",marginBottom:isSR?10:0}}>
+            {isSR?`This moves ${currentName} from SR to Branch Manager of the branch below, effective ${effectiveFrom}.`:`This moves ${currentName} from Branch Manager to a regular SR, effective ${effectiveFrom}. Their branch manager slot will be cleared.`}
+          </div>}
+          {isSR&&<>
+            <label style={{fontSize:10,fontWeight:700,color:"#4A5568",display:"block",marginBottom:4,marginTop:roleChanging?0:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch</label>
+            <select className="input select" value={newBranch} onChange={e=>setNewBranch(e.target.value)} style={{fontSize:13,width:"100%"}}>
+              {Object.keys(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}
+            </select>
+          </>}
+          {roleChoice==="sr"&&<div style={{marginTop:10}}>
+            <label style={{fontSize:10,fontWeight:700,color:"#4A5568",display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>Type</label>
+            <select className="input select" value={newType} onChange={e=>setNewType(e.target.value)} style={{fontSize:13,width:"100%"}}>
+              <option value="Online">Online</option><option value="Offline">Offline</option>
+            </select>
+          </div>}
+        </div>
 
-      <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,cursor:"pointer"}}>
-        <input type="checkbox" checked={changeRole} onChange={e=>setChangeRole(e.target.checked)}/>
-        <span style={{fontSize:12,fontWeight:600,color:"#0A1628"}}>Change Role (SR ↔ Branch Manager)</span>
-      </label>
-      {changeRole&&<select className="input select" value={newRole} onChange={e=>setNewRole(e.target.value)} style={{fontSize:13,marginBottom:14,width:"100%"}}>
-        <option value="sr">SR</option>
-        <option value="bm">Branch Manager</option>
-      </select>}
+        <div style={{background:"#F7F9FC",borderRadius:10,padding:14}}>
+          <label style={{fontSize:10,fontWeight:700,color:"#4A5568",display:"block",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em"}}>Employment Status</label>
+          <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,cursor:"pointer"}}>
+            <input type="radio" name="empstatus" checked={statusMode==="continue"} onChange={()=>setStatusMode("continue")}/>
+            <span style={{fontSize:12,color:"#0A1628"}}>Continue current status ({currentStatus})</span>
+          </label>
+          <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:statusMode==="set"?8:0,cursor:"pointer"}}>
+            <input type="radio" name="empstatus" checked={statusMode==="set"} onChange={()=>setStatusMode("set")}/>
+            <span style={{fontSize:12,color:"#0A1628"}}>Set status</span>
+          </label>
+          {statusMode==="set"&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",paddingLeft:26}}>
+            <select className="input select" value={statusBase} onChange={e=>setStatusBase(e.target.value)} style={{width:"auto",minWidth:100,padding:"5px 22px 5px 8px",fontSize:12}}>
+              {["Probation","Confirmed","Director","Resigned"].map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+            {statusBase!=="Director"&&statusBase!=="Resigned"&&<>
+              <span style={{fontSize:11,color:"#8A96A8"}}>P</span>
+              <input type="number" min="0" className="input" value={statusP} onChange={e=>setStatusP(Math.max(0,parseInt(e.target.value)||0))} style={{width:44,padding:"5px 6px",fontSize:12,textAlign:"center"}}/>
+              <span style={{fontSize:11,color:"#8A96A8"}}>F</span>
+              <input type="number" min="0" className="input" value={statusF} onChange={e=>setStatusF(Math.max(0,parseInt(e.target.value)||0))} style={{width:44,padding:"5px 6px",fontSize:12,textAlign:"center"}}/>
+            </>}
+          </div>}
+          {roleChanging&&<div style={{fontSize:10,color:"#8A96A8",marginTop:8}}>Tip: role changes like this usually start fresh — set status to Probation (P0 F0) for their new role, rather than carrying over their old one.</div>}
+        </div>
+      </div>
 
-      <label style={{fontSize:10,fontWeight:700,color:"#4A5568",display:"block",marginBottom:6,textTransform:"uppercase"}}>Employment Status</label>
-      <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,cursor:"pointer"}}>
-        <input type="radio" name="empstatus" checked={statusChoice==="continue"} onChange={()=>setStatusChoice("continue")}/>
-        <span style={{fontSize:12,color:"#0A1628"}}>Continue current employment status ({sr.status})</span>
-      </label>
-      <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,cursor:"pointer"}}>
-        <input type="radio" name="empstatus" checked={statusChoice==="reset"} onChange={()=>setStatusChoice("reset")}/>
-        <span style={{fontSize:12,color:"#0A1628"}}>Reset to Probation (P0 F0) — new employment period (e.g. confirmed → resigned → rehired)</span>
-      </label>
-
-      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",padding:"14px 22px",borderTop:"1px solid #E4EAF2"}}>
         <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
-        <button className="btn btn-success" onClick={save} disabled={saving||(!changeBranch&&!changeRole&&statusChoice==="continue")}>{saving?"Saving…":"Save Progression"}</button>
+        <button className="btn btn-success" onClick={save} disabled={saving}>{saving?"Saving…":"Save Update"}</button>
       </div>
     </div>
   </div>;
@@ -2206,22 +2247,6 @@ export default function App(){
   const [printBranch,setPrintBranch]         = useState(null);
   const summaryRef = useRef();
 
-  const DEFAULT_TARGETS = {
-    bm:{KM:50000,T1:50000,TW2:50000,TW1:55000,LD:45000,KB:50000,T5:38000,ITCC:50000,TENOM:45000,HQ:36000},
-    bmBonus:{KM:0,T1:0,TW2:0,TW1:0,LD:0,KB:0,T5:0,ITCC:0,TENOM:0,HQ:0},
-    bmBasic:{KM:0,T1:0,TW2:0,TW1:0,LD:0,KB:0,T5:0,ITCC:0,TENOM:0,HQ:0},
-    sr:{
-      EM0285:{target:12250,bonus:500},EM0264:{target:12250,bonus:500},EM0069:{target:12250,bonus:500},EM0243:{target:12250,bonus:500},EM0187:{target:6000,bonus:0},
-      EM0033:{target:27000,bonus:600},EM0045:{target:7000,bonus:400},EM0056:{target:7000,bonus:400},EM0078:{target:7000,bonus:300},EM0089:{target:7000,bonus:300},
-      EM0090:{target:16000,bonus:500},EM0103:{target:16000,bonus:500},EM0112:{target:16000,bonus:500},EM0121:{target:7000,bonus:500},
-      EM0197:{target:21000,bonus:600},EM0229:{target:21000,bonus:600},EM0231:{target:6000,bonus:0},EM0232:{target:6000,bonus:300},EM0233:{target:6000,bonus:0},
-      EM0282:{target:12500,bonus:500},EM0299:{target:12500,bonus:500},EM0300:{target:12500,bonus:500},EM0301:{target:12500,bonus:500},
-      EM0204:{target:18334,bonus:500},EM0236:{target:18334,bonus:500},EM0267:{target:18334,bonus:500},
-      EM0199:{target:21500,bonus:500},EM0306:{target:21500,bonus:500},
-      EM0253:{target:18300,bonus:500},EM0281:{target:18400,bonus:500},EM0305:{target:18300,bonus:500},
-      EM0240:{target:18000,bonus:700},EM0263:{target:18000,bonus:700},EM0270:{target:7000,bonus:300},EM0290:{target:7000,bonus:300},
-    }
-  };
 
   useEffect(()=>{
     setLoading(true);
@@ -2585,6 +2610,7 @@ export default function App(){
     if(!newId||newId===oldId)return{ok:false,reason:"unchanged"};
     const conflict=srList.find(s=>s.id===newId&&s.id!==oldId);
     if(conflict&&!allowOverride)return{ok:false,reason:"duplicate",conflictName:conflict.canon};
+    const renaming=srList.find(s=>s.id===oldId);
     // If overriding onto an ID that already belongs to another SR record,
     // that record represents the SAME agent going forward (per Sophia: one
     // agent, one ID across every activity) — drop the duplicate entry rather
@@ -2625,14 +2651,28 @@ export default function App(){
     }
     // Daily sales records — the actual dataset behind Monthly Report,
     // Overview, and Rankings. Stored per month/year, with each day keyed by
-    // SR ID (records[date][srId] = {walkin, aeon, ...}). This is the most
-    // important thing to migrate, since without it the SR's whole sales
-    // history becomes invisible under their new ID. Migrates the current and
-    // previous month specifically — older months are NOT retroactively
-    // fixed by this (would need every past month re-fetched individually).
-    const prevM=selMonth===1?12:selMonth-1, prevY=selMonth===1?selYear-1:selYear;
-    await migrateRecordsForMonth(oldId,newId,selYear,selMonth);
-    await migrateRecordsForMonth(oldId,newId,prevY,prevM);
+    // SR ID (records[date][srId] = {walkin, aeon, ...}). Migrates EVERY
+    // month from the SR's join date through to the currently selected
+    // month, not just current+previous — a rename now carries their full
+    // sales history over on its own, no separate "Fix Missing Records" step
+    // needed afterward. Falls back to checking the last 24 months if the SR
+    // record has no joinDate on file, as a safety net.
+    let startY=selYear,startM=selMonth;
+    if(renaming?.joinDate&&/^\d{4}-\d{2}$/.test(renaming.joinDate)){
+      const[jy,jm]=renaming.joinDate.split("-").map(Number);
+      startY=jy;startM=jm;
+    }else{
+      for(let i=0;i<24;i++){startM--;if(startM<1){startM=12;startY--;}}
+    }
+    // Safety cap — never walk more than 10 years of months in one rename,
+    // even if joinDate somehow predates that.
+    const capMonths=120;
+    let y=startY,m=startM,walked=0;
+    while((y<selYear||(y===selYear&&m<=selMonth))&&walked<capMonths){
+      await migrateRecordsForMonth(oldId,newId,y,m);
+      m++;if(m>12){m=1;y++;}
+      walked++;
+    }
     return{ok:true,newSRList};
   };
   const handleSaveTargets=async(t)=>{setTargets(t);await saveData(`emax_v5_targets_${selYear}_${selMonth}`,t);};
@@ -2776,8 +2816,8 @@ export default function App(){
           </div>
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",rowGap:6}}>
-          {/* Month/Year Picker */}
-          <div style={{display:"flex",gap:4,alignItems:"center"}}>
+          {/* Month/Year Picker — only relevant on tabs that actually use it */}
+          {["overview","report","rankings","points"].includes(tab)&&<div style={{display:"flex",gap:4,alignItems:"center"}}>
             <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))}
               style={{padding:"4px 6px",border:"1px solid rgba(255,255,255,.2)",borderRadius:6,fontSize:11,
                 background:"rgba(255,255,255,.1)",color:"#fff",outline:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600}}>
@@ -2792,7 +2832,7 @@ export default function App(){
                 <option key={y} value={y} style={{background:"#0A1628",color:"#fff"}}>{y}</option>
               ))}
             </select>
-          </div>
+          </div>}
 
           <button onClick={()=>setSidebarOpen(o=>!o)} title={sidebarOpen?"Collapse menu":"Expand menu"}
             style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,border:"1px solid rgba(255,255,255,.15)",borderRadius:7,background:"rgba(255,255,255,.06)",cursor:"pointer",flexShrink:0}}>
@@ -3022,7 +3062,7 @@ export default function App(){
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
             background:"transparent",color:"rgba(255,255,255,.45)",transition:"background .15s",
           }}>
-            Manage SR
+            Manage Staff
           </button>
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
           <button onClick={()=>{setShowDailyReport(true);setSidebarOpen(false);}} style={{
@@ -3045,20 +3085,7 @@ export default function App(){
       </div>
     </div>{/* end flex layout */}
 
-    {showTargetModal&&<TargetModal targets={targets} setTargets={setTargets} srList={srList} branchMeta={branchMeta} onClose={()=>setShowTargetModal(false)} currentMonth={selMonth} currentYear={selYear} onSaveForMonth={async(t,m,y)=>{if(m===selMonth&&y===selYear){setTargets(t);handleSaveTargets(t);}else await saveData(`emax_v5_targets_${y}_${m}`,t);}} onConvertBMtoSR={async(branch,name,status,m,y)=>{
-  // Generate a new SR ID (use timestamp-based to avoid clashes)
-  const newId="BM"+branch+String(y)+String(m).padStart(2,"0");
-  const newSR={id:newId,canon:name.toUpperCase(),branch:branch,type:"Online",status:status,joinDate:`${y}-${String(m).padStart(2,"0")}`};
-  if(srList.find(s=>s.id===newId)){alert(`SR already converted for ${name} (${newId})`);return;}
-  const updated=[...srList,newSR];
-  setSrList(updated);
-  await saveData(SR_KEY,updated);
-  alert(`✅ ${name} has been added as an Online SR for ${branch} starting ${["January","February","March","April","May","June","July","August","September","October","November","December"][m-1]} ${y}.
-
-Please now:
-1. Set the new BM name above
-2. Click Save`);
-}}/>}
+    {showTargetModal&&<TargetModal targets={targets} setTargets={setTargets} srList={srList} branchMeta={branchMeta} onClose={()=>setShowTargetModal(false)} currentMonth={selMonth} currentYear={selYear} onSaveForMonth={async(t,m,y)=>{if(m===selMonth&&y===selYear){setTargets(t);handleSaveTargets(t);}else await saveData(`emax_v5_targets_${y}_${m}`,t);}}/>}
     {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson} renameSRId={renameSRId} migrateRecordsForMonth={migrateRecordsForMonth}/>}
     {printBranch&&<PrintBranchReport branchId={printBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onClose={()=>setPrintBranch(null)} month={month} year={year} days={days}/>}
     {showPointsModal&&<PointsHistoryModal srList={srList} branchMeta={branchMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onDeletePointsEntry={deletePointsEntry} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}

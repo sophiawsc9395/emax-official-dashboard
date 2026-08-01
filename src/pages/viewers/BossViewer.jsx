@@ -1,9 +1,10 @@
 // EMAX NETWORK — Boss Viewer (All Branches, Read-Only)
 import { useState, useEffect, useMemo, useRef } from "react";
-import { loadData, supabase } from "../../storage/index.js";
+import { loadData, saveData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
 import JCLTab from "../../JCLTab.jsx";
+import {SRBMModal,TargetModal} from "../../App.jsx";
 import { mergeOrderPermissions } from "../../auth/orderRoles.js";
 import { RTOSummaryInner } from "../../RTOSummary.jsx";
 
@@ -747,7 +748,7 @@ function RTOSummary({branchMeta}){
   return <RTOSummaryInner customers={customers} branchMeta={branchMeta}/>;
 }
 
-export default function App({elevateOrderAccess=false}){
+export default function App({elevateOrderAccess=false,isHR=false}){
   const now=new Date();
   const [selMonth,setSelMonth]=useState(now.getMonth()+1);
   const [selYear,setSelYear]=useState(now.getFullYear());
@@ -763,7 +764,7 @@ export default function App({elevateOrderAccess=false}){
   const [selEndDay,setSelEndDay]=useState(daysInMonth(now.getMonth()+1,now.getFullYear()));
   const periodDays=days.filter(d=>d>=selStartDay&&d<=selEndDay);
   const [selBranch,setSelBranch]=useState(BRANCH_ORDER[0]);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications"].includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications"];return allowed.includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
 
@@ -778,7 +779,75 @@ export default function App({elevateOrderAccess=false}){
   const [statusHistory,setStatusHistory]=useState({});
   const [showStatusHistoryModal,setShowStatusHistoryModal]=useState(false);
   const [statusModalPerson,setStatusModalPerson]=useState(null);
+  const [showSRModal,setShowSRModal]=useState(false);
+  const [showTargetModal,setShowTargetModal]=useState(false);
   const [publishedUntil,setPublishedUntil]=useState(null);
+
+  // Reused by SRBMModal — same behavior as the main dashboard's version.
+  const adjustBalance=async(personId,delta,note)=>{
+    const d=Number(delta)||0;
+    if(d===0)return;
+    const prevBalance=rewardBalances[personId]?.balance||0;
+    const newBalance=prevBalance+d;
+    const updates={...rewardBalances,[personId]:{...(rewardBalances[personId]||{}),balance:newBalance}};
+    setRewardBalances(updates);
+    await saveData("emax_v5_reward_balance",updates);
+    const hist=rewardHistory[personId]||[];
+    const newHist={...rewardHistory,[personId]:[...hist,{date:new Date().toISOString(),type:"adjustment",amount:d,note:note||"Manual adjustment"}]};
+    setRewardHistory(newHist);
+    await saveData("emax_v5_reward_history",newHist);
+  };
+  // Moves one month's daily sales records from oldId to newId directly via
+  // storage — this view doesn't keep records in its own state (it doesn't
+  // display daily entries), so this reads/writes straight to storage rather
+  // than updating local state the way the main dashboard's version does.
+  const migrateRecordsForMonth=async(oldId,newId,year,month)=>{
+    const key=`emax_v5_records_${year}_${month}`;
+    const monthRecords=await loadData(key);
+    if(!monthRecords)return false;
+    let changed=false;
+    const updated={...monthRecords};
+    Object.keys(updated).forEach(dateKey=>{
+      const day=updated[dateKey];
+      if(day&&day[oldId]!==undefined){
+        updated[dateKey]={...day,[newId]:day[oldId]};
+        delete updated[dateKey][oldId];
+        changed=true;
+      }
+    });
+    if(changed)await saveData(key,updated);
+    return changed;
+  };
+  // Renames an SR's ID in the staff list, then walks every month from their
+  // joinDate through to the currently selected month migrating their daily
+  // sales records over — same full-history behavior as the main dashboard,
+  // so a rename here doesn't need a separate "Fix Missing Records" pass
+  // either. Falls back to the last 24 months if joinDate is missing.
+  const renameSRId=async(oldId,newId,allowOverride=false)=>{
+    if(!newId||newId===oldId)return{ok:false,reason:"unchanged"};
+    const conflict=srList.find(s=>s.id===newId);
+    if(conflict&&!allowOverride)return{ok:false,reason:"duplicate",conflictName:conflict.canon};
+    const renaming=srList.find(s=>s.id===oldId);
+    if(!renaming)return{ok:false,reason:"unchanged"};
+    const updated=srList.filter(s=>s.id!==newId).map(s=>s.id===oldId?{...s,id:newId}:s);
+    setSrList(updated);
+    await saveData(SR_KEY,updated);
+    let startY=selYear,startM=selMonth;
+    if(renaming.joinDate&&/^\d{4}-\d{2}$/.test(renaming.joinDate)){
+      const[jy,jm]=renaming.joinDate.split("-").map(Number);
+      startY=jy;startM=jm;
+    }else{
+      for(let i=0;i<24;i++){startM--;if(startM<1){startM=12;startY--;}}
+    }
+    const capMonths=120;
+    let y=startY,m=startM,walked=0;
+    while((y<selYear||(y===selYear&&m<=selMonth))&&walked<capMonths){
+      await migrateRecordsForMonth(oldId,newId,y,m);
+      m++;if(m>12){m=1;y++;}
+      walked++;
+    }
+    return{ok:true,newSRList:updated};
+  };
   const [showPointsModal,setShowPointsModal]=useState(false);
   const [pointsModalPerson,setPointsModalPerson]=useState(null);
   // Only manager.html sets elevateOrderAccess=true — it elevates Order
@@ -980,7 +1049,8 @@ export default function App({elevateOrderAccess=false}){
     return{name:s.canon,status:s.status,branch:s.branch,sub:(bMeta[s.branch]?.name||s.branch).toUpperCase(),wi:rankSRTotals[s.id]?.wi||0,ae:rankSRTotals[s.id]?.ae||0,profit,target,bonus,bonusEarned:branchHit&&profit>=target&&bonus>0,branchPct,role:"sr",points:calcRewardPoints(p,branchPct)};
   }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target));
 
-  const TABS=[{id:"overview",label:"Overview"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"report",label:"Monthly Report"},{id:"repair",label:"Repair & Service"},{id:"rto",label:"RTO Summary"},{id:"orders",label:"Order Tracking"},{id:"dailySales",label:"Daily Sales Report"},{id:"jclApplications",label:"JCL Applications"}];
+  const ALL_TABS=[{id:"overview",label:"Overview"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"report",label:"Monthly Report"},{id:"repair",label:"Repair & Service"},{id:"rto",label:"RTO Summary"},{id:"orders",label:"Order Tracking"},{id:"dailySales",label:"Daily Sales Report"},{id:"jclApplications",label:"JCL Applications"}];
+  const TABS=isHR?ALL_TABS.filter(t=>["overview","rankings","points","report"].includes(t.id)):ALL_TABS;
 
   if(loading)return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
     <div style={{textAlign:"center"}}>
@@ -1002,14 +1072,14 @@ export default function App({elevateOrderAccess=false}){
             </div>
           </div>
           <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
-            <select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))}
+            {["overview","report","rankings","points"].includes(tab)&&<><select value={selMonth} onChange={e=>setSelMonth(Number(e.target.value))}
               style={{padding:"4px 8px",border:"1px solid rgba(255,255,255,.2)",borderRadius:6,fontSize:11,background:"rgba(255,255,255,.1)",color:"#fff",outline:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600}}>
               {MONTHS.map((m,i)=><option key={i+1} value={i+1} style={{background:"#0A1628",color:"#fff"}}>{m}</option>)}
             </select>
             <select value={selYear} onChange={e=>setSelYear(Number(e.target.value))}
               style={{padding:"4px 8px",border:"1px solid rgba(255,255,255,.2)",borderRadius:6,fontSize:11,background:"rgba(255,255,255,.1)",color:"#fff",outline:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600}}>
               {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y} style={{background:"#0A1628",color:"#fff"}}>{y}</option>)}
-            </select>
+            </select></>}
 
           <button onClick={()=>setSidebarOpen(o=>!o)} title={sidebarOpen?"Collapse menu":"Expand menu"}
               style={{display:"flex",alignItems:"center",justifyContent:"center",width:30,height:30,border:"1px solid rgba(255,255,255,.15)",borderRadius:7,background:"rgba(255,255,255,.06)",cursor:"pointer",flexShrink:0}}>
@@ -1219,6 +1289,24 @@ export default function App({elevateOrderAccess=false}){
           ))}
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
 
+          {isHR&&<>
+            <button onClick={()=>setShowSRModal(true)} style={{
+              display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+              border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+              background:"rgba(46,164,79,.12)",color:"#4ADE80",transition:"background .15s",
+            }}>
+              👥 Manage Staff
+            </button>
+            <button onClick={()=>setShowTargetModal(true)} style={{
+              display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+              border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+              background:"rgba(255,213,0,.1)",color:"#FFD500",transition:"background .15s",
+            }}>
+              🎯 Set Targets
+            </button>
+            <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
+          </>}
+
           <button onClick={()=>supabase.auth.signOut()} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
@@ -1232,5 +1320,8 @@ export default function App({elevateOrderAccess=false}){
     </div>{/* end flex layout */}
     {showPointsModal&&<PointsHistoryModal srList={srList} bMeta={bMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
     {showStatusHistoryModal&&<StatusHistoryModal srList={srList} bMeta={bMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}
+    {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={bMeta} setBranchMeta={setBMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={selMonth} year={selYear} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson} renameSRId={renameSRId} migrateRecordsForMonth={migrateRecordsForMonth}/>}
+    {showTargetModal&&<TargetModal targets={targets} setTargets={setTargets} srList={srList} branchMeta={bMeta} onClose={()=>setShowTargetModal(false)} currentMonth={selMonth} currentYear={selYear}
+      onSaveForMonth={async(t,m,y)=>{if(m===selMonth&&y===selYear)setTargets(t);await saveData(`emax_v5_targets_${y}_${m}`,t);}}/>}
   </div>;
 }
