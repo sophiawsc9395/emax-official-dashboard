@@ -8,6 +8,7 @@ import RTOTab from "./RTOTab.jsx";
 import OrderTab from "./OrderTab.jsx";
 import DailySalesTab from "./DailySalesTab.jsx";
 import JCLTab from "./JCLTab.jsx";
+import PurchaseOrderTab from "./PurchaseOrderTab.jsx";
 import DailyReportPanel from "./DailyReportPanel.jsx";
 
 const T = {
@@ -194,7 +195,7 @@ function calcRewardPoints(pct, branchPct) {
 }
 
 // ─── EMPLOYMENT STATUS HELPERS (module-level, shared) ────────
-const statusBaseOptions=["Probation","Confirmed","Director","Resigned"];
+const statusBaseOptions=["Training","Probation","Confirmed","Resigned"];
 function parseStatus(s){
   if(!s)return{base:"Probation",p:0,f:0};
   // Match base status
@@ -1239,7 +1240,7 @@ function AdjustBalanceWidget({personId,balance,adjustBalance}){
   </div>;
 }
 
-export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,migrateRecordsForMonth}){
+export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [tab,setTab]=useState("bm");
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
@@ -1248,12 +1249,6 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
   const [updatePerson,setUpdatePerson]=useState(null);
   const [editSRId,setEditSRId]=useState(null); // {oldId, value} — separate from editSR (name) since renaming an ID needs its own validation/migration path
   const [srIdError,setSrIdError]=useState(null);
-  const [showFixRecords,setShowFixRecords]=useState(false);
-  const [fixOldId,setFixOldId]=useState("");
-  const [fixNewId,setFixNewId]=useState("");
-  const [fixYear,setFixYear]=useState(year);
-  const [fixMonth,setFixMonth]=useState(month);
-  const [fixResult,setFixResult]=useState(null);
   const trySaveSRId=async(oldId,value)=>{
     const newId=value.trim();
     let res=await renameSRId(oldId,newId);
@@ -1273,7 +1268,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
     else if(res.reason!=="unchanged")setSrIdError("Could not save");
     else setEditSRId(null);
   };
-  const [newSR,setNewSR]=useState({id:"",canon:"",branch:"KM",type:"Online",status:"Probation (P0 F0)",joinDate:`${year}-${String(month).padStart(2,"0")}`});
+  const [newSR,setNewSR]=useState({id:"",canon:"",branch:"KM",type:"Online",status:"Training (P0 F0)",joinDate:`${year}-${String(month).padStart(2,"0")}`});
   const [filterBranch,setFilterBranch]=useState("ALL");
   const [saved,setSaved]=useState(false);
   const [srSaved,setSRSaved]=useState(false);
@@ -1452,49 +1447,9 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
             {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
           </select>
           <button className="btn btn-success" onClick={()=>setEditSR("new")}>+ Add New SR</button>
-          <button className="btn btn-ghost" onClick={()=>{setShowFixRecords(p=>!p);setFixResult(null);}} style={{padding:"6px 14px"}}>Fix Missing Records</button>
           <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
         </div>
       </div>
-
-      {showFixRecords&&<div style={{padding:"16px 24px",background:"#FFFBEB",borderBottom:"1px solid #E4EAF2"}}>
-        <div style={{fontWeight:700,fontSize:13,color:"#92400E",marginBottom:6}}>Fix Missing Records After a Rename</div>
-        <div style={{fontSize:11,color:"#78350F",marginBottom:12,lineHeight:1.5}}>
-          If an SR's Monthly Report looks empty for a month after you renamed their ID, use this to move that month's sales records from the old ID to the new one. Renaming an SR's ID from now on already does this automatically for the current and previous month — this tool is for fixing a rename that already happened, or an older month.
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))",gap:10,marginBottom:12}}>
-          <div>
-            <label style={{fontSize:10,fontWeight:700,color:"#92400E",display:"block",marginBottom:3,textTransform:"uppercase"}}>Old ID</label>
-            <input className="input" placeholder="e.g. EM0250" value={fixOldId} onChange={e=>setFixOldId(e.target.value.toUpperCase())} style={{fontSize:12}}/>
-          </div>
-          <div>
-            <label style={{fontSize:10,fontWeight:700,color:"#92400E",display:"block",marginBottom:3,textTransform:"uppercase"}}>New ID</label>
-            <input className="input" placeholder="e.g. EM0271" value={fixNewId} onChange={e=>setFixNewId(e.target.value.toUpperCase())} style={{fontSize:12}}/>
-          </div>
-          <div>
-            <label style={{fontSize:10,fontWeight:700,color:"#92400E",display:"block",marginBottom:3,textTransform:"uppercase"}}>Month</label>
-            <select className="input select" value={fixMonth} onChange={e=>setFixMonth(parseInt(e.target.value))} style={{fontSize:12}}>
-              {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={{fontSize:10,fontWeight:700,color:"#92400E",display:"block",marginBottom:3,textTransform:"uppercase"}}>Year</label>
-            <select className="input select" value={fixYear} onChange={e=>setFixYear(parseInt(e.target.value))} style={{fontSize:12}}>
-              {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <button className="btn btn-success" onClick={async()=>{
-            if(!fixOldId.trim()||!fixNewId.trim()){setFixResult("Enter both the old and new ID.");return;}
-            const changed=await migrateRecordsForMonth(fixOldId.trim(),fixNewId.trim(),fixYear,fixMonth);
-            setFixResult(changed
-              ? `Done — moved ${MONTHS_LABEL[fixMonth-1]} ${fixYear}'s records from ${fixOldId.trim()} to ${fixNewId.trim()}.`
-              : `No records found for ${fixOldId.trim()} in ${MONTHS_LABEL[fixMonth-1]} ${fixYear} — nothing to move.`);
-          }}>Move This Month's Records</button>
-          {fixResult&&<span style={{fontSize:12,color:"#78350F",fontWeight:600}}>{fixResult}</span>}
-        </div>
-      </div>}
 
       <div style={{padding:"20px 24px"}}>
         {/* Add New SR form */}
@@ -1535,7 +1490,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
           </div>
           <div style={{marginTop:10,gridColumn:"1/-1"}}>
             <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Employment Status</label>
-            {(()=>{const ps=parseStatus(newSR.status);return <div style={{display:"flex",gap:8,alignItems:"center"}}><select className="input select" value={ps.base} onChange={e=>setNewSR(p=>({...p,status:buildStatus(e.target.value,ps.p,ps.f)}))} style={{width:"auto",minWidth:110,padding:"4px 24px 4px 8px",fontSize:12}}>{["Probation","Confirmed","Director","Resigned"].map(s=><option key={s} value={s}>{s}</option>)}</select>{ps.base!=="Director"&&ps.base!=="Resigned"&&<><label style={{fontSize:11,color:"#8A96A8"}}>P</label><input type="number" min="0" className="input" value={ps.p} onChange={e=>setNewSR(p=>({...p,status:buildStatus(ps.base,Math.max(0,parseInt(e.target.value)||0),ps.f)}))} style={{width:54,padding:"4px 6px",fontSize:12,textAlign:"center"}}/><label style={{fontSize:11,color:"#8A96A8"}}>F</label><input type="number" min="0" className="input" value={ps.f} onChange={e=>setNewSR(p=>({...p,status:buildStatus(ps.base,ps.p,Math.max(0,parseInt(e.target.value)||0))}))} style={{width:54,padding:"4px 6px",fontSize:12,textAlign:"center"}}/></>}</div>;})()}
+            {(()=>{const ps=parseStatus(newSR.status);return <div style={{display:"flex",gap:8,alignItems:"center"}}><select className="input select" value={ps.base} onChange={e=>setNewSR(p=>({...p,status:buildStatus(e.target.value,ps.p,ps.f)}))} style={{width:"auto",minWidth:110,padding:"4px 24px 4px 8px",fontSize:12}}>{["Training","Probation","Confirmed","Resigned"].map(s=><option key={s} value={s}>{s}</option>)}</select>{ps.base!=="Confirmed"&&ps.base!=="Resigned"&&<><label style={{fontSize:11,color:"#8A96A8"}}>P</label><input type="number" min="0" className="input" value={ps.p} onChange={e=>setNewSR(p=>({...p,status:buildStatus(ps.base,Math.max(0,parseInt(e.target.value)||0),ps.f)}))} style={{width:54,padding:"4px 6px",fontSize:12,textAlign:"center"}}/><label style={{fontSize:11,color:"#8A96A8"}}>F</label><input type="number" min="0" className="input" value={ps.f} onChange={e=>setNewSR(p=>({...p,status:buildStatus(ps.base,ps.p,Math.max(0,parseInt(e.target.value)||0))}))} style={{width:54,padding:"4px 6px",fontSize:12,textAlign:"center"}}/></>}</div>;})()}
           </div>
           <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:12}}>
             <button className="btn btn-ghost" onClick={()=>setEditSR(null)}>Cancel</button>
@@ -1634,19 +1589,34 @@ function StaffUpdatePanel({person,branchMeta,year,month,onClose,onSave}){
   const isSR=person.kind==="sr";
   const currentBranch=isSR?person.sr.branch:person.branch;
   const currentName=isSR?person.sr.canon:person.name;
-  const currentStatus=isSR?person.sr.status:(person.status||"Probation (P0 F0)");
+  const currentStatus=isSR?person.sr.status:(person.status||"Training (P0 F0)");
+  const currentStatusBase=parseStatus(currentStatus).base;
   const nowYM=`${year}-${String(month).padStart(2,"0")}`;
   const [effectiveFrom,setEffectiveFrom]=useState(nowYM);
   const [roleChoice,setRoleChoice]=useState(isSR?"sr":"bm"); // sr | bm — the role AFTER this update
   const [newBranch,setNewBranch]=useState(currentBranch);
   const [newType,setNewType]=useState(isSR?person.sr.type:"Online");
   const [statusMode,setStatusMode]=useState("continue"); // continue | set
-  const [statusBase,setStatusBase]=useState("Probation");
+  const [statusBase,setStatusBase]=useState(["Training","Probation"].includes(currentStatusBase)?currentStatusBase:"Training");
   const [statusP,setStatusP]=useState(0);
   const [statusF,setStatusF]=useState(0);
   const [saving,setSaving]=useState(false);
   const roleChanging=roleChoice!==(isSR?"sr":"bm");
   const branchChanging=isSR&&newBranch!==currentBranch;
+
+  // Employment only ever moves forward — Training → Probation → Confirmed
+  // — through a normal status update; it can't drop back a step (e.g.
+  // Confirmed can't be set back to Probation). A role change is the one
+  // exception, since that's specifically meant to start fresh in the new
+  // role. Director isn't offered here at all — the company only has two
+  // Directors and that status never changes for them.
+  const PROGRESSION=["Training","Probation","Confirmed"];
+  const availableStatusOptions=(()=>{
+    if(roleChanging)return[...PROGRESSION.slice(1),"Resigned"]; // skip Training — a role change starts at Probation, not from scratch
+    const curIdx=PROGRESSION.indexOf(currentStatusBase);
+    if(curIdx===-1)return[...PROGRESSION,"Resigned"]; // unrecognized/legacy status (e.g. old "Director") — allow any
+    return[...PROGRESSION.slice(curIdx),"Resigned"];
+  })();
 
   const save=async()=>{
     setSaving(true);
@@ -1671,8 +1641,8 @@ function StaffUpdatePanel({person,branchMeta,year,month,onClose,onSave}){
         <div style={{background:"#F7F9FC",borderRadius:10,padding:14,marginBottom:14}}>
           <label style={{fontSize:10,fontWeight:700,color:"#4A5568",display:"block",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em"}}>Role</label>
           <div style={{display:"flex",gap:8,marginBottom:branchChanging||roleChanging?10:0}}>
-            <button onClick={()=>setRoleChoice("sr")} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${roleChoice==="sr"?"#1E6FDB":"#E4EAF2"}`,background:roleChoice==="sr"?"#EFF6FF":"#fff",color:roleChoice==="sr"?"#1E6FDB":"#4A5568",fontWeight:700,fontSize:12,cursor:"pointer"}}>Sales Rep</button>
-            <button onClick={()=>setRoleChoice("bm")} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${roleChoice==="bm"?"#1E6FDB":"#E4EAF2"}`,background:roleChoice==="bm"?"#EFF6FF":"#fff",color:roleChoice==="bm"?"#1E6FDB":"#4A5568",fontWeight:700,fontSize:12,cursor:"pointer"}}>Branch Manager</button>
+            <button onClick={()=>{setRoleChoice("sr");if("sr"!==(isSR?"sr":"bm")&&statusBase==="Training")setStatusBase("Probation");}} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${roleChoice==="sr"?"#1E6FDB":"#E4EAF2"}`,background:roleChoice==="sr"?"#EFF6FF":"#fff",color:roleChoice==="sr"?"#1E6FDB":"#4A5568",fontWeight:700,fontSize:12,cursor:"pointer"}}>Sales Rep</button>
+            <button onClick={()=>{setRoleChoice("bm");if("bm"!==(isSR?"sr":"bm")&&statusBase==="Training")setStatusBase("Probation");}} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${roleChoice==="bm"?"#1E6FDB":"#E4EAF2"}`,background:roleChoice==="bm"?"#EFF6FF":"#fff",color:roleChoice==="bm"?"#1E6FDB":"#4A5568",fontWeight:700,fontSize:12,cursor:"pointer"}}>Branch Manager</button>
           </div>
           {roleChanging&&<div style={{fontSize:11,color:"#B45309",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:6,padding:"6px 8px",marginBottom:isSR?10:0}}>
             {isSR?`This moves ${currentName} from SR to Branch Manager of the branch below, effective ${effectiveFrom}.`:`This moves ${currentName} from Branch Manager to a regular SR, effective ${effectiveFrom}. Their branch manager slot will be cleared.`}
@@ -1703,9 +1673,9 @@ function StaffUpdatePanel({person,branchMeta,year,month,onClose,onSave}){
           </label>
           {statusMode==="set"&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",paddingLeft:26}}>
             <select className="input select" value={statusBase} onChange={e=>setStatusBase(e.target.value)} style={{width:"auto",minWidth:100,padding:"5px 22px 5px 8px",fontSize:12}}>
-              {["Probation","Confirmed","Director","Resigned"].map(s=><option key={s} value={s}>{s}</option>)}
+              {availableStatusOptions.map(s=><option key={s} value={s}>{s}</option>)}
             </select>
-            {statusBase!=="Director"&&statusBase!=="Resigned"&&<>
+            {statusBase!=="Confirmed"&&statusBase!=="Resigned"&&<>
               <span style={{fontSize:11,color:"#8A96A8"}}>P</span>
               <input type="number" min="0" className="input" value={statusP} onChange={e=>setStatusP(Math.max(0,parseInt(e.target.value)||0))} style={{width:44,padding:"5px 6px",fontSize:12,textAlign:"center"}}/>
               <span style={{fontSize:11,color:"#8A96A8"}}>F</span>
@@ -2206,7 +2176,7 @@ export default function App(){
   const [loading,setLoading]       = useState(true);
   const [tab,setTabRaw]             = useState(()=>{
     const h=window.location.hash.replace("#","");
-    return ["overview","rankings","points","report","daily","repair","rto","orders","dailySales","jclApplications"].includes(h)?h:"overview";
+    return ["overview","rankings","points","report","daily","repair","rto","orders","dailySales","jclApplications","purchaseOrder"].includes(h)?h:"overview";
   });
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen] = useState(false);
@@ -2794,6 +2764,7 @@ export default function App(){
     {id:"orders",label:"Order Tracking"},
     {id:"dailySales",label:"Daily Sales Report"},
     {id:"jclApplications",label:"JCL Applications"},
+    {id:"purchaseOrder",label:"Purchase Order"},
   ];
 
   if(loading)return <div style={{display:"flex",height:"100vh",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
@@ -3013,6 +2984,7 @@ export default function App(){
       {tab==="orders"&&<OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} email={currentEmail}/>}
       {tab==="dailySales"&&<DailySalesTab branchMeta={branchMeta} isAdmin={true} canSubmit={true} canVerify={true} email={currentEmail}/>}
       {tab==="jclApplications"&&<JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={currentEmail}/>}
+      {tab==="purchaseOrder"&&<PurchaseOrderTab branchMeta={branchMeta} isAdmin={true}/>}
 
       </div>{/* end main content */}
 
@@ -3086,7 +3058,7 @@ export default function App(){
     </div>{/* end flex layout */}
 
     {showTargetModal&&<TargetModal targets={targets} setTargets={setTargets} srList={srList} branchMeta={branchMeta} onClose={()=>setShowTargetModal(false)} currentMonth={selMonth} currentYear={selYear} onSaveForMonth={async(t,m,y)=>{if(m===selMonth&&y===selYear){setTargets(t);handleSaveTargets(t);}else await saveData(`emax_v5_targets_${y}_${m}`,t);}}/>}
-    {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson} renameSRId={renameSRId} migrateRecordsForMonth={migrateRecordsForMonth}/>}
+    {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson} renameSRId={renameSRId}/>}
     {printBranch&&<PrintBranchReport branchId={printBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onClose={()=>setPrintBranch(null)} month={month} year={year} days={days}/>}
     {showPointsModal&&<PointsHistoryModal srList={srList} branchMeta={branchMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onDeletePointsEntry={deletePointsEntry} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
     {showStatusHistoryModal&&<StatusHistoryModal srList={srList} branchMeta={branchMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onDeleteStatusEntry={deleteStatusEntry} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}

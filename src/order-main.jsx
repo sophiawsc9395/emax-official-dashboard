@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import OrderTab from './OrderTab.jsx'
 import DailySalesTab from './DailySalesTab.jsx'
 import JCLTab from './JCLTab.jsx'
+import PurchaseOrderTab from './PurchaseOrderTab.jsx'
 import AuthGate from './auth/AuthGate.jsx'
 import { mergeOrderPermissions, ORDER_USER_ROLES, getDailySalesAccess } from './auth/orderRoles.js'
 import { supabase, loadData } from './storage/index.js'
@@ -85,7 +86,7 @@ function OrderOnlyApp(){
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTab, setPageTabRaw] = useState(() => {
     const h = window.location.hash.replace('#', '')
-    return ['orders', 'dailySales', 'jclApplications'].includes(h) ? h : 'orders'
+    return ['orders', 'dailySales', 'jclApplications', 'purchaseOrder'].includes(h) ? h : 'orders'
   })
   const setPageTab = (t) => { setPageTabRaw(t); window.location.hash = t }
 
@@ -119,6 +120,9 @@ function OrderOnlyApp(){
   }
 
   const orderPermissions = mergeOrderPermissions(email)
+  const isSuperAdminForPO = !orderPermissions || orderPermissions.adminSteps === "all"
+  const isPurchaseRole = orderPermissions && orderPermissions.adminSteps !== "all" && orderPermissions.adminSteps.includes(2)
+  const canSeePurchaseOrder = isSuperAdminForPO || isPurchaseRole
 
   return (
     <div style={{ minHeight:"100vh", background:"#F7F9FC", fontFamily:"Inter,-apple-system,sans-serif" }}>
@@ -146,7 +150,7 @@ function OrderOnlyApp(){
         {/* MAIN CONTENT */}
         <div style={{ flex:1, minWidth:0, padding:"20px", maxWidth:1180 }}>
           <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-            {(isJCLOnly?[["jclApplications","JCL Applications"]]:[["orders","Order Tracking"],["dailySales","Daily Sales Report"],["jclApplications","JCL Applications"]]).map(([id,label])=>(
+            {(isJCLOnly?[["jclApplications","JCL Applications"]]:[["orders","Order Tracking"],["dailySales","Daily Sales Report"],["jclApplications","JCL Applications"],...(canSeePurchaseOrder?[["purchaseOrder","Purchase Order"]]:[])]).map(([id,label])=>(
               <button key={id} onClick={()=>setPageTab(id)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${pageTab===id?"#0A1628":"#E4EAF2"}`,background:pageTab===id?"#0A1628":"#fff",color:pageTab===id?"#fff":"#4A5568",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{label}</button>
             ))}
           </div>
@@ -156,6 +160,7 @@ function OrderOnlyApp(){
             return <DailySalesTab branchMeta={branchMeta} isAdmin={isSuperAdminOrder} canSubmit={canSubmit} canVerify={canVerify} email={email} />
           })()}
           {pageTab==="jclApplications" && <JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={email} />}
+          {canSeePurchaseOrder && pageTab==="purchaseOrder" && <PurchaseOrderTab branchMeta={branchMeta} isAdmin={true} />}
         </div>
 
         {/* SIDEBAR — right side, collapsible, same treatment as the main dashboard's */}

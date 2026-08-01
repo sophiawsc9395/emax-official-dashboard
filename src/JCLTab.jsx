@@ -355,6 +355,19 @@ function AdminActions({app,onSaved,onCreateOrder}){
   const [followUpRemark,setFollowUpRemark]=useState("");
   const [showApprove,setShowApprove]=useState(false);
   const [approvedRemark,setApprovedRemark]=useState("");
+  const [agreementNumber,setAgreementNumber]=useState(app.agreementNumber||"");
+  const [merchantApprovalDate,setMerchantApprovalDate]=useState(app.merchantApprovalDate||nowDate());
+  const [approveFinancePrice,setApproveFinancePrice]=useState(app.financePrice||"");
+  const [agreementFee,setAgreementFee]=useState(app.agreementFee||"");
+  const [stampingFee,setStampingFee]=useState(app.stampingFee||"");
+  const [deposit,setDeposit]=useState(app.deposit||"");
+  const [approveTenure,setApproveTenure]=useState(app.tenure||"12");
+  const [monthlyInstallment,setMonthlyInstallment]=useState(app.monthlyInstallment||"");
+  const [jclApplicationForm,setJclApplicationForm]=useState(null);
+  const [jclNotice1,setJclNotice1]=useState(null);
+  const [jclAgreementJCLCopy,setJclAgreementJCLCopy]=useState(null);
+  const [jclAgreementCustomerCopy,setJclAgreementCustomerCopy]=useState(null);
+  const [jclCreditAckForm,setJclCreditAckForm]=useState(null);
   const [showReject,setShowReject]=useState(false);
   const [rejectedRemark,setRejectedRemark]=useState("");
   const [saving,setSaving]=useState(false);
@@ -372,9 +385,22 @@ function AdminActions({app,onSaved,onCreateOrder}){
       history:[...(app.history||[]),{step:3,date:nowDate(),time:nowTime(),note:`Follow-up requested: ${followUpRemark}`}]});
     setSaving(false);setShowFollowUp(false);setFollowUpRemark("");
   };
+  const approveMissing=!agreementNumber.trim()||!merchantApprovalDate||!approveFinancePrice.toString().trim()||!agreementFee.toString().trim()||!stampingFee.toString().trim()||!deposit.toString().trim()||!approveTenure||!monthlyInstallment.toString().trim()||!jclApplicationForm||!jclNotice1||!jclAgreementJCLCopy||!jclAgreementCustomerCopy||!jclCreditAckForm;
   const approve=async()=>{
+    if(approveMissing){alert("Please fill in every field and upload every document before approving — these are needed to create the order.");return;}
     setSaving(true);
+    const[applicationForm,notice1,agreementJCLCopy,agreementCustomerCopy,creditAckForm]=await Promise.all([
+      readAppFile(jclApplicationForm,`${app.id}_applicationForm`),
+      readAppFile(jclNotice1,`${app.id}_notice1`),
+      readAppFile(jclAgreementJCLCopy,`${app.id}_agreementJCLCopy`),
+      readAppFile(jclAgreementCustomerCopy,`${app.id}_agreementCustomerCopy`),
+      readAppFile(jclCreditAckForm,`${app.id}_creditAckForm`),
+    ]);
+    const jclDocuments={applicationForm,notice1,agreementJCLCopy,agreementCustomerCopy,creditAckForm};
     const updated={...app,step:4,approvedDate:nowDate(),approvedRemark,
+      agreementNumber,merchantApprovalDate,financePrice:parseFloat(approveFinancePrice)||0,
+      agreementFee:parseFloat(agreementFee)||0,stampingFee:parseFloat(stampingFee)||0,deposit:parseFloat(deposit)||0,
+      tenure:approveTenure,monthlyInstallment:parseFloat(monthlyInstallment)||0,jclDocuments,
       history:[...(app.history||[]),{step:4,date:nowDate(),time:nowTime(),note:`Approved by JCL${approvedRemark?": "+approvedRemark:""}`}]};
     const orderId=await onCreateOrder(updated);
     await onSaved({...updated,linkedOrderId:orderId});
@@ -423,12 +449,31 @@ function AdminActions({app,onSaved,onCreateOrder}){
       </div>
     </div>}
     {showApprove&&<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
+      <div style={{fontSize:11,fontWeight:700,color:C.blueBright,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Agreement Details (required to create the order)</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+        <div><L req>Agreement No. / Case ID No.</L><I value={agreementNumber} onChange={e=>setAgreementNumber(e.target.value)}/></div>
+        <div><L req>Merchant Approval Date</L><I type="date" value={merchantApprovalDate} onChange={e=>setMerchantApprovalDate(e.target.value)}/></div>
+        <div><L req>Finance Price (RM)</L><I type="number" step="0.01" value={approveFinancePrice} onChange={e=>setApproveFinancePrice(e.target.value)}/></div>
+        <div><L req>CCM Tenure</L><SEL value={approveTenure} onChange={e=>setApproveTenure(e.target.value)}><option value="12">12 Months</option><option value="24">24 Months</option><option value="36">36 Months</option></SEL></div>
+        <div><L req>Agreement Fee (RM)</L><I type="number" step="0.01" value={agreementFee} onChange={e=>setAgreementFee(e.target.value)}/></div>
+        <div><L req>Stamping Fee (RM)</L><I type="number" step="0.01" value={stampingFee} onChange={e=>setStampingFee(e.target.value)}/></div>
+        <div><L req>Deposit (RM)</L><I type="number" step="0.01" value={deposit} onChange={e=>setDeposit(e.target.value)}/></div>
+        <div><L req>Monthly Installment (RM)</L><I type="number" step="0.01" value={monthlyInstallment} onChange={e=>setMonthlyInstallment(e.target.value)}/></div>
+      </div>
+      <div style={{fontSize:11,fontWeight:700,color:C.blueBright,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Documents (required to create the order)</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+        <div><L req>Application Form</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setJclApplicationForm(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{jclApplicationForm&&<div style={{fontSize:10,color:"#15803D",marginTop:2}}>✓ {jclApplicationForm.name}</div>}</div>
+        <div><L req>Notice 1</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setJclNotice1(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{jclNotice1&&<div style={{fontSize:10,color:"#15803D",marginTop:2}}>✓ {jclNotice1.name}</div>}</div>
+        <div><L req>Agreement Form (JCL Copy)</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setJclAgreementJCLCopy(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{jclAgreementJCLCopy&&<div style={{fontSize:10,color:"#15803D",marginTop:2}}>✓ {jclAgreementJCLCopy.name}</div>}</div>
+        <div><L req>Agreement Form (Customer Copy)</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setJclAgreementCustomerCopy(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{jclAgreementCustomerCopy&&<div style={{fontSize:10,color:"#15803D",marginTop:2}}>✓ {jclAgreementCustomerCopy.name}</div>}</div>
+        <div style={{gridColumn:"1/-1"}}><L req>Credit Sales Acknowledge Form</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setJclCreditAckForm(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{jclCreditAckForm&&<div style={{fontSize:10,color:"#15803D",marginTop:2}}>✓ {jclCreditAckForm.name}</div>}</div>
+      </div>
       <L>Remark (optional)</L>
       <I value={approvedRemark} onChange={e=>setApprovedRemark(e.target.value)} style={{marginBottom:8}}/>
-      <div style={{fontSize:10,color:C.textLight,marginBottom:8}}>This will automatically create a new CCM order on the Order page, pre-filled with this application's details.</div>
+      <div style={{fontSize:10,color:C.textLight,marginBottom:8}}>This will automatically create a new CCM order on the Order page, pre-filled with these details.</div>
       <div style={{display:"flex",gap:8}}>
         <GBtn onClick={()=>setShowApprove(false)} style={{fontSize:11,padding:"6px 12px"}}>Cancel</GBtn>
-        <PBtn onClick={approve} disabled={saving} style={{fontSize:11,padding:"6px 12px",background:"#15803D",boxShadow:"none"}}>{saving?"Saving…":"Confirm Approval"}</PBtn>
+        <PBtn onClick={approve} disabled={saving||approveMissing} style={{fontSize:11,padding:"6px 12px",background:"#15803D",boxShadow:"none"}}>{saving?"Saving…":"Confirm Approval"}</PBtn>
       </div>
     </div>}
     {showReject&&<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
@@ -669,6 +714,9 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
       customerHP:app.customerHP,customerEmail:app.customerEmail,customerAddress:app.address,
       customerPostCode:app.postcode,customerCity:app.city,
       financePrice:app.financePrice,salesAgentId:app.salesAgentId,salesAgentName:app.salesAgentName,
+      agreementNumber:app.agreementNumber,aeonApprovalDate:app.merchantApprovalDate,
+      agreementFee:app.agreementFee,stampingFee:app.stampingFee,deposit:app.deposit,
+      monthlyInstallment:app.monthlyInstallment,tenure:app.tenure,jclDocuments:app.jclDocuments,
       history:[{step:1,date:nowDate(),time:nowTime(),note:`Submitted — auto-created from approved JCL Application (${app.id})`}],
     };
     const result=await reconcile([],[order]);
