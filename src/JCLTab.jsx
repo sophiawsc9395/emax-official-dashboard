@@ -29,6 +29,20 @@ const STEPS=[
 ];
 const stepDef=n=>STEPS.find(s=>s.step===n)||STEPS[0];
 
+const Ic={
+  chevL:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>,
+  share:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,
+  edit:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+  trash:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+  plus:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+  fileText:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>,
+  share2:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>,
+  alertCircle:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+  checkCircle:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  x:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+};
+const STEP_ICONS={1:Ic.fileText,2:Ic.share2,3:Ic.alertCircle,4:Ic.checkCircle,5:Ic.x};
+
 const C={navy:"#0A1628",navyLight:"#162B52",blue:"#1B3F72",blueBright:"#2C5AA0",white:"#fff",surface:"#F7F9FC",border:"#E4EAF2",text:"#0A1628",textMid:"#4A5568",textLight:"#8A96A8"};
 const card={background:C.white,border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)",overflow:"hidden"};
 
@@ -177,7 +191,7 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
 
   return<div className="fade-in">
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-      <GBtn onClick={onCancel}>← Back</GBtn>
+      <GBtn onClick={onCancel}>{Ic.chevL} Back</GBtn>
       <div style={{fontSize:15,fontWeight:800,color:C.navy}}>{editingApp?"Edit Application":"New Application"}</div>
     </div>
 
@@ -368,7 +382,7 @@ function AdminActions({app,onSaved,onCreateOrder}){
       <TX rows={2} value={rejectedRemark} onChange={e=>setRejectedRemark(e.target.value)} style={{marginBottom:8}}/>
       <div style={{display:"flex",gap:8}}>
         <GBtn onClick={()=>setShowReject(false)} style={{fontSize:11,padding:"6px 12px"}}>Cancel</GBtn>
-        <DBtnLocal onClick={reject} disabled={saving}>{saving?"Saving…":"Confirm Rejection"}</DBtnLocal>
+        <DBtnLocal onClick={reject} disabled={saving}>{Ic.x} {saving?"Saving…":"Confirm Rejection"}</DBtnLocal>
       </div>
     </div>}
   </div>;
@@ -398,13 +412,13 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
   return<div>
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:16,flexWrap:"wrap"}}>
       <div style={{display:"flex",gap:6}}>
-        <GBtn onClick={onBack}>← Back</GBtn>
-        <GBtn onClick={copyLink}>{linkCopied?"✓ Copied!":"🔗 Copy Link"}</GBtn>
+        <GBtn onClick={onBack}>{Ic.chevL} Back</GBtn>
+        <GBtn onClick={copyLink}>{linkCopied?<>{Ic.checkCircle} Copied!</>:<>{Ic.share} Copy Link</>}</GBtn>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <StepBadge step={app.step}/>
-        {isAdmin&&<GBtn onClick={onEdit}>✎ Edit</GBtn>}
-        {canDelete&&<DBtnLocal onClick={onDelete}>🗑 Delete</DBtnLocal>}
+        {isAdmin&&<GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>}
+        {canDelete&&<DBtnLocal onClick={onDelete}>{Ic.trash} Delete</DBtnLocal>}
       </div>
     </div>
 
@@ -680,7 +694,7 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
         const active=stepFilter===s.step;
         const count=stepCounts[s.step]||0;
         return<div key={s.step} onClick={()=>setStepFilter(active?"all":s.step)} style={{...card,border:`1px solid ${active?s.color:C.border}`,padding:"12px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",boxShadow:active?`0 0 0 1.5px ${s.color}, 0 6px 16px rgba(10,22,40,.08)`:card.boxShadow}}>
-          <div style={{width:38,height:38,borderRadius:10,background:s.bg,color:s.color,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:16}}>●</div>
+          <div style={{width:38,height:38,borderRadius:10,background:s.bg,color:s.color,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{STEP_ICONS[s.step]}</div>
           <div style={{minWidth:0}}>
             <div style={{fontSize:9.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.label}</div>
             <div style={{fontSize:20,fontWeight:800,color:count?C.text:"#C3CCDA",lineHeight:1}}>{count}</div>
@@ -689,13 +703,16 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
       })}
     </div>
 
-    <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
-      {(isAdmin||userBranch)&&<PBtn onClick={()=>{setEditingApp(null);setView("form");}}>+ New Application</PBtn>}
+    {(isAdmin||userBranch)&&<div style={{marginBottom:10}}><PBtn onClick={()=>{setEditingApp(null);setView("form");}} style={{background:C.navy,boxShadow:"0 2px 8px rgba(10,22,40,.35)"}}>{Ic.plus} New Application</PBtn></div>}
+
+    <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10,flexWrap:"wrap"}}>
       <I value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by customer name or IC…" style={{flex:1,minWidth:200}}/>
       {!userBranch&&<SEL value={branchFilter} onChange={e=>setBranchFilter(e.target.value)} style={{width:"auto",minWidth:140}}>
         <option value="all">All Branches</option>
         {sellingBranches(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}
       </SEL>}
+    </div>
+    <div style={{marginBottom:14}}>
       <SEL value={agentFilter} onChange={e=>setAgentFilter(e.target.value)} style={{width:"auto",minWidth:140}}>
         <option value="all">All Agents</option>
         {agentOptions.map(a=><option key={a} value={a}>{a}</option>)}
