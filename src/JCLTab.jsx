@@ -197,17 +197,20 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
   };
 
   return<div className="fade-in">
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-      <GBtn onClick={onCancel}>{Ic.chevL} Back</GBtn>
-      <div style={{fontSize:15,fontWeight:800,color:C.navy}}>{editingApp?"Edit Application":"New Application"}</div>
+    <div style={{marginBottom:10}}><GBtn onClick={onCancel}>{Ic.chevL} Back</GBtn></div>
+    <div style={{...card,marginBottom:16,padding:0,overflow:"hidden"}}>
+      <div style={{padding:"14px 18px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
+        <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>{editingApp?"Edit Application":"New Application"}</div>
+        <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>{branchMeta[formBranch]?.name||formBranch||"Pick a branch below to get started"} · 8 sections — everything on this form is required</div>
+      </div>
     </div>
 
     <FormCard title="Application & Device">
       {isAdmin&&<div><L req>Branch</L><SEL value={f.branch} onChange={e=>{set("branch",e.target.value);set("salesAgentId","");set("salesAgentName","");}}><option value="">— Select Branch —</option>{sellingBranches(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}</SEL></div>}
       {!isAdmin&&<div><L>Branch</L><I value={branchMeta[userBranch]?.name||userBranch} disabled/></div>}
-      <div><L req>Customer Name</L><I value={f.customerName} onChange={e=>set("customerName",e.target.value)}/></div>
-      <div><L req>Phone Model / Item</L><I value={f.phoneModel} onChange={e=>set("phoneModel",e.target.value)}/></div>
-      <div><L req>Finance Price (RM)</L><I type="number" step="0.01" value={f.financePrice} onChange={e=>set("financePrice",e.target.value)}/></div>
+      <div><L req>Customer Name</L><I value={f.customerName} onChange={e=>set("customerName",e.target.value)} placeholder="e.g. Ahmad bin Ali"/></div>
+      <div><L req>Phone Model / Item</L><I value={f.phoneModel} onChange={e=>set("phoneModel",e.target.value)} placeholder="e.g. iPhone 17 Pro 256GB"/></div>
+      <div><L req>Finance Price (RM)</L><I type="number" step="0.01" value={f.financePrice} onChange={e=>set("financePrice",e.target.value)} placeholder="0.00"/></div>
       <div><L req>CCM Device Tenure</L><SEL value={f.tenure} onChange={e=>set("tenure",e.target.value)}><option value="12">12 Months</option><option value="24">24 Months</option><option value="36">36 Months</option></SEL></div>
       <div><L req>Sales Agent</L>{branchSRs.length>0
         ?<SEL value={f.salesAgentId} onChange={e=>{const sr=branchSRs.find(s=>s.id===e.target.value);set("salesAgentId",e.target.value);set("salesAgentName",sr?.canon||"");}} disabled={!formBranch}><option value="">— Select SR —</option>{branchSRs.map(s=><option key={s.id} value={s.id}>{s.canon} ({s.id})</option>)}</SEL>
@@ -216,7 +219,7 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     </FormCard>
 
     <FormCard title="Personal Details">
-      <div><L req>Customer IC</L><I value={f.customerIC} onChange={e=>set("customerIC",e.target.value)}/></div>
+      <div><L req>Customer IC</L><I value={f.customerIC} onChange={e=>set("customerIC",e.target.value)} placeholder="e.g. 900101-12-3456"/></div>
       <div><L req>Race</L><SEL value={f.race} onChange={e=>set("race",e.target.value)}>{["Chinese","Indian","Malay","Other"].map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Gender</L><SEL value={f.gender} onChange={e=>set("gender",e.target.value)}>{["Male","Female"].map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Residency Status</L><SEL value={f.residencyStatus} onChange={e=>set("residencyStatus",e.target.value)}>{["Bumiputera","Non-Bumiputera"].map(x=><option key={x}>{x}</option>)}</SEL></div>
@@ -225,35 +228,35 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     </FormCard>
 
     <FormCard title="Contact & Address">
-      <div><L req>Customer HP No.</L><I value={f.customerHP} onChange={e=>set("customerHP",e.target.value)}/></div>
-      <div><L req>Customer Email Address</L><I type="email" value={f.customerEmail} onChange={e=>set("customerEmail",e.target.value)}/></div>
+      <div><L req>Customer HP No.</L><I value={f.customerHP} onChange={e=>set("customerHP",e.target.value)} placeholder="e.g. 0121234567"/></div>
+      <div><L req>Customer Email Address</L><I type="email" value={f.customerEmail} onChange={e=>set("customerEmail",e.target.value)} placeholder="e.g. ahmad@email.com"/></div>
       <div><L req>Length of Stay</L><I value={f.lengthOfStay} onChange={e=>set("lengthOfStay",e.target.value)} placeholder="e.g. 3 years"/></div>
-      <div><L req>Postcode</L><I value={f.postcode} onChange={e=>set("postcode",e.target.value)}/></div>
-      <div><L req>City</L><I value={f.city} onChange={e=>set("city",e.target.value)}/></div>
+      <div><L req>Postcode</L><I value={f.postcode} onChange={e=>set("postcode",e.target.value)} placeholder="e.g. 88000"/></div>
+      <div><L req>City</L><I value={f.city} onChange={e=>set("city",e.target.value)} placeholder="e.g. Kota Kinabalu"/></div>
       <div><L req>Best Time to Contact Applicant</L><SEL value={f.bestTimeContact} onChange={e=>set("bestTimeContact",e.target.value)}>{TIMES.map(x=><option key={x}>{x}</option>)}</SEL></div>
-      <div style={{gridColumn:"1/-1"}}><L req>Address</L><TX rows={2} value={f.address} onChange={e=>set("address",e.target.value)}/></div>
+      <div style={{gridColumn:"1/-1"}}><L req>Address</L><TX rows={2} value={f.address} onChange={e=>set("address",e.target.value)} placeholder="Full residential address"/></div>
     </FormCard>
 
     <FormCard title="Bank Details">
-      <div><L req>Bank Name</L><I value={f.bankName} onChange={e=>set("bankName",e.target.value)}/></div>
+      <div><L req>Bank Name</L><I value={f.bankName} onChange={e=>set("bankName",e.target.value)} placeholder="e.g. Maybank"/></div>
       <div><L req>Bank Account Type</L><SEL value={f.bankAccountType} onChange={e=>set("bankAccountType",e.target.value)}>{["Savings","Current"].map(x=><option key={x}>{x}</option>)}</SEL></div>
-      <div><L req>Bank Account Holder Name</L><I value={f.bankAccountHolderName} onChange={e=>set("bankAccountHolderName",e.target.value)}/></div>
+      <div><L req>Bank Account Holder Name</L><I value={f.bankAccountHolderName} onChange={e=>set("bankAccountHolderName",e.target.value)} placeholder="Must match customer's IC name"/></div>
       <div><L req>Bank Account Number</L><I value={f.bankAccountNumber} onChange={e=>set("bankAccountNumber",e.target.value)}/></div>
     </FormCard>
 
     <FormCard title="Employment & Income">
-      <div><L req>Customer Occupation</L><I value={f.occupation} onChange={e=>set("occupation",e.target.value)}/></div>
-      <div><L req>Customer Work Department</L><I value={f.workDepartment} onChange={e=>set("workDepartment",e.target.value)}/></div>
-      <div><L req>Company Nature of Business</L><I value={f.companyNatureOfBusiness} onChange={e=>set("companyNatureOfBusiness",e.target.value)}/></div>
-      <div><L req>Years of Service</L><I type="number" value={f.yearsOfService} onChange={e=>set("yearsOfService",e.target.value)}/></div>
-      <div><L req>Months of Service</L><I type="number" value={f.monthsOfService} onChange={e=>set("monthsOfService",e.target.value)}/></div>
+      <div><L req>Customer Occupation</L><I value={f.occupation} onChange={e=>set("occupation",e.target.value)} placeholder="e.g. Sales Executive"/></div>
+      <div><L req>Customer Work Department</L><I value={f.workDepartment} onChange={e=>set("workDepartment",e.target.value)} placeholder="e.g. Sales &amp; Marketing"/></div>
+      <div><L req>Company Nature of Business</L><I value={f.companyNatureOfBusiness} onChange={e=>set("companyNatureOfBusiness",e.target.value)} placeholder="e.g. Retail, F&amp;B, Manufacturing"/></div>
+      <div><L req>Years of Service</L><I type="number" value={f.yearsOfService} onChange={e=>set("yearsOfService",e.target.value)} placeholder="0"/></div>
+      <div><L req>Months of Service</L><I type="number" value={f.monthsOfService} onChange={e=>set("monthsOfService",e.target.value)} placeholder="0"/></div>
       <div><L req>Salary Date</L><I value={f.salaryDate} onChange={e=>set("salaryDate",e.target.value)} placeholder="e.g. 25th"/></div>
-      <div><L req>Net Salary (RM)</L><I type="number" step="0.01" value={f.netSalary} onChange={e=>set("netSalary",e.target.value)}/></div>
+      <div><L req>Net Salary (RM)</L><I type="number" step="0.01" value={f.netSalary} onChange={e=>set("netSalary",e.target.value)} placeholder="0.00"/></div>
       <div><L req>Employment Type</L><SEL value={f.employmentType} onChange={e=>set("employmentType",e.target.value)}>{["Commission","Contract","Permanent","Probation","Self-Employment","Retirement"].map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Work Location</L><SEL value={f.workLocation} onChange={e=>set("workLocation",e.target.value)}>{["Malaysia","Singapore"].map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Company Name</L><I value={f.companyName} onChange={e=>set("companyName",e.target.value)}/></div>
-      <div><L req>Office Postcode</L><I value={f.officePostcode} onChange={e=>set("officePostcode",e.target.value)}/></div>
-      <div><L req>Office Tel No.</L><I value={f.officeTel} onChange={e=>set("officeTel",e.target.value)}/></div>
+      <div><L req>Office Postcode</L><I value={f.officePostcode} onChange={e=>set("officePostcode",e.target.value)} placeholder="e.g. 88000"/></div>
+      <div><L req>Office Tel No.</L><I value={f.officeTel} onChange={e=>set("officeTel",e.target.value)} placeholder="e.g. 088123456"/></div>
       <div style={{gridColumn:"1/-1"}}><L req>Office Address</L><TX rows={2} value={f.officeAddress} onChange={e=>set("officeAddress",e.target.value)}/></div>
     </FormCard>
 
@@ -267,19 +270,19 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     </FormCard>
 
     <FormCard title="Emergency Contact #1">
-      <div><L req>Name</L><I value={f.ec1Name} onChange={e=>set("ec1Name",e.target.value)}/></div>
+      <div><L req>Name</L><I value={f.ec1Name} onChange={e=>set("ec1Name",e.target.value)} placeholder="Full name"/></div>
       <div><L req>Relationship</L><SEL value={f.ec1Relationship} onChange={e=>set("ec1Relationship",e.target.value)}>{RELATIONS.map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Stay With Applicant?</L><SEL value={f.ec1StayWith} onChange={e=>set("ec1StayWith",e.target.value)}>{["Yes","No"].map(x=><option key={x}>{x}</option>)}</SEL></div>
-      <div><L req>Contact Number</L><I value={f.ec1ContactNumber} onChange={e=>set("ec1ContactNumber",e.target.value)}/></div>
+      <div><L req>Contact Number</L><I value={f.ec1ContactNumber} onChange={e=>set("ec1ContactNumber",e.target.value)} placeholder="e.g. 0121234567"/></div>
       <div><L req>Best Time to Contact</L><SEL value={f.ec1BestTime} onChange={e=>set("ec1BestTime",e.target.value)}>{TIMES.map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div style={{gridColumn:"1/-1"}}><L req>Address</L><TX rows={2} value={f.ec1Address} onChange={e=>set("ec1Address",e.target.value)}/></div>
     </FormCard>
 
     <FormCard title="Emergency Contact #2">
-      <div><L req>Name</L><I value={f.ec2Name} onChange={e=>set("ec2Name",e.target.value)}/></div>
+      <div><L req>Name</L><I value={f.ec2Name} onChange={e=>set("ec2Name",e.target.value)} placeholder="Full name"/></div>
       <div><L req>Relationship</L><SEL value={f.ec2Relationship} onChange={e=>set("ec2Relationship",e.target.value)}>{RELATIONS.map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Stay With Applicant?</L><SEL value={f.ec2StayWith} onChange={e=>set("ec2StayWith",e.target.value)}>{["Yes","No"].map(x=><option key={x}>{x}</option>)}</SEL></div>
-      <div><L req>Contact Number</L><I value={f.ec2ContactNumber} onChange={e=>set("ec2ContactNumber",e.target.value)}/></div>
+      <div><L req>Contact Number</L><I value={f.ec2ContactNumber} onChange={e=>set("ec2ContactNumber",e.target.value)} placeholder="e.g. 0121234567"/></div>
       <div><L req>Best Time to Contact</L><SEL value={f.ec2BestTime} onChange={e=>set("ec2BestTime",e.target.value)}>{TIMES.map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div style={{gridColumn:"1/-1"}}><L req>Address</L><TX rows={2} value={f.ec2Address} onChange={e=>set("ec2Address",e.target.value)}/></div>
     </FormCard>
