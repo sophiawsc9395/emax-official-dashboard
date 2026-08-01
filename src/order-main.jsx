@@ -47,7 +47,7 @@ const CSS = `
     .order-info-grid{grid-template-columns:1fr;}
     .order-info-grid .oi-value{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word;}
   }
-  .detail-topbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+  .detail-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
   .detail-topbar-back{order:1;}
   .detail-topbar-title{order:3;flex-basis:100%;}
   .detail-topbar-actions{order:2;}

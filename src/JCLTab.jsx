@@ -424,11 +424,11 @@ function ActionBox({icon,title,desc,children}){
   </div>;
 }
 function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDelete,onEdit,onCreateOrder,fileUrls}){
-  const InfoCell=({label,value})=><div style={{minWidth:0,padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
-    <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{label}</div>
-    <div style={{fontSize:12,color:C.text,fontWeight:600,wordBreak:"break-word"}}>{value||"—"}</div>
+  const InfoCell=({label,value})=><div style={{display:"flex",alignItems:"flex-start",gap:16,padding:"10px 16px",borderBottom:`1px solid ${C.border}`}}>
+    <div style={{flex:"0 0 40%",maxWidth:220,fontSize:11,color:C.textLight,fontWeight:600}}>{label}</div>
+    <div style={{flex:1,minWidth:0,fontSize:13,color:C.text,fontWeight:600,wordBreak:"break-word"}}>{value||"—"}</div>
   </div>;
-  const Grid=({children})=><div style={{padding:"4px 16px 0",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",columnGap:20}}>{children}</div>;
+  const Grid=({children})=><div>{children}</div>;
   const [linkCopied,setLinkCopied]=useState(false);
   const copyLink=async()=>{
     const url=`${window.location.origin}${window.location.pathname}?jclId=${app.id}${window.location.hash||"#jclApplications"}`;
@@ -491,8 +491,8 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
         <InfoCell label="City" value={app.city}/>
         <InfoCell label="Best Time to Contact" value={app.bestTimeContact}/>
       </Grid>
-      <div style={{padding:"4px 16px 0"}}><InfoCell label="Customer Email" value={app.customerEmail}/></div>
-      <div style={{padding:"4px 16px 12px"}}><InfoCell label="Address" value={app.address}/></div>
+      <InfoCell label="Customer Email" value={app.customerEmail}/>
+      <InfoCell label="Address" value={app.address}/>
     </div>
 
     <div style={{...card,marginBottom:14}}>
@@ -521,7 +521,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
         <InfoCell label="Office Postcode" value={app.officePostcode}/>
         <InfoCell label="Office Tel" value={app.officeTel}/>
       </Grid>
-      <div style={{padding:"4px 16px 12px"}}><InfoCell label="Office Address" value={app.officeAddress}/></div>
+      <InfoCell label="Office Address" value={app.officeAddress}/>
     </div>
 
     <div style={{...card,marginBottom:14}}>
@@ -544,7 +544,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
         <InfoCell label="Stay With Applicant?" value={app.ec1StayWith}/><InfoCell label="Contact Number" value={app.ec1ContactNumber}/>
         <InfoCell label="Best Time to Contact" value={app.ec1BestTime}/>
       </Grid>
-      <div style={{padding:"4px 16px 12px"}}><InfoCell label="Address" value={app.ec1Address}/></div>
+      <InfoCell label="Address" value={app.ec1Address}/>
     </div>
 
     <div style={{...card,marginBottom:14}}>
@@ -554,7 +554,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
         <InfoCell label="Stay With Applicant?" value={app.ec2StayWith}/><InfoCell label="Contact Number" value={app.ec2ContactNumber}/>
         <InfoCell label="Best Time to Contact" value={app.ec2BestTime}/>
       </Grid>
-      <div style={{padding:"4px 16px 12px"}}><InfoCell label="Address" value={app.ec2Address}/></div>
+      <InfoCell label="Address" value={app.ec2Address}/>
     </div>
 
     <div className="detail-grid">
