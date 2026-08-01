@@ -308,7 +308,10 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
               const isCarried=isViewingCurrentSession&&!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession);
               return(
               <tr key={e.id} style={{borderTop:`1px solid ${C.border}`,background:e.ordered?"#F0FDF4":isCarried?"#FFFBEB":(i%2===0?"#fff":C.surface)}}>
-                <td style={{padding:"8px 10px",fontWeight:700,color:C.text,whiteSpace:"nowrap"}}>{e.deviceName}{isCarried&&<div style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#FEF3C7",display:"inline-block",borderRadius:10,padding:"1px 7px",marginLeft:6,verticalAlign:"middle"}}>Overdue — since {fDate(e.sessionDate)} Session {e.session}</div>}</td>
+                <td style={{padding:"8px 10px",fontWeight:700,color:C.text}}>
+                  <div style={{whiteSpace:"nowrap"}}>{e.deviceName}</div>
+                  {isCarried&&<div style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#FEF3C7",display:"inline-block",borderRadius:10,padding:"1px 7px",marginTop:3,whiteSpace:"nowrap"}}>Overdue — since {fDate(e.sessionDate)} Session {e.session}</div>}
+                </td>
                 <td style={{padding:"8px 10px",color:C.textMid}}>{e.agreementNo||"—"}</td>
                 <td style={{padding:"8px 10px",color:C.textMid,whiteSpace:"nowrap"}}>{fRM(e.financePrice)}</td>
                 <td style={{padding:"8px 10px",color:C.textMid}}>{branchMeta?.[e.branch]?.name||e.branch}</td>

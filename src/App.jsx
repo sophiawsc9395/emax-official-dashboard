@@ -1092,7 +1092,7 @@ export function TargetModal({targets,setTargets,srList,branchMeta,onClose,curren
           {hrLocked&&<div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#92400E"}}>
             You're viewing {MONTHS_LABEL[tgtMonth-1]} {tgtYear} — that's a past month, so it's read-only from here. Switch to the current month to make changes.
           </div>}
-          <p style={{fontSize:11,color:"#8A96A8",marginBottom:16}}>Each branch shows BM settings followed by SR targets. Achievement bonus auto-calculated.</p>
+
           {branches.map(b=>{
             const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,tgtMonth,tgtYear));
             const bmName=branchMeta[b]?.manager??"";
