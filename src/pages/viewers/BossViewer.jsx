@@ -1291,18 +1291,18 @@ export default function App({elevateOrderAccess=false,isHR=false}){
 
           {isHR&&<>
             <button onClick={()=>setShowSRModal(true)} style={{
-              display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+              display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
               border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
-              background:"rgba(46,164,79,.12)",color:"#4ADE80",transition:"background .15s",
+              background:"transparent",color:"rgba(255,255,255,.45)",transition:"background .15s",
             }}>
-              👥 Manage Staff
+              Manage Staff
             </button>
             <button onClick={()=>setShowTargetModal(true)} style={{
-              display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+              display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
               border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
-              background:"rgba(255,213,0,.1)",color:"#FFD500",transition:"background .15s",
+              background:"transparent",color:"rgba(255,255,255,.45)",transition:"background .15s",
             }}>
-              🎯 Set Targets
+              Set Targets
             </button>
             <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
           </>}

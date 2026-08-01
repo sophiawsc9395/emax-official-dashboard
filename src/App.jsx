@@ -1063,25 +1063,23 @@ export function TargetModal({targets,setTargets,srList,branchMeta,onClose,curren
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:860,maxHeight:"90vh",overflow:"auto"}}>
       {/* Sticky header */}
       <div style={{padding:"14px 20px",borderBottom:"1px solid #E4EAF2",position:"sticky",top:0,background:"#fff",zIndex:1}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Target & Bonus Settings</h2>
-          <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-            <select className="input select" value={tgtMonth} onChange={e=>loadMonthTargets(parseInt(e.target.value),tgtYear)} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
-              {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
-            </select>
-            <select className="input select" value={tgtYear} onChange={e=>loadMonthTargets(tgtMonth,parseInt(e.target.value))} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
-              {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
-            </select>
-            <select className="input select" value={selBranch} onChange={e=>setSelBranch(e.target.value)} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
-              <option value="ALL">All Branches</option>
-              {BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name}</option>)}
-            </select>
-            <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
-          </div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Targets</h2>
+          {saved&&<span style={{fontSize:12,color:"#00C896",fontWeight:700}}>✓ Saved</span>}
         </div>
-        <div style={{fontSize:11,color:"#8A96A8",marginTop:6}}>
-          {MONTHS_LABEL[tgtMonth-1]} {tgtYear}{selBranch!=="ALL"?` · ${branchMeta[selBranch]?.name}`:" · All Branches"}
-          {saved&&<span style={{color:"#00C896",fontWeight:700,marginLeft:12}}>✓ Saved</span>}
+        <div style={{display:"flex",gap:6,alignItems:"center",marginTop:8}}>
+          <select className="input select" value={tgtMonth} onChange={e=>loadMonthTargets(parseInt(e.target.value),tgtYear)} style={{fontSize:12,padding:"4px 20px 4px 6px",width:88}}>
+            {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
+          </select>
+          <select className="input select" value={tgtYear} onChange={e=>loadMonthTargets(tgtMonth,parseInt(e.target.value))} style={{fontSize:12,padding:"4px 20px 4px 6px",width:78}}>
+            {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
+          </select>
+          <select className="input select" value={selBranch} onChange={e=>setSelBranch(e.target.value)} style={{fontSize:12,padding:"4px 20px 4px 6px",width:130}}>
+            <option value="ALL">All Branches</option>
+            {BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name}</option>)}
+          </select>
+          <div style={{flex:1}}/>
+          <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px",fontSize:12}}>Close</button>
         </div>
       </div>
 
@@ -1118,20 +1116,23 @@ export function TargetModal({targets,setTargets,srList,branchMeta,onClose,curren
                 </div>
               </div>
               {/* SR targets */}
-              {bSRs.length>0&&<div style={{padding:"12px 16px"}}>
+              {bSRs.length>0&&<div style={{padding:"12px 16px",overflowX:"auto"}}>
                 <div style={{fontSize:10,fontWeight:700,color:"#1E6FDB",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>SR Targets</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))",gap:8}}>
-                  {bSRs.map(sr=>(
-                    <div key={sr.id} style={{background:"#F7F9FC",borderRadius:8,padding:10,border:"1px solid #E4EAF2"}}>
-                      <div style={{fontWeight:700,fontSize:12,color:"#0A1628",marginBottom:4}}>{sr.canon}</div>
-                      <div style={{marginBottom:6}}><TypeTag type={sr.type}/></div>
-                      <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Target (RM)</label>
-                      <input className="input" type="number" value={local.sr?.[sr.id]?.target||""} onChange={e=>setSR(sr.id,"target",e.target.value)} placeholder="0" style={{marginBottom:6,fontSize:12,padding:"5px 8px"}}/>
-                      <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Personal Bonus (RM)</label>
-                      <input className="input" type="number" value={local.sr?.[sr.id]?.bonus||""} onChange={e=>setSR(sr.id,"bonus",e.target.value)} placeholder="0" style={{fontSize:12,padding:"5px 8px"}}/>
-                    </div>
-                  ))}
-                </div>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead><tr style={{borderBottom:"2px solid #E4EAF2"}}>
+                    {["Name","Type","Target (RM)","Personal Bonus (RM)"].map(h=>
+                      <th key={h} style={{textAlign:"left",padding:"8px",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
+                    )}
+                  </tr></thead>
+                  <tbody>{bSRs.map((sr,i)=>(
+                    <tr key={sr.id} style={{borderBottom:"1px solid #E4EAF2",background:i%2===0?"#fff":"#F7F9FC"}}>
+                      <td style={{padding:"7px 8px",fontWeight:700,color:"#0A1628",whiteSpace:"nowrap"}}>{sr.canon}</td>
+                      <td style={{padding:"7px 8px"}}><TypeTag type={sr.type}/></td>
+                      <td style={{padding:"7px 8px"}}><input className="input" type="number" value={local.sr?.[sr.id]?.target||""} onChange={e=>setSR(sr.id,"target",e.target.value)} placeholder="0" style={{fontSize:12,padding:"5px 8px",width:110}}/></td>
+                      <td style={{padding:"7px 8px"}}><input className="input" type="number" value={local.sr?.[sr.id]?.bonus||""} onChange={e=>setSR(sr.id,"bonus",e.target.value)} placeholder="0" style={{fontSize:12,padding:"5px 8px",width:110}}/></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
               </div>}
               {bSRs.length===0&&<div style={{padding:"10px 16px",fontSize:11,color:"#8A96A8"}}>No active SR for this branch in {MONTHS_LABEL[tgtMonth-1]} {tgtYear}.</div>}
             </div>;
@@ -1247,6 +1248,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
   const [localSR,setLocalSR]=useState(JSON.parse(JSON.stringify(srList)));
   const [editSR,setEditSR]=useState(null);
   const [updatePerson,setUpdatePerson]=useState(null);
+  const [expandedResigned,setExpandedResigned]=useState({});
   const [editSRId,setEditSRId]=useState(null); // {oldId, value} — separate from editSR (name) since renaming an ID needs its own validation/migration path
   const [srIdError,setSrIdError]=useState(null);
   const trySaveSRId=async(oldId,value)=>{
@@ -1433,21 +1435,21 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
   return <div className="modal-overlay">
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:900,maxHeight:"92vh",overflow:"auto"}}>
       {/* Header */}
-      <div style={{padding:"16px 24px",borderBottom:"1px solid #E4EAF2",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:"#fff",zIndex:10}}>
-        <div>
+      <div style={{padding:"14px 24px",borderBottom:"1px solid #E4EAF2",position:"sticky",top:0,background:"#fff",zIndex:10}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Manage Staff</h2>
-          <div style={{fontSize:11,color:"#8A96A8",marginTop:2}}>All staff arranged by branch — BM, SR, and resigned</div>
+          {(saved||srSaved)&&<span style={{fontSize:12,color:"#00C896",fontWeight:700}}>✓ Saved</span>}
         </div>
-        <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-          {(saved||srSaved)&&<span style={{fontSize:12,color:"#00C896",fontWeight:600}}>✓ Saved</span>}
-          <select className="input select" value={typeMonth} onChange={e=>setTypeMonth(parseInt(e.target.value))} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
+        <div style={{display:"flex",gap:6,alignItems:"center",marginTop:8}}>
+          <select className="input select" value={typeMonth} onChange={e=>setTypeMonth(parseInt(e.target.value))} style={{fontSize:12,padding:"4px 20px 4px 6px",width:88}}>
             {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
           </select>
-          <select className="input select" value={typeYear} onChange={e=>setTypeYear(parseInt(e.target.value))} style={{fontSize:12,padding:"4px 22px 4px 8px"}}>
+          <select className="input select" value={typeYear} onChange={e=>setTypeYear(parseInt(e.target.value))} style={{fontSize:12,padding:"4px 20px 4px 6px",width:78}}>
             {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
           </select>
-          <button className="btn btn-success" onClick={()=>setEditSR("new")}>+ Add New SR</button>
-          <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
+          <div style={{flex:1}}/>
+          <button className="btn btn-success" onClick={()=>setEditSR("new")} style={{fontSize:12,padding:"6px 12px"}}>+ Add New SR</button>
+          <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px",fontSize:12}}>Close</button>
         </div>
       </div>
 
@@ -1521,15 +1523,20 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
               {setShowStatusHistoryModal&&<button className="btn btn-ghost" onClick={()=>{setStatusModalPerson(`BM_${b}`);setShowStatusHistoryModal(true);}} style={{fontSize:11,padding:"6px 10px"}}>History</button>}
             </div>
 
-            {/* Active SR cards */}
-            {active.length>0&&<div style={{padding:"14px 18px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:10}}>
-              {active.map(sr=>(
-                <div key={sr.id} style={{border:"1px solid #E4EAF2",borderRadius:10,padding:12,background:"#fff"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6,gap:8}}>
-                    <div style={{minWidth:0,flex:1}}>
+            {/* Active SR table */}
+            {active.length>0&&<div style={{padding:"0 18px 14px",overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                <thead><tr style={{borderBottom:"2px solid #E4EAF2"}}>
+                  {["Name / ID","Type","Joined","Status","Points",""].map(h=>
+                    <th key={h} style={{textAlign:"left",padding:"10px 8px",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
+                  )}
+                </tr></thead>
+                <tbody>{active.map((sr,i)=>(
+                  <tr key={sr.id} style={{borderBottom:"1px solid #E4EAF2",background:i%2===0?"#fff":"#FBFCFE"}}>
+                    <td style={{padding:"8px",minWidth:150}}>
                       {editSR?.id===sr.id
-                        ?<input autoFocus className="input" style={{width:"100%",padding:"3px 7px",fontSize:13,fontWeight:700}} value={editSR.canon} onChange={e=>setEditSR(p=>({...p,canon:e.target.value.toUpperCase()}))} onBlur={async()=>{await updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}} onKeyDown={e=>{if(e.key==="Enter"){updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}if(e.key==="Escape")setEditSR(null);}}/>
-                        :<div style={{fontWeight:700,fontSize:13,color:"#0A1628",cursor:"pointer"}} onClick={()=>setEditSR({...sr})} title="Click to edit name">{sr.canon}</div>}
+                        ?<input autoFocus className="input" style={{width:"100%",padding:"3px 7px",fontSize:12,fontWeight:700}} value={editSR.canon} onChange={e=>setEditSR(p=>({...p,canon:e.target.value.toUpperCase()}))} onBlur={async()=>{await updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}} onKeyDown={e=>{if(e.key==="Enter"){updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}if(e.key==="Escape")setEditSR(null);}}/>
+                        :<div style={{fontWeight:700,fontSize:12,color:"#0A1628",cursor:"pointer"}} onClick={()=>setEditSR({...sr})} title="Click to edit name">{sr.canon}</div>}
                       {editSRId?.oldId===sr.id
                         ?<div style={{display:"flex",flexDirection:"column",gap:2,marginTop:3}}>
                           <input autoFocus className="input" style={{width:90,padding:"2px 6px",fontSize:10}} value={editSRId.value} onChange={e=>{setEditSRId(p=>({...p,value:e.target.value}));setSrIdError(null);}} onKeyDown={e=>{if(e.key==="Enter")trySaveSRId(sr.id,editSRId.value);if(e.key==="Escape"){setEditSRId(null);setSrIdError(null);}}}/>
@@ -1539,39 +1546,51 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
                           </div>
                           {srIdError&&<div style={{fontSize:9,color:"#DC2626"}}>{srIdError}</div>}
                         </div>
-                        :<div style={{fontSize:10,color:"#8A96A8",cursor:"pointer",marginTop:2}} onClick={()=>{setEditSRId({oldId:sr.id,value:sr.id});setSrIdError(null);}} title="Click to edit ID">{sr.id}</div>}
-                    </div>
-                    <TypeTag type={getType(sr)}/>
-                  </div>
-                  <div style={{fontSize:11,color:"#4A5568",marginBottom:4}}>Joined {sr.joinDate?sr.joinDate.replace(/(\d{4})-(\d{2})/,(f,y,m)=>["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m-1]+" "+y):"—"}</div>
-                  <div style={{fontSize:11,color:"#0A1628",fontWeight:600,marginBottom:8}}>{sr.status||"—"}</div>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,flexWrap:"wrap"}}>
-                    <AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/>
-                    <div style={{display:"flex",gap:4}}>
-                      <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} style={{fontSize:10,padding:"4px 9px"}}>Update</button>
+                        :<div style={{fontSize:10,color:"#8A96A8",cursor:"pointer",marginTop:1}} onClick={()=>{setEditSRId({oldId:sr.id,value:sr.id});setSrIdError(null);}} title="Click to edit ID">{sr.id}</div>}
+                    </td>
+                    <td style={{padding:"8px"}}><TypeTag type={getType(sr)}/></td>
+                    <td style={{padding:"8px",color:"#4A5568",whiteSpace:"nowrap"}}>{sr.joinDate?sr.joinDate.replace(/(\d{4})-(\d{2})/,(f,y,m)=>["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m-1]+" "+y):"—"}</td>
+                    <td style={{padding:"8px",color:"#0A1628",fontWeight:600,whiteSpace:"nowrap"}}>{sr.status||"—"}</td>
+                    <td style={{padding:"8px"}}><AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/></td>
+                    <td style={{padding:"8px",textAlign:"right",whiteSpace:"nowrap"}}>
+                      <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} style={{fontSize:10,padding:"4px 9px",marginRight:4}}>Update</button>
                       <button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"4px 9px"}}>Remove</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                    </td>
+                  </tr>
+                ))}</tbody>
+              </table>
             </div>}
 
-            {/* Resigned / inactive */}
-            {resigned.length>0&&<div style={{borderTop:"1px solid #FECACA",background:"#FFF9F9"}}>
-              <div style={{padding:"6px 18px",fontSize:10,fontWeight:700,color:"#B91C1C",textTransform:"uppercase",letterSpacing:"0.07em"}}>Resigned / Inactive ({resigned.length})</div>
-              <div style={{padding:"0 18px 14px",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:8}}>
-                {resigned.map(sr=>(
-                  <div key={sr.id} style={{border:"1px solid #FECACA",borderRadius:10,padding:10,background:"#fff"}}>
-                    <div style={{fontWeight:700,fontSize:12,color:"#7F1D1D"}}>{sr.canon}</div>
-                    <div style={{fontSize:10,color:"#B91C1C",marginBottom:4}}>{sr.id} · {sr.type}{sr.resignDate?` · Resigned ${sr.resignDate.split("-").reverse().join("/")}`:""}</div>
-                    <div style={{fontSize:11,color:"#B91C1C",marginBottom:8}}>{sr.status}</div>
-                    <div style={{display:"flex",gap:4}}>
-                      <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} style={{fontSize:10,padding:"4px 9px"}}>Update</button>
-                      <button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"4px 9px"}}>Remove</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            {/* Resigned / inactive — always collapsed by default */}
+            {resigned.length>0&&<div style={{borderTop:"1px solid #E4EAF2"}}>
+              <button onClick={()=>setExpandedResigned(p=>({...p,[b]:!p[b]}))} style={{width:"100%",textAlign:"left",padding:"9px 18px",background:"none",border:"none",cursor:"pointer",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.07em",display:"flex",alignItems:"center",gap:6}}>
+                <span style={{transform:expandedResigned[b]?"rotate(90deg)":"none",transition:"transform .15s",display:"inline-block"}}>›</span>
+                Resigned / Inactive ({resigned.length})
+              </button>
+              {expandedResigned[b]&&<div style={{padding:"0 18px 14px",overflowX:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                  <thead><tr style={{borderBottom:"2px solid #FECACA"}}>
+                    {["Name / ID","Type","Resigned","Status",""].map(h=>
+                      <th key={h} style={{textAlign:"left",padding:"8px",fontSize:10,fontWeight:700,color:"#B91C1C",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
+                    )}
+                  </tr></thead>
+                  <tbody>{resigned.map(sr=>(
+                    <tr key={sr.id} style={{borderBottom:"1px solid #FECACA"}}>
+                      <td style={{padding:"7px 8px"}}>
+                        <div style={{fontWeight:700,color:"#7F1D1D"}}>{sr.canon}</div>
+                        <div style={{fontSize:10,color:"#B91C1C"}}>{sr.id}</div>
+                      </td>
+                      <td style={{padding:"7px 8px",color:"#B91C1C"}}>{sr.type}</td>
+                      <td style={{padding:"7px 8px",color:"#B91C1C",whiteSpace:"nowrap"}}>{sr.resignDate?sr.resignDate.split("-").reverse().join("/"):"—"}</td>
+                      <td style={{padding:"7px 8px",color:"#B91C1C"}}>{sr.status}</td>
+                      <td style={{padding:"7px 8px",textAlign:"right",whiteSpace:"nowrap"}}>
+                        <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} style={{fontSize:10,padding:"4px 9px",marginRight:4}}>Update</button>
+                        <button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"4px 9px"}}>Remove</button>
+                      </td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>}
             </div>}
 
             {active.length===0&&resigned.length===0&&<div style={{padding:"14px 18px",color:"#8A96A8",fontSize:12}}>No staff in this branch.</div>}
