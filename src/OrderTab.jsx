@@ -127,6 +127,7 @@ const calcCashDue=o=>(parseFloat(o.retailPrice)||0)-(parseFloat(o.deposit)||0);
 
 /* ── Icons ────────────────────────────────────────────────────────────── */
 const Ic={
+  copy:<svg width="12"height="12"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><rect x="9"y="9"width="13"height="13"rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
   box:<svg width="14"height="14"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1"y="3"width="22"height="5"/><line x1="10"y1="12"x2="14"y2="12"/></svg>,
   truck:<svg width="14"height="14"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><rect x="1"y="3"width="15"height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5"cy="18.5"r="2.5"/><circle cx="18.5"cy="18.5"r="2.5"/></svg>,
   card:<svg width="14"height="14"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><rect x="1"y="4"width="22"height="16"rx="2"/><line x1="1"y1="10"x2="23"y2="10"/></svg>,
@@ -936,6 +937,16 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
       if(!isCash&&!paymentProofAmount.toString().trim())return false;
       if(isCash&&!upfrontMonthly.toString().trim())return false;
       if(isShortPaymentPending(order)&&(!secondPaymentDate||!secondPaymentAmount.toString().trim()))return false;
+      // The actual payment proof amount(s) must match the expected total
+      // upfront payment (Upfront 1 + Upfront 2) before this can be
+      // confirmed — otherwise a mismatched collection could slip through
+      // unnoticed.
+      if(!isCash){
+        const expectedTotal=upfront.total+(parseFloat(upfrontMonthly)||0);
+        const proof1=parseFloat(paymentProofAmount)||0;
+        const proof2=isShortPaymentPending(order)?(parseFloat(secondPaymentAmount)||0):0;
+        if(Math.abs((proof1+proof2)-expectedTotal)>0.01)return false;
+      }
     }
     if(nextDef.needsFiles){const priorFiles=new Set((order.history||[]).filter(h=>h.step===nextDef.step).flatMap(h=>Object.keys(h.files||{})));const req=(nextDef.needsFiles||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof")&&!priorFiles.has(f.key));if(branchOk&&req.some(f=>f.multiple?!(files[f.key]?.length):!files[f.key]))return false;}
     return true;
@@ -1012,6 +1023,16 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
             {isCash?<div style={{gridColumn:"1/-1"}}><L>Total Due (auto: Retail − Deposit)</L><div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600}}>{fRM(calcCashDue(order))}</div></div>:<div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:4,whiteSpace:"nowrap"}}>Upfront 1 (Agreement + Stamping + Deposit)</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.surface,color:C.textLight,fontSize:13,fontWeight:600}}><span>Amount</span><span>{fRM(upfront.total)}</span></div></div>}
             <div style={{gridColumn:"1/-1"}}>{isCash?<><L req>Balance Payment Amount (RM)</L><I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)}/></>:<><div style={{fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:4,whiteSpace:"nowrap"}}>Upfront 2 (First Monthly Installment)</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.surface,color:C.textMid,fontSize:13,fontWeight:600,cursor:"not-allowed"}}><span>Amount</span><span>{fRM(upfrontMonthly)}</span></div></>}</div>
             {!isCash&&<div style={{gridColumn:"1/-1"}}><L>Total Upfront Payment (RM)</L><div style={{...inp,background:C.navy,color:"#fff",fontWeight:800}}>{fRM(upfront.total+(parseFloat(upfrontMonthly)||0))}</div></div>}
+            {!isCash&&(()=>{
+              const expectedTotal=upfront.total+(parseFloat(upfrontMonthly)||0);
+              const proof1=parseFloat(paymentProofAmount)||0;
+              const proof2=isShortPaymentPending(order)?(parseFloat(secondPaymentAmount)||0):0;
+              const totalProof=proof1+proof2;
+              const hasEntry=paymentProofAmount.toString().trim()||(isShortPaymentPending(order)&&secondPaymentAmount.toString().trim());
+              if(!hasEntry)return null;
+              const matches=Math.abs(totalProof-expectedTotal)<=0.01;
+              return<div style={{gridColumn:"1/-1",fontSize:11,fontWeight:700,color:matches?"#15803D":"#DC2626",padding:"6px 2px"}}>{matches?`✓ Payment proof matches total upfront payment (${fRM(totalProof)})`:`✗ Payment proof (${fRM(totalProof)}) does not match total upfront payment (${fRM(expectedTotal)}) — cannot confirm until this matches`}</div>;
+            })()}
           </div>
           {isShortPaymentPending(order)&&<div style={{background:"#FFFBEB",borderRadius:9,padding:"12px 14px",border:"1px solid #FDE68A",marginBottom:12}}>
             <div style={{...lbl,marginBottom:8,color:"#92400E"}}>Second Payment Proof (Short Payment Correction)</div>
@@ -1202,6 +1223,13 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
   const FieldLog=({field})=>viewingField===field&&<div style={{marginTop:4,background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:6,padding:"6px 8px",display:"flex",flexDirection:"column",gap:3}}>
     {order.editLog.filter(e=>e.fields?.includes(field)).map((e,i)=><div key={i} style={{fontSize:10,color:"#92400E"}}>{fDate(e.date)} {e.time} by {e.by}: {e.fieldChanges?.[field]}</div>)}
   </div>;
+  // Small inline copy button for admin — sits right beside a field's value,
+  // same line, so scanning Order Information stays tidy.
+  const CopyBtn=({value})=>{
+    const [copied,setCopied]=useState(false);
+    if(!isAdmin||!value||value==="—")return null;
+    return<button onClick={()=>{navigator.clipboard?.writeText(String(value)).catch(()=>{});setCopied(true);setTimeout(()=>setCopied(false),1500);}} title="Copy" style={{marginLeft:6,background:"none",border:"none",cursor:"pointer",padding:2,color:copied?"#15803D":C.textLight,display:"inline-flex",verticalAlign:"middle"}}>{copied?Ic.checkCircle:Ic.copy}</button>;
+  };
   return<div className="fade-in">
     {/* Top bar */}
     <div className="detail-topbar">
@@ -1252,19 +1280,19 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
       <div className="order-info-grid" style={{padding:"6px 16px 10px"}}>
         <div style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Device Name</div>
-          {canEditPhoneModelAtOrdered&&order.step===2?<PhoneModelField order={order} onUpdate={onUpdate}/>:<div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.phoneModel||"—"}{everEditedFields.has("phoneModel")&&<FieldEditedTag field="phoneModel"/>}<FieldLog field="phoneModel"/></div>}
+          {canEditPhoneModelAtOrdered&&order.step===2?<PhoneModelField order={order} onUpdate={onUpdate}/>:<div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.phoneModel||"—"}{everEditedFields.has("phoneModel")&&<FieldEditedTag field="phoneModel"/>}<FieldLog field="phoneModel"/><CopyBtn value={order.phoneModel}/></div>}
         </div>
         {[["Customer Name",order.customerName,"customerName"],order.customerIC&&["Customer IC",order.customerIC,"customerIC"],order.customerHP&&["Customer HP",order.customerHP,"customerHP"],!isCash&&["Merchant",order.merchant,"merchant"],!isCash&&["Agreement No. / Case ID No.",order.agreementNumber,"agreementNumber"],!isCash&&["Merchant Approval Date",fDate(order.aeonApprovalDate),"aeonApprovalDate"],!isCash&&["Finance Price",fRM(order.financePrice),"financePrice"],!isCash&&["Agreement Fee",fRM(order.agreementFee),"agreementFee"],!isCash&&["Stamping Fee",fRM(order.stampingFee),"stampingFee"],["Deposit",fRM(order.deposit),"deposit"],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment),"monthlyInstallment"],isCash&&["Retail Price",fRM(order.retailPrice),"retailPrice"],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate),"depositPaymentDate"],order.invoiceNo&&["Invoice No.",order.invoiceNo,"invoiceNo"],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch,"pickUpBranch"],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v,k])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
-          <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}{k&&everEditedFields.has(k)&&<FieldEditedTag field={k}/>}{k&&<FieldLog field={k}/>}</div>
+          <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}{k&&everEditedFields.has(k)&&<FieldEditedTag field={k}/>}{k&&<FieldLog field={k}/>}<CopyBtn value={v}/></div>
         </div>)}
         {order.customerEmail&&<div className="oi-full" style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Customer Email</div>
-          <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.customerEmail}{everEditedFields.has("customerEmail")&&<FieldEditedTag field="customerEmail"/>}<FieldLog field="customerEmail"/></div>
+          <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.customerEmail}{everEditedFields.has("customerEmail")&&<FieldEditedTag field="customerEmail"/>}<FieldLog field="customerEmail"/><CopyBtn value={order.customerEmail}/></div>
         </div>}
         {order.customerAddress&&<div className="oi-full" style={{padding:"7px 0",minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Address{(order.customerPostCode||order.customerCity)?` (${[order.customerPostCode,order.customerCity].filter(Boolean).join(", ")})`:""}</div>
-          <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.customerAddress}{(everEditedFields.has("customerAddress")||everEditedFields.has("customerPostCode")||everEditedFields.has("customerCity"))&&<FieldEditedTag field="customerAddress"/>}<FieldLog field="customerAddress"/></div>
+          <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.customerAddress}{(everEditedFields.has("customerAddress")||everEditedFields.has("customerPostCode")||everEditedFields.has("customerCity"))&&<FieldEditedTag field="customerAddress"/>}<FieldLog field="customerAddress"/><CopyBtn value={order.customerAddress}/></div>
         </div>}
       </div>
     </div>

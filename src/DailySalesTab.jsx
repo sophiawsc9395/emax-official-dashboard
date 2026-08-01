@@ -31,6 +31,21 @@ const yesterday=()=>{const d=new Date();d.setDate(d.getDate()-1);return d.toISOS
 const fDate=s=>{if(!s)return"—";const[y,m,d]=s.split("-");return`${d}/${m}/${y}`;};
 const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
 const daysSince=dateStr=>{if(!dateStr)return 0;const[y,m,d]=dateStr.split("-").map(Number);const then=new Date(y,m-1,d);const now=new Date();const today=new Date(now.getFullYear(),now.getMonth(),now.getDate());return Math.floor((today-then)/(1000*60*60*24));};
+// Bank is closed Saturday/Sunday — branch banks in Friday, Saturday, and
+// Sunday's sales together the following Monday. Pushing the "clock start"
+// for lateness to that Monday (for reports submitted on those 3 days) keeps
+// the alert from firing over a weekend nobody could act on anyway.
+const effectiveSubmitDate=dateStr=>{
+  if(!dateStr)return dateStr;
+  const[y,m,d]=dateStr.split("-").map(Number);
+  const date=new Date(y,m-1,d);
+  const dow=date.getDay(); // 0=Sun,5=Fri,6=Sat
+  if(dow===5)date.setDate(date.getDate()+3);
+  else if(dow===6)date.setDate(date.getDate()+2);
+  else if(dow===0)date.setDate(date.getDate()+1);
+  else return dateStr;
+  return date.toISOString().split("T")[0];
+};
 
 function readSlipFile(f,syntheticId){
   return new Promise((res,rej)=>{
@@ -64,7 +79,7 @@ const GBtn=({children,...p})=><button {...p} style={{display:"inline-flex",align
 function StatusBadge({report}){
   if(!report.cashSales)return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#F0FDF4",color:"#15803D"}}>No Cash — N/A</span>;
   if(!getSlips(report).length){
-    const late=daysSince(report.submittedAt)>=1;
+    const late=daysSince(effectiveSubmitDate(report.submittedAt))>=1;
     return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:late?"#FEF2F2":"#FFFBEB",color:late?"#DC2626":"#B45309"}}>{late?"Bank-in Overdue":"Awaiting Bank-in"}</span>;
   }
   if(report.shortPayment&&!report.secondPaymentVerifiedAt)return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#FFFBEB",color:"#B45309"}}>{report.balancePaymentSlip?"Awaiting 2nd Payment Entry":"Short Payment — Awaiting Balance Slip"}</span>;
@@ -588,7 +603,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
   // Late bank-in alert — based on when the report was SUBMITTED (admin's
   // update), not the sales date it's reporting on. A report entered today
   // for last week's sales isn't "already late" the moment it's saved.
-  const lateAlerts=useMemo(()=>reports.filter(r=>r.cashSales>0&&!getSlips(r).length&&daysSince(r.submittedAt)>=1),[reports]);
+  const lateAlerts=useMemo(()=>reports.filter(r=>r.cashSales>0&&!getSlips(r).length&&daysSince(effectiveSubmitDate(r.submittedAt))>=1),[reports]);
   // Slip uploaded but knock-off/admin hasn't verified it yet — a different
   // problem from the branch being slow to upload (this one's on the HQ
   // side). Short-payment cases have their own dedicated tracking, so they're
@@ -650,11 +665,11 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
         <span style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"1px 8px",borderRadius:20}}>{myPending.length}</span>
       </div>
       {myPending.map(r=>{
-        const late=daysSince(r.submittedAt)>=1;
+        const late=daysSince(effectiveSubmitDate(r.submittedAt))>=1;
         const slips=getSlips(r);
         return<div key={r.id} style={{borderTop:`1px solid ${C.border}`,padding:"8px 0"}}>
           <div style={{fontSize:12,color:late?"#DC2626":C.text,fontWeight:600,marginBottom:6}}>
-            {slips.length?`${slips.length} slip${slips.length>1?"s":""} uploaded for `:`Bank in ${fRM(r.cashSales)} for `}{fDate(r.date)}{late?` — ${daysSince(r.submittedAt)} day${daysSince(r.submittedAt)>1?"s":""} late`:""}
+            {slips.length?`${slips.length} slip${slips.length>1?"s":""} uploaded for `:`Bank in ${fRM(r.cashSales)} for `}{fDate(r.date)}{late?` — ${daysSince(effectiveSubmitDate(r.submittedAt))} day${daysSince(effectiveSubmitDate(r.submittedAt))>1?"s":""} late`:""}
             {slips.length>0&&<span style={{color:C.textLight,fontWeight:500}}> — add another if you banked in across more than one transaction, or remove one below if it was a mistake</span>}
           </div>
           <UploadSlipBox report={r} onSaved={save}/>

@@ -139,6 +139,26 @@ const DEFAULT_SR=[
 ];
 
 const STORE_KEY="emax_v5_records",SR_KEY="emax_v5_sr_list",BM_KEY="emax_v5_branch_meta",REPAIR_KEY="emax_v5_repair";
+
+// Resolves which branch/role/status applied to an SR during a SPECIFIC
+// month, using their progressionHistory (if any) — walks backward to the
+// latest entry whose effectiveFrom is on or before that month. Falls back
+// to the SR's own current flat fields for records with no history yet
+// (existing data, or an SR who's never had a progression change), so this
+// is fully backward compatible. This is what makes progression changes
+// (resignation, confirmation, SR↔BM moves) NOT retroactively rewrite how
+// past months are read — only the month a change was made effective from
+// onward sees the new branch/role/status; everything before it keeps
+// reading whatever was actually true at the time.
+function resolveSRForMonth(sr,year,month){
+  const ym=`${year}-${String(month).padStart(2,"0")}`;
+  const hist=sr.progressionHistory||[];
+  const applicable=hist.filter(h=>h.effectiveFrom<=ym).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom));
+  const latest=applicable[applicable.length-1];
+  if(!latest)return{branch:sr.branch,role:sr.role||"sr",status:sr.status};
+  return{branch:latest.branch??sr.branch,role:latest.role??(sr.role||"sr"),status:latest.status==="continue"?(applicable.slice(0,-1).reverse().find(h=>h.status&&h.status!=="continue")?.status??sr.status):latest.status};
+}
+
 // Targets are stored per-month so each month keeps its own targets independently
 // Status snapshot key pattern: emax_v5_status_{year}_{month}
 
@@ -1239,6 +1259,7 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
   const [localSR,setLocalSR]=useState(JSON.parse(JSON.stringify(srList)));
   const [editSR,setEditSR]=useState(null);
+  const [progressionSR,setProgressionSR]=useState(null);
   const [editSRId,setEditSRId]=useState(null); // {oldId, value} — separate from editSR (name) since renaming an ID needs its own validation/migration path
   const [srIdError,setSrIdError]=useState(null);
   const [showFixRecords,setShowFixRecords]=useState(false);
@@ -1314,6 +1335,43 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
     const hist=statusHistory[id]||[];
     const noteStr=resignDate?`${desc} (Resignation date: ${resignDate})`:desc;
     const newHist={...statusHistory,[id]:[...hist,{date:new Date().toISOString(),status:newStatus,note:noteStr}]};
+    setStatusHistory(newHist);
+    await saveData("emax_v5_status_history",newHist);
+  };
+  // Records a progression change (resignation, confirmation, SR↔BM role
+  // change) with an effective month, WITHOUT touching how any past month
+  // reads this SR — resolveSRForMonth() is what makes historical reports
+  // keep seeing the old branch/role/status for months before effectiveFrom.
+  // Only updates the SR's flat "current" fields if the change is effective
+  // now or in the past, so the rest of the app (which reads sr.branch/
+  // sr.status directly) reflects it immediately; a future-dated change is
+  // recorded but the flat fields stay as-is until that month arrives.
+  const saveProgressionChange=async(id,{effectiveFrom,branch,role,status})=>{
+    const nowYM=`${year}-${String(month).padStart(2,"0")}`;
+    const entry={effectiveFrom,branch:branch||undefined,role:role||undefined,status,loggedAt:new Date().toISOString()};
+    const updated=localSR.map(s=>{
+      if(s.id!==id)return s;
+      const nextHist=[...(s.progressionHistory||[]),entry];
+      const isNowOrPast=effectiveFrom<=nowYM;
+      return{
+        ...s,
+        progressionHistory:nextHist,
+        ...(isNowOrPast?{
+          branch:branch||s.branch,
+          role:role||s.role||"sr",
+          status:status==="continue"?s.status:status,
+        }:{}),
+      };
+    });
+    setLocalSR(updated);
+    await saveSR(updated);
+    const hist=statusHistory[id]||[];
+    const parts=[];
+    if(branch)parts.push(`branch → ${branch}`);
+    if(role)parts.push(`role → ${role==="bm"?"Branch Manager":"SR"}`);
+    if(status)parts.push(status==="continue"?"employment status unchanged":`status → ${status}`);
+    const noteStr=`Progression update (effective ${effectiveFrom}): ${parts.join(", ")}`;
+    const newHist={...statusHistory,[id]:[...hist,{date:new Date().toISOString(),status:status==="continue"?"—":status,note:noteStr}]};
     setStatusHistory(newHist);
     await saveData("emax_v5_status_history",newHist);
   };
@@ -1513,7 +1571,7 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
                     <td style={{padding:"7px 12px",fontSize:11,color:"#4A5568"}}>{sr.joinDate?sr.joinDate.replace(/(\d{4})-(\d{2})/,(f,y,m)=>["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m-1]+" "+y):"—"}</td>
                     <td style={{padding:"7px 12px"}}><StatusEditWidget status={sr.status} onSave={(newStatus,desc,rd)=>saveSRStatus(sr.id,newStatus,desc,rd)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}:null}/></td>
                     <td style={{padding:"7px 12px"}}><AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/></td>
-                    <td style={{padding:"7px 12px",textAlign:"right"}}><button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"3px 8px"}}>Remove</button></td>
+                    <td style={{padding:"7px 12px",textAlign:"right"}}><button className="btn" onClick={()=>setProgressionSR(sr)} style={{fontSize:10,padding:"3px 8px",marginRight:4}}>Progression</button><button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"3px 8px"}}>Remove</button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -1545,7 +1603,7 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
                     <td style={{padding:"7px 12px",color:"#B91C1C",fontSize:11}}>{sr.resignDate?sr.resignDate.split("-").reverse().join("/"):"—"}</td>
                     <td style={{padding:"7px 12px"}}><StatusEditWidget status={sr.status} onSave={(newStatus,desc,rd)=>saveSRStatus(sr.id,newStatus,desc,rd)} onViewHistory={setShowStatusHistoryModal?()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}:null}/></td>
                     <td style={{padding:"7px 12px"}}><AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/></td>
-                    <td style={{padding:"7px 12px",textAlign:"right"}}><button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"3px 8px"}}>Remove</button></td>
+                    <td style={{padding:"7px 12px",textAlign:"right"}}><button className="btn" onClick={()=>setProgressionSR(sr)} style={{fontSize:10,padding:"3px 8px",marginRight:4}}>Progression</button><button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"3px 8px"}}>Remove</button></td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -1555,6 +1613,71 @@ function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBala
           </div>;
         })}
         <p style={{fontSize:11,color:"#8A96A8",marginTop:4}}>Click SR name to edit inline. Type changes apply to selected month.</p>
+      </div>
+    </div>
+    {progressionSR&&<ProgressionPanel sr={progressionSR} branchMeta={branchMeta} year={year} month={month} onClose={()=>setProgressionSR(null)} onSave={saveProgressionChange}/>}
+  </div>;
+}
+
+function ProgressionPanel({sr,branchMeta,year,month,onClose,onSave}){
+  const nowYM=`${year}-${String(month).padStart(2,"0")}`;
+  const [effectiveFrom,setEffectiveFrom]=useState(nowYM);
+  const [changeBranch,setChangeBranch]=useState(false);
+  const [newBranch,setNewBranch]=useState(sr.branch);
+  const [changeRole,setChangeRole]=useState(false);
+  const [newRole,setNewRole]=useState(sr.role==="bm"?"bm":"sr");
+  const [statusChoice,setStatusChoice]=useState("continue"); // continue | reset
+  const [saving,setSaving]=useState(false);
+  const save=async()=>{
+    setSaving(true);
+    await onSave(sr.id,{
+      effectiveFrom,
+      branch:changeBranch?newBranch:undefined,
+      role:changeRole?newRole:undefined,
+      status:statusChoice==="reset"?"Probation (P0 F0)":"continue",
+    });
+    setSaving(false);
+    onClose();
+  };
+  return<div className="modal-overlay" style={{zIndex:1000}}>
+    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:440,padding:"20px 22px"}}>
+      <h3 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:"0 0 3px"}}>Progression Update</h3>
+      <div style={{fontSize:12,color:"#8A96A8",marginBottom:16}}>{sr.canon} ({sr.id}) — currently {branchMeta[sr.branch]?.name||sr.branch}, {sr.role==="bm"?"Branch Manager":"SR"}</div>
+
+      <label style={{fontSize:10,fontWeight:700,color:"#4A5568",display:"block",marginBottom:3,textTransform:"uppercase"}}>Effective Month</label>
+      <input type="month" className="input" value={effectiveFrom} onChange={e=>setEffectiveFrom(e.target.value)} style={{fontSize:13,marginBottom:14,width:"100%",boxSizing:"border-box"}}/>
+      <div style={{fontSize:10,color:"#8A96A8",marginTop:-10,marginBottom:14}}>Only this month onward is affected — every earlier month keeps reading whatever was true at the time.</div>
+
+      <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,cursor:"pointer"}}>
+        <input type="checkbox" checked={changeBranch} onChange={e=>setChangeBranch(e.target.checked)}/>
+        <span style={{fontSize:12,fontWeight:600,color:"#0A1628"}}>Change Branch</span>
+      </label>
+      {changeBranch&&<select className="input select" value={newBranch} onChange={e=>setNewBranch(e.target.value)} style={{fontSize:13,marginBottom:14,width:"100%"}}>
+        {Object.keys(branchMeta).map(b=><option key={b} value={b}>{branchMeta[b]?.name||b}</option>)}
+      </select>}
+
+      <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,cursor:"pointer"}}>
+        <input type="checkbox" checked={changeRole} onChange={e=>setChangeRole(e.target.checked)}/>
+        <span style={{fontSize:12,fontWeight:600,color:"#0A1628"}}>Change Role (SR ↔ Branch Manager)</span>
+      </label>
+      {changeRole&&<select className="input select" value={newRole} onChange={e=>setNewRole(e.target.value)} style={{fontSize:13,marginBottom:14,width:"100%"}}>
+        <option value="sr">SR</option>
+        <option value="bm">Branch Manager</option>
+      </select>}
+
+      <label style={{fontSize:10,fontWeight:700,color:"#4A5568",display:"block",marginBottom:6,textTransform:"uppercase"}}>Employment Status</label>
+      <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,cursor:"pointer"}}>
+        <input type="radio" name="empstatus" checked={statusChoice==="continue"} onChange={()=>setStatusChoice("continue")}/>
+        <span style={{fontSize:12,color:"#0A1628"}}>Continue current employment status ({sr.status})</span>
+      </label>
+      <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,cursor:"pointer"}}>
+        <input type="radio" name="empstatus" checked={statusChoice==="reset"} onChange={()=>setStatusChoice("reset")}/>
+        <span style={{fontSize:12,color:"#0A1628"}}>Reset to Probation (P0 F0) — new employment period (e.g. confirmed → resigned → rehired)</span>
+      </label>
+
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+        <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+        <button className="btn btn-success" onClick={save} disabled={saving||(!changeBranch&&!changeRole&&statusChoice==="continue")}>{saving?"Saving…":"Save Progression"}</button>
       </div>
     </div>
   </div>;

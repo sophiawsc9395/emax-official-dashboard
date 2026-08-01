@@ -40,8 +40,39 @@ const Ic={
   alertCircle:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
   checkCircle:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
   x:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  copy:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
 };
 const STEP_ICONS={1:Ic.fileText,2:Ic.share2,3:Ic.alertCircle,4:Ic.checkCircle,5:Ic.x};
+const SHORT_LABELS={1:"New App",2:"Submitted",3:"Follow-Up",4:"Approved",5:"Rejected"};
+
+function ProgressBar({step}){
+  const pct=Math.round(((Math.min(step,5)-1)/4)*100);
+  const cur=stepDef(step);
+  return<div style={{...card,padding:"16px 18px",marginBottom:14}}>
+    <div style={{display:"flex",width:"100%"}}>
+      {STEPS.map((s,i)=>{
+        const done=step>s.step,active=step===s.step;
+        return<div key={s.step} style={{flex:i<STEPS.length-1?1:"0 0 auto",display:"flex",flexDirection:"column",alignItems:"flex-start"}}>
+          <div style={{display:"flex",alignItems:"center",width:"100%"}}>
+            <div style={{width:24,height:24,borderRadius:"50%",background:done?C.navy:active?C.blueBright:"#E4EAF2",border:`2px solid ${done?C.navy:active?C.blueBright:"#E4EAF2"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",transition:"all .2s"}}>
+              {done?<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>:active?<div style={{width:7,height:7,borderRadius:"50%",background:"#fff"}}/>:<span style={{fontSize:8,fontWeight:700,color:C.textLight}}>{i+1}</span>}
+            </div>
+            {i<STEPS.length-1&&<div style={{flex:1,height:2,background:done?C.navy:"#E4EAF2",margin:"0 3px",transition:"background .3s"}}/>}
+          </div>
+          <div style={{marginTop:5,paddingLeft:1}}>
+            <div style={{fontSize:9,fontWeight:700,color:active?C.blue:done?C.textMid:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",lineHeight:1.2,whiteSpace:"nowrap"}}>{SHORT_LABELS[s.step]}</div>
+          </div>
+        </div>;
+      })}
+    </div>
+    <div style={{height:4,background:C.border,borderRadius:2,overflow:"hidden",marginTop:10}}>
+      <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${C.blue},${C.blueBright})`,borderRadius:2,transition:"width .5s cubic-bezier(.4,0,.2,1)"}}/>
+    </div>
+    <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:10,color:C.textLight}}>
+      <span>Step {step} of 5{cur?` — ${cur.label}`:""}</span><span style={{fontWeight:700,color:C.blue}}>{pct}%</span>
+    </div>
+  </div>;
+}
 
 const C={navy:"#0A1628",navyLight:"#162B52",blue:"#1B3F72",blueBright:"#2C5AA0",white:"#fff",surface:"#F7F9FC",border:"#E4EAF2",text:"#0A1628",textMid:"#4A5568",textLight:"#8A96A8"};
 const card={background:C.white,border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)",overflow:"hidden"};
@@ -424,11 +455,16 @@ function ActionBox({icon,title,desc,children}){
   </div>;
 }
 function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDelete,onEdit,onCreateOrder,fileUrls}){
-  const InfoCell=({label,value})=><div style={{display:"flex",alignItems:"flex-start",gap:16,padding:"10px 16px",borderBottom:`1px solid ${C.border}`}}>
-    <div style={{flex:"0 0 40%",maxWidth:220,fontSize:11,color:C.textLight,fontWeight:600}}>{label}</div>
-    <div style={{flex:1,minWidth:0,fontSize:13,color:C.text,fontWeight:600,wordBreak:"break-word"}}>{value||"—"}</div>
+  const copyField=(v)=>{if(!v)return;navigator.clipboard?.writeText(String(v)).catch(()=>{});};
+  const [copiedField,setCopiedField]=useState(null);
+  const InfoCell=({label,value,full})=><div style={{gridColumn:full?"1/-1":"auto",padding:"10px 16px",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+    <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:3}}>{label}</div>
+    <div style={{display:"flex",alignItems:"center",gap:6}}>
+      <div style={{fontSize:13,color:C.text,fontWeight:600,wordBreak:"break-word",minWidth:0}}>{value||"—"}</div>
+      {value&&<button onClick={()=>{copyField(value);setCopiedField(label);setTimeout(()=>setCopiedField(null),1500);}} title="Copy" style={{flexShrink:0,background:"none",border:"none",cursor:"pointer",padding:2,color:copiedField===label?"#15803D":C.textLight,display:"flex"}}>{copiedField===label?Ic.checkCircle:Ic.copy}</button>}
+    </div>
   </div>;
-  const Grid=({children})=><div>{children}</div>;
+  const Grid=({children})=><div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>{children}</div>;
   const [linkCopied,setLinkCopied]=useState(false);
   const copyLink=async()=>{
     const url=`${window.location.origin}${window.location.pathname}?jclId=${app.id}${window.location.hash||"#jclApplications"}`;
@@ -458,6 +494,8 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
       <div style={{fontSize:11,color:C.textLight}}>{branchMeta[app.branch]?.name||app.branch} · Submitted {fDate(app.submittedAt)}</div>
     </div>
 
+    <ProgressBar step={app.step}/>
+
     <div style={{...card,marginBottom:14}}>
       <DetailSecHdr>Application &amp; Device</DetailSecHdr>
       <Grid>
@@ -472,6 +510,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
     <div style={{...card,marginBottom:14}}>
       <DetailSecHdr>Personal Details</DetailSecHdr>
       <Grid>
+        <InfoCell label="Customer Full Name" value={app.customerName}/>
         <InfoCell label="Customer IC" value={app.customerIC}/>
         <InfoCell label="Race" value={app.race}/>
         <InfoCell label="Gender" value={app.gender}/>
@@ -491,8 +530,8 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
         <InfoCell label="City" value={app.city}/>
         <InfoCell label="Best Time to Contact" value={app.bestTimeContact}/>
       </Grid>
-      <InfoCell label="Customer Email" value={app.customerEmail}/>
-      <InfoCell label="Address" value={app.address}/>
+      <InfoCell label="Customer Email" value={app.customerEmail} full/>
+      <InfoCell label="Address" value={app.address} full/>
     </div>
 
     <div style={{...card,marginBottom:14}}>
@@ -521,7 +560,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
         <InfoCell label="Office Postcode" value={app.officePostcode}/>
         <InfoCell label="Office Tel" value={app.officeTel}/>
       </Grid>
-      <InfoCell label="Office Address" value={app.officeAddress}/>
+      <InfoCell label="Office Address" value={app.officeAddress} full/>
     </div>
 
     <div style={{...card,marginBottom:14}}>
@@ -544,7 +583,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
         <InfoCell label="Stay With Applicant?" value={app.ec1StayWith}/><InfoCell label="Contact Number" value={app.ec1ContactNumber}/>
         <InfoCell label="Best Time to Contact" value={app.ec1BestTime}/>
       </Grid>
-      <InfoCell label="Address" value={app.ec1Address}/>
+      <InfoCell label="Address" value={app.ec1Address} full/>
     </div>
 
     <div style={{...card,marginBottom:14}}>
@@ -554,7 +593,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
         <InfoCell label="Stay With Applicant?" value={app.ec2StayWith}/><InfoCell label="Contact Number" value={app.ec2ContactNumber}/>
         <InfoCell label="Best Time to Contact" value={app.ec2BestTime}/>
       </Grid>
-      <InfoCell label="Address" value={app.ec2Address}/>
+      <InfoCell label="Address" value={app.ec2Address} full/>
     </div>
 
     <div className="detail-grid">
