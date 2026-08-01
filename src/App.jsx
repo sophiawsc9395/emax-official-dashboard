@@ -1711,7 +1711,7 @@ function StaffUpdatePanel({person,branchMeta,year,month,isHR=false,onClose,onSav
               <span style={{fontSize:11,color:"#8A96A8"}}>F</span>
               <input type="number" min="0" className="input" value={statusF} onChange={e=>setStatusF(Math.max(0,parseInt(e.target.value)||0))} style={{width:44,padding:"5px 6px",fontSize:12,textAlign:"center"}}/>
             </>}
-            {isHR&&statusBase!=="Confirmed"&&statusBase!=="Resigned"&&<span style={{fontSize:11,color:"#8A96A8"}}>P{statusP} F{statusF} — only Sophia can adjust these counts</span>}
+            {isHR&&statusBase!=="Confirmed"&&statusBase!=="Resigned"&&<span style={{fontSize:11,color:"#8A96A8"}}>P{statusP} F{statusF}</span>}
           </div>}
           {roleChanging&&<div style={{fontSize:10,color:"#8A96A8",marginTop:8}}>Tip: role changes like this usually start fresh — set status to Probation (P0 F0) for their new role, rather than carrying over their old one.</div>}
         </div>

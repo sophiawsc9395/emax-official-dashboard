@@ -17,7 +17,7 @@
  */
 import {useState,useEffect,useMemo,useRef} from "react";
 import {loadData,saveData} from "./storage/index.js";
-import {getOrder,getOrderHistory,reconcile,uploadOrderFile,signFileUrl} from "./storage/ordersApi.js";
+import {listOrders,getOrder,getOrderHistory,reconcile,uploadOrderFile,signFileUrl} from "./storage/ordersApi.js";
 
 const PO_KEY="emax_v5_purchase_orders";
 
@@ -72,10 +72,10 @@ function getSessionOpenTime(dateStr,session){
 // Called from OrderTab.jsx right after a new order is created with
 // stockStatus==="stock_request" — auto-adds it to today's (or the
 // appropriate) purchase order session.
-export async function addToPurchaseOrderList(order){
+export async function addToPurchaseOrderList(order,atTimestamp=null){
   try{
     const list=(await loadData(PO_KEY))||[];
-    const now=new Date();
+    const now=atTimestamp?new Date(atTimestamp):new Date();
     const{date,session}=getSessionForTimestamp(now);
     const entry={
       id:`po_${order.id}`,orderId:order.id,
@@ -165,9 +165,36 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   const[savingPhoto,setSavingPhoto]=useState(false);
   const tableRef=useRef(null);
 
-  useEffect(()=>{loadData(PO_KEY).then(d=>{setList(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>setLoading(false));},[]);
+  useEffect(()=>{
+    (async()=>{
+      const initial=(await loadData(PO_KEY))||[];
+      setList(Array.isArray(initial)?initial:[]);
+      setLoading(false);
+      // Quietly catch up on any Stock Request order that isn't here yet —
+      // covers orders created before this page existed, or any that
+      // somehow slipped through. Uses each order's own original submission
+      // time (not "now"), so a genuinely old order shows up flagged as
+      // overdue rather than looking freshly submitted.
+      try{
+        const allOrders=await listOrders(null);
+        const existingIds=new Set((Array.isArray(initial)?initial:[]).map(e=>e.orderId));
+        const missing=allOrders.filter(o=>o.step===1&&o.stockStatus==="stock_request"&&!existingIds.has(o.id));
+        if(missing.length){
+          for(const o of missing){
+            const hist=await getOrderHistory(o.id);
+            const firstEntry=hist?.find(h=>h.step===1)||hist?.[0];
+            const originalTimestamp=firstEntry?`${firstEntry.date}T${firstEntry.time||"09:00"}:00`:null;
+            await addToPurchaseOrderList(o,originalTimestamp);
+          }
+          const refreshed=await loadData(PO_KEY);
+          setList(Array.isArray(refreshed)?refreshed:[]);
+        }
+      }catch(e){console.error("Purchase order catch-up failed:",e);}
+    })();
+  },[]);
 
   const save=async(next)=>{setList(next);await saveData(PO_KEY,next);};
+
 
   // A session key that sorts correctly across dates, so "earlier than
   // current" comparisons below are simple string comparisons.
@@ -267,7 +294,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
     </div>
 
     <div style={{...card}} ref={tableRef}>
-      <SecHdr>Purchase Order — {fDate(viewDate)} · Session {viewSession} ({pendingCount} pending{carriedForwardCount>0?`, ${carriedForwardCount} carried forward`:""})</SecHdr>
+      <SecHdr>Purchase Order — {fDate(viewDate)} · Session {viewSession} ({pendingCount} pending{carriedForwardCount>0?`, ${carriedForwardCount} overdue`:""})</SecHdr>
       <div style={{overflowX:"auto"}}>
         {visible.length===0
           ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No orders in this session.</div>
@@ -281,7 +308,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
               const isCarried=isViewingCurrentSession&&!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession);
               return(
               <tr key={e.id} style={{borderTop:`1px solid ${C.border}`,background:e.ordered?"#F0FDF4":isCarried?"#FFFBEB":(i%2===0?"#fff":C.surface)}}>
-                <td style={{padding:"8px 10px",fontWeight:700,color:C.text,whiteSpace:"nowrap"}}>{e.deviceName}{isCarried&&<div style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#FEF3C7",display:"inline-block",borderRadius:10,padding:"1px 7px",marginLeft:6,verticalAlign:"middle"}}>Carried forward from {fDate(e.sessionDate)} S{e.session}</div>}</td>
+                <td style={{padding:"8px 10px",fontWeight:700,color:C.text,whiteSpace:"nowrap"}}>{e.deviceName}{isCarried&&<div style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#FEF3C7",display:"inline-block",borderRadius:10,padding:"1px 7px",marginLeft:6,verticalAlign:"middle"}}>Overdue — since {fDate(e.sessionDate)} Session {e.session}</div>}</td>
                 <td style={{padding:"8px 10px",color:C.textMid}}>{e.agreementNo||"—"}</td>
                 <td style={{padding:"8px 10px",color:C.textMid,whiteSpace:"nowrap"}}>{fRM(e.financePrice)}</td>
                 <td style={{padding:"8px 10px",color:C.textMid}}>{branchMeta?.[e.branch]?.name||e.branch}</td>
