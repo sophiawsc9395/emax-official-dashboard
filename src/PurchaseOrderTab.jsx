@@ -263,7 +263,33 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
           s.onload=res;s.onerror=rej;document.head.appendChild(s);
         });
       }
-      const canvas=await window.html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false});
+      // The table sits inside an overflow-x:auto wrapper for on-screen
+      // scrolling — left as-is, html2canvas only captures whatever's
+      // currently visible inside that scroll area, cutting the rest off.
+      // onclone lets us widen the wrapper in the (invisible) cloned
+      // document right before the snapshot is taken, so the full table
+      // renders instead of a clipped slice of it.
+      const canvas=await window.html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false,
+        onclone:(doc,clonedEl)=>{
+          clonedEl.querySelectorAll("div").forEach(d=>{
+            if(d.style&&d.style.overflowX==="auto"){d.style.overflowX="visible";d.style.width="max-content";}
+          });
+          const t=clonedEl.querySelector("table");
+          if(t)t.style.width="max-content";
+          // html2canvas doesn't reliably render <input> values/placeholder
+          // text — swap each one for a plain text node showing the same
+          // content, so the snapshot reads cleanly instead of looking
+          // glitchy.
+          clonedEl.querySelectorAll("input").forEach(inp=>{
+            const div=doc.createElement("div");
+            div.textContent=inp.value||inp.placeholder||"";
+            div.style.cssText=window.getComputedStyle(inp).cssText;
+            div.style.display="flex";
+            div.style.alignItems="center";
+            div.style.color=inp.value?"#0A1628":"#8A96A8";
+            inp.replaceWith(div);
+          });
+        }});
       const a=document.createElement("a");
       a.href=canvas.toDataURL("image/png");
       a.download=`Purchase_Order_${viewDate}_Session${viewSession}.png`;
@@ -314,7 +340,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
                 </td>
                 <td style={{padding:"8px 10px",color:C.textMid}}>{e.agreementNo||"—"}</td>
                 <td style={{padding:"8px 10px",color:C.textMid,whiteSpace:"nowrap"}}>{fRM(e.financePrice)}</td>
-                <td style={{padding:"8px 10px",color:C.textMid}}>{branchMeta?.[e.branch]?.name||e.branch}</td>
+                <td style={{padding:"8px 10px",color:C.textMid,whiteSpace:"nowrap"}}>{branchMeta?.[e.branch]?.name||e.branch}</td>
                 {SUPPLIERS.map(s=><td key={s.key} style={{padding:"4px 6px"}}>
                   <input type="number" value={e.prices?.[s.key]||""} onChange={ev=>updatePrice(e.id,s.key,ev.target.value)} placeholder="0.00" disabled={e.ordered}
                     style={{width:80,padding:"5px 6px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"Inter,sans-serif"}}/>
