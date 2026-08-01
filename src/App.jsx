@@ -199,7 +199,7 @@ const statusBaseOptions=["Training","Probation","Confirmed","Resigned"];
 function parseStatus(s){
   if(!s)return{base:"Probation",p:0,f:0};
   // Match base status
-  const baseM=s.match(/^(Probation|Confirmed|Director|Resigned)/i);
+  const baseM=s.match(/^(Training|Probation|Confirmed|Director|Resigned)/i);
   if(!baseM)return{base:"Probation",p:0,f:0};
   const base=baseM[1].charAt(0).toUpperCase()+baseM[1].slice(1).toLowerCase();
   if(base==="Director"||base==="Resigned")return{base,p:0,f:0};
@@ -686,7 +686,7 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
           <th style={TH()}>Balance</th>
           <th style={TH()}>Monthly Target</th>
         </tr></thead>
-        <tbody>{[...BRANCH_ORDER].sort((a,b2)=>{
+        <tbody>{[...BRANCH_ORDER].filter(b=>(targets?.bm?.[b]||0)>0).sort((a,b2)=>{
             const pa=pctN(bt[a]?.total||0,targets?.bm?.[a]||0);
             const pb=pctN(bt[b2]?.total||0,targets?.bm?.[b2]||0);
             return pb-pa;
@@ -1024,10 +1024,12 @@ function UploadPanel({records,setRecords,srList,defaultBranch,recordsKey:rKey}){
 }
 
 // ─── TARGET MODAL ──────────────────────────────────────────
-export function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,currentYear,onSaveForMonth}){
+export function TargetModal({targets,setTargets,srList,branchMeta,onClose,currentMonth,currentYear,onSaveForMonth,isHR=false}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [tgtMonth,setTgtMonth]=useState(currentMonth);
   const [tgtYear,setTgtYear]=useState(currentYear);
+  const realNow=new Date();
+  const hrLocked=isHR&&(tgtYear<realNow.getFullYear()||(tgtYear===realNow.getFullYear()&&tgtMonth<realNow.getMonth()+1));
   const [selBranch,setSelBranch]=useState("ALL");
   const [local,setLocal]=useState(JSON.parse(JSON.stringify(targets)));
   const [loading,setLoading]=useState(false);
@@ -1087,6 +1089,9 @@ export function TargetModal({targets,setTargets,srList,branchMeta,onClose,curren
         {loading&&<div style={{textAlign:"center",padding:"32px 0",color:"#8A96A8",fontSize:13}}>Loading targets for {MONTHS_LABEL[tgtMonth-1]} {tgtYear}…</div>}
         {!loading&&<>
           {/* Branch-by-branch: BM + SR together */}
+          {hrLocked&&<div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#92400E"}}>
+            You're viewing {MONTHS_LABEL[tgtMonth-1]} {tgtYear} — that's a past month, so it's read-only from here. Switch to the current month to make changes.
+          </div>}
           <p style={{fontSize:11,color:"#8A96A8",marginBottom:16}}>Each branch shows BM settings followed by SR targets. Achievement bonus auto-calculated.</p>
           {branches.map(b=>{
             const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,tgtMonth,tgtYear));
@@ -1103,15 +1108,15 @@ export function TargetModal({targets,setTargets,srList,branchMeta,onClose,curren
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
                   <div>
                     <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch Target (RM)</label>
-                    <input className="input" type="number" value={local.bm?.[b]||""} onChange={e=>setBM(b,e.target.value)} placeholder="0" style={{fontSize:12}}/>
+                    <input className="input" type="number" value={local.bm?.[b]||""} onChange={e=>setBM(b,e.target.value)} placeholder="0" disabled={hrLocked} style={{fontSize:12}}/>
                   </div>
                   <div>
                     <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Personal Achievement Bonus (RM)</label>
-                    <input className="input" type="number" value={local.bmBonus?.[b]||""} onChange={e=>setBMB(b,e.target.value)} placeholder="0" style={{fontSize:12}}/>
+                    <input className="input" type="number" value={local.bmBonus?.[b]||""} onChange={e=>setBMB(b,e.target.value)} placeholder="0" disabled={hrLocked} style={{fontSize:12}}/>
                   </div>
                   <div>
                     <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Monthly Basic (RM)</label>
-                    <input className="input" type="number" value={local.bmBasic?.[b]||""} onChange={e=>setBMBasic(b,e.target.value)} placeholder="0" style={{fontSize:12}}/>
+                    <input className="input" type="number" value={local.bmBasic?.[b]||""} onChange={e=>setBMBasic(b,e.target.value)} placeholder="0" disabled={hrLocked} style={{fontSize:12}}/>
                   </div>
                 </div>
               </div>
@@ -1128,8 +1133,8 @@ export function TargetModal({targets,setTargets,srList,branchMeta,onClose,curren
                     <tr key={sr.id} style={{borderBottom:"1px solid #E4EAF2",background:i%2===0?"#fff":"#F7F9FC"}}>
                       <td style={{padding:"7px 8px",fontWeight:700,color:"#0A1628",whiteSpace:"nowrap"}}>{sr.canon}</td>
                       <td style={{padding:"7px 8px"}}><TypeTag type={sr.type}/></td>
-                      <td style={{padding:"7px 8px"}}><input className="input" type="number" value={local.sr?.[sr.id]?.target||""} onChange={e=>setSR(sr.id,"target",e.target.value)} placeholder="0" style={{fontSize:12,padding:"5px 8px",width:110}}/></td>
-                      <td style={{padding:"7px 8px"}}><input className="input" type="number" value={local.sr?.[sr.id]?.bonus||""} onChange={e=>setSR(sr.id,"bonus",e.target.value)} placeholder="0" style={{fontSize:12,padding:"5px 8px",width:110}}/></td>
+                      <td style={{padding:"7px 8px"}}><input className="input" type="number" value={local.sr?.[sr.id]?.target||""} onChange={e=>setSR(sr.id,"target",e.target.value)} placeholder="0" disabled={hrLocked} style={{fontSize:12,padding:"5px 8px",width:110}}/></td>
+                      <td style={{padding:"7px 8px"}}><input className="input" type="number" value={local.sr?.[sr.id]?.bonus||""} onChange={e=>setSR(sr.id,"bonus",e.target.value)} placeholder="0" disabled={hrLocked} style={{fontSize:12,padding:"5px 8px",width:110}}/></td>
                     </tr>
                   ))}</tbody>
                 </table>
@@ -1241,7 +1246,7 @@ function AdjustBalanceWidget({personId,balance,adjustBalance}){
   </div>;
 }
 
-export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId}){
+export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,isHR=false}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [tab,setTab]=useState("bm");
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
@@ -1277,6 +1282,9 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
   // Monthly type overrides — per month, per SR
   const [typeMonth,setTypeMonth]=useState(month);
   const [typeYear,setTypeYear]=useState(year);
+  const realNow=new Date();
+  const isPastMonth=isHR&&(typeYear<realNow.getFullYear()||(typeYear===realNow.getFullYear()&&typeMonth<realNow.getMonth()+1));
+  const hrLocked=isHR&&isPastMonth;
   const [typeOverrides,setTypeOverrides]=useState({});
 
   // Load type overrides whenever month/year changes
@@ -1448,13 +1456,16 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
             {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
           </select>
           <div style={{flex:1}}/>
-          <button className="btn btn-success" onClick={()=>setEditSR("new")} style={{fontSize:12,padding:"6px 12px"}}>+ Add New SR</button>
+          <button className="btn btn-success" onClick={()=>setEditSR("new")} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>+ Add New SR</button>
           <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px",fontSize:12}}>Close</button>
         </div>
       </div>
 
       <div style={{padding:"20px 24px"}}>
         {/* Add New SR form */}
+        {hrLocked&&<div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#92400E"}}>
+          You're viewing {MONTHS_LABEL[typeMonth-1]} {typeYear} — that's a past month, so it's read-only from here. Switch to the current month to make changes.
+        </div>}
         {editSR==="new"&&<div style={{background:"rgba(0,200,150,.06)",borderRadius:12,padding:16,border:"1px solid rgba(0,200,150,.3)",marginBottom:20}}>
           <div style={{fontWeight:700,fontSize:13,color:"#00C896",marginBottom:12}}>New Sales Representative</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10}}>
@@ -1492,7 +1503,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
           </div>
           <div style={{marginTop:10,gridColumn:"1/-1"}}>
             <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Employment Status</label>
-            {(()=>{const ps=parseStatus(newSR.status);return <div style={{display:"flex",gap:8,alignItems:"center"}}><select className="input select" value={ps.base} onChange={e=>setNewSR(p=>({...p,status:buildStatus(e.target.value,ps.p,ps.f)}))} style={{width:"auto",minWidth:110,padding:"4px 24px 4px 8px",fontSize:12}}>{["Training","Probation","Confirmed","Resigned"].map(s=><option key={s} value={s}>{s}</option>)}</select>{ps.base!=="Confirmed"&&ps.base!=="Resigned"&&<><label style={{fontSize:11,color:"#8A96A8"}}>P</label><input type="number" min="0" className="input" value={ps.p} onChange={e=>setNewSR(p=>({...p,status:buildStatus(ps.base,Math.max(0,parseInt(e.target.value)||0),ps.f)}))} style={{width:54,padding:"4px 6px",fontSize:12,textAlign:"center"}}/><label style={{fontSize:11,color:"#8A96A8"}}>F</label><input type="number" min="0" className="input" value={ps.f} onChange={e=>setNewSR(p=>({...p,status:buildStatus(ps.base,ps.p,Math.max(0,parseInt(e.target.value)||0))}))} style={{width:54,padding:"4px 6px",fontSize:12,textAlign:"center"}}/></>}</div>;})()}
+            <div style={{fontSize:12,color:"#0A1628",fontWeight:600,padding:"7px 0"}}>Training (P0 F0) — every new SR starts here</div>
           </div>
           <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:12}}>
             <button className="btn btn-ghost" onClick={()=>setEditSR(null)}>Cancel</button>
@@ -1515,11 +1526,11 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
             <div style={{padding:"14px 18px",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
               <div style={{width:34,height:34,borderRadius:10,background:"#EFF6FF",color:"#1E6FDB",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:11,flexShrink:0}}>BM</div>
               <div style={{flex:1,minWidth:160}}>
-                <input className="input" value={bm?.manager||""} onChange={e=>setLocalBM(p=>({...p,[b]:{...p[b],manager:e.target.value}}))} onBlur={saveBM} placeholder="Branch Manager Name" style={{fontSize:13,fontWeight:700,border:"none",background:"transparent",padding:"2px 0",width:"100%"}}/>
+                <input className="input" value={bm?.manager||""} onChange={e=>setLocalBM(p=>({...p,[b]:{...p[b],manager:e.target.value}}))} onBlur={saveBM} placeholder="Branch Manager Name" readOnly={hrLocked} style={{fontSize:13,fontWeight:700,border:"none",background:"transparent",padding:"2px 0",width:"100%"}}/>
                 <div style={{fontSize:11,color:"#8A96A8",marginTop:2}}>{bm?.mStatus||"No status set"}</div>
               </div>
-              <AdjustBalanceWidget personId={`BM_${b}`} balance={rewardBalances?.[`BM_${b}`]?.balance||0} adjustBalance={adjustBalance}/>
-              {bm?.manager&&<button className="btn" onClick={()=>setUpdatePerson({kind:"bm",branch:b,name:bm.manager,status:bm.mStatus})} style={{fontSize:11,padding:"6px 12px"}}>Update</button>}
+              {!isHR&&<AdjustBalanceWidget personId={`BM_${b}`} balance={rewardBalances?.[`BM_${b}`]?.balance||0} adjustBalance={adjustBalance}/>}
+              {bm?.manager&&<button className="btn" onClick={()=>setUpdatePerson({kind:"bm",branch:b,name:bm.manager,status:bm.mStatus})} disabled={hrLocked} style={{fontSize:11,padding:"6px 12px",opacity:hrLocked?.5:1}}>Update</button>}
               {setShowStatusHistoryModal&&<button className="btn btn-ghost" onClick={()=>{setStatusModalPerson(`BM_${b}`);setShowStatusHistoryModal(true);}} style={{fontSize:11,padding:"6px 10px"}}>History</button>}
             </div>
 
@@ -1551,10 +1562,10 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
                     <td style={{padding:"8px"}}><TypeTag type={getType(sr)}/></td>
                     <td style={{padding:"8px",color:"#4A5568",whiteSpace:"nowrap"}}>{sr.joinDate?sr.joinDate.replace(/(\d{4})-(\d{2})/,(f,y,m)=>["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m-1]+" "+y):"—"}</td>
                     <td style={{padding:"8px",color:"#0A1628",fontWeight:600,whiteSpace:"nowrap"}}>{sr.status||"—"}</td>
-                    <td style={{padding:"8px"}}><AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/></td>
+                    <td style={{padding:"8px"}}>{!isHR&&<AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/>}</td>
                     <td style={{padding:"8px",textAlign:"right",whiteSpace:"nowrap"}}>
-                      <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} style={{fontSize:10,padding:"4px 9px",marginRight:4}}>Update</button>
-                      <button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"4px 9px"}}>Remove</button>
+                      <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",marginRight:4,opacity:hrLocked?.5:1}}>Update</button>
+                      <button className="btn btn-danger" onClick={()=>removeSR(sr.id)} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",opacity:hrLocked?.5:1}}>Remove</button>
                     </td>
                   </tr>
                 ))}</tbody>
@@ -1584,8 +1595,8 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
                       <td style={{padding:"7px 8px",color:"#B91C1C",whiteSpace:"nowrap"}}>{sr.resignDate?sr.resignDate.split("-").reverse().join("/"):"—"}</td>
                       <td style={{padding:"7px 8px",color:"#B91C1C"}}>{sr.status}</td>
                       <td style={{padding:"7px 8px",textAlign:"right",whiteSpace:"nowrap"}}>
-                        <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} style={{fontSize:10,padding:"4px 9px",marginRight:4}}>Update</button>
-                        <button className="btn btn-danger" onClick={()=>removeSR(sr.id)} style={{fontSize:10,padding:"4px 9px"}}>Remove</button>
+                        <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",marginRight:4,opacity:hrLocked?.5:1}}>Update</button>
+                        <button className="btn btn-danger" onClick={()=>removeSR(sr.id)} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",opacity:hrLocked?.5:1}}>Remove</button>
                       </td>
                     </tr>
                   ))}</tbody>
@@ -1599,11 +1610,11 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
         <p style={{fontSize:11,color:"#8A96A8",marginTop:4}}>Click SR name to edit inline. Type changes apply to selected month.</p>
       </div>
     </div>
-    {updatePerson&&<StaffUpdatePanel person={updatePerson} branchMeta={branchMeta} year={year} month={month} onClose={()=>setUpdatePerson(null)} onSave={saveStaffUpdate}/>}
+    {updatePerson&&<StaffUpdatePanel person={updatePerson} branchMeta={branchMeta} year={year} month={month} isHR={isHR} onClose={()=>setUpdatePerson(null)} onSave={saveStaffUpdate}/>}
   </div>;
 }
 
-function StaffUpdatePanel({person,branchMeta,year,month,onClose,onSave}){
+function StaffUpdatePanel({person,branchMeta,year,month,isHR=false,onClose,onSave}){
   // person: {kind:'sr', sr} for a sales rep, or {kind:'bm', branch, name, status} for a branch manager
   const isSR=person.kind==="sr";
   const currentBranch=isSR?person.sr.branch:person.branch;
@@ -1617,8 +1628,8 @@ function StaffUpdatePanel({person,branchMeta,year,month,onClose,onSave}){
   const [newType,setNewType]=useState(isSR?person.sr.type:"Online");
   const [statusMode,setStatusMode]=useState("continue"); // continue | set
   const [statusBase,setStatusBase]=useState(["Training","Probation"].includes(currentStatusBase)?currentStatusBase:"Training");
-  const [statusP,setStatusP]=useState(0);
-  const [statusF,setStatusF]=useState(0);
+  const [statusP,setStatusP]=useState(()=>parseStatus(currentStatus).p);
+  const [statusF,setStatusF]=useState(()=>parseStatus(currentStatus).f);
   const [saving,setSaving]=useState(false);
   const roleChanging=roleChoice!==(isSR?"sr":"bm");
   const branchChanging=isSR&&newBranch!==currentBranch;
@@ -1694,12 +1705,13 @@ function StaffUpdatePanel({person,branchMeta,year,month,onClose,onSave}){
             <select className="input select" value={statusBase} onChange={e=>setStatusBase(e.target.value)} style={{width:"auto",minWidth:100,padding:"5px 22px 5px 8px",fontSize:12}}>
               {availableStatusOptions.map(s=><option key={s} value={s}>{s}</option>)}
             </select>
-            {statusBase!=="Confirmed"&&statusBase!=="Resigned"&&<>
+            {!isHR&&statusBase!=="Confirmed"&&statusBase!=="Resigned"&&<>
               <span style={{fontSize:11,color:"#8A96A8"}}>P</span>
               <input type="number" min="0" className="input" value={statusP} onChange={e=>setStatusP(Math.max(0,parseInt(e.target.value)||0))} style={{width:44,padding:"5px 6px",fontSize:12,textAlign:"center"}}/>
               <span style={{fontSize:11,color:"#8A96A8"}}>F</span>
               <input type="number" min="0" className="input" value={statusF} onChange={e=>setStatusF(Math.max(0,parseInt(e.target.value)||0))} style={{width:44,padding:"5px 6px",fontSize:12,textAlign:"center"}}/>
             </>}
+            {isHR&&statusBase!=="Confirmed"&&statusBase!=="Resigned"&&<span style={{fontSize:11,color:"#8A96A8"}}>P{statusP} F{statusF} — only Sophia can adjust these counts</span>}
           </div>}
           {roleChanging&&<div style={{fontSize:10,color:"#8A96A8",marginTop:8}}>Tip: role changes like this usually start fresh — set status to Probation (P0 F0) for their new role, rather than carrying over their old one.</div>}
         </div>
@@ -2731,7 +2743,7 @@ export default function App(){
   const grandTotal=BRANCH_ORDER.reduce((s,b)=>s+(branchTotals[b]?.total||0),0);
   const grandTarget=BRANCH_ORDER.reduce((s,b)=>s+(targets?.bm?.[b]||0),0);
 
-  const bmRanking=useMemo(()=>[...BRANCH_ORDER].map(b=>{
+  const bmRanking=useMemo(()=>[...BRANCH_ORDER].filter(b=>(targets?.bm?.[b]||0)>0).map(b=>{
     const profit=rankBranchTotals[b]?.total||0,target=targets?.bm?.[b]||0,bonus=targets?.bmBonus?.[b]||0;
     const bonusEarned=target>0&&profit>=target&&bonus>0,p=pctN(profit,target);
     return{name:branchMeta[b]?.manager,status:branchMeta[b]?.mStatus,branch:b,sub:null,wi:rankBranchTotals[b]?.wi||0,ae:rankBranchTotals[b]?.ae||0,profit,target,bonus,bonusEarned,branchPct:p,role:"bm",points:calcRewardPoints(p,p)};

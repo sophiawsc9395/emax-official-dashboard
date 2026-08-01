@@ -563,7 +563,7 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
           <th style={TH()}>Balance</th>
           <th style={TH()}>Monthly Target</th>
         </tr></thead>
-        <tbody>{[...BRANCH_ORDER].sort((a,b2)=>{
+        <tbody>{[...BRANCH_ORDER].filter(b=>(targets?.bm?.[b]||0)>0).sort((a,b2)=>{
             const pa=pctN(bt[a]?.total||0,targets?.bm?.[a]||0);
             const pb=pctN(bt[b2]?.total||0,targets?.bm?.[b2]||0);
             return pb-pa;
@@ -1034,7 +1034,7 @@ export default function App({elevateOrderAccess=false,isHR=false}){
   },[records,srList,rankEndDay,month,year]);
 
   const branchMeta=bMeta;
-  const bmRank=[...BRANCH_ORDER].map(b=>{
+  const bmRank=[...BRANCH_ORDER].filter(b=>(targets?.bm?.[b]||0)>0).map(b=>{
     const profit=rankBranchTotals[b]?.total||0,target=targets?.bm?.[b]||0,bonus=targets?.bmBonus?.[b]||0;
     const bonusEarned=target>0&&profit>=target&&bonus>0,p=pctN(profit,target);
     return{name:bMeta[b]?.manager,status:bMeta[b]?.mStatus,branch:b,sub:(bMeta[b]?.name||b).toUpperCase(),wi:rankBranchTotals[b]?.wi||0,ae:rankBranchTotals[b]?.ae||0,profit,target,bonus,bonusEarned,branchPct:p,role:"bm",points:calcRewardPoints(p,p)};
@@ -1320,8 +1320,8 @@ export default function App({elevateOrderAccess=false,isHR=false}){
     </div>{/* end flex layout */}
     {showPointsModal&&<PointsHistoryModal srList={srList} bMeta={bMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
     {showStatusHistoryModal&&<StatusHistoryModal srList={srList} bMeta={bMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}
-    {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={bMeta} setBranchMeta={setBMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={selMonth} year={selYear} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson} renameSRId={renameSRId}/>}
-    {showTargetModal&&<TargetModal targets={targets} setTargets={setTargets} srList={srList} branchMeta={bMeta} onClose={()=>setShowTargetModal(false)} currentMonth={selMonth} currentYear={selYear}
+    {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={bMeta} setBranchMeta={setBMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={selMonth} year={selYear} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson} renameSRId={renameSRId} isHR={isHR}/>}
+    {showTargetModal&&<TargetModal targets={targets} setTargets={setTargets} srList={srList} branchMeta={bMeta} onClose={()=>setShowTargetModal(false)} currentMonth={selMonth} currentYear={selYear} isHR={isHR}
       onSaveForMonth={async(t,m,y)=>{if(m===selMonth&&y===selYear)setTargets(t);await saveData(`emax_v5_targets_${y}_${m}`,t);}}/>}
   </div>;
 }

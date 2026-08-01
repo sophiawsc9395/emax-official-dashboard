@@ -169,8 +169,23 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
 
   const save=async(next)=>{setList(next);await saveData(PO_KEY,next);};
 
-  const visible=useMemo(()=>list.filter(e=>e.sessionDate===viewDate&&e.session===viewSession),[list,viewDate,viewSession]);
+  // A session key that sorts correctly across dates, so "earlier than
+  // current" comparisons below are simple string comparisons.
+  const sessionKey=(d,s)=>`${d}_${s}`;
+  const currentSession=useMemo(()=>getSessionForTimestamp(new Date()),[]);
+  const isViewingCurrentSession=viewDate===currentSession.date&&viewSession===currentSession.session;
+
+  const visible=useMemo(()=>{
+    const ownSession=list.filter(e=>e.sessionDate===viewDate&&e.session===viewSession);
+    if(!isViewingCurrentSession)return ownSession; // browsing history — show exactly what belonged there
+    // Viewing the current session — also pull in anything still pending
+    // from an earlier session that never got ordered, so it doesn't just
+    // sit forgotten back on a day nobody's looking at anymore.
+    const carriedForward=list.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession));
+    return[...carriedForward,...ownSession];
+  },[list,viewDate,viewSession,isViewingCurrentSession]);
   const pendingCount=visible.filter(e=>!e.ordered).length;
+  const carriedForwardCount=useMemo(()=>isViewingCurrentSession?list.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession)).length:0,[list,viewDate,viewSession,isViewingCurrentSession]);
 
   // Is Saturday's Session 2 or any Sunday session even a valid thing to
   // view? Kept selectable in the date/session pickers regardless (so past
@@ -244,15 +259,15 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         <input type="date" value={viewDate} onChange={e=>setViewDate(e.target.value)} style={{padding:"7px 10px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:12}}/>
       </div>
       <div style={{display:"flex",gap:6}}>
-        <button onClick={()=>setViewSession(1)} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${viewSession===1?C.blueBright:C.border}`,background:viewSession===1?"#EFF6FF":"#fff",color:viewSession===1?C.blueBright:C.textMid,fontWeight:700,fontSize:12,cursor:"pointer"}}>Session 1 (8:30am)</button>
-        <button onClick={()=>setViewSession(2)} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${viewSession===2?C.blueBright:C.border}`,background:viewSession===2?"#EFF6FF":"#fff",color:viewSession===2?C.blueBright:C.textMid,fontWeight:700,fontSize:12,cursor:"pointer"}}>Session 2 (3:30pm)</button>
+        <button onClick={()=>setViewSession(1)} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${viewSession===1?C.blueBright:C.border}`,background:viewSession===1?"#EFF6FF":"#fff",color:viewSession===1?C.blueBright:C.textMid,fontWeight:700,fontSize:12,cursor:"pointer"}}>Session 1 · Due 12:00pm</button>
+        <button onClick={()=>setViewSession(2)} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${viewSession===2?C.blueBright:C.border}`,background:viewSession===2?"#EFF6FF":"#fff",color:viewSession===2?C.blueBright:C.textMid,fontWeight:700,fontSize:12,cursor:"pointer"}}>Session 2 · Due 5:30pm</button>
       </div>
       <div style={{flex:1}}/>
       <GBtn onClick={savePhoto} disabled={savingPhoto}>{savingPhoto?"Saving…":"📷 Save as Photo"}</GBtn>
     </div>
 
     <div style={{...card}} ref={tableRef}>
-      <SecHdr>Purchase Order — {fDate(viewDate)} · Session {viewSession} ({pendingCount} pending)</SecHdr>
+      <SecHdr>Purchase Order — {fDate(viewDate)} · Session {viewSession} ({pendingCount} pending{carriedForwardCount>0?`, ${carriedForwardCount} carried forward`:""})</SecHdr>
       <div style={{overflowX:"auto"}}>
         {visible.length===0
           ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No orders in this session.</div>
@@ -262,9 +277,11 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
                 <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
               )}
             </tr></thead>
-            <tbody>{visible.map((e,i)=>(
-              <tr key={e.id} style={{borderTop:`1px solid ${C.border}`,background:e.ordered?"#F0FDF4":(i%2===0?"#fff":C.surface)}}>
-                <td style={{padding:"8px 10px",fontWeight:700,color:C.text,whiteSpace:"nowrap"}}>{e.deviceName}</td>
+            <tbody>{visible.map((e,i)=>{
+              const isCarried=isViewingCurrentSession&&!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession);
+              return(
+              <tr key={e.id} style={{borderTop:`1px solid ${C.border}`,background:e.ordered?"#F0FDF4":isCarried?"#FFFBEB":(i%2===0?"#fff":C.surface)}}>
+                <td style={{padding:"8px 10px",fontWeight:700,color:C.text,whiteSpace:"nowrap"}}>{e.deviceName}{isCarried&&<div style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#FEF3C7",display:"inline-block",borderRadius:10,padding:"1px 7px",marginLeft:6,verticalAlign:"middle"}}>Carried forward from {fDate(e.sessionDate)} S{e.session}</div>}</td>
                 <td style={{padding:"8px 10px",color:C.textMid}}>{e.agreementNo||"—"}</td>
                 <td style={{padding:"8px 10px",color:C.textMid,whiteSpace:"nowrap"}}>{fRM(e.financePrice)}</td>
                 <td style={{padding:"8px 10px",color:C.textMid}}>{branchMeta?.[e.branch]?.name||e.branch}</td>
@@ -283,7 +300,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
                   {!e.ordered&&!isAdmin&&<span style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:20,padding:"3px 9px",whiteSpace:"nowrap"}}>Pending</span>}
                 </td>
               </tr>
-            ))}</tbody>
+              );})}</tbody>
           </table>}
       </div>
     </div>
