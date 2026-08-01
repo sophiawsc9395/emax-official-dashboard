@@ -483,12 +483,12 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
       <DetailSecHdr>Contact &amp; Address</DetailSecHdr>
       <Grid>
         <InfoCell label="Customer HP" value={app.customerHP}/>
-        <InfoCell label="Customer Email" value={app.customerEmail}/>
         <InfoCell label="Length of Stay" value={app.lengthOfStay}/>
         <InfoCell label="Postcode" value={app.postcode}/>
         <InfoCell label="City" value={app.city}/>
         <InfoCell label="Best Time to Contact" value={app.bestTimeContact}/>
       </Grid>
+      <div style={{padding:"4px 16px 0"}}><InfoCell label="Customer Email" value={app.customerEmail}/></div>
       <div style={{padding:"4px 16px 12px"}}><InfoCell label="Address" value={app.address}/></div>
     </div>
 
@@ -554,16 +554,19 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
       <div style={{padding:"4px 16px 12px"}}><InfoCell label="Address" value={app.ec2Address}/></div>
     </div>
 
-    <div style={{...card,marginBottom:14}}>
-      <DetailSecHdr icon={Ic.fileText}>Tracking Timeline</DetailSecHdr>
-      <div style={{padding:"14px 16px"}}><Timeline app={app}/></div>
+    <div className="detail-grid">
+      <div style={card}>
+        <DetailSecHdr icon={Ic.fileText}>Tracking Timeline</DetailSecHdr>
+        <div style={{padding:"14px 16px"}}><Timeline app={app}/></div>
+      </div>
+      <div>
+        {isAdmin&&<AdminActions app={app} onSaved={onSaved} onCreateOrder={onCreateOrder}/>}
+        {!isAdmin&&app.step===3&&!app.followUpRespondedDate&&<FollowUpResponseBox app={app} onSaved={onSaved}/>}
+        {!isAdmin&&!(app.step===3&&!app.followUpRespondedDate)&&<ActionBox title="Action">
+          <div style={{fontSize:12,color:C.textLight}}>No action needed from your side right now — admin handles the rest of this application.</div>
+        </ActionBox>}
+      </div>
     </div>
-
-    {isAdmin&&<AdminActions app={app} onSaved={onSaved} onCreateOrder={onCreateOrder}/>}
-    {!isAdmin&&app.step===3&&!app.followUpRespondedDate&&<FollowUpResponseBox app={app} onSaved={onSaved}/>}
-    {!isAdmin&&!(app.step===3&&!app.followUpRespondedDate)&&<ActionBox title="Action">
-      <div style={{fontSize:12,color:C.textLight}}>No action needed from your side right now — admin handles the rest of this application.</div>
-    </ActionBox>}
   </div>;
 }
 
