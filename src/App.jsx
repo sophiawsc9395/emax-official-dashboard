@@ -453,11 +453,11 @@ function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,
         return <div style={{background:"#F7F9FC",borderRadius:8,padding:"8px 10px",border:"1px solid #E4EAF2",display:"flex",flexDirection:"column",gap:5}}>
           {bTier&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:10,color:"#92400E",fontWeight:600}}>Bonus Tier {bTier}{!bMax?` → next at ${bNextPct}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"sr")):"Maxed"}</span>
+            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"sr")):"🏆"}</span>
           </div>}
           {pTierIdx>=0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:10,color:"#1E40AF",fontWeight:600}}>Points Tier {pTierIdx+1}{pNext?` → next at ${pNext[0]}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{pNext?pNext[1].toLocaleString()+" pts":"Maxed"}</span>
+            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{pNext?pNext[1].toLocaleString()+" pts":"🏆"}</span>
           </div>}
         </div>;
       })()}
@@ -592,11 +592,11 @@ function BMTable({branchId,records,targets,srList,branchMeta,onEdit,printMode,mo
         return <div style={{background:"#F7F9FC",borderRadius:8,padding:"8px 10px",border:"1px solid #E4EAF2",display:"flex",flexDirection:"column",gap:5}}>
           {bTier&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:10,color:"#92400E",fontWeight:600}}>Bonus Tier {bTier}{!bMax?` → next at ${bNextPct}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"bm")):"Maxed"}</span>
+            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"bm")):"🏆"}</span>
           </div>}
           {pTierIdx>=0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:10,color:"#1E40AF",fontWeight:600}}>Points Tier {pTierIdx+1}{pNext?` → next at ${pNext[0]}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{pNext?pNext[1].toLocaleString()+" pts":"Maxed"}</span>
+            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{pNext?pNext[1].toLocaleString()+" pts":"🏆"}</span>
           </div>}
         </div>;
       })()}
@@ -755,7 +755,7 @@ function RankingTable({title,rows,showBonus,showPoints,branchMeta,period}){
     </span>;
   };
 
-  const medals=["#1","#2","#3"];
+  const medals=["🥇","🥈","🥉"];
   return <div style={{marginBottom:24,display:"flex",flexDirection:"column",height:"100%"}}>
     <div style={{marginBottom:10,minHeight:36,flexShrink:0}}>
       <h3 style={{fontSize:13,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.05em",margin:0}}>{title}</h3>
@@ -2152,7 +2152,7 @@ function PointsHistoryModal({srList,branchMeta,rewardBalances,rewardHistory,onCl
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:600,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px",borderBottom:"1px solid #E4EAF2"}}>
         <div>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Reward Points Balance</h2>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>🏆 Reward Points Balance</h2>
           <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>{person?.name} · {person?.role}</div>
         </div>
         <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
@@ -2881,7 +2881,7 @@ export default function App(){
       {/* REWARD POINT RANKING */}
       {tab==="points"&&<div className="fade-in">
         <div style={{marginBottom:14}}>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Reward Point Ranking</h2>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>🏆 Reward Point Ranking</h2>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {(()=>{
@@ -2890,7 +2890,7 @@ export default function App(){
               ...srList.filter(sr=>srVisibleInMonth(sr,selMonth,selYear)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
             ];
             const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0,asOf:pointsAsOfFor(p.branch)})).sort((a,b)=>b.balance-a.balance);
-            const medals=["#1","#2","#3"];
+            const medals=["🥇","🥈","🥉"];
             return ranked.map((p,i)=>{
               const isTop=i<3;
               return <div key={p.id} onClick={()=>{setPointsModalPerson(p.id);setShowPointsModal(true);}} style={{
