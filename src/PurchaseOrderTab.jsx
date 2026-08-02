@@ -188,14 +188,28 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
       // overdue rather than looking freshly submitted.
       try{
         const allOrders=await listOrders(null);
-        const existingIds=new Set((Array.isArray(initial)?initial:[]).map(e=>e.orderId));
+        const orderById=new Map(allOrders.map(o=>[o.id,o]));
+        const currentList=(Array.isArray(initial)?initial:[]);
+        const existingIds=new Set(currentList.map(e=>e.orderId));
         const missing=allOrders.filter(o=>o.step===1&&o.stockStatus==="stock_request"&&!existingIds.has(o.id));
-        if(missing.length){
+        // Self-heal — drop any not-yet-ordered entry whose underlying order
+        // was deleted or cancelled since we last loaded. Deleting/cancelling
+        // an order already tries to remove it from here directly, but this
+        // catches it regardless (a tab left open from before the deletion,
+        // a save that silently failed, etc.) — every time this page opens,
+        // it reconciles itself against what's actually still there.
+        const stale=currentList.filter(e=>!e.ordered&&(!orderById.has(e.orderId)||orderById.get(e.orderId).cancelled));
+        if(missing.length||stale.length){
           for(const o of missing){
             const hist=await getOrderHistory(o.id);
             const firstEntry=hist?.find(h=>h.step===1)||hist?.[0];
             const originalTimestamp=firstEntry?`${firstEntry.date}T${firstEntry.time||"09:00"}:00`:null;
             await addToPurchaseOrderList(o,originalTimestamp);
+          }
+          if(stale.length){
+            const staleIds=new Set(stale.map(e=>e.orderId));
+            const afterAdd=(await loadData(PO_KEY))||[];
+            await saveData(PO_KEY,afterAdd.filter(e=>!staleIds.has(e.orderId)));
           }
           const refreshed=await loadData(PO_KEY);
           setList(Array.isArray(refreshed)?refreshed:[]);
