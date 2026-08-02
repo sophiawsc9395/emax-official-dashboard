@@ -109,6 +109,18 @@ export async function syncPurchaseOrderEntry(order){
   }catch(e){console.error("syncPurchaseOrderEntry failed:",e);}
 }
 
+// Called from OrderTab.jsx whenever an order is deleted or marked
+// cancelled — there's nothing left to purchase for it, so it shouldn't
+// keep sitting on this page as a pending (or even an already-ordered)
+// row.
+export async function removeFromPurchaseOrderList(orderId){
+  try{
+    const list=(await loadData(PO_KEY))||[];
+    if(!list.some(e=>e.orderId===orderId))return;
+    await saveData(PO_KEY,list.filter(e=>e.orderId!==orderId));
+  }catch(e){console.error("removeFromPurchaseOrderList failed:",e);}
+}
+
 const L=({children,req})=><label style={{display:"block",fontSize:11,fontWeight:600,color:C.textMid,marginBottom:4}}>{children}{req&&<span style={{color:"#DC2626"}}> *</span>}</label>;
 const I=props=><input {...props} style={{width:"100%",padding:"9px 11px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontFamily:"Inter,sans-serif",boxSizing:"border-box",...(props.style||{})}}/>;
 const PBtn=({children,disabled,...p})=><button disabled={disabled} {...p} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,padding:"9px 18px",background:disabled?"#E4EAF2":`linear-gradient(135deg,${C.blue},${C.blueBright})`,color:disabled?C.textLight:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:disabled?"default":"pointer",fontFamily:"Inter,sans-serif",boxShadow:disabled?"none":"0 2px 8px rgba(27,63,114,.35)",...(p.style||{})}}>{children}</button>;

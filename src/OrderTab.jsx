@@ -1,6 +1,6 @@
 import {useState,useEffect,useRef,useMemo,useCallback,memo,Fragment} from "react";
 import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
-import {addToPurchaseOrderList,syncPurchaseOrderEntry} from "./PurchaseOrderTab.jsx";
+import {addToPurchaseOrderList,syncPurchaseOrderEntry,removeFromPurchaseOrderList} from "./PurchaseOrderTab.jsx";
 import {supabase} from "./storage/index.js";
 import {resolveEditorRole} from "./auth/orderRoles.js";
 import * as XLSX from "xlsx";
@@ -2160,7 +2160,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       alert("Save failed — your changes were NOT saved. This usually happens when an uploaded file is too large. Please try a smaller file (compress the photo or PDF) and try again.");
       return false;
     }
-    if(isNewOrder&&o.stockStatus==="stock_request")addToPurchaseOrderList(o);
+    if(o.cancelled)removeFromPurchaseOrderList(o.id);
+    else if(isNewOrder&&o.stockStatus==="stock_request")addToPurchaseOrderList(o);
     else syncPurchaseOrderEntry(o);
     const signed=await hydrateOrder(o.id);
     const{history:_h,...headerOnly}=signed;
@@ -2172,6 +2173,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     if(!confirm("Delete this order?"))return;
     const result=await apiDeleteOrder(id);
     if(!result?.ok){alert("Delete failed. Please try again.");return;}
+    removeFromPurchaseOrderList(id);
     setOrders(p=>p.filter(x=>x.id!==id));
     setDetailCache(p=>{const n={...p};delete n[id];return n;});
     nav("list");
