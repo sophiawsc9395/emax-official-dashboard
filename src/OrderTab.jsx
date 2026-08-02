@@ -478,23 +478,6 @@ function calcClaimAmount(o){
   const agreementFee=parseFloat(o.agreementFee)||0;
   return financePrice-deposit-stampingFee-agreementFee;
 }
-// Live Excel export for orders currently sitting at "New Order Request" (step
-// 1) — Purchase role's own live worklist, not a historical/date-filtered
-// report like the others. Always reflects current data at the moment of
-// download.
-function downloadNewOrderExcel(orders){
-  const rows=orders.filter(o=>!o.cancelled&&o.step===1).map(o=>({
-    "Device Name":o.phoneModel||"",
-    "Branch":o.branch||"",
-    "Agreement No. / Case ID No.":o.agreementNumber||"",
-    "Finance Price":o.financePrice?parseFloat(o.financePrice):"",
-  }));
-  const ws=XLSX.utils.json_to_sheet(rows);
-  ws["!cols"]=[{wch:26},{wch:10},{wch:18},{wch:14}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,"New Order Request");
-  XLSX.writeFile(wb,`New_Order_Request_${nowDate()}.xlsx`);
-}
 
 async function downloadReport(orders,type,dateFilter,merchantFilter){
   const isClaim=type==="claim";
@@ -2397,11 +2380,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     {(()=>{
       const allReports=[["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment Knock Off","firstInstallmentKnockoff",firstInstallmentKnockoffReportDate,setFirstInstallmentKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted to Merchant","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Purchase Claim","purchaseClaim",purchaseClaimReportDate,setPurchaseClaimReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]];
       const visibleReports=allReports.filter(([,type])=>canSeeReport(type));
-      // New Order Report (Excel) isn't gated by the same canSeeReport/type
-      // system as the others — it's a direct step-1 export — but it belongs
-      // in this panel too since it's conceptually a report, not a bulk action.
-      const showNewOrderExcel=isAdmin&&canAdminStep(1)&&!isReadOnly&&orders.some(o=>!o.cancelled&&o.step===1);
-      if(!isAdmin||isReadOnly||(!visibleReports.length&&!showNewOrderExcel))return null;
+      if(!isAdmin||isReadOnly||!visibleReports.length)return null;
       return<div style={{...card,marginTop:12}}>
       <div onClick={()=>setReportsExpanded(p=>!p)} style={{cursor:"pointer",userSelect:"none",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px"}}>
@@ -2412,13 +2391,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       {reportsExpanded&&<div style={{padding:"0 16px 16px",borderTop:`1px solid ${C.border}`}}>
         <div style={{padding:"14px 0 12px",maxWidth:260}}><L>Merchant</L><SEL value={reportMerchant} onChange={e=>setReportMerchant(e.target.value)}><option value="all">All Merchants</option>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
-          {showNewOrderExcel&&<div style={{border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",background:C.surface,display:"flex",flexDirection:"column",height:"100%"}}>
-            <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>New Order Report (Excel)</div>
-            <div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Every order currently sitting at New Order Request.</div>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:8,marginTop:"auto"}}>
-              <PBtn onClick={()=>downloadNewOrderExcel(orders)} style={{padding:"9px 12px",width:38,height:38,justifyContent:"center",flexShrink:0}}>{Ic.download}</PBtn>
-            </div>
-          </div>}
           {/* Knock Off checklists moved to their own standalone section below */}
           {visibleReports.map(([label,type,date,setDate,src])=>{
             // For these report types, leaving the date blank doesn't mean

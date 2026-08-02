@@ -15,7 +15,8 @@
  * 3:30pm). Nothing lands on Sunday — anything from Saturday afternoon
  * onward through Sunday rolls into Monday's Session 1.
  */
-import {useState,useEffect,useMemo,useRef} from "react";
+import {useState,useEffect,useMemo} from "react";
+import * as XLSX from "xlsx";
 import {loadData,saveData} from "./storage/index.js";
 import {listOrders,getOrder,getOrderHistory,reconcile,uploadOrderFile,signFileUrl} from "./storage/ordersApi.js";
 
@@ -162,8 +163,6 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   const[viewDate,setViewDate]=useState(()=>getSessionForTimestamp(new Date()).date);
   const[viewSession,setViewSession]=useState(()=>getSessionForTimestamp(new Date()).session);
   const[orderedFor,setOrderedFor]=useState(null);
-  const[savingPhoto,setSavingPhoto]=useState(false);
-  const tableRef=useRef(null);
 
   useEffect(()=>{
     (async()=>{
@@ -252,50 +251,27 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
     setOrderedFor(null);
   };
 
-  const savePhoto=async()=>{
-    const el=tableRef.current;if(!el)return;
-    setSavingPhoto(true);
-    try{
-      if(!window.html2canvas){
-        await new Promise((res,rej)=>{
-          const s=document.createElement("script");
-          s.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-          s.onload=res;s.onerror=rej;document.head.appendChild(s);
-        });
+  const exportExcel=()=>{
+    const rows=visible.map(e=>{
+      const row={
+        "Device Name":e.deviceName,
+        "Agreement No.":e.agreementNo||"—",
+        "Finance Price":e.financePrice||0,
+        "Branch":branchMeta?.[e.branch]?.name||e.branch,
+      };
+      SUPPLIERS.forEach(s=>{row[s.label]=e.prices?.[s.key]||0;});
+      row["Remark"]=e.remark||"";
+      row["Status"]=e.ordered?"Ordered":"Pending";
+      if(!e.ordered&&isViewingCurrentSession&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession)){
+        row["Status"]=`Overdue — since ${fDate(e.sessionDate)} Session ${e.session}`;
       }
-      // The table sits inside an overflow-x:auto wrapper for on-screen
-      // scrolling — left as-is, html2canvas only captures whatever's
-      // currently visible inside that scroll area, cutting the rest off.
-      // onclone lets us widen the wrapper in the (invisible) cloned
-      // document right before the snapshot is taken, so the full table
-      // renders instead of a clipped slice of it.
-      const canvas=await window.html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false,
-        onclone:(doc,clonedEl)=>{
-          clonedEl.querySelectorAll("div").forEach(d=>{
-            if(d.style&&d.style.overflowX==="auto"){d.style.overflowX="visible";d.style.width="max-content";}
-          });
-          const t=clonedEl.querySelector("table");
-          if(t)t.style.width="max-content";
-          // html2canvas doesn't reliably render <input> values/placeholder
-          // text — swap each one for a plain text node showing the same
-          // content, so the snapshot reads cleanly instead of looking
-          // glitchy.
-          clonedEl.querySelectorAll("input").forEach(inp=>{
-            const div=doc.createElement("div");
-            div.textContent=inp.value||inp.placeholder||"";
-            div.style.cssText=window.getComputedStyle(inp).cssText;
-            div.style.display="flex";
-            div.style.alignItems="center";
-            div.style.color=inp.value?"#0A1628":"#8A96A8";
-            inp.replaceWith(div);
-          });
-        }});
-      const a=document.createElement("a");
-      a.href=canvas.toDataURL("image/png");
-      a.download=`Purchase_Order_${viewDate}_Session${viewSession}.png`;
-      a.click();
-    }catch(e){alert("Save as Photo failed: "+e.message);}
-    setSavingPhoto(false);
+      return row;
+    });
+    const ws=XLSX.utils.json_to_sheet(rows);
+    ws["!cols"]=[{wch:32},{wch:16},{wch:13},{wch:16},...SUPPLIERS.map(()=>({wch:10})),{wch:20},{wch:30}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,`Session ${viewSession}`);
+    XLSX.writeFile(wb,`Purchase_Order_${viewDate}_Session${viewSession}.xlsx`);
   };
 
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
@@ -316,10 +292,10 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         <button onClick={()=>setViewSession(2)} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${viewSession===2?C.blueBright:C.border}`,background:viewSession===2?"#EFF6FF":"#fff",color:viewSession===2?C.blueBright:C.textMid,fontWeight:700,fontSize:12,cursor:"pointer"}}>Session 2 · Due 5:30pm</button>
       </div>
       <div style={{flex:1}}/>
-      <GBtn onClick={savePhoto} disabled={savingPhoto}>{savingPhoto?"Saving…":"📷 Save as Photo"}</GBtn>
+      <GBtn onClick={exportExcel}>📊 Export to Excel</GBtn>
     </div>
 
-    <div style={{...card}} ref={tableRef}>
+    <div style={{...card}}>
       <SecHdr>Purchase Order — {fDate(viewDate)} · Session {viewSession} ({pendingCount} pending{carriedForwardCount>0?`, ${carriedForwardCount} overdue`:""})</SecHdr>
       <div style={{overflowX:"auto"}}>
         {visible.length===0

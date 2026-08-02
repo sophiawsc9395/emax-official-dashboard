@@ -764,7 +764,7 @@ export default function App({elevateOrderAccess=false,isHR=false}){
   const [selEndDay,setSelEndDay]=useState(daysInMonth(now.getMonth()+1,now.getFullYear()));
   const periodDays=days.filter(d=>d>=selStartDay&&d<=selEndDay);
   const [selBranch,setSelBranch]=useState(BRANCH_ORDER[0]);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications"];return allowed.includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications"];return allowed.includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
 
@@ -1050,7 +1050,7 @@ export default function App({elevateOrderAccess=false,isHR=false}){
   }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target));
 
   const ALL_TABS=[{id:"overview",label:"Overview"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"report",label:"Monthly Report"},{id:"repair",label:"Repair & Service"},{id:"rto",label:"RTO Summary"},{id:"orders",label:"Order Tracking"},{id:"dailySales",label:"Daily Sales Report"},{id:"jclApplications",label:"JCL Applications"}];
-  const TABS=isHR?ALL_TABS.filter(t=>["overview","rankings","points","report"].includes(t.id)):ALL_TABS;
+  const TABS=isHR?ALL_TABS.filter(t=>["overview","rankings","points","report","repair","rto"].includes(t.id)):ALL_TABS;
 
   if(loading)return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
     <div style={{textAlign:"center"}}>
