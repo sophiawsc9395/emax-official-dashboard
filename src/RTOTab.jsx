@@ -250,12 +250,12 @@ function PaymentSchedule({customer,onUpdate}){
                   <td style={{padding:"7px 10px",textAlign:"right",color:C.text}}>{fRM(s.amount)}</td>
                   <td style={{padding:"7px 10px",textAlign:"center"}}>
                     {payments[s.key]?.invOpened
-                      ?<span style={{background:"#EEF1F7",color:C.blue,padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:700}}>✓ INV</span>
+                      ?<span style={{background:"#EEF1F7",color:C.blue,padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:700}}>INV</span>
                       :<span style={{color:"#CBD5E1",fontSize:10}}>—</span>}
                   </td>
                   <td style={{padding:"7px 10px",textAlign:"center"}}>
                     {paid
-                      ?<span style={{background:"#DCFCE7",color:"#15803D",padding:"2px 10px",borderRadius:4,fontSize:10,fontWeight:700}}>✓ Paid</span>
+                      ?<span style={{background:"#DCFCE7",color:"#15803D",padding:"2px 10px",borderRadius:4,fontSize:10,fontWeight:700}}>Paid</span>
                       :<span style={{background:"#FEF9C3",color:"#854D0E",padding:"2px 10px",borderRadius:4,fontSize:10,fontWeight:700}}>Pending</span>}
                   </td>
                   <td style={{padding:"7px 10px",color:paid?"#15803D":C.textLight,fontSize:11,whiteSpace:"nowrap"}}>{paid?fDate(paidDate):"—"}</td>
@@ -287,7 +287,7 @@ function PaymentSchedule({customer,onUpdate}){
                       const invOpened=!payments[s.key]?.invOpened;
                       onUpdate(s.key,{...payments[s.key],invOpened,amount:s.amount});
                     }} style={{padding:"3px 8px",fontSize:10,fontWeight:700,border:`1px solid ${payments[s.key]?.invOpened?"#93C5FD":C.border}`,borderRadius:6,background:payments[s.key]?.invOpened?"#EEF1F7":C.surface,color:payments[s.key]?.invOpened?C.blue:C.textLight,cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>
-                      {payments[s.key]?.invOpened?"INV ✓":"INV"}
+                      {payments[s.key]?.invOpened?"INV Done":"INV"}
                     </button>
                     <button onClick={()=>{
                       const newPaid=!paid;
@@ -442,7 +442,7 @@ export default function RTOTab({branchMeta}){
                     onMouseLeave={e=>{e.currentTarget.style.background=rowBg;}}>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontWeight:700,fontSize:12,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.name}</div>
-                      <div style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.memberId} · {c.branch} · {outstanding>0?`${fRM(outstanding)} due`:"Fully Paid ✓"}</div>
+                      <div style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.memberId} · {c.branch} · {outstanding>0?`${fRM(outstanding)} due`:"Fully Paid"}</div>
                     </div>
                     <div style={{width:76,flexShrink:0,textAlign:"right"}}>
                       <span style={{fontSize:9,fontWeight:700,color:isFullyPaid?"#15803D":C.navy,background:isFullyPaid?"#F0FDF4":C.surface,border:`1px solid ${isFullyPaid?"#BBF7D0":C.border}`,padding:"2px 7px",borderRadius:4,whiteSpace:"nowrap"}}>{isFullyPaid?"Paid":`${paidCount}/${schedule.length}`}</span>

@@ -142,7 +142,7 @@ function OrderedForm({entry,onClose,onConfirm}){
         </div>
         <L req>Purchase Proof</L>
         <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setProofFile(e.target.files[0]||null)} style={{fontSize:12,width:"100%",marginBottom:4}}/>
-        {proofFile&&<div style={{fontSize:11,color:"#15803D",fontWeight:600}}>✓ {proofFile.name}</div>}
+        {proofFile&&<div style={{fontSize:11,color:"#15803D",fontWeight:600}}>{proofFile.name}</div>}
         <div style={{fontSize:10,color:C.textLight,marginTop:10}}>This fills in the same details on this order's own Step 2 in Order Tracking — no need to enter them again there.</div>
       </div>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",padding:"14px 20px",borderTop:`1px solid ${C.border}`}}>
@@ -292,7 +292,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         <button onClick={()=>setViewSession(2)} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${viewSession===2?C.blueBright:C.border}`,background:viewSession===2?"#EFF6FF":"#fff",color:viewSession===2?C.blueBright:C.textMid,fontWeight:700,fontSize:12,cursor:"pointer"}}>Session 2 · Due 5:30pm</button>
       </div>
       <div style={{flex:1}}/>
-      <GBtn onClick={exportExcel}>📊 Export to Excel</GBtn>
+      <GBtn onClick={exportExcel}>Export to Excel</GBtn>
     </div>
 
     <div style={{...card}}>
@@ -327,7 +327,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
                 </td>
                 <td style={{padding:"8px 10px"}}>
                   {e.ordered
-                    ?<span style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:20,padding:"3px 9px",whiteSpace:"nowrap"}}>✓ Ordered</span>
+                    ?<span style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:20,padding:"3px 9px",whiteSpace:"nowrap"}}>Ordered</span>
                     :isAdmin&&<button onClick={()=>setOrderedFor(e)} style={{padding:"6px 12px",borderRadius:7,border:"none",background:C.navy,color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>Ordered</button>}
                   {!e.ordered&&!isAdmin&&<span style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:20,padding:"3px 9px",whiteSpace:"nowrap"}}>Pending</span>}
                 </td>

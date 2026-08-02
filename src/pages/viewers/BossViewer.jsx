@@ -299,11 +299,11 @@ function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalanc
         return <div style={{background:"#F7F9FC",borderRadius:8,padding:"8px 10px",border:"1px solid #E4EAF2",display:"flex",flexDirection:"column",gap:5}}>
           {bTier&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:10,color:"#92400E",fontWeight:600}}>Bonus Tier {bTier}{!bMax?` → next at ${bNextPct}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"sr")):"🏆"}</span>
+            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"sr")):"Maxed"}</span>
           </div>}
           {pTierIdx>=0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:10,color:"#1E40AF",fontWeight:600}}>Points Tier {pTierIdx+1}{pNext?` → next at ${pNext[0]}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{pNext?pNext[1].toLocaleString()+" pts":"🏆"}</span>
+            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{pNext?pNext[1].toLocaleString()+" pts":"Maxed"}</span>
           </div>}
         </div>;
       })()}
@@ -432,11 +432,11 @@ function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewa
         return <div style={{background:"#F7F9FC",borderRadius:8,padding:"8px 10px",border:"1px solid #E4EAF2",display:"flex",flexDirection:"column",gap:5}}>
           {bTier&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:10,color:"#92400E",fontWeight:600}}>Bonus Tier {bTier}{!bMax?` → next at ${bNextPct}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"bm")):"🏆"}</span>
+            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"bm")):"Maxed"}</span>
           </div>}
           {pTierIdx>=0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:10,color:"#1E40AF",fontWeight:600}}>Points Tier {pTierIdx+1}{pNext?` → next at ${pNext[0]}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{pNext?pNext[1].toLocaleString()+" pts":"🏆"}</span>
+            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{pNext?pNext[1].toLocaleString()+" pts":"Maxed"}</span>
           </div>}
         </div>;
       })()}
@@ -464,7 +464,7 @@ function RankingTable({title,rows,showBonus,showPoints,branchMeta,period}){
     </span>;
   };
 
-  const medals=["🥇","🥈","🥉"];
+  const medals=["#1","#2","#3"];
   return <div style={{marginBottom:24,display:"flex",flexDirection:"column",height:"100%"}}>
     <div style={{marginBottom:10,minHeight:36,flexShrink:0}}>
       <h3 style={{fontSize:13,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.05em",margin:0}}>{title}</h3>
@@ -665,7 +665,7 @@ function StatusHistoryModal({srList,bMeta,statusHistory,onClose,initialPerson}){
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:600,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px",borderBottom:"1px solid #E4EAF2"}}>
         <div>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>📋 Employment Status History</h2>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Employment Status History</h2>
           <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>{person?.name} · {person?.role}</div>
         </div>
         <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
@@ -709,7 +709,7 @@ function PointsHistoryModal({srList,bMeta,rewardBalances,rewardHistory,onClose,i
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:600,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px",borderBottom:"1px solid #E4EAF2"}}>
         <div>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>🏆 Reward Points Balance</h2>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Reward Points Balance</h2>
           <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>{person?.name} · {person?.role}</div>
         </div>
         <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
@@ -1067,7 +1067,7 @@ export default function App({elevateOrderAccess=false,isHR=false}){
           <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
             <div>
               <div style={{fontWeight:900,fontSize:12,color:"#fff",letterSpacing:"0.06em",lineHeight:1}}>EMAX NETWORK</div>
-              <div style={{fontSize:9,color:"rgba(255,255,255,.3)",letterSpacing:"0.14em",textTransform:"uppercase",marginTop:1}}>Boss View · All Branches</div>
+              <div style={{fontSize:9,color:"rgba(255,255,255,.3)",letterSpacing:"0.14em",textTransform:"uppercase",marginTop:1}}>{isHR?"HR View":elevateOrderAccess?"Manager View":"Boss View"} · All Branches</div>
 
             </div>
           </div>
@@ -1119,7 +1119,7 @@ export default function App({elevateOrderAccess=false,isHR=false}){
       {/* REWARD POINT RANKING */}
       {tab==="points"&&<div className="fade-in">
         <div style={{marginBottom:14}}>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>🏆 Reward Point Ranking</h2>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Reward Point Ranking</h2>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {(()=>{
@@ -1128,7 +1128,7 @@ export default function App({elevateOrderAccess=false,isHR=false}){
               ...srList.filter(sr=>srVisibleInMonth(sr,selMonth,selYear)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
             ];
             const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0})).sort((a,b)=>b.balance-a.balance);
-            const medals=["🥇","🥈","🥉"];
+            const medals=["#1","#2","#3"];
             return ranked.map((p,i)=>{
               const isTop=i<3;
               return <div key={p.id} onClick={()=>{setPointsModalPerson(p.id);setShowPointsModal(true);}} style={{

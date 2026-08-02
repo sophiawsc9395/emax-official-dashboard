@@ -297,7 +297,7 @@ function VerifyBox({report,onSaved}){
     </div>)}
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
       <button onClick={addEntry} style={{fontSize:11,fontWeight:700,color:C.blueBright,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",padding:0}}>+ Add Another Payment</button>
-      <span style={{fontSize:11,fontWeight:700,color:matches?"#15803D":"#B45309"}}>Total: {fRM(total)} {matches?"✓ matches Cash Sales":`(Cash Sales: ${fRM(report.cashSales)})`}</span>
+      <span style={{fontSize:11,fontWeight:700,color:matches?"#15803D":"#B45309"}}>Total: {fRM(total)} {matches?"matches Cash Sales":`(Cash Sales: ${fRM(report.cashSales)})`}</span>
     </div>
     <PBtn onClick={verify} disabled={saving} style={{marginTop:10,width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Verify"}</PBtn>
   </div>;
@@ -433,7 +433,7 @@ function EditBox({report,isAdmin,editorRole,onSaved,onCancel}){
       </div>)}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
         <button onClick={addEntry} style={{fontSize:11,fontWeight:700,color:C.blueBright,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",padding:0}}>+ Add Another Payment</button>
-        <span style={{fontSize:11,fontWeight:700,color:entriesMatch?"#15803D":"#B45309"}}>Total: {fRM(entriesTotal)} {entriesMatch?"✓ matches Cash Sales":`(Cash Sales: ${fRM(cashSales)})`}</span>
+        <span style={{fontSize:11,fontWeight:700,color:entriesMatch?"#15803D":"#B45309"}}>Total: {fRM(entriesTotal)} {entriesMatch?"matches Cash Sales":`(Cash Sales: ${fRM(cashSales)})`}</span>
       </div>
     </div>}
     {canEditSecondPayment&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:8}}>

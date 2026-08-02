@@ -62,7 +62,7 @@ export default function ResetPasswordPage({ onDone }) {
             {done ? (
               <>
                 <div style={{ fontSize: 16, fontWeight: 700, color: "#00C896", marginBottom: 8 }}>
-                  ✓ Password updated
+                  Password updated
                 </div>
                 <div style={{ fontSize: 13, color: "rgba(255,255,255,.5)" }}>
                   Taking you back to sign in…

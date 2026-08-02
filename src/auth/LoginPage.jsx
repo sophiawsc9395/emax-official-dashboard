@@ -79,7 +79,7 @@ export default function LoginPage({ onLogin }) {
             {mode === "sent" ? (
               <>
                 <div style={{ fontSize: 16, fontWeight: 700, color: "#00C896", marginBottom: 8 }}>
-                  ✓ Reset link sent
+                  Reset link sent
                 </div>
                 <div style={{ fontSize: 13, color: "rgba(255,255,255,.5)", marginBottom: 24 }}>
                   Check {email.trim()} for a link to set a new password.

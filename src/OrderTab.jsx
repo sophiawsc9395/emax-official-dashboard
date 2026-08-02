@@ -314,7 +314,7 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions}){
     {hist.knockOffDate&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off: {fDate(hist.knockOffDate)}</div>}
     {hist.knockOffAmount&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off Amount: {fRM(hist.knockOffAmount)}</div>}
     {hist.shortPayment&&<div style={{marginBottom:2,color:"#DC2626",fontWeight:700}}>Short Payment — Balance Payment Needed</div>}
-    {hist.collectionChecked!==undefined&&<div style={{marginBottom:3,fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"✓":"✗"} Phone Collection · </>}{hist.paymentChecked?"✓":"✗"} Payment verified</div>}
+    {hist.collectionChecked!==undefined&&<div style={{marginBottom:3,fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"Done":"Not done"} Phone Collection · </>}{hist.paymentChecked?"Done":"Not done"} Payment verified</div>}
     {hist.upfrontPaymentDate&&(order.orderType==="cash"?hist.monthlyInstallment:hist.paymentProofAmount)&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>{order.orderType==="cash"?"Payment Amount":"Payment Proof Amount"} {fDate(hist.upfrontPaymentDate)} · {hist.paymentMethod} · {fRM(order.orderType==="cash"?hist.monthlyInstallment:hist.paymentProofAmount)}</div>}
     {hist.secondPaymentDate&&<div style={{marginBottom:2,color:"#92400E",fontWeight:600}}>2nd Payment: {fDate(hist.secondPaymentDate)} · {hist.secondPayMethod} · {fRM(hist.secondPaymentAmount)}</div>}
     {hist.verificationRemark&&<div style={{marginBottom:2,color:C.textMid}}>Note: {hist.verificationRemark}</div>}
@@ -421,7 +421,7 @@ function BillingForm({order,onSubmit,onCancel}){
             <div style={isMissing?{border:"1.5px solid #FECACA",borderRadius:8,padding:6}:{}}>
               <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFls(p=>({...p,[k]:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>
             </div>
-            {(fls[k]||f[k])&&<div style={{fontSize:10,color:"#15803D",marginTop:2,fontWeight:600}}>✓ {fls[k]?.name||f[k]?.name}</div>}
+            {(fls[k]||f[k])&&<div style={{fontSize:10,color:"#15803D",marginTop:2,fontWeight:600}}>{fls[k]?.name||f[k]?.name}</div>}
             {isMissing&&<div style={{fontSize:10,color:"#DC2626",marginTop:2}}>Required</div>}
           </div>;
         })}
@@ -449,7 +449,7 @@ function ChecklistForm({onSubmit,onCancel,issueItems=[],merchant}){
     <div style={{padding:16}}>
       {items.map((item,i)=><div key={i} onClick={()=>setItems(p=>p.map((x,j)=>j===i?{...x,checked:!x.checked}:x))} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:9,background:item.issue&&!item.checked?"#FEF2F2":item.checked?"#F0FDF4":C.surface,border:`1px solid ${item.issue&&!item.checked?"#FECACA":item.checked?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer",transition:"all .15s"}}>
         <div style={{width:18,height:18,borderRadius:4,background:item.checked?C.navy:"#fff",border:`2px solid ${item.checked?C.navy:item.issue?"#EF4444":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",transition:"all .15s"}}>{item.checked&&Ic.check}</div>
-        <span style={{fontSize:12,fontWeight:item.checked?600:400,color:item.issue&&!item.checked?"#DC2626":item.checked?"#15803D":C.textMid}}>{item.name}{item.issue&&!item.checked&&<span style={{fontSize:10,marginLeft:7,fontWeight:700,color:"#DC2626"}}> ⚠ Flagged</span>}</span>
+        <span style={{fontSize:12,fontWeight:item.checked?600:400,color:item.issue&&!item.checked?"#DC2626":item.checked?"#15803D":C.textMid}}>{item.name}{item.issue&&!item.checked&&<span style={{fontSize:10,marginLeft:7,fontWeight:700,color:"#DC2626"}}> — Flagged</span>}</span>
       </div>)}
       <div style={{marginTop:10,marginBottom:4}}>
         <L req>Consignment Note No.</L>
@@ -872,7 +872,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
         <div style={{padding:"14px 16px"}}>
           {lastReturn.returnRemark&&<div style={{marginBottom:10,fontSize:12,color:"#78350F",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:8,padding:"8px 12px"}}><b>Remark:</b> {lastReturn.returnRemark}</div>}
           {lastChecklist&&<div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-            {lastChecklist.checklistItems.map((item,i)=>{const failed=lastReturn.issueItems?.includes(item.name);return<span key={i} style={{fontSize:10,padding:"3px 9px",borderRadius:20,background:failed?"#FEF2F2":"#F0FDF4",color:failed?"#DC2626":"#15803D",fontWeight:600,border:`1px solid ${failed?"#FECACA":"#BBF7D0"}`}}>{failed?"✗":"✓"} {item.name}{failed?" ⚠ Flagged":""}</span>;})}
+            {lastChecklist.checklistItems.map((item,i)=>{const failed=lastReturn.issueItems?.includes(item.name);return<span key={i} style={{fontSize:10,padding:"3px 9px",borderRadius:20,background:failed?"#FEF2F2":"#F0FDF4",color:failed?"#DC2626":"#15803D",fontWeight:600,border:`1px solid ${failed?"#FECACA":"#BBF7D0"}`}}>{item.name}{failed?" — Flagged":""}</span>;})}
           </div>}
         </div>
       </div>}
@@ -986,7 +986,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
           <div style={{gridColumn:"1/-1"}}>
             <L req>Purchase Proof</L>
             <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,purchaseProof:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>
-            {files.purchaseProof&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files.purchaseProof.name}</div>}
+            {files.purchaseProof&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>{files.purchaseProof.name}</div>}
           </div>
         </div>}
         {nextDef.needsInvoiceNo&&isAdmin&&<>
@@ -996,7 +996,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
           <div style={{...lbl,marginBottom:8}}>Balance Payment Proof (Short Payment Correction)</div>
           <L req>Upload Balance Payment Proof</L>
           <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,balancePaymentProof:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>
-          {files.balancePaymentProof&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files.balancePaymentProof.name}</div>}
+          {files.balancePaymentProof&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>{files.balancePaymentProof.name}</div>}
           <PBtn onClick={async()=>{if(!files.balancePaymentProof)return;setSaving(true);const f=await readFile(files.balancePaymentProof,order.id);const h={step:9,date:nowDate(),time:nowTime(),note:"Balance payment proof uploaded",shortPaymentProofUpload:true,files:{balancePaymentProof:f}};await onUpdate({...order,balancePaymentUploadedDate:nowDate(),history:[...(order.history||[]),h]});setSaving(false);setFiles(p=>({...p,balancePaymentProof:null}));}} disabled={!files.balancePaymentProof||saving} style={{width:"100%",justifyContent:"center",marginTop:8}}>{saving?"Saving…":"Submit Balance Payment Proof"}</PBtn>
         </div>}
         {nextDef.needsVerification&&isAdmin&&<div style={{marginBottom:12}}>
@@ -1020,7 +1020,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
               const hasEntry=paymentProofAmount.toString().trim()||(isShortPaymentPending(order)&&secondPaymentAmount.toString().trim());
               if(!hasEntry)return null;
               const matches=Math.abs(totalProof-expectedTotal)<=0.01;
-              return<div style={{gridColumn:"1/-1",fontSize:11,fontWeight:700,color:matches?"#15803D":"#DC2626",padding:"6px 2px"}}>{matches?`✓ Payment proof matches total upfront payment (${fRM(totalProof)})`:`✗ Payment proof (${fRM(totalProof)}) does not match total upfront payment (${fRM(expectedTotal)}) — cannot confirm until this matches`}</div>;
+              return<div style={{gridColumn:"1/-1",fontSize:11,fontWeight:700,color:matches?"#15803D":"#DC2626",padding:"6px 2px"}}>{matches?`Payment proof matches total upfront payment (${fRM(totalProof)})`:`Payment proof (${fRM(totalProof)}) does not match total upfront payment (${fRM(expectedTotal)}) — cannot confirm until this matches`}</div>;
             })()}
           </div>
           {isShortPaymentPending(order)&&<div style={{background:"#FFFBEB",borderRadius:9,padding:"12px 14px",border:"1px solid #FDE68A",marginBottom:12}}>
@@ -1059,8 +1059,8 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
           <L req={!optional&&!alreadyOnFile}>{label}{optional?" (optional)":alreadyOnFile?" (already on file — re-upload only if there's a new one)":""}{multiple?" (multiple allowed)":""}</L>
           <input type="file" multiple={!!multiple} accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,[key]:multiple?[...(p[key]||[]),...Array.from(e.target.files)]:(e.target.files[0]||null)}))} style={{fontSize:11,width:"100%"}}/>
           {multiple?(files[key]||[]).length>0&&<div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>
-            {files[key].map((f,i)=><div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:10,color:"#15803D",fontWeight:600,background:"#F0FDF4",padding:"3px 8px",borderRadius:5}}><span>✓ {f.name}</span><button type="button" onClick={()=>setFiles(p=>({...p,[key]:p[key].filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",color:"#DC2626",cursor:"pointer",fontSize:12,fontWeight:700,padding:0}}>✕</button></div>)}
-          </div>:files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {files[key].name}</div>}
+            {files[key].map((f,i)=><div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",fontSize:10,color:"#15803D",fontWeight:600,background:"#F0FDF4",padding:"3px 8px",borderRadius:5}}><span>{f.name}</span><button type="button" onClick={()=>setFiles(p=>({...p,[key]:p[key].filter((_,j)=>j!==i)}))} style={{background:"none",border:"none",color:"#DC2626",cursor:"pointer",fontSize:12,fontWeight:700,padding:0}}>×</button></div>)}
+          </div>:files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>{files[key].name}</div>}
         </div>;})}
         {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&!nextDef.needsClaimInfo&&!nextDef.needsKnockOff&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
         {nextDef.needsVerification&&!isAdmin?<div style={{fontSize:12,color:C.textLight,fontStyle:"italic",padding:"6px 0"}}>Uploaded proof will be reviewed by admin to complete verification.</div>:<PBtn onClick={advance} disabled={!ok()||saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":`Confirm: ${nextDef.label}`} {!saving&&Ic.chevR}</PBtn>}
@@ -1454,7 +1454,7 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
       {row("deposit","Deposit (RM)","number",true)}
       <div><L req>Deposit Payment Method</L><SEL value={f.depositPaymentMethod||"RHB"} onChange={e=>set("depositPaymentMethod",e.target.value)} disabled={isFieldLocked("depositPaymentMethod")} style={isFieldLocked("depositPaymentMethod")?lockedStyle:{}}><option value="RHB">RHB</option><option value="PBB">PBB</option></SEL></div>
       {row("depositPaymentDate","Deposit Payment Date","date",true)}
-      <div><L req>Deposit Payment Slip</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setSlipFile(e.target.files[0]||null)} disabled={isFieldLocked("depositSlip")} style={{fontSize:11,width:"100%"}}/>{(slipFile||f.depositSlip)&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>✓ {slipFile?.name||f.depositSlip?.name}</div>}{!slipFile&&!f.depositSlip&&<div style={{fontSize:10,color:"#DC2626",marginTop:3}}>Required</div>}</div>
+      <div><L req>Deposit Payment Slip</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setSlipFile(e.target.files[0]||null)} disabled={isFieldLocked("depositSlip")} style={{fontSize:11,width:"100%"}}/>{(slipFile||f.depositSlip)&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>{slipFile?.name||f.depositSlip?.name}</div>}{!slipFile&&!f.depositSlip&&<div style={{fontSize:10,color:"#DC2626",marginTop:3}}>Required</div>}</div>
     </FormCard>}
     {(missing.length>0||missingSlip)&&!order&&<div style={{padding:"9px 12px",background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:8,fontSize:11,color:"#92400E",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill all required fields to submit.</div>}
     <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><GBtn onClick={onCancel}>Cancel</GBtn><PBtn onClick={submit} disabled={!order&&(missing.length>0||missingSlip)}>{isReady?"Submit & Dispatch":"Submit Order Request"}</PBtn></div>
@@ -1588,7 +1588,7 @@ function BatchArchive({orders,onDelete,onClose}){
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
         <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.trash} Remove Completed Orders</div>
-        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>×</button>
       </div>
       <div style={{padding:16,overflowY:"auto",flex:1}}>
         {completed.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No completed orders yet.</div>:<>
@@ -1625,7 +1625,7 @@ function BulkDispatch({orders,onSave,onClose}){
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
         <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.truck} Dispatch to Branch (Bulk)</div>
-        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>×</button>
       </div>
       <div style={{padding:16,overflowY:"auto",flex:1}}>
         {awaitingDispatch.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No orders waiting to be dispatched.</div>:<>
@@ -1668,7 +1668,7 @@ function BulkMarkCompleted({orders,onSave,onClose}){
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
         <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.checkCircle} Mark as Completed (Bulk)</div>
-        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>×</button>
       </div>
       <div style={{padding:16,overflowY:"auto",flex:1}}>
         {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No orders awaiting completion.</div>:<>
@@ -1712,7 +1712,7 @@ function BulkKnockOffInstallment({orders,onSave,onClose}){
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
         <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.checkCircle} Knock Off First Monthly Installment (Bulk)</div>
-        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>×</button>
       </div>
       <div style={{padding:16,overflowY:"auto",flex:1}}>
         {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No collected installments pending knock-off.</div>:<>
@@ -1751,7 +1751,7 @@ function BulkAgreementReceived({orders,onSave,onClose}){
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
         <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.checkCircle} Set Agreement Received by HQ Date (Bulk)</div>
-        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>×</button>
       </div>
       <div style={{padding:16,overflowY:"auto",flex:1}}>
         {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No orders awaiting Agreement Received by HQ.</div>:<>
@@ -1791,7 +1791,7 @@ function BulkClaimSent({orders,onSave,onClose}){
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
         <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.checkCircle} Set Agreement Sent to Merchant Date (Bulk)</div>
-        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>×</button>
       </div>
       <div style={{padding:16,overflowY:"auto",flex:1}}>
         {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No orders awaiting Claim Submitted.</div>:<>
@@ -1836,7 +1836,7 @@ function BulkKnockOff({orders,onSave,onClose}){
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
         <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.calendar} Set Knock-off Date (Bulk)</div>
-        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>✕</button>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>×</button>
       </div>
       <div style={{padding:16,overflowY:"auto",flex:1}}>
         {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No invoices pending knock-off.</div>:<>
@@ -2447,7 +2447,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
           {remark&&<div style={{fontSize:11,color:C.textMid}}>Remark: {remark}</div>}
         </div>
         <div style={{display:"flex",gap:6,flexShrink:0}}>
-          {buttons.map((b,i)=><button key={i} onClick={b.onClick} disabled={b.done} style={{fontSize:10,fontWeight:700,color:b.done?"#15803D":C.blueBright,background:b.done?"#F0FDF4":"#EFF6FF",border:`1px solid ${b.done?"#BBF7D0":C.border}`,borderRadius:6,padding:"4px 9px",cursor:b.done?"default":"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>{b.done?`✓ ${b.label}`:b.label}</button>)}
+          {buttons.map((b,i)=><button key={i} onClick={b.onClick} disabled={b.done} style={{fontSize:10,fontWeight:700,color:b.done?"#15803D":C.blueBright,background:b.done?"#F0FDF4":"#EFF6FF",border:`1px solid ${b.done?"#BBF7D0":C.border}`,borderRadius:6,padding:"4px 9px",cursor:b.done?"default":"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>{b.label}</button>)}
         </div>
       </div>;
       const Checklist=({checklistKey,title,items,rowRenderer})=>{

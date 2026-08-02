@@ -26,7 +26,7 @@ export default function DailyReportPanel({ onClose }) {
           padding:"7px 16px", background:"rgba(255,255,255,.1)", color:"#fff",
           border:"1px solid rgba(255,255,255,.2)", borderRadius:8,
           fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"Inter,sans-serif",
-        }}>✕ Close</button>
+        }}>Close</button>
       </div>
       {/* Iframe */}
       <iframe

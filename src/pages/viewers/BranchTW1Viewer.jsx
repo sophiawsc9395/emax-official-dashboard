@@ -175,7 +175,7 @@ function RankingTable({title,rows,showBonus,showPoints,branchMeta,period}){
     </span>;
   };
 
-  const medals=["🥇","🥈","🥉"];
+  const medals=["#1","#2","#3"];
   return <div style={{marginBottom:24,display:"flex",flexDirection:"column",height:"100%"}}>
     <div style={{marginBottom:10,minHeight:36,flexShrink:0}}>
       <h3 style={{fontSize:13,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.05em",margin:0}}>{title}</h3>
@@ -235,7 +235,7 @@ function StatusHistoryModal({srList,bMeta,statusHistory,onClose,initialPerson}){
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:600,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px",borderBottom:"1px solid #E4EAF2"}}>
         <div>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>📋 Employment Status History</h2>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Employment Status History</h2>
           <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>{person?.name} · {person?.role}</div>
         </div>
         <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
@@ -279,7 +279,7 @@ function PointsHistoryModal({srList,bMeta,rewardBalances,rewardHistory,onClose,i
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:560,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px",borderBottom:"1px solid #E4EAF2"}}>
         <div>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>🏆 Reward Points Balance</h2>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Reward Points Balance</h2>
           <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>{person?.name} · {person?.role}</div>
         </div>
         <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
@@ -614,7 +614,7 @@ export default function App(){
       {/* REWARD POINT RANKING — company-wide */}
       {tab==="points"&&<div className="fade-in">
         <div style={{marginBottom:14}}>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>🏆 Reward Point Ranking</h2>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Reward Point Ranking</h2>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {(()=>{
@@ -623,7 +623,7 @@ export default function App(){
               ...allSRList.filter(sr=>srVisibleInMonth(sr,month,year)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
             ];
             const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0})).sort((a,b)=>b.balance-a.balance);
-            const medals=["🥇","🥈","🥉"];
+            const medals=["#1","#2","#3"];
             return ranked.map((p,i)=>{
               const isTop=i<3;
               return <div key={p.id} onClick={()=>{setPointsModalPerson(p.id);setShowPointsModal(true);}} style={{

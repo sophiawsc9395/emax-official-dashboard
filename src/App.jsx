@@ -453,11 +453,11 @@ function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,
         return <div style={{background:"#F7F9FC",borderRadius:8,padding:"8px 10px",border:"1px solid #E4EAF2",display:"flex",flexDirection:"column",gap:5}}>
           {bTier&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:10,color:"#92400E",fontWeight:600}}>Bonus Tier {bTier}{!bMax?` → next at ${bNextPct}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"sr")):"🏆"}</span>
+            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"sr")):"Maxed"}</span>
           </div>}
           {pTierIdx>=0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:10,color:"#1E40AF",fontWeight:600}}>Points Tier {pTierIdx+1}{pNext?` → next at ${pNext[0]}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{pNext?pNext[1].toLocaleString()+" pts":"🏆"}</span>
+            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{pNext?pNext[1].toLocaleString()+" pts":"Maxed"}</span>
           </div>}
         </div>;
       })()}
@@ -592,11 +592,11 @@ function BMTable({branchId,records,targets,srList,branchMeta,onEdit,printMode,mo
         return <div style={{background:"#F7F9FC",borderRadius:8,padding:"8px 10px",border:"1px solid #E4EAF2",display:"flex",flexDirection:"column",gap:5}}>
           {bTier&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:10,color:"#92400E",fontWeight:600}}>Bonus Tier {bTier}{!bMax?` → next at ${bNextPct}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"bm")):"🏆"}</span>
+            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"bm")):"Maxed"}</span>
           </div>}
           {pTierIdx>=0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontSize:10,color:"#1E40AF",fontWeight:600}}>Points Tier {pTierIdx+1}{pNext?` → next at ${pNext[0]}%`:" (max)"}</span>
-            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{pNext?pNext[1].toLocaleString()+" pts":"🏆"}</span>
+            <span style={{fontSize:10,fontWeight:700,color:"#0A1628"}}>{pNext?pNext[1].toLocaleString()+" pts":"Maxed"}</span>
           </div>}
         </div>;
       })()}
@@ -755,7 +755,7 @@ function RankingTable({title,rows,showBonus,showPoints,branchMeta,period}){
     </span>;
   };
 
-  const medals=["🥇","🥈","🥉"];
+  const medals=["#1","#2","#3"];
   return <div style={{marginBottom:24,display:"flex",flexDirection:"column",height:"100%"}}>
     <div style={{marginBottom:10,minHeight:36,flexShrink:0}}>
       <h3 style={{fontSize:13,fontWeight:800,color:"#0A1628",textTransform:"uppercase",letterSpacing:"0.05em",margin:0}}>{title}</h3>
@@ -1019,7 +1019,7 @@ function UploadPanel({records,setRecords,srList,defaultBranch,recordsKey:rKey}){
       </button>
     </div>
     {err&&<div style={{color:"#F0354B",fontSize:11,marginTop:8}}>{err}</div>}
-    {saved&&<div style={{color:"#00C896",fontSize:11,marginTop:8}}>✓ PDF saved — viewers can now download it</div>}
+    {saved&&<div style={{color:"#00C896",fontSize:11,marginTop:8}}>PDF saved — viewers can now download it</div>}
   </div>;
 }
 
@@ -1067,7 +1067,7 @@ export function TargetModal({targets,setTargets,srList,branchMeta,onClose,curren
       <div style={{padding:"14px 20px",borderBottom:"1px solid #E4EAF2",position:"sticky",top:0,background:"#fff",zIndex:1}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Targets</h2>
-          {saved&&<span style={{fontSize:12,color:"#00C896",fontWeight:700}}>✓ Saved</span>}
+          {saved&&<span style={{fontSize:12,color:"#00C896",fontWeight:700}}>Saved</span>}
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",marginTop:8}}>
           <select className="input select" value={tgtMonth} onChange={e=>loadMonthTargets(parseInt(e.target.value),tgtYear)} style={{fontSize:12,padding:"4px 20px 4px 6px",width:88}}>
@@ -1446,7 +1446,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
       <div style={{padding:"14px 24px",borderBottom:"1px solid #E4EAF2",position:"sticky",top:0,background:"#fff",zIndex:10}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Manage Staff</h2>
-          {(saved||srSaved)&&<span style={{fontSize:12,color:"#00C896",fontWeight:700}}>✓ Saved</span>}
+          {(saved||srSaved)&&<span style={{fontSize:12,color:"#00C896",fontWeight:700}}>Saved</span>}
         </div>
         <div style={{display:"flex",gap:6,alignItems:"center",marginTop:8}}>
           <select className="input select" value={typeMonth} onChange={e=>setTypeMonth(parseInt(e.target.value))} style={{fontSize:12,padding:"4px 20px 4px 6px",width:88}}>
@@ -1553,7 +1553,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
                           <input autoFocus className="input" style={{width:90,padding:"2px 6px",fontSize:10}} value={editSRId.value} onChange={e=>{setEditSRId(p=>({...p,value:e.target.value}));setSrIdError(null);}} onKeyDown={e=>{if(e.key==="Enter")trySaveSRId(sr.id,editSRId.value);if(e.key==="Escape"){setEditSRId(null);setSrIdError(null);}}}/>
                           <div style={{display:"flex",gap:4}}>
                             <button onClick={()=>trySaveSRId(sr.id,editSRId.value)} style={{fontSize:9,padding:"1px 6px",background:"#1E6FDB",color:"#fff",border:"none",borderRadius:4,cursor:"pointer"}}>Save</button>
-                            <button onClick={()=>{setEditSRId(null);setSrIdError(null);}} style={{fontSize:9,padding:"1px 6px",background:"none",border:"1px solid #E4EAF2",borderRadius:4,cursor:"pointer",color:"#8A96A8"}}>✕</button>
+                            <button onClick={()=>{setEditSRId(null);setSrIdError(null);}} style={{fontSize:9,padding:"1px 6px",background:"none",border:"1px solid #E4EAF2",borderRadius:4,cursor:"pointer",color:"#8A96A8"}}>×</button>
                           </div>
                           {srIdError&&<div style={{fontSize:9,color:"#DC2626"}}>{srIdError}</div>}
                         </div>
@@ -1853,7 +1853,7 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
     useEffect(()=>{
       if(prev.current!==value){
         prev.current=value;
-        setStr(value===0?"":String(value));  // negative values: String(-15.51) = "-15.51" ✓
+        setStr(value===0?"":String(value));  // negative values: String(-15.51) = "-15.51"
       }
     },[value]);
     return <input type="number" step="0.01"
@@ -2019,7 +2019,7 @@ function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,record
             {fileInputs[b]?fileInputs[b].name:"Attach report file (PDF/image)"}
           </label>
           {fileInputs[b]&&<span style={{fontSize:10,color:"#8A96A8"}}>Will upload when you click "Save All to Monthly Report"</span>}
-          {!fileInputs[b]&&existingPdf[b]&&<span style={{fontSize:10,color:"#15803D",fontWeight:600}}>✓ {existingPdf[b].name} already uploaded for this date</span>}
+          {!fileInputs[b]&&existingPdf[b]&&<span style={{fontSize:10,color:"#15803D",fontWeight:600}}>{existingPdf[b].name} already uploaded for this date</span>}
         </div>
       </div>;
     })}
@@ -2103,7 +2103,7 @@ function StatusHistoryModal({srList,branchMeta,statusHistory,onClose,initialPers
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:600,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px",borderBottom:"1px solid #E4EAF2"}}>
         <div>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>📋 Employment Status History</h2>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Employment Status History</h2>
           <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>{person?.name} · {person?.role}</div>
         </div>
         <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
@@ -2124,7 +2124,7 @@ function StatusHistoryModal({srList,branchMeta,statusHistory,onClose,initialPers
                 </div>
                 <div style={{fontSize:12,color:"#5A6472",marginTop:3}}>{h.note}</div>
               </div>
-              {onDeleteStatusEntry&&<button onClick={()=>onDeleteStatusEntry(initialPerson,h.origIdx)} style={{flexShrink:0,padding:"3px 8px",fontSize:10,fontWeight:700,border:"1px solid #FECACA",borderRadius:5,background:"#FEF2F2",color:"#B91C1C",cursor:"pointer",fontFamily:"Inter,sans-serif",marginTop:2}}>✕</button>}
+              {onDeleteStatusEntry&&<button onClick={()=>onDeleteStatusEntry(initialPerson,h.origIdx)} style={{flexShrink:0,padding:"3px 8px",fontSize:10,fontWeight:700,border:"1px solid #FECACA",borderRadius:5,background:"#FEF2F2",color:"#B91C1C",cursor:"pointer",fontFamily:"Inter,sans-serif",marginTop:2}}>×</button>}
             </div>
           ))
         }
@@ -2152,7 +2152,7 @@ function PointsHistoryModal({srList,branchMeta,rewardBalances,rewardHistory,onCl
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:600,maxHeight:"85vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 24px",borderBottom:"1px solid #E4EAF2"}}>
         <div>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>🏆 Reward Points Balance</h2>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Reward Points Balance</h2>
           <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>{person?.name} · {person?.role}</div>
         </div>
         <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px"}}>Close</button>
@@ -2175,7 +2175,7 @@ function PointsHistoryModal({srList,branchMeta,rewardBalances,rewardHistory,onCl
                 </div>
                 <div style={{fontSize:10,color:"#8A96A8",marginTop:2}}>{new Date(h.date).toLocaleString("en-MY",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</div>
               </div>
-              {onDeletePointsEntry&&<button onClick={()=>onDeletePointsEntry(initialPerson,h.origIdx,h.amount)} style={{flexShrink:0,padding:"3px 8px",fontSize:10,fontWeight:700,border:"1px solid #FECACA",borderRadius:5,background:"#FEF2F2",color:"#B91C1C",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>✕</button>}
+              {onDeletePointsEntry&&<button onClick={()=>onDeletePointsEntry(initialPerson,h.origIdx,h.amount)} style={{flexShrink:0,padding:"3px 8px",fontSize:10,fontWeight:700,border:"1px solid #FECACA",borderRadius:5,background:"#FEF2F2",color:"#B91C1C",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>×</button>}
             </div>
           ))
         }
@@ -2853,7 +2853,7 @@ export default function App(){
       {["overview","rankings","report","daily"].includes(tab)&&<div style={{padding:"7px 14px",background:"#F0F4FA",borderRadius:8,fontSize:11,color:"#4A5568",marginBottom:16,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
         <span style={{fontWeight:700,color:"#0A1628"}}>Report Period:</span>
         <span>{lastDataDay?`1/${month}/${year} — ${lastDataDay}/${month}/${year}`:`${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month-1]} ${year} (no data yet)`}</span>
-        {publishedUntil&&<span style={{marginLeft:8,color:"#15803D",fontWeight:600}}>✅ Published up to {publishedUntil.replace(/(\d{4})-(\d{2})-(\d{2})/,(m,y,mo,d)=>`${d}/${mo}/${y}`)}</span>}
+        {publishedUntil&&<span style={{marginLeft:8,color:"#15803D",fontWeight:600}}>Published up to {publishedUntil.replace(/(\d{4})-(\d{2})-(\d{2})/,(m,y,mo,d)=>`${d}/${mo}/${y}`)}</span>}
       </div>}
       {/* OVERVIEW */}
       {tab==="overview"&&<div className="fade-in">
@@ -2881,7 +2881,7 @@ export default function App(){
       {/* REWARD POINT RANKING */}
       {tab==="points"&&<div className="fade-in">
         <div style={{marginBottom:14}}>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>🏆 Reward Point Ranking</h2>
+          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Reward Point Ranking</h2>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {(()=>{
@@ -2890,7 +2890,7 @@ export default function App(){
               ...srList.filter(sr=>srVisibleInMonth(sr,selMonth,selYear)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
             ];
             const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0,asOf:pointsAsOfFor(p.branch)})).sort((a,b)=>b.balance-a.balance);
-            const medals=["🥇","🥈","🥉"];
+            const medals=["#1","#2","#3"];
             return ranked.map((p,i)=>{
               const isTop=i<3;
               return <div key={p.id} onClick={()=>{setPointsModalPerson(p.id);setShowPointsModal(true);}} style={{
@@ -2935,8 +2935,8 @@ export default function App(){
           </div>
           {selBranch!=="ALL"&&<div style={{display:"flex",gap:8}}>
             {isBranchLocked(selBranch)
-              ? <button className="btn btn-ghost" onClick={()=>unlockBranchMonth(selBranch)} style={{fontSize:11,color:"#F0354B",borderColor:"#F0354B22",background:"#FFF5F5"}}>🔓 Locked — Click to Unlock</button>
-              : <button className="btn btn-ghost" onClick={()=>{if(confirm(`Lock ${selBranch} for ${selMonth}/${selYear}? This credits all SR + BM reward points and updates employment status.`))lockBranchMonth(selBranch);}} style={{fontSize:11}}>🔒 Lock Month & Credit Points</button>}
+              ? <button className="btn btn-ghost" onClick={()=>unlockBranchMonth(selBranch)} style={{fontSize:11,color:"#F0354B",borderColor:"#F0354B22",background:"#FFF5F5"}}>Locked — Click to Unlock</button>
+              : <button className="btn btn-ghost" onClick={()=>{if(confirm(`Lock ${selBranch} for ${selMonth}/${selYear}? This credits all SR + BM reward points and updates employment status.`))lockBranchMonth(selBranch);}} style={{fontSize:11}}>Lock Month &amp; Credit Points</button>}
             <button className="btn btn-primary" onClick={()=>setPrintBranch(selBranch)} style={{fontSize:11}}>Download {selBranch} Report</button>
           </div>}
         </div>
@@ -3044,13 +3044,13 @@ export default function App(){
             setPublishedUntil(ds);
             await saveData(`emax_v5_published_${year}_${month}`,ds);
             setSidebarOpen(false);
-            alert(`✅ Data up to ${ldd}/${month}/${year} published to viewers.`);
+            alert(`Data up to ${ldd}/${month}/${year} published to viewers.`);
           }} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
             background:"rgba(30,111,219,.25)",color:"#60A5FA",transition:"background .15s",
           }}>
-            📤 Publish to Viewers
+            Publish to Viewers
           </button>
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
           <button onClick={()=>{setShowTargetModal(true);setSidebarOpen(false);}} style={{
@@ -3073,7 +3073,7 @@ export default function App(){
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
             background:"rgba(255,213,0,.1)",color:"#FFD500",transition:"background .15s",
           }}>
-            📊 Daily Financial Report
+            Daily Financial Report
           </button>
           <button onClick={()=>supabase.auth.signOut()} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",

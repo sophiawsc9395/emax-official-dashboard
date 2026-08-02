@@ -71,7 +71,7 @@ export default function AuthGate({ children, allowedEmails }) {
         display: "flex", alignItems: "center", justifyContent: "center",
         fontFamily: "Inter,sans-serif", flexDirection: "column", gap: 16,
       }}>
-        <div style={{ fontSize: 32 }}>🔒</div>
+        
         <div style={{ fontSize: 16, fontWeight: 700, color: "#fff" }}>Access Denied</div>
         <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)", textAlign: "center", maxWidth: 320 }}>
           Your account ({session.user.email}) does not have permission to view this page.
