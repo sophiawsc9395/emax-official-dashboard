@@ -303,6 +303,9 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
 
   return<div>
+    {!isViewingCurrentSession&&<div style={{...card,borderLeft:"3px solid #8A96A8",padding:"12px 14px",marginBottom:14}}>
+      <div style={{fontSize:12,color:C.textMid}}>You're viewing a closed session — it's read-only from here. Anything still pending from this session has already carried forward into the current session, where it can be actioned.</div>
+    </div>}
     {isPastDeadline&&pendingCount>0&&<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Late Submission</div>
       <div style={{fontSize:12,color:"#DC2626"}}>Session {viewSession} ({fDate(viewDate)}) was due by {viewSession===1?"12:00pm":"5:30pm"} — {pendingCount} order{pendingCount>1?"s":""} still pending, {hoursLate.toFixed(1)} hour{hoursLate>=2?"s":""} late.</div>
@@ -344,17 +347,19 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
                 <td style={{padding:"8px 10px",color:C.textMid,whiteSpace:"nowrap"}}>{fRM(e.financePrice)}</td>
                 <td style={{padding:"8px 10px",color:C.textMid,whiteSpace:"nowrap"}}>{branchMeta?.[e.branch]?.name||e.branch}</td>
                 {SUPPLIERS.map(s=><td key={s.key} style={{padding:"4px 6px"}}>
-                  <input type="number" value={e.prices?.[s.key]||""} onChange={ev=>updatePrice(e.id,s.key,ev.target.value)} placeholder="0.00" disabled={e.ordered}
+                  <input type="number" value={e.prices?.[s.key]||""} onChange={ev=>updatePrice(e.id,s.key,ev.target.value)} placeholder="0.00" disabled={e.ordered||!isViewingCurrentSession}
                     style={{width:80,padding:"5px 6px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"Inter,sans-serif"}}/>
                 </td>)}
                 <td style={{padding:"4px 6px"}}>
-                  <input value={e.remark||""} onChange={ev=>updateRemark(e.id,ev.target.value)} placeholder="Remark…" disabled={e.ordered}
+                  <input value={e.remark||""} onChange={ev=>updateRemark(e.id,ev.target.value)} placeholder="Remark…" disabled={e.ordered||!isViewingCurrentSession}
                     style={{width:110,padding:"5px 6px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"Inter,sans-serif"}}/>
                 </td>
                 <td style={{padding:"8px 10px"}}>
                   {e.ordered
                     ?<span style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:20,padding:"3px 9px",whiteSpace:"nowrap"}}>Ordered</span>
-                    :isAdmin&&<button onClick={()=>setOrderedFor(e)} style={{padding:"6px 12px",borderRadius:7,border:"none",background:C.navy,color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>Ordered</button>}
+                    :isAdmin&&(isViewingCurrentSession
+                      ?<button onClick={()=>setOrderedFor(e)} style={{padding:"6px 12px",borderRadius:7,border:"none",background:C.navy,color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>Ordered</button>
+                      :<span style={{fontSize:10,fontWeight:700,color:C.textLight,whiteSpace:"nowrap"}}>View only — switch to the current session to act</span>)}
                   {!e.ordered&&!isAdmin&&<span style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:20,padding:"3px 9px",whiteSpace:"nowrap"}}>Pending</span>}
                 </td>
               </tr>
