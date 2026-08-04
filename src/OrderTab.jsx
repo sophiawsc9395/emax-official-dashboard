@@ -310,6 +310,23 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
     await onUpdate({...order,step:stepOverrideValue});
     setShowStepOverride(false);
   };
+  // Self-healing — every time this order's timeline is viewed, quietly
+  // check that the current step actually has a log entry backing it up.
+  // This is what makes "no step can be skipped" hold even without another
+  // deletion happening: if a step's entry was removed and nothing since
+  // has re-triggered a correction (the order just hasn't been touched
+  // again), viewing it here is enough on its own to catch and fix it.
+  useEffect(()=>{
+    if(order.step<=1)return;
+    const hist=order.history||[];
+    if(hist.some(h=>h.step===order.step))return; // current step is backed by its own entry — fine
+    const isCash=order.orderType==="cash";
+    const isReady=order.stockStatus==="ready";
+    const seq=isCash?[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,14]:[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,10,11,12,13];
+    let correctStep=seq[0];
+    for(const s of seq)if(hist.some(h=>h.step===s))correctStep=s;
+    if(correctStep!==order.step)onUpdate({...order,step:correctStep});
+  },[order.id,order.step,order.history?.length]);
   const [editingAmount,setEditingAmount]=useState(null); // {rowId, field} | null
   const [amountDraft,setAmountDraft]=useState("");
   const saveAmount=async(rowId,field)=>{

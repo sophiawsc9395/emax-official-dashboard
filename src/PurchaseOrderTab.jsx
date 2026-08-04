@@ -117,8 +117,8 @@ export async function syncPurchaseOrderEntry(order){
 export async function removeFromPurchaseOrderList(orderId){
   try{
     const list=(await loadData(PO_KEY))||[];
-    if(!list.some(e=>e.orderId===orderId))return;
-    await saveData(PO_KEY,list.filter(e=>e.orderId!==orderId));
+    if(!list.some(e=>String(e.orderId)===String(orderId)))return;
+    await saveData(PO_KEY,list.filter(e=>String(e.orderId)!==String(orderId)));
   }catch(e){console.error("removeFromPurchaseOrderList failed:",e);}
 }
 
@@ -181,58 +181,63 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   const[orderedFor,setOrderedFor]=useState(null);
   const[expandedLog,setExpandedLog]=useState({});
 
+  const runCatchUp=async()=>{
+    try{
+      const initial=(await loadData(PO_KEY))||[];
+      const currentList=Array.isArray(initial)?initial:[];
+      const allOrders=await listOrders(null);
+      // IDs are normalized to strings on both sides before any comparison
+      // — orderId here and order.id from the database should always match
+      // as strings already, but comparing them directly (without forcing
+      // the same type) is exactly the kind of thing that fails silently
+      // if one side is ever a number instead of a string, so this removes
+      // that possibility outright rather than trusting it never happens.
+      const orderById=new Map(allOrders.map(o=>[String(o.id),o]));
+      const existingIds=new Set(currentList.map(e=>String(e.orderId)));
+      const missing=allOrders.filter(o=>o.step===1&&o.stockStatus==="stock_request"&&!existingIds.has(String(o.id)));
+      const stale=currentList.filter(e=>{
+        if(e.ordered)return false;
+        const match=orderById.get(String(e.orderId));
+        return!match||match.cancelled===true;
+      });
+      const needsBackfill=currentList.filter(e=>!e.ordered&&e.orderType===undefined&&orderById.has(String(e.orderId)));
+      let changed=false;
+      for(const o of missing){
+        const hist=await getOrderHistory(o.id);
+        const firstEntry=hist?.find(h=>h.step===1)||hist?.[0];
+        const originalTimestamp=firstEntry?`${firstEntry.date}T${firstEntry.time||"09:00"}:00`:null;
+        await addToPurchaseOrderList(o,originalTimestamp);
+        changed=true;
+      }
+      if(needsBackfill.length){
+        const afterAdd1=(await loadData(PO_KEY))||[];
+        const patched=afterAdd1.map(e=>{
+          if(!needsBackfill.some(n=>String(n.orderId)===String(e.orderId)))return e;
+          const src=orderById.get(String(e.orderId));
+          return{...e,orderType:src.orderType||"ccm",retailPrice:src.retailPrice||0,editLog:src.editLog||[]};
+        });
+        await saveData(PO_KEY,patched);
+        changed=true;
+      }
+      if(stale.length){
+        const staleIds=new Set(stale.map(e=>String(e.orderId)));
+        const afterAdd=(await loadData(PO_KEY))||[];
+        await saveData(PO_KEY,afterAdd.filter(e=>!staleIds.has(String(e.orderId))));
+        changed=true;
+      }
+      if(changed){
+        const refreshed=await loadData(PO_KEY);
+        setList(Array.isArray(refreshed)?refreshed:[]);
+      }
+    }catch(e){console.error("Purchase order catch-up failed:",e);}
+  };
+
   useEffect(()=>{
     (async()=>{
       const initial=(await loadData(PO_KEY))||[];
       setList(Array.isArray(initial)?initial:[]);
       setLoading(false);
-      // Quietly catch up on any Stock Request order that isn't here yet —
-      // covers orders created before this page existed, or any that
-      // somehow slipped through. Uses each order's own original submission
-      // time (not "now"), so a genuinely old order shows up flagged as
-      // overdue rather than looking freshly submitted.
-      try{
-        const allOrders=await listOrders(null);
-        const orderById=new Map(allOrders.map(o=>[o.id,o]));
-        const currentList=(Array.isArray(initial)?initial:[]);
-        const existingIds=new Set(currentList.map(e=>e.orderId));
-        const missing=allOrders.filter(o=>o.step===1&&o.stockStatus==="stock_request"&&!existingIds.has(o.id));
-        // Self-heal — drop any not-yet-ordered entry whose underlying order
-        // was deleted or cancelled since we last loaded. Deleting/cancelling
-        // an order already tries to remove it from here directly, but this
-        // catches it regardless (a tab left open from before the deletion,
-        // a save that silently failed, etc.) — every time this page opens,
-        // it reconciles itself against what's actually still there.
-        const stale=currentList.filter(e=>!e.ordered&&(!orderById.has(e.orderId)||orderById.get(e.orderId).cancelled));
-        // Backfill orderType/retailPrice onto entries added before this
-        // distinction existed — otherwise a cash order created earlier
-        // keeps showing RM 0 forever, since it never had financePrice set.
-        const needsBackfill=currentList.filter(e=>!e.ordered&&e.orderType===undefined&&orderById.has(e.orderId));
-        if(missing.length||stale.length||needsBackfill.length){
-          for(const o of missing){
-            const hist=await getOrderHistory(o.id);
-            const firstEntry=hist?.find(h=>h.step===1)||hist?.[0];
-            const originalTimestamp=firstEntry?`${firstEntry.date}T${firstEntry.time||"09:00"}:00`:null;
-            await addToPurchaseOrderList(o,originalTimestamp);
-          }
-          if(needsBackfill.length){
-            const afterAdd1=(await loadData(PO_KEY))||[];
-            const patched=afterAdd1.map(e=>{
-              if(!needsBackfill.some(n=>n.orderId===e.orderId))return e;
-              const src=orderById.get(e.orderId);
-              return{...e,orderType:src.orderType||"ccm",retailPrice:src.retailPrice||0,editLog:src.editLog||[]};
-            });
-            await saveData(PO_KEY,patched);
-          }
-          if(stale.length){
-            const staleIds=new Set(stale.map(e=>e.orderId));
-            const afterAdd=(await loadData(PO_KEY))||[];
-            await saveData(PO_KEY,afterAdd.filter(e=>!staleIds.has(e.orderId)));
-          }
-          const refreshed=await loadData(PO_KEY);
-          setList(Array.isArray(refreshed)?refreshed:[]);
-        }
-      }catch(e){console.error("Purchase order catch-up failed:",e);}
+      await runCatchUp();
     })();
   },[]);
 
@@ -251,10 +256,10 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         if(!orderId)return;
         if(wasCancelled||wasDeleted){
           setList(prev=>{
-            const stillHasEntry=prev.some(e=>e.orderId===orderId&&!e.ordered);
+            const stillHasEntry=prev.some(e=>String(e.orderId)===String(orderId)&&!e.ordered);
             if(!stillHasEntry)return prev;
             removeFromPurchaseOrderList(orderId);
-            return prev.filter(e=>e.orderId!==orderId);
+            return prev.filter(e=>String(e.orderId)!==String(orderId));
           });
           return;
         }
@@ -265,11 +270,11 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         // clean mapped order rather than picking through the raw payload,
         // since some fields live in direct columns and others in a JSONB
         // blob at the database level.
-        const hasUnorderedEntry=listRef.current.some(e=>e.orderId===orderId&&!e.ordered);
+        const hasUnorderedEntry=listRef.current.some(e=>String(e.orderId)===String(orderId)&&!e.ordered);
         if(!hasUnorderedEntry)return;
         const fresh=await getOrder(orderId);
         if(!fresh)return;
-        const applyFresh=e=>e.orderId!==orderId||e.ordered?e:{
+        const applyFresh=e=>String(e.orderId)!==String(orderId)||e.ordered?e:{
           ...e,
           deviceName:fresh.phoneModel||e.deviceName,
           agreementNo:fresh.agreementNumber||e.agreementNo,
