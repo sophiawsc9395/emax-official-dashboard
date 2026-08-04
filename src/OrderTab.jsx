@@ -319,12 +319,16 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
   useEffect(()=>{
     if(order.step<=1)return;
     const hist=order.history||[];
-    if(hist.some(h=>h.step===order.step))return; // current step is backed by its own entry — fine
+    if(hist.some(h=>h.step===order.step)){
+      console.log("[step self-heal] order",order.id,"step",order.step,"is backed by its own log entry — no correction needed.");
+      return;
+    }
     const isCash=order.orderType==="cash";
     const isReady=order.stockStatus==="ready";
     const seq=isCash?[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,14]:[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,10,11,12,13];
     let correctStep=seq[0];
     for(const s of seq)if(hist.some(h=>h.step===s))correctStep=s;
+    console.log("[step self-heal] order",order.id,"step",order.step,"has NO backing entry. Steps actually in log:",hist.map(h=>h.step),". Correcting to step",correctStep);
     if(correctStep!==order.step)onUpdate({...order,step:correctStep});
   },[order.id,order.step,order.history?.length]);
   const [editingAmount,setEditingAmount]=useState(null); // {rowId, field} | null
@@ -432,6 +436,14 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
           <button onClick={()=>setShowStepOverride(false)} style={{fontSize:10,fontWeight:600,padding:"4px 10px",background:"none",border:`1px solid ${C.border}`,borderRadius:5,cursor:"pointer",color:C.textLight}}>Cancel</button>
         </div>}
     </div>}
+    {isTrueSuperAdminTL&&(()=>{
+      const hist=order.history||[];
+      const stepsLogged=[...new Set(hist.map(h=>h.step))].sort((a,b)=>a-b);
+      const isBacked=hist.some(h=>h.step===order.step);
+      return<div style={{marginBottom:12,fontSize:10,color:C.textLight,background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 9px",fontFamily:"monospace"}}>
+        DEBUG — order.step={order.step} ({getStep(order.step).label}) · steps in log: [{stepsLogged.join(",")}] · current step backed by log: {isBacked?"yes":"NO"}
+      </div>;
+    })()}
     {visSteps.map((s,i)=>{
     const isAutoReady=isReady&&s.step===2;
     const done=cur>s.step||isAutoReady;
