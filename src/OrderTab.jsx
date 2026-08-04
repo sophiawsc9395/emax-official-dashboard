@@ -313,15 +313,29 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
   };
   const deleteHistoryEntry=async(rowId)=>{
     if(!window.confirm("Remove this log entry from the tracking timeline? This can't be undone."))return;
+    const deletedEntry=(order.history||[]).find(h=>h._rowId===rowId);
     const result=await deleteHistoryRow(rowId);
     if(!result.ok){alert("Failed to remove — please try again.");return;}
     // The order's current step must never sit ahead of what the remaining
-    // log actually supports — removing the entry for whichever step the
-    // order is on (or one it passed through) has to pull the order back to
-    // the highest step still backed by a log entry, not leave it stranded
-    // further along than the history can account for.
+    // log actually supports. Taking the max step among whatever entries
+    // are LEFT isn't enough on its own — a later step's entry (e.g.
+    // "Agreement Submission by Branch") can still be sitting in the log
+    // even after the earlier step it depended on (e.g. "Collection
+    // Verified") gets removed, which would leave the order stuck ahead of
+    // where it should be. So this always reverts to the step immediately
+    // before whichever entry was deleted, in sequence — never just "the
+    // highest step still logged" — since anything logged at or after the
+    // deleted step no longer has a coherent chain behind it.
     const remainingHistory=(order.history||[]).filter(h=>h._rowId!==rowId);
-    const newStep=remainingHistory.length?Math.max(...remainingHistory.map(h=>h.step||1)):1;
+    let newStep=remainingHistory.length?Math.max(...remainingHistory.map(h=>h.step||1)):1;
+    if(deletedEntry){
+      const isCash=order.orderType==="cash";
+      const isReady=order.stockStatus==="ready";
+      const seq=isCash?[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,14]:[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,10,11,12,13];
+      const idx=seq.indexOf(deletedEntry.step);
+      const stepBeforeDeleted=idx>0?seq[idx-1]:seq[0];
+      newStep=Math.min(newStep,stepBeforeDeleted);
+    }
     await onUpdate({...order,step:newStep,history:remainingHistory});
   };
   let lastPh=null;
@@ -1422,6 +1436,15 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
       const fieldChanges=Object.fromEntries(changedKeys.map(k=>[k,`${fmt(k,order[k])} → ${fmt(k,f[k])}`]));
       const changes=changedKeys.map(k=>`${FIELD_LABELS[k]}: ${fieldChanges[k]}`).join("; ");
       if(changes)editLog=[...editLog,{date:nowDate(),time:nowTime(),by:editorRole,changes,fields:changedKeys,fieldChanges}];
+      // If Monthly Installment gets edited after Collection Verified
+      // already happened, the timeline's recorded payment amount would
+      // otherwise sit there stale forever, out of step with the order's
+      // actual current installment. Keep it in sync automatically rather
+      // than relying on someone remembering to fix it by hand.
+      if(changedKeys.includes("monthlyInstallment")&&Array.isArray(order.history)){
+        const target=[...order.history].reverse().find(h=>h._rowId&&(h.secondPaymentAmount!==undefined&&h.secondPaymentAmount!==null));
+        if(target)await updateHistoryRow(target._rowId,{secondPaymentAmount:parseFloat(f.monthlyInstallment)||0});
+      }
     }
     onSave({...f,depositSlip,id,step:order?.step||initStep,history:order?.history||initHist,editLog});
   };
