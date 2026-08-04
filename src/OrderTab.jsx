@@ -291,16 +291,18 @@ function TrackingNumberEditor({order,onUpdate,canEdit}){
   </div>;
 }
 
-function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions}){
+function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,email}){
   const cur=order.step;
   const isReady=order.stockStatus==="ready";
   const visSteps=getVisibleSteps(order);
   const isSuperAdminOrderTL=isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all");
   const isBillingRoleTL=isAdmin&&!!orderPermissions&&orderPermissions.adminSteps!=="all"&&orderPermissions.adminSteps.includes(7);
   const canSeeMerchantRejection=isSuperAdminOrderTL||isBillingRoleTL;
-  // Sophia specifically, not any admin — same test used everywhere else in
-  // this file (an unmapped/absent orderPermissions is unique to her login).
-  const isTrueSuperAdminTL=isAdmin&&!orderPermissions;
+  // Sophia specifically, by email — not just "no orderPermissions object",
+  // since that's only true on the main dashboard. She can also reach this
+  // page via order.html, where she still has an orderPermissions object
+  // (adminSteps:"all"), same as it'd look for any other super admin there.
+  const isTrueSuperAdminTL=isAdmin&&(email||"").toLowerCase()==="sophiawsc9395@gmail.com";
   const [editingAmount,setEditingAmount]=useState(null); // {rowId, field} | null
   const [amountDraft,setAmountDraft]=useState("");
   const saveAmount=async(rowId,field)=>{
@@ -313,7 +315,14 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions}){
     if(!window.confirm("Remove this log entry from the tracking timeline? This can't be undone."))return;
     const result=await deleteHistoryRow(rowId);
     if(!result.ok){alert("Failed to remove — please try again.");return;}
-    await onUpdate(order);
+    // The order's current step must never sit ahead of what the remaining
+    // log actually supports — removing the entry for whichever step the
+    // order is on (or one it passed through) has to pull the order back to
+    // the highest step still backed by a log entry, not leave it stranded
+    // further along than the history can account for.
+    const remainingHistory=(order.history||[]).filter(h=>h._rowId!==rowId);
+    const newStep=remainingHistory.length?Math.max(...remainingHistory.map(h=>h.step||1)):1;
+    await onUpdate({...order,step:newStep,history:remainingHistory});
   };
   let lastPh=null;
   const renderEntry=(hist,histIdx,s,isLatest)=><div style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid,position:"relative"}}>
@@ -1203,7 +1212,7 @@ function ReportCard({allOrders,reportDate,setReportDate}){
 }
 
 /* ── Order Detail ─────────────────────────────────────────────────────── */
-function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,allOrders,isReadOnly,orderPermissions,userBranch}){
+function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,allOrders,isReadOnly,orderPermissions,userBranch,email}){
   const [linkCopied,setLinkCopied]=useState(false);
   const [viewingField,setViewingField]=useState(null);
   const isSuperAdminOrder = isAdmin && (!orderPermissions || orderPermissions.adminSteps==="all");
@@ -1346,7 +1355,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <div className="detail-grid">
       <div style={card}>
         <SecHdr icon={Ic.calendar}>Tracking Timeline</SecHdr>
-        <div style={{padding:"14px 16px"}}><Timeline order={order} isAdmin={isAdmin} canManageTracking={canManageTracking} onUpdate={onUpdate} orderPermissions={orderPermissions}/></div>
+        <div style={{padding:"14px 16px"}}><Timeline order={order} isAdmin={isAdmin} canManageTracking={canManageTracking} onUpdate={onUpdate} orderPermissions={orderPermissions} email={email}/></div>
       </div>
       <div>
         {order.cancelled?<div style={{...card,padding:"16px"}}>
@@ -2258,7 +2267,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   if(view==="detail"&&selected){
     const live=detailCache[selected.id];
     if(!live)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading order…</div>;
-    return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} orderPermissions={orderPermissions} userBranch={userBranch} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
+    return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} orderPermissions={orderPermissions} userBranch={userBranch} email={email} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
   }
   if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} orderPermissions={orderPermissions} email={email} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 

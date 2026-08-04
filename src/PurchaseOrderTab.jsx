@@ -15,8 +15,8 @@
  * 3:30pm). Nothing lands on Sunday — anything from Saturday afternoon
  * onward through Sunday rolls into Monday's Session 1.
  */
-import {useState,useEffect,useMemo} from "react";
-import {loadData,saveData} from "./storage/index.js";
+import {useState,useEffect,useMemo,useRef} from "react";
+import {loadData,saveData,supabase} from "./storage/index.js";
 import {listOrders,getOrder,getOrderHistory,reconcile,uploadOrderFile,signFileUrl} from "./storage/ordersApi.js";
 
 const PO_KEY="emax_v5_purchase_orders";
@@ -33,6 +33,7 @@ const nowDate=()=>new Date().toISOString().split("T")[0];
 const nowTime=()=>new Date().toTimeString().slice(0,5);
 const fDate=s=>{if(!s)return"—";const[y,m,d]=s.split("-");return`${d}/${m}/${y}`;};
 const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
+const getDisplayPrice=e=>e.orderType==="cash"?(e.retailPrice||0):(e.financePrice||0);
 const localDateStr=d=>{const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0");return`${y}-${m}-${dd}`;};
 
 // Which {date, session} a given moment belongs to, per the Sat/Sun rules
@@ -80,7 +81,8 @@ export async function addToPurchaseOrderList(order,atTimestamp=null){
     const entry={
       id:`po_${order.id}`,orderId:order.id,
       deviceName:order.phoneModel||"",agreementNo:order.agreementNumber||"",
-      financePrice:order.financePrice||0,branch:order.branch||"",
+      financePrice:order.financePrice||0,retailPrice:order.retailPrice||0,orderType:order.orderType||"ccm",branch:order.branch||"",
+      editLog:order.editLog||[],
       prices:{},remark:"",ordered:false,
       sessionDate:date,session,createdAt:now.toISOString(),
     };
@@ -177,6 +179,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   const[viewDate,setViewDate]=useState(()=>getSessionForTimestamp(new Date()).date);
   const[viewSession,setViewSession]=useState(()=>getSessionForTimestamp(new Date()).session);
   const[orderedFor,setOrderedFor]=useState(null);
+  const[expandedLog,setExpandedLog]=useState({});
 
   useEffect(()=>{
     (async()=>{
@@ -201,12 +204,25 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         // a save that silently failed, etc.) — every time this page opens,
         // it reconciles itself against what's actually still there.
         const stale=currentList.filter(e=>!e.ordered&&(!orderById.has(e.orderId)||orderById.get(e.orderId).cancelled));
-        if(missing.length||stale.length){
+        // Backfill orderType/retailPrice onto entries added before this
+        // distinction existed — otherwise a cash order created earlier
+        // keeps showing RM 0 forever, since it never had financePrice set.
+        const needsBackfill=currentList.filter(e=>!e.ordered&&e.orderType===undefined&&orderById.has(e.orderId));
+        if(missing.length||stale.length||needsBackfill.length){
           for(const o of missing){
             const hist=await getOrderHistory(o.id);
             const firstEntry=hist?.find(h=>h.step===1)||hist?.[0];
             const originalTimestamp=firstEntry?`${firstEntry.date}T${firstEntry.time||"09:00"}:00`:null;
             await addToPurchaseOrderList(o,originalTimestamp);
+          }
+          if(needsBackfill.length){
+            const afterAdd1=(await loadData(PO_KEY))||[];
+            const patched=afterAdd1.map(e=>{
+              if(!needsBackfill.some(n=>n.orderId===e.orderId))return e;
+              const src=orderById.get(e.orderId);
+              return{...e,orderType:src.orderType||"ccm",retailPrice:src.retailPrice||0,editLog:src.editLog||[]};
+            });
+            await saveData(PO_KEY,patched);
           }
           if(stale.length){
             const staleIds=new Set(stale.map(e=>e.orderId));
@@ -218,6 +234,57 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         }
       }catch(e){console.error("Purchase order catch-up failed:",e);}
     })();
+  },[]);
+
+  // Live removal — if an order gets cancelled or deleted anywhere else
+  // (another tab, another person), this page hears about it immediately
+  // via Supabase Realtime and drops it from view right away, instead of
+  // only catching up the next time the page happens to reload.
+  const listRef=useRef(list);
+  useEffect(()=>{listRef.current=list;},[list]);
+  useEffect(()=>{
+    const channel=supabase.channel("purchase-order-live")
+      .on("postgres_changes",{event:"*",schema:"public",table:"orders"},async payload=>{
+        const wasCancelled=payload.new?.cancelled===true;
+        const wasDeleted=payload.eventType==="DELETE";
+        const orderId=payload.new?.id||payload.old?.id;
+        if(!orderId)return;
+        if(wasCancelled||wasDeleted){
+          setList(prev=>{
+            const stillHasEntry=prev.some(e=>e.orderId===orderId&&!e.ordered);
+            if(!stillHasEntry)return prev;
+            removeFromPurchaseOrderList(orderId);
+            return prev.filter(e=>e.orderId!==orderId);
+          });
+          return;
+        }
+        // Any other update (device name, agreement no, prices, branch
+        // corrected in Order Tracking) — keep the not-yet-ordered entry's
+        // display fields in sync too, so an edit there shows up here
+        // immediately instead of only on next page load. Refetches the
+        // clean mapped order rather than picking through the raw payload,
+        // since some fields live in direct columns and others in a JSONB
+        // blob at the database level.
+        const hasUnorderedEntry=listRef.current.some(e=>e.orderId===orderId&&!e.ordered);
+        if(!hasUnorderedEntry)return;
+        const fresh=await getOrder(orderId);
+        if(!fresh)return;
+        const applyFresh=e=>e.orderId!==orderId||e.ordered?e:{
+          ...e,
+          deviceName:fresh.phoneModel||e.deviceName,
+          agreementNo:fresh.agreementNumber||e.agreementNo,
+          financePrice:fresh.financePrice||0,
+          retailPrice:fresh.retailPrice||0,
+          orderType:fresh.orderType||e.orderType,
+          branch:fresh.branch||e.branch,
+          editLog:fresh.editLog||e.editLog||[],
+        };
+        setList(prev=>prev.map(applyFresh));
+        const updated=(await loadData(PO_KEY))||[];
+        await saveData(PO_KEY,updated.map(applyFresh));
+      })
+      .subscribe();
+    return()=>{supabase.removeChannel(channel);};
   },[]);
 
   const save=async(next)=>{setList(next);await saveData(PO_KEY,next);};
@@ -239,6 +306,12 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
     return[...carriedForward,...ownSession];
   },[list,viewDate,viewSession,isViewingCurrentSession]);
   const pendingCount=visible.filter(e=>!e.ordered).length;
+  // A softer bar than plain "not ordered" — the late alert only fires for
+  // orders purchaser hasn't even acknowledged with a remark yet. Clicking
+  // Ordered still isn't required to clear the alert, just some note on
+  // progress/status, so it doesn't nag someone who's actively working an
+  // order but hasn't finished confirming it.
+  const unfilledCount=visible.filter(e=>!e.ordered&&!e.remark?.trim()).length;
   const carriedForwardCount=useMemo(()=>isViewingCurrentSession?list.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession)).length:0,[list,viewDate,viewSession,isViewingCurrentSession]);
 
   // Is Saturday's Session 2 or any Sunday session even a valid thing to
@@ -330,23 +403,31 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         <div style="padding:10px 20px;${i<orderedRows.length-1?`border-bottom:1px solid ${C.border};`:""}">
           <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:3px;">
             <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(o.deviceName)}</div>
-            <div style="font-size:12px;font-weight:800;color:#15803D;white-space:nowrap;">${fRM(o.actualPrice)}</div>
+            <div style="text-align:right;white-space:nowrap;">
+              <div style="font-size:12px;font-weight:800;color:#15803D;">${fRM(o.actualPrice)}</div>
+              <div style="font-size:8.5px;color:${C.textLight};text-transform:uppercase;letter-spacing:.04em;">Purchase Price</div>
+            </div>
           </div>
           <div style="font-size:10.5px;color:${C.textLight};">${escapeHtml(branchMeta?.[o.branch]?.name||o.branch)} · ${escapeHtml(o.agreementNo||"—")}</div>
           <div style="font-size:10.5px;color:${C.textMid};margin-top:2px;">Supplier: <strong style="color:${C.text};">${escapeHtml(o.supplierName)}</strong> · PO ${escapeHtml(o.poNumber)} · ${escapeHtml(o.purchaserName)}</div>
         </div>
       `).join("");
 
-      const pendingHtml=pendingRows.map((p,i)=>`
+      const pendingHtml=pendingRows.map((p,i)=>{
+        const isOverdue=isViewingCurrentSession&&sessionKey(p.sessionDate,p.session)<sessionKey(viewDate,viewSession);
+        return`
         <div style="padding:10px 20px;background:#FFFBEB;${i<pendingRows.length-1?"border-bottom:1px solid #FDE68A;":""}">
           <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:3px;">
-            <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(p.deviceName)}</div>
-            <div style="font-size:11px;font-weight:700;color:#B45309;white-space:nowrap;">${fRM(p.financePrice)}</div>
+            <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(p.deviceName)}${isOverdue?`<span style="font-size:8.5px;font-weight:700;color:#B45309;background:#FEF3C7;border-radius:10px;padding:1px 7px;margin-left:6px;">Overdue — since ${fDate(p.sessionDate)} Session ${p.session}</span>`:""}</div>
+            <div style="text-align:right;white-space:nowrap;">
+              <div style="font-size:11px;font-weight:700;color:#B45309;">${fRM(getDisplayPrice(p))}</div>
+              <div style="font-size:8.5px;color:${C.textLight};text-transform:uppercase;letter-spacing:.04em;">${p.orderType==="cash"?"Retail Price":"Finance Price"}</div>
+            </div>
           </div>
           <div style="font-size:10.5px;color:${C.textLight};">${escapeHtml(branchMeta?.[p.branch]?.name||p.branch)} · ${escapeHtml(p.agreementNo||"—")}</div>
           <div style="font-size:10.5px;color:${C.textMid};margin-top:2px;">Best quote so far: <strong style="color:${C.text};">${getBestQuote(p)}</strong>${p.remark?" · "+escapeHtml(p.remark):""}</div>
         </div>
-      `).join("");
+      `;}).join("");
 
       root.innerHTML=headerHtml
         +(orderedRows.length?secHdr(`Ordered (${orderedRows.length})`)+orderedHtml:"")
@@ -370,9 +451,9 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
     {!isViewingCurrentSession&&<div style={{...card,borderLeft:"3px solid #8A96A8",padding:"12px 14px",marginBottom:14}}>
       <div style={{fontSize:12,color:C.textMid}}>You're viewing a closed session — it's read-only from here. Anything still pending from this session has already carried forward into the current session, where it can be actioned.</div>
     </div>}
-    {isPastDeadline&&pendingCount>0&&<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:14}}>
+    {isPastDeadline&&unfilledCount>0&&<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Late Submission</div>
-      <div style={{fontSize:12,color:"#DC2626"}}>Session {viewSession} ({fDate(viewDate)}) was due by {viewSession===1?"12:00pm":"5:30pm"} — {pendingCount} order{pendingCount>1?"s":""} still pending, {hoursLate.toFixed(1)} hour{hoursLate>=2?"s":""} late.</div>
+      <div style={{fontSize:12,color:"#DC2626"}}>Session {viewSession} ({fDate(viewDate)}) was due by {viewSession===1?"12:00pm":"5:30pm"} — {unfilledCount} order{unfilledCount>1?"s":""} still pending unfilled, {hoursLate.toFixed(1)} hour{hoursLate>=2?"s":""} late.</div>
     </div>}
 
     <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:14,flexWrap:"wrap"}}>
@@ -395,7 +476,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
           ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No orders in this session.</div>
           :<table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1100}}>
             <thead><tr style={{background:C.surface}}>
-              {["Device Name","Agreement No.","Finance Price","Branch",...SUPPLIERS.map(s=>s.label),"Remark",""].map(h=>
+              {["Device Name","Agreement No.","Finance Price / Retail Price","Branch",...SUPPLIERS.map(s=>s.label),"Remark",""].map(h=>
                 <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
               )}
             </tr></thead>
@@ -406,9 +487,19 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
                 <td style={{padding:"8px 10px",fontWeight:700,color:C.text}}>
                   <div style={{whiteSpace:"nowrap"}}>{e.deviceName}</div>
                   {isCarried&&<div style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#FEF3C7",display:"inline-block",borderRadius:10,padding:"1px 7px",marginTop:3,whiteSpace:"nowrap"}}>Overdue — since {fDate(e.sessionDate)} Session {e.session}</div>}
+                  {e.editLog?.length>0&&<>
+                    <button onClick={()=>setExpandedLog(p=>({...p,[e.id]:!p[e.id]}))} style={{display:"block",marginTop:3,fontSize:9,fontWeight:700,color:C.blueBright,background:"none",border:"none",cursor:"pointer",padding:0}}>
+                      {expandedLog[e.id]?"Hide":"Show"} Edit Log ({e.editLog.length})
+                    </button>
+                    {expandedLog[e.id]&&<div style={{marginTop:4,background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",maxWidth:260}}>
+                      {e.editLog.map((log,li)=><div key={li} style={{fontSize:9.5,color:C.textMid,marginBottom:li<e.editLog.length-1?4:0,whiteSpace:"normal"}}>
+                        <span style={{color:C.textLight}}>{fDate(log.date)} {log.time} by {log.by}:</span> {log.changes}
+                      </div>)}
+                    </div>}
+                  </>}
                 </td>
                 <td style={{padding:"8px 10px",color:C.textMid}}>{e.agreementNo||"—"}</td>
-                <td style={{padding:"8px 10px",color:C.textMid,whiteSpace:"nowrap"}}>{fRM(e.financePrice)}</td>
+                <td style={{padding:"8px 10px",color:C.textMid,whiteSpace:"nowrap"}}>{fRM(getDisplayPrice(e))}</td>
                 <td style={{padding:"8px 10px",color:C.textMid,whiteSpace:"nowrap"}}>{branchMeta?.[e.branch]?.name||e.branch}</td>
                 {SUPPLIERS.map(s=><td key={s.key} style={{padding:"4px 6px"}}>
                   <input type="number" value={e.prices?.[s.key]||""} onChange={ev=>updatePrice(e.id,s.key,ev.target.value)} placeholder="0.00" disabled={e.ordered||!isViewingCurrentSession}
