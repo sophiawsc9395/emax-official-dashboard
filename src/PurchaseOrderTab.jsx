@@ -466,8 +466,9 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         <button onClick={()=>setViewSession(2)} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${viewSession===2?C.blueBright:C.border}`,background:viewSession===2?"#EFF6FF":"#fff",color:viewSession===2?C.blueBright:C.textMid,fontWeight:700,fontSize:12,cursor:"pointer"}}>Session 2 · Due 5:30pm</button>
       </div>
       <div style={{flex:1}}/>
-      <GBtn onClick={savePhoto} disabled={savingPhoto}>{savingPhoto?"Saving…":"Save as Photo"}</GBtn>
+      <GBtn onClick={savePhoto} disabled={savingPhoto||(isViewingCurrentSession&&unfilledCount>0)} title={isViewingCurrentSession&&unfilledCount>0?`Fill in a remark or click Ordered for every order first — ${unfilledCount} still untouched`:undefined}>{savingPhoto?"Saving…":"Save as Photo"}</GBtn>
     </div>
+    {isViewingCurrentSession&&unfilledCount>0&&<div style={{fontSize:11,color:C.textLight,marginTop:-8,marginBottom:14}}>Save as Photo is locked until every order has a remark or is marked Ordered — {unfilledCount} still untouched.</div>}
 
     <div style={{...card}}>
       <SecHdr>Purchase Order — {fDate(viewDate)} · Session {viewSession} ({pendingCount} pending{carriedForwardCount>0?`, ${carriedForwardCount} overdue`:""})</SecHdr>

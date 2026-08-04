@@ -303,6 +303,13 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
   // page via order.html, where she still has an orderPermissions object
   // (adminSteps:"all"), same as it'd look for any other super admin there.
   const isTrueSuperAdminTL=isAdmin&&(email||"").toLowerCase()==="sophiawsc9395@gmail.com";
+  const [showStepOverride,setShowStepOverride]=useState(false);
+  const [stepOverrideValue,setStepOverrideValue]=useState(order.step);
+  const applyStepOverride=async()=>{
+    if(!window.confirm(`Manually set this order's current step to "${getStep(stepOverrideValue).label}"? Only do this to correct an order that's stuck out of sync with its own log.`))return;
+    await onUpdate({...order,step:stepOverrideValue});
+    setShowStepOverride(false);
+  };
   const [editingAmount,setEditingAmount]=useState(null); // {rowId, field} | null
   const [amountDraft,setAmountDraft]=useState("");
   const saveAmount=async(rowId,field)=>{
@@ -381,7 +388,7 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
     {hist.billingData&&<div style={{marginTop:6}}><BillingDetailsCard billingData={hist.billingData} isCash={order.orderType==="cash"} title="Billing Request Details" liveOrder={order}/></div>}
     {s.step===8&&order.orderType!=="cash"&&!hist.shortPaymentProofUpload&&<div style={{marginTop:6,background:C.white,borderRadius:7,padding:"8px 10px",border:`1px solid ${C.border}`}}>
       <div style={{fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Upfront Payment Breakdown</div>
-      {(()=>{const up=calcUpfront(order);const monthly=parseFloat(order.billingData?.monthlyInstallment)||0;return<>
+      {(()=>{const up=calcUpfront(order);const monthly=(order.monthlyInstallment!=null&&order.monthlyInstallment!=="")?parseFloat(order.monthlyInstallment)||0:parseFloat(order.billingData?.monthlyInstallment)||0;return<>
         {[["Agreement Fee",up.a],["Stamping Fee",up.s],["Deposit",up.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 1 (Subtotal)</span><span>{fRM(up.total)}</span></div>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 2 (First Monthly Installment)</span><span>{fRM(monthly)}</span></div>
@@ -395,7 +402,20 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
     {s.step===1&&order.orderType==="cash"&&order.depositPaymentDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Deposit Payment Date: {fDate(order.depositPaymentDate)}{order.depositPaymentMethod?` · ${order.depositPaymentMethod}`:""}{order.deposit?` · ${fRM(order.deposit)}`:""}</div>}
     {s.step===1&&order.orderType==="cash"&&order.depositSlip&&<a href={order.depositSlip.url||order.depositSlip.data} target={order.depositSlip.url?"_blank":undefined} rel={order.depositSlip.url?"noopener noreferrer":undefined} download={order.depositSlip.url?undefined:order.depositSlip.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} Deposit Payment Slip — {order.depositSlip.name}</a>}
   </div>;
-  return<div>{visSteps.map((s,i)=>{
+  return<div>
+    {isTrueSuperAdminTL&&<div style={{marginBottom:12}}>
+      {!showStepOverride
+        ?<button onClick={()=>{setStepOverrideValue(order.step);setShowStepOverride(true);}} style={{fontSize:10,fontWeight:700,color:C.textLight,background:"none",border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 9px",cursor:"pointer"}}>Set Step Manually</button>
+        :<div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:8,padding:"8px 10px",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:10,fontWeight:700,color:"#92400E"}}>Currently: {getStep(order.step).label} — override to:</span>
+          <select value={stepOverrideValue} onChange={e=>setStepOverrideValue(parseInt(e.target.value))} style={{fontSize:11,padding:"3px 6px",border:`1px solid ${C.border}`,borderRadius:5}}>
+            {STEPS.filter(s=>order.orderType==="cash"?s.step<=9||s.step===14:true).map(s=><option key={s.step} value={s.step}>{s.step} — {s.label}</option>)}
+          </select>
+          <button onClick={applyStepOverride} style={{fontSize:10,fontWeight:700,padding:"4px 10px",background:C.navy,color:"#fff",border:"none",borderRadius:5,cursor:"pointer"}}>Apply</button>
+          <button onClick={()=>setShowStepOverride(false)} style={{fontSize:10,fontWeight:600,padding:"4px 10px",background:"none",border:`1px solid ${C.border}`,borderRadius:5,cursor:"pointer",color:C.textLight}}>Cancel</button>
+        </div>}
+    </div>}
+    {visSteps.map((s,i)=>{
     const isAutoReady=isReady&&s.step===2;
     const done=cur>s.step||isAutoReady;
     const active=cur===s.step&&!isAutoReady;
