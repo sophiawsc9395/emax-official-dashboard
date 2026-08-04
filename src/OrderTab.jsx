@@ -1,5 +1,5 @@
 import {useState,useEffect,useRef,useMemo,useCallback,memo,Fragment} from "react";
-import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles} from "./storage/ordersApi.js";
+import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles,updateHistoryRow,deleteHistoryRow} from "./storage/ordersApi.js";
 import {addToPurchaseOrderList,syncPurchaseOrderEntry,removeFromPurchaseOrderList} from "./PurchaseOrderTab.jsx";
 import {supabase} from "./storage/index.js";
 import {resolveEditorRole} from "./auth/orderRoles.js";
@@ -298,8 +298,26 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions}){
   const isSuperAdminOrderTL=isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all");
   const isBillingRoleTL=isAdmin&&!!orderPermissions&&orderPermissions.adminSteps!=="all"&&orderPermissions.adminSteps.includes(7);
   const canSeeMerchantRejection=isSuperAdminOrderTL||isBillingRoleTL;
+  // Sophia specifically, not any admin — same test used everywhere else in
+  // this file (an unmapped/absent orderPermissions is unique to her login).
+  const isTrueSuperAdminTL=isAdmin&&!orderPermissions;
+  const [editingAmount,setEditingAmount]=useState(null); // {rowId, field} | null
+  const [amountDraft,setAmountDraft]=useState("");
+  const saveAmount=async(rowId,field)=>{
+    const result=await updateHistoryRow(rowId,{[field]:parseFloat(amountDraft)||0});
+    if(!result.ok){alert("Failed to save — please try again.");return;}
+    await onUpdate(order); // no-op on the order row itself, but refreshes history from the database
+    setEditingAmount(null);
+  };
+  const deleteHistoryEntry=async(rowId)=>{
+    if(!window.confirm("Remove this log entry from the tracking timeline? This can't be undone."))return;
+    const result=await deleteHistoryRow(rowId);
+    if(!result.ok){alert("Failed to remove — please try again.");return;}
+    await onUpdate(order);
+  };
   let lastPh=null;
-  const renderEntry=(hist,s,isLatest)=><div style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid}}>
+  const renderEntry=(hist,histIdx,s,isLatest)=><div style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid,position:"relative"}}>
+    {isTrueSuperAdminTL&&hist._rowId&&<button onClick={()=>deleteHistoryEntry(hist._rowId)} title="Remove this log entry" style={{position:"absolute",top:5,right:5,background:"none",border:"none",cursor:"pointer",color:"#DC2626",padding:2,fontSize:13,lineHeight:1,fontWeight:700}}>×</button>}
     {hist.date&&<div style={{marginBottom:3,fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em"}}>{isLatest?"Latest — ":""}{fDT(hist.date,hist.time)}</div>}
     {hist.reversedFrom&&<div style={{marginBottom:3,fontSize:12,fontWeight:700,color:"#DC2626"}}>Agreement Issue</div>}
     {hist.orderDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Order Date: {fDate(hist.orderDate)}{hist.supplierName?` · ${hist.supplierName}`:""}</div>}
@@ -315,8 +333,26 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions}){
     {hist.knockOffAmount&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off Amount: {fRM(hist.knockOffAmount)}</div>}
     {hist.shortPayment&&<div style={{marginBottom:2,color:"#DC2626",fontWeight:700}}>Short Payment — Balance Payment Needed</div>}
     {hist.collectionChecked!==undefined&&<div style={{marginBottom:3,fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"Done":"Not done"} Phone Collection · </>}{hist.paymentChecked?"Done":"Not done"} Payment verified</div>}
-    {hist.upfrontPaymentDate&&(order.orderType==="cash"?hist.monthlyInstallment:hist.paymentProofAmount)&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>{order.orderType==="cash"?"Payment Amount":"Payment Proof Amount"} {fDate(hist.upfrontPaymentDate)} · {hist.paymentMethod} · {fRM(order.orderType==="cash"?hist.monthlyInstallment:hist.paymentProofAmount)}</div>}
-    {hist.secondPaymentDate&&<div style={{marginBottom:2,color:"#92400E",fontWeight:600}}>2nd Payment: {fDate(hist.secondPaymentDate)} · {hist.secondPayMethod} · {fRM(hist.secondPaymentAmount)}</div>}
+    {hist.upfrontPaymentDate&&(order.orderType==="cash"?hist.monthlyInstallment:hist.paymentProofAmount)&&<div style={{marginBottom:2,color:C.navy,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+      <span>{order.orderType==="cash"?"Payment Amount":"Payment Proof Amount"} {fDate(hist.upfrontPaymentDate)} · {hist.paymentMethod} · {
+        editingAmount?.rowId===hist._rowId&&editingAmount?.field===(order.orderType==="cash"?"monthlyInstallment":"paymentProofAmount")
+          ?<input type="number" autoFocus value={amountDraft} onChange={e=>setAmountDraft(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveAmount(hist._rowId,order.orderType==="cash"?"monthlyInstallment":"paymentProofAmount");if(e.key==="Escape")setEditingAmount(null);}} style={{width:80,padding:"1px 5px",fontSize:11,border:`1px solid ${C.border}`,borderRadius:4}}/>
+          :fRM(order.orderType==="cash"?hist.monthlyInstallment:hist.paymentProofAmount)
+      }</span>
+      {isTrueSuperAdminTL&&hist._rowId&&(editingAmount?.rowId===hist._rowId&&editingAmount?.field===(order.orderType==="cash"?"monthlyInstallment":"paymentProofAmount")
+        ?<button onClick={()=>saveAmount(hist._rowId,order.orderType==="cash"?"monthlyInstallment":"paymentProofAmount")} style={{fontSize:9,padding:"1px 6px",background:C.navy,color:"#fff",border:"none",borderRadius:4,cursor:"pointer",fontWeight:700}}>Save</button>
+        :<button onClick={()=>{setEditingAmount({rowId:hist._rowId,field:order.orderType==="cash"?"monthlyInstallment":"paymentProofAmount"});setAmountDraft(String(order.orderType==="cash"?hist.monthlyInstallment:hist.paymentProofAmount));}} style={{fontSize:9,padding:"1px 6px",background:"none",border:`1px solid ${C.border}`,borderRadius:4,cursor:"pointer",color:C.textLight,fontWeight:600}}>Edit</button>)}
+    </div>}
+    {hist.secondPaymentDate&&<div style={{marginBottom:2,color:"#92400E",fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
+      <span>2nd Payment: {fDate(hist.secondPaymentDate)} · {hist.secondPayMethod} · {
+        editingAmount?.rowId===hist._rowId&&editingAmount?.field==="secondPaymentAmount"
+          ?<input type="number" autoFocus value={amountDraft} onChange={e=>setAmountDraft(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveAmount(hist._rowId,"secondPaymentAmount");if(e.key==="Escape")setEditingAmount(null);}} style={{width:80,padding:"1px 5px",fontSize:11,border:`1px solid ${C.border}`,borderRadius:4}}/>
+          :fRM(hist.secondPaymentAmount)
+      }</span>
+      {isTrueSuperAdminTL&&hist._rowId&&(editingAmount?.rowId===hist._rowId&&editingAmount?.field==="secondPaymentAmount"
+        ?<button onClick={()=>saveAmount(hist._rowId,"secondPaymentAmount")} style={{fontSize:9,padding:"1px 6px",background:C.navy,color:"#fff",border:"none",borderRadius:4,cursor:"pointer",fontWeight:700}}>Save</button>
+        :<button onClick={()=>{setEditingAmount({rowId:hist._rowId,field:"secondPaymentAmount"});setAmountDraft(String(hist.secondPaymentAmount));}} style={{fontSize:9,padding:"1px 6px",background:"none",border:`1px solid ${C.border}`,borderRadius:4,cursor:"pointer",color:C.textLight,fontWeight:600}}>Edit</button>)}
+    </div>}
     {hist.verificationRemark&&<div style={{marginBottom:2,color:C.textMid}}>Note: {hist.verificationRemark}</div>}
     {hist.returnRemark&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Returned: {hist.returnRemark}</div>}
     {hist.billingData&&<div style={{marginTop:6}}><BillingDetailsCard billingData={hist.billingData} isCash={order.orderType==="cash"} title="Billing Request Details" liveOrder={order}/></div>}
@@ -340,7 +376,7 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions}){
     const isAutoReady=isReady&&s.step===2;
     const done=cur>s.step||isAutoReady;
     const active=cur===s.step&&!isAutoReady;
-    const histEntries=(order.history||[]).filter(h=>h.step===s.step);
+    const histEntries=(order.history||[]).map((h,idx)=>({h,idx})).filter(({h})=>h.step===s.step);
     const ph=getPhase(s.step),showPh=ph&&ph.id!==lastPh;
     if(ph)lastPh=ph.id;
     return<div key={s.step}>
@@ -357,7 +393,7 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions}){
             {active&&<span style={{background:C.surface,color:C.blue,padding:"1px 7px",borderRadius:4,fontSize:9,fontWeight:700,border:`1px solid ${C.border}`}}>Current</span>}
             {histEntries.length>1&&<span style={{background:C.surface,color:C.textLight,padding:"1px 7px",borderRadius:4,fontSize:9,fontWeight:600,border:`1px solid ${C.border}`}}>{histEntries.length} updates</span>}
           </div>
-          {histEntries.map((hist,hi)=><div key={hi}>{renderEntry(hist,s,hi===histEntries.length-1&&histEntries.length>1)}</div>)}
+          {histEntries.map(({h,idx},hi)=><div key={hi}>{renderEntry(h,idx,s,hi===histEntries.length-1&&histEntries.length>1)}</div>)}
           {s.step===2&&!isAutoReady&&order.step>=2&&<TrackingNumberEditor order={order} onUpdate={onUpdate} canEdit={canManageTracking}/>}
           {s.step===12&&order.merchantRejected&&canSeeMerchantRejection&&<div style={{marginTop:4,background:"#FEF2F2",borderRadius:7,padding:"6px 10px",border:"1px solid #FECACA",fontSize:11,color:"#DC2626"}}>
             <div style={{marginBottom:3,fontSize:9,fontWeight:700,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.04em"}}>Merchant Rejected — {fDate(order.merchantRejectedDate)}</div>

@@ -16,7 +16,6 @@
  * onward through Sunday rolls into Monday's Session 1.
  */
 import {useState,useEffect,useMemo} from "react";
-import * as XLSX from "xlsx";
 import {loadData,saveData} from "./storage/index.js";
 import {listOrders,getOrder,getOrderHistory,reconcile,uploadOrderFile,signFileUrl} from "./storage/ordersApi.js";
 
@@ -134,11 +133,12 @@ function SecHdr({children}){
 function OrderedForm({entry,onClose,onConfirm}){
   const[orderDate,setOrderDate]=useState(nowDate());
   const[supplierName,setSupplierName]=useState("");
+  const[actualPrice,setActualPrice]=useState("");
   const[poNumber,setPoNumber]=useState("");
   const[purchaserName,setPurchaserName]=useState("");
   const[proofFile,setProofFile]=useState(null);
   const[saving,setSaving]=useState(false);
-  const missing=!orderDate||!supplierName.trim()||!poNumber.trim()||!purchaserName.trim()||!proofFile;
+  const missing=!orderDate||!supplierName.trim()||!actualPrice.toString().trim()||!poNumber.trim()||!purchaserName.trim()||!proofFile;
   return<div className="modal-overlay" style={{position:"fixed",inset:0,background:"rgba(10,22,40,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}}>
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:440,maxHeight:"90vh",overflow:"auto"}}>
       <div style={{padding:"16px 20px",borderBottom:`1px solid ${C.border}`}}>
@@ -149,6 +149,7 @@ function OrderedForm({entry,onClose,onConfirm}){
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
           <div><L req>Order Date</L><I type="date" value={orderDate} onChange={e=>setOrderDate(e.target.value)}/></div>
           <div><L req>Supplier Name</L><I value={supplierName} onChange={e=>setSupplierName(e.target.value)} placeholder="Supplier…"/></div>
+          <div><L req>Actual Purchase Price (RM)</L><I type="number" step="0.01" value={actualPrice} onChange={e=>setActualPrice(e.target.value)} placeholder="0.00"/></div>
           <div><L req>PO Number</L><I value={poNumber} onChange={e=>setPoNumber(e.target.value)} placeholder="PO number…"/></div>
           <div><L req>Purchaser Name</L><I value={purchaserName} onChange={e=>setPurchaserName(e.target.value)} placeholder="Your name…"/></div>
         </div>
@@ -161,7 +162,7 @@ function OrderedForm({entry,onClose,onConfirm}){
         <GBtn onClick={onClose} disabled={saving}>Cancel</GBtn>
         <PBtn disabled={missing||saving} onClick={async()=>{
           setSaving(true);
-          await onConfirm({orderDate,supplierName,poNumber,purchaserName,proofFile});
+          await onConfirm({orderDate,supplierName,actualPrice,poNumber,purchaserName,proofFile});
           setSaving(false);
         }}>{saving?"Saving…":"Confirm Ordered"}</PBtn>
       </div>
@@ -172,6 +173,7 @@ function OrderedForm({entry,onClose,onConfirm}){
 export default function PurchaseOrderTab({branchMeta,isAdmin}){
   const[list,setList]=useState([]);
   const[loading,setLoading]=useState(true);
+  const[savingPhoto,setSavingPhoto]=useState(false);
   const[viewDate,setViewDate]=useState(()=>getSessionForTimestamp(new Date()).date);
   const[viewSession,setViewSession]=useState(()=>getSessionForTimestamp(new Date()).session);
   const[orderedFor,setOrderedFor]=useState(null);
@@ -258,7 +260,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
     save(updated);
   };
 
-  const confirmOrdered=async({orderDate,supplierName,poNumber,purchaserName,proofFile})=>{
+  const confirmOrdered=async({orderDate,supplierName,actualPrice,poNumber,purchaserName,proofFile})=>{
     const entry=orderedFor;
     if(!entry)return;
     // Pull the order's current state (header + history) so reconcile()
@@ -272,32 +274,94 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
     const newOrder={...orderRow,step:Math.max(orderRow.step,2),orderDate,supplierName,poNumber,purchaserName,history:[...history,h]};
     const result=await reconcile([oldOrder],[newOrder]);
     if(!result.ok){alert("Failed to update the order — please try again.");setOrderedFor(null);return;}
-    const updatedList=list.map(e=>e.id!==entry.id?e:{...e,ordered:true,orderedAt:new Date().toISOString(),orderDate,supplierName,poNumber,purchaserName});
+    const updatedList=list.map(e=>e.id!==entry.id?e:{...e,ordered:true,orderedAt:new Date().toISOString(),orderDate,supplierName,actualPrice:parseFloat(actualPrice)||0,poNumber,purchaserName});
     await save(updatedList);
     setOrderedFor(null);
   };
 
-  const exportExcel=()=>{
-    const rows=visible.map(e=>{
-      const row={
-        "Device Name":e.deviceName,
-        "Agreement No.":e.agreementNo||"—",
-        "Finance Price":e.financePrice||0,
-        "Branch":branchMeta?.[e.branch]?.name||e.branch,
-      };
-      SUPPLIERS.forEach(s=>{row[s.label]=e.prices?.[s.key]||0;});
-      row["Remark"]=e.remark||"";
-      row["Status"]=e.ordered?"Ordered":"Pending";
-      if(!e.ordered&&isViewingCurrentSession&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession)){
-        row["Status"]=`Overdue — since ${fDate(e.sessionDate)} Session ${e.session}`;
+  const getBestQuote=(entry)=>{
+    const quotes=SUPPLIERS.map(s=>({label:s.label,price:parseFloat(entry.prices?.[s.key])||0})).filter(q=>q.price>0);
+    if(!quotes.length)return"No quotes yet";
+    const cheapest=quotes.reduce((a,b)=>a.price<b.price?a:b);
+    return`${cheapest.label} — ${fRM(cheapest.price)}`;
+  };
+
+  const savePhoto=async()=>{
+    if(!visible.length){alert("Nothing in this session to save yet.");return;}
+    setSavingPhoto(true);
+    try{
+      if(!window.html2canvas){
+        await new Promise((res,rej)=>{
+          const s=document.createElement("script");
+          s.src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+          s.onload=res;s.onerror=rej;document.head.appendChild(s);
+        });
       }
-      return row;
-    });
-    const ws=XLSX.utils.json_to_sheet(rows);
-    ws["!cols"]=[{wch:32},{wch:16},{wch:13},{wch:16},...SUPPLIERS.map(()=>({wch:10})),{wch:20},{wch:30}];
-    const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,ws,`Session ${viewSession}`);
-    XLSX.writeFile(wb,`Purchase_Order_${viewDate}_Session${viewSession}.xlsx`);
+      const orderedRows=visible.filter(e=>e.ordered);
+      const pendingRows=visible.filter(e=>!e.ordered);
+      const now=new Date();
+      const stamp=`${String(now.getDate()).padStart(2,"0")}/${String(now.getMonth()+1).padStart(2,"0")}/${now.getFullYear()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
+
+      // Built entirely by hand rather than capturing the live editable
+      // table — a purpose-made, narrow, single-column summary that fits
+      // cleanly in one photo regardless of how many supplier columns the
+      // live table has, and reads correctly since there are no <input>
+      // elements involved (html2canvas doesn't reliably render those).
+      const root=document.createElement("div");
+      root.style.cssText="position:fixed;left:-9999px;top:0;width:720px;font-family:Inter,sans-serif;background:#fff;border-radius:14px;overflow:hidden;";
+
+      const escapeHtml=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+      const headerHtml=`
+        <div style="padding:18px 20px;background:linear-gradient(135deg,${C.navy},${C.navyLight});">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <div style="font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.12em;">EMAX Network — Purchase Order Summary</div>
+            ${isViewingCurrentSession?'<span style="font-size:8.5px;font-weight:800;color:#0A1628;background:#4ADE80;border-radius:10px;padding:1px 8px;text-transform:uppercase;letter-spacing:.06em;">Live</span>':""}
+          </div>
+          <div style="font-size:17px;font-weight:800;color:#fff;">${fDate(viewDate)} · Session ${viewSession} ${isViewingCurrentSession?"(Active)":"(Closed)"}</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:3px;">${orderedRows.length} ordered · ${pendingRows.length} still pending · snapshot taken ${stamp}</div>
+        </div>
+        ${isViewingCurrentSession?`<div style="padding:8px 20px;background:#EFF6FF;border-bottom:1px solid ${C.border};font-size:10.5px;color:${C.blueBright};">This session is still open — prices and status may change after this snapshot. Due by ${viewSession===1?"12:00pm":"5:30pm"} today.</div>`:""}
+      `;
+
+      const secHdr=label=>`<div style="padding:10px 16px;background:linear-gradient(135deg,${C.navy},${C.navyLight});font-size:11px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.07em;">${label}</div>`;
+
+      const orderedHtml=orderedRows.map((o,i)=>`
+        <div style="padding:10px 20px;${i<orderedRows.length-1?`border-bottom:1px solid ${C.border};`:""}">
+          <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:3px;">
+            <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(o.deviceName)}</div>
+            <div style="font-size:12px;font-weight:800;color:#15803D;white-space:nowrap;">${fRM(o.actualPrice)}</div>
+          </div>
+          <div style="font-size:10.5px;color:${C.textLight};">${escapeHtml(branchMeta?.[o.branch]?.name||o.branch)} · ${escapeHtml(o.agreementNo||"—")}</div>
+          <div style="font-size:10.5px;color:${C.textMid};margin-top:2px;">Supplier: <strong style="color:${C.text};">${escapeHtml(o.supplierName)}</strong> · PO ${escapeHtml(o.poNumber)} · ${escapeHtml(o.purchaserName)}</div>
+        </div>
+      `).join("");
+
+      const pendingHtml=pendingRows.map((p,i)=>`
+        <div style="padding:10px 20px;background:#FFFBEB;${i<pendingRows.length-1?"border-bottom:1px solid #FDE68A;":""}">
+          <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:3px;">
+            <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(p.deviceName)}</div>
+            <div style="font-size:11px;font-weight:700;color:#B45309;white-space:nowrap;">${fRM(p.financePrice)}</div>
+          </div>
+          <div style="font-size:10.5px;color:${C.textLight};">${escapeHtml(branchMeta?.[p.branch]?.name||p.branch)} · ${escapeHtml(p.agreementNo||"—")}</div>
+          <div style="font-size:10.5px;color:${C.textMid};margin-top:2px;">Best quote so far: <strong style="color:${C.text};">${getBestQuote(p)}</strong>${p.remark?" · "+escapeHtml(p.remark):""}</div>
+        </div>
+      `).join("");
+
+      root.innerHTML=headerHtml
+        +(orderedRows.length?secHdr(`Ordered (${orderedRows.length})`)+orderedHtml:"")
+        +(pendingRows.length?secHdr(`Still Pending (${pendingRows.length})`)+pendingHtml:"");
+
+      document.body.appendChild(root);
+      const canvas=await window.html2canvas(root,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false});
+      document.body.removeChild(root);
+
+      const a=document.createElement("a");
+      a.href=canvas.toDataURL("image/png");
+      a.download=`Purchase_Order_Summary_${viewDate}_Session${viewSession}.png`;
+      a.click();
+    }catch(e){alert("Save as Photo failed: "+e.message);}
+    setSavingPhoto(false);
   };
 
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
@@ -321,7 +385,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         <button onClick={()=>setViewSession(2)} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${viewSession===2?C.blueBright:C.border}`,background:viewSession===2?"#EFF6FF":"#fff",color:viewSession===2?C.blueBright:C.textMid,fontWeight:700,fontSize:12,cursor:"pointer"}}>Session 2 · Due 5:30pm</button>
       </div>
       <div style={{flex:1}}/>
-      <GBtn onClick={exportExcel}>Export to Excel</GBtn>
+      <GBtn onClick={savePhoto} disabled={savingPhoto}>{savingPhoto?"Saving…":"Save as Photo"}</GBtn>
     </div>
 
     <div style={{...card}}>
@@ -352,7 +416,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
                 </td>)}
                 <td style={{padding:"4px 6px"}}>
                   <input value={e.remark||""} onChange={ev=>updateRemark(e.id,ev.target.value)} placeholder="Remark…" disabled={e.ordered||!isViewingCurrentSession}
-                    style={{width:110,padding:"5px 6px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"Inter,sans-serif"}}/>
+                    style={{width:220,padding:"5px 6px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"Inter,sans-serif"}}/>
                 </td>
                 <td style={{padding:"8px 10px"}}>
                   {e.ordered

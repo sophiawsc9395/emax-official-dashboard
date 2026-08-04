@@ -126,7 +126,32 @@ export async function getOrderHistory(orderId) {
     .eq("order_id", String(orderId))
     .order("id", { ascending: true });
   if (error) { console.error("getOrderHistory error:", error); return []; }
-  return (data || []).map(r => ({ step: r.step, date: r.date, time: r.time, ...(r.data || {}) }));
+  return (data || []).map(r => ({ _rowId: r.id, step: r.step, date: r.date, time: r.time, ...(r.data || {}) }));
+}
+
+// Directly targets one history row by its real database id — reconcile()
+// only ever appends new rows (it diffs by array length), so editing or
+// removing an existing entry needs its own path rather than going through
+// reconcile with a modified/shortened history array, which would silently
+// do nothing to rows that already exist in the database.
+export async function updateHistoryRow(rowId, patch) {
+  const { data: row, error: fetchErr } = await supabase.from(HISTORY_TABLE).select("*").eq("id", rowId).single();
+  if (fetchErr) { console.error("updateHistoryRow fetch error:", fetchErr); return { ok: false, error: fetchErr }; }
+  const { step, date, time, ...restPatch } = patch;
+  const newData = { ...(row.data || {}), ...restPatch };
+  const update = { data: newData };
+  if (step !== undefined) update.step = step;
+  if (date !== undefined) update.date = date;
+  if (time !== undefined) update.time = time;
+  const { error } = await supabase.from(HISTORY_TABLE).update(update).eq("id", rowId);
+  if (error) { console.error("updateHistoryRow error:", error); return { ok: false, error }; }
+  return { ok: true };
+}
+
+export async function deleteHistoryRow(rowId) {
+  const { error } = await supabase.from(HISTORY_TABLE).delete().eq("id", rowId);
+  if (error) { console.error("deleteHistoryRow error:", error); return { ok: false, error }; }
+  return { ok: true };
 }
 
 // Fetch history for MANY orders in one query — used by report generation,
