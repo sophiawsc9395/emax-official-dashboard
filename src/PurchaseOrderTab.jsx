@@ -292,6 +292,19 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
     return()=>{supabase.removeChannel(channel);};
   },[]);
 
+  // Belt-and-suspenders on top of the live subscription — a browser tab
+  // that's been backgrounded for a while can have its realtime connection
+  // silently drop and miss events entirely (this happens on mobile
+  // especially, where backgrounded tabs get suspended). Re-running the
+  // catchup check every time this tab becomes visible again means a stale
+  // cancelled/deleted order can't survive more than a glance away and back,
+  // without requiring anyone to remember to manually reload the page.
+  useEffect(()=>{
+    const onVisible=()=>{if(document.visibilityState==="visible")runCatchUp();};
+    document.addEventListener("visibilitychange",onVisible);
+    return()=>document.removeEventListener("visibilitychange",onVisible);
+  },[]);
+
   const save=async(next)=>{setList(next);await saveData(PO_KEY,next);};
 
 
