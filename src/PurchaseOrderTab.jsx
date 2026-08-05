@@ -101,8 +101,30 @@ async function buildLiveList(){
   // Ordered, which is exactly what's confusing here: a huge historical
   // backlog appearing out of nowhere, not anything that actually happened
   // through this page's own workflow.
-  const candidates=allOrders.filter(o=>o.stockStatus==="stock_request"&&!o.cancelled&&(o.step===1||!!supp[String(o.id)]));
-  const nextSupp={...supp};
+  // One-time (well, run-whenever-needed) cleanup for contamination left
+  // behind before the fix above existed. That earlier version swept every
+  // Stock Request order into the supplementary store regardless of step,
+  // which means a huge number of historical orders already have a
+  // supplementary record sitting there — and the "already tracked" check
+  // above would keep matching all of them forever otherwise, since it
+  // just checks whether a record exists, not why it was created. An entry
+  // with no prices entered, no remark, and never explicitly marked
+  // ordered through this page's own form has no genuine purchaser
+  // interaction behind it — it's leftover contamination, not real
+  // tracked data — so if its order has already moved past Step 1, it
+  // gets pruned here rather than being treated as legitimately tracked.
+  const orderById=new Map(allOrders.map(o=>[String(o.id),o]));
+  const prunedSupp={};
+  let pruned=false;
+  for(const[key,rec]of Object.entries(supp)){
+    const ord=orderById.get(key);
+    const hasNoInteraction=!rec.ordered&&!Object.keys(rec.prices||{}).length&&!rec.remark?.trim();
+    if(ord&&ord.step>1&&hasNoInteraction){pruned=true;continue;}
+    prunedSupp[key]=rec;
+  }
+  if(pruned)await saveData(SUPP_KEY,prunedSupp);
+  const candidates=allOrders.filter(o=>o.stockStatus==="stock_request"&&!o.cancelled&&(o.step===1||!!prunedSupp[String(o.id)]));
+  const nextSupp={...prunedSupp};
   let suppChanged=false;
   for(const o of candidates){
     const key=String(o.id);
