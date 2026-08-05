@@ -298,7 +298,12 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   // A session key that sorts correctly across dates, so "earlier than
   // current" comparisons below are simple string comparisons.
   const sessionKey=(d,s)=>`${d}_${s}`;
-  const currentSession=useMemo(()=>getSessionForTimestamp(new Date()),[]);
+  // Recomputed fresh on every render (not memoized) — this needs to track
+  // real time as it passes while the page stays open. A page loaded before
+  // 8:30am and left open past noon must correctly stop treating Session 1
+  // as "current" once its window has actually closed, not keep it frozen
+  // at whatever was true the moment the page first loaded.
+  const currentSession=getSessionForTimestamp(new Date());
   const isViewingCurrentSession=viewDate===currentSession.date&&viewSession===currentSession.session;
 
   const visible=useMemo(()=>{
@@ -365,9 +370,22 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   };
 
   const savePhoto=async()=>{
-    if(!visible.length){alert("Nothing in this session to save yet.");return;}
     setSavingPhoto(true);
     try{
+      // Force a fresh check right now, at the exact moment of generating
+      // the photo — don't trust whatever's already sitting in this page's
+      // memory, no matter how long it's been open or whether the live
+      // subscription has been connected the whole time. This is what
+      // guarantees the photo can never show a cancelled/deleted order,
+      // even on a page that's been left open for hours or days.
+      await runCatchUp();
+      const freshList=(await loadData(PO_KEY))||[];
+      const freshOwnSession=freshList.filter(e=>e.sessionDate===viewDate&&e.session===viewSession);
+      const freshCurrentSession=getSessionForTimestamp(new Date());
+      const freshIsCurrentView=viewDate===freshCurrentSession.date&&viewSession===freshCurrentSession.session;
+      const freshCarried=freshIsCurrentView?freshList.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession)):[];
+      const freshVisible=[...freshCarried,...freshOwnSession];
+      if(!freshVisible.length){alert("Nothing in this session to save yet.");setSavingPhoto(false);return;}
       if(!window.html2canvas){
         await new Promise((res,rej)=>{
           const s=document.createElement("script");
@@ -375,8 +393,8 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
           s.onload=res;s.onerror=rej;document.head.appendChild(s);
         });
       }
-      const orderedRows=visible.filter(e=>e.ordered);
-      const pendingRows=visible.filter(e=>!e.ordered);
+      const orderedRows=freshVisible.filter(e=>e.ordered);
+      const pendingRows=freshVisible.filter(e=>!e.ordered);
       const now=new Date();
       const stamp=`${String(now.getDate()).padStart(2,"0")}/${String(now.getMonth()+1).padStart(2,"0")}/${now.getFullYear()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
 
@@ -394,20 +412,23 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         <div style="padding:18px 20px;background:linear-gradient(135deg,${C.navy},${C.navyLight});">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
             <div style="font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.12em;">EMAX Network — Purchase Order Summary</div>
-            ${isViewingCurrentSession?'<span style="font-size:8.5px;font-weight:800;color:#0A1628;background:#4ADE80;border-radius:10px;padding:1px 8px;text-transform:uppercase;letter-spacing:.06em;">Live</span>':""}
+            ${freshIsCurrentView?'<span style="font-size:8.5px;font-weight:800;color:#0A1628;background:#4ADE80;border-radius:10px;padding:1px 8px;text-transform:uppercase;letter-spacing:.06em;">Live</span>':""}
           </div>
-          <div style="font-size:17px;font-weight:800;color:#fff;">${fDate(viewDate)} · Session ${viewSession} ${isViewingCurrentSession?"(Active)":"(Closed)"}</div>
+          <div style="font-size:17px;font-weight:800;color:#fff;">${fDate(viewDate)} · Session ${viewSession} ${freshIsCurrentView?"(Active)":"(Closed)"}</div>
           <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:3px;">${orderedRows.length} ordered · ${pendingRows.length} still pending · snapshot taken ${stamp}</div>
         </div>
-        ${isViewingCurrentSession?`<div style="padding:8px 20px;background:#EFF6FF;border-bottom:1px solid ${C.border};font-size:10.5px;color:${C.blueBright};">This session is still open — prices and status may change after this snapshot. Due by ${viewSession===1?"12:00pm":"5:30pm"} today.</div>`:""}
+        ${freshIsCurrentView?`<div style="padding:8px 20px;background:#EFF6FF;border-bottom:1px solid ${C.border};font-size:10.5px;color:${C.blueBright};">This session is still open — prices and status may change after this snapshot. Due by ${viewSession===1?"12:00pm":"5:30pm"} today.</div>`:""}
       `;
 
       const secHdr=label=>`<div style="padding:10px 16px;background:linear-gradient(135deg,${C.navy},${C.navyLight});font-size:11px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.07em;">${label}</div>`;
 
-      const orderedHtml=orderedRows.map((o,i)=>`
+      const orderedHtml=orderedRows.map((o,i)=>{
+        const ownDeadline=getSessionDeadline(o.sessionDate,o.session);
+        const wasLate=o.orderedAt&&new Date(o.orderedAt)>ownDeadline;
+        return`
         <div style="padding:10px 20px;${i<orderedRows.length-1?`border-bottom:1px solid ${C.border};`:""}">
           <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:3px;">
-            <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(o.deviceName)}</div>
+            <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(o.deviceName)}${wasLate?`<span style="font-size:8.5px;font-weight:700;color:#B45309;background:#FEF3C7;border-radius:10px;padding:1px 7px;margin-left:6px;">Completed Late</span>`:""}</div>
             <div style="text-align:right;white-space:nowrap;">
               <div style="font-size:12px;font-weight:800;color:#15803D;">${fRM(o.actualPrice)}</div>
               <div style="font-size:8.5px;color:${C.textLight};text-transform:uppercase;letter-spacing:.04em;">Purchase Price</div>
@@ -416,10 +437,10 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
           <div style="font-size:10.5px;color:${C.textLight};">${escapeHtml(branchMeta?.[o.branch]?.name||o.branch)} · ${escapeHtml(o.agreementNo||"—")}</div>
           <div style="font-size:10.5px;color:${C.textMid};margin-top:2px;">Supplier: <strong style="color:${C.text};">${escapeHtml(o.supplierName)}</strong> · PO ${escapeHtml(o.poNumber)} · ${escapeHtml(o.purchaserName)}</div>
         </div>
-      `).join("");
+      `;}).join("");
 
       const pendingHtml=pendingRows.map((p,i)=>{
-        const isOverdue=isViewingCurrentSession&&sessionKey(p.sessionDate,p.session)<sessionKey(viewDate,viewSession);
+        const isOverdue=freshIsCurrentView&&sessionKey(p.sessionDate,p.session)<sessionKey(viewDate,viewSession);
         return`
         <div style="padding:10px 20px;background:#FFFBEB;${i<pendingRows.length-1?"border-bottom:1px solid #FDE68A;":""}">
           <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:3px;">
@@ -517,7 +538,10 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
                 </td>
                 <td style={{padding:"8px 10px"}}>
                   {e.ordered
-                    ?<span style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:20,padding:"3px 9px",whiteSpace:"nowrap"}}>Ordered</span>
+                    ?<div>
+                        <span style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:20,padding:"3px 9px",whiteSpace:"nowrap"}}>Ordered</span>
+                        {e.orderedAt&&new Date(e.orderedAt)>getSessionDeadline(e.sessionDate,e.session)&&<div style={{fontSize:9,fontWeight:700,color:"#B45309",marginTop:3}}>Completed Late</div>}
+                      </div>
                     :isAdmin&&(isViewingCurrentSession
                       ?<button onClick={()=>setOrderedFor(e)} style={{padding:"6px 12px",borderRadius:7,border:"none",background:C.navy,color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>Ordered</button>
                       :<span style={{fontSize:10,fontWeight:700,color:C.textLight,whiteSpace:"nowrap"}}>View only — switch to the current session to act</span>)}
