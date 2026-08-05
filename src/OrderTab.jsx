@@ -302,13 +302,6 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
   // page via order.html, where she still has an orderPermissions object
   // (adminSteps:"all"), same as it'd look for any other super admin there.
   const isTrueSuperAdminTL=isAdmin&&(email||"").toLowerCase()==="sophiawsc9395@gmail.com";
-  const [showStepOverride,setShowStepOverride]=useState(false);
-  const [stepOverrideValue,setStepOverrideValue]=useState(order.step);
-  const applyStepOverride=async()=>{
-    if(!window.confirm(`Manually set this order's current step to "${getStep(stepOverrideValue).label}"? Only do this to correct an order that's stuck out of sync with its own log.`))return;
-    await onUpdate({...order,step:stepOverrideValue});
-    setShowStepOverride(false);
-  };
   // Self-healing — every time this order's timeline is viewed, quietly
   // check that the current step actually has a log entry backing it up.
   // This is what makes "no step can be skipped" hold even without another
@@ -423,26 +416,6 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
     {s.step===1&&order.orderType==="cash"&&order.depositSlip&&<a href={order.depositSlip.url||order.depositSlip.data} target={order.depositSlip.url?"_blank":undefined} rel={order.depositSlip.url?"noopener noreferrer":undefined} download={order.depositSlip.url?undefined:order.depositSlip.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600,marginRight:4,marginTop:2}}>{Ic.download} Deposit Payment Slip — {order.depositSlip.name}</a>}
   </div>;
   return<div>
-    {isTrueSuperAdminTL&&<div style={{marginBottom:12}}>
-      {!showStepOverride
-        ?<button onClick={()=>{setStepOverrideValue(order.step);setShowStepOverride(true);}} style={{fontSize:10,fontWeight:700,color:C.textLight,background:"none",border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 9px",cursor:"pointer"}}>Set Step Manually</button>
-        :<div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:8,padding:"8px 10px",display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          <span style={{fontSize:10,fontWeight:700,color:"#92400E"}}>Currently: {getStep(order.step).label} — override to:</span>
-          <select value={stepOverrideValue} onChange={e=>setStepOverrideValue(parseInt(e.target.value))} style={{fontSize:11,padding:"3px 6px",border:`1px solid ${C.border}`,borderRadius:5}}>
-            {STEPS.filter(s=>order.orderType==="cash"?s.step<=9||s.step===14:true).map(s=><option key={s.step} value={s.step}>{s.step} — {s.label}</option>)}
-          </select>
-          <button onClick={applyStepOverride} style={{fontSize:10,fontWeight:700,padding:"4px 10px",background:C.navy,color:"#fff",border:"none",borderRadius:5,cursor:"pointer"}}>Apply</button>
-          <button onClick={()=>setShowStepOverride(false)} style={{fontSize:10,fontWeight:600,padding:"4px 10px",background:"none",border:`1px solid ${C.border}`,borderRadius:5,cursor:"pointer",color:C.textLight}}>Cancel</button>
-        </div>}
-    </div>}
-    {isTrueSuperAdminTL&&(()=>{
-      const hist=order.history||[];
-      const stepsLogged=[...new Set(hist.map(h=>h.step))].sort((a,b)=>a-b);
-      const isBacked=hist.some(h=>h.step===order.step);
-      return<div style={{marginBottom:12,fontSize:10,color:C.textLight,background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 9px",fontFamily:"monospace"}}>
-        DEBUG — order.step={order.step} ({getStep(order.step).label}) · steps in log: [{stepsLogged.join(",")}] · current step backed by log: {isBacked?"yes":"NO"}
-      </div>;
-    })()}
     {visSteps.map((s,i)=>{
     const isAutoReady=isReady&&s.step===2;
     const done=cur>s.step||isAutoReady;

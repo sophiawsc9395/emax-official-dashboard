@@ -326,11 +326,9 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   };
   const updateRemark=(orderId,val)=>patchSupplementary(orderId,{remark:val});
 
-  const getBestQuote=(entry)=>{
+  const getTopQuotes=(entry)=>{
     const quotes=SUPPLIERS.map(s=>({label:s.label,price:parseFloat(entry.prices?.[s.key])||0})).filter(q=>q.price>0);
-    if(!quotes.length)return"No quotes yet";
-    const cheapest=quotes.reduce((a,b)=>a.price<b.price?a:b);
-    return`${cheapest.label} — ${fRM(cheapest.price)}`;
+    return quotes.sort((a,b)=>a.price-b.price).slice(0,3);
   };
 
   const confirmOrdered=async({orderDate,supplierName,actualPrice,poNumber,purchaserName,proofFile})=>{
@@ -412,17 +410,22 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
 
       const pendingHtml=pendingRows.map((p,i)=>{
         const isOverdue=freshIsCurrentView&&sessionKey(p.sessionDate,p.session)<sessionKey(viewDate,viewSession);
+        const topQuotes=getTopQuotes(p);
+        const quotesHtml=topQuotes.length
+          ?topQuotes.map((q,qi)=>`<span style="display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid ${C.border};border-radius:6px;padding:2px 8px;margin-right:5px;margin-top:3px;"><span style="font-size:10px;font-weight:700;color:${C.textLight};">${qi+1}.</span><span style="font-size:10px;font-weight:700;color:${C.text};">${escapeHtml(q.label)}</span><span style="font-size:10px;color:${C.textMid};font-weight:600;">${fRM(q.price)}</span></span>`).join("")
+          :`<span style="font-size:10.5px;color:${C.textLight};font-style:italic;">No quotes yet</span>`;
         return`
         <div style="padding:10px 20px;background:#FFFBEB;${i<pendingRows.length-1?"border-bottom:1px solid #FDE68A;":""}">
           <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:3px;">
             <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(p.deviceName)}${isOverdue?`<span style="font-size:8.5px;font-weight:700;color:#B45309;background:#FEF3C7;border-radius:10px;padding:1px 7px;margin-left:6px;">Overdue — since ${fDate(p.sessionDate)} Session ${p.session}</span>`:""}</div>
             <div style="text-align:right;white-space:nowrap;">
-              <div style="font-size:11px;font-weight:700;color:#B45309;">${fRM(getDisplayPrice(p))}</div>
+              <div style="font-size:15px;font-weight:800;color:#B45309;">${fRM(getDisplayPrice(p))}</div>
               <div style="font-size:8.5px;color:${C.textLight};text-transform:uppercase;letter-spacing:.04em;">${p.orderType==="cash"?"Retail Price":"Finance Price"}</div>
             </div>
           </div>
-          <div style="font-size:10.5px;color:${C.textLight};">${escapeHtml(branchMeta?.[p.branch]?.name||p.branch)} · ${escapeHtml(p.agreementNo||"—")}</div>
-          <div style="font-size:10.5px;color:${C.textMid};margin-top:2px;">Best quote so far: <strong style="color:${C.text};">${getBestQuote(p)}</strong>${p.remark?" · "+escapeHtml(p.remark):""}</div>
+          <div style="font-size:10.5px;color:${C.textLight};margin-bottom:5px;">${escapeHtml(branchMeta?.[p.branch]?.name||p.branch)} · ${escapeHtml(p.agreementNo||"—")}</div>
+          <div style="margin-bottom:${p.remark?4:0}px;">${quotesHtml}</div>
+          ${p.remark?`<div style="font-size:10.5px;color:${C.textMid};">Remark: ${escapeHtml(p.remark)}</div>`:""}
         </div>
       `;}).join("");
 
