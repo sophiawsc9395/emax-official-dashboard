@@ -113,13 +113,34 @@ async function buildLiveList(){
     }
   }
   if(suppChanged)await saveData(SUPP_KEY,nextSupp);
-  return candidates.map(o=>({
-    id:`po_${o.id}`,orderId:String(o.id),
-    deviceName:o.phoneModel||"",agreementNo:o.agreementNumber||"",
-    financePrice:o.financePrice||0,retailPrice:o.retailPrice||0,orderType:o.orderType||"ccm",
-    branch:o.branch||"",editLog:o.editLog||[],
-    ...nextSupp[String(o.id)],
-  }));
+  return candidates.map(o=>{
+    const supp=nextSupp[String(o.id)]||{};
+    // An order that has genuinely progressed past Step 1 (New Order
+    // Request) has already been ordered, full stop — regardless of
+    // whether that happened by clicking Ordered on this page, or by
+    // completing Step 2 directly in Order Tracking. Inferring this from
+    // the order's own step means it can never silently disagree with
+    // reality just because the supplementary flag was never explicitly
+    // set through this page's own button.
+    const orderedByStep=o.step>=2;
+    return{
+      id:`po_${o.id}`,orderId:String(o.id),
+      deviceName:o.phoneModel||"",agreementNo:o.agreementNumber||"",
+      financePrice:o.financePrice||0,retailPrice:o.retailPrice||0,orderType:o.orderType||"ccm",
+      branch:o.branch||"",editLog:o.editLog||[],
+      ...supp,
+      ordered:supp.ordered||orderedByStep,
+      // If it was ordered via Order Tracking directly rather than this
+      // page's own form, these fields live on the order itself instead of
+      // in the supplementary store — fall back to them so the details
+      // still show correctly either way.
+      orderDate:supp.orderDate||o.orderDate,
+      supplierName:supp.supplierName||o.supplierName,
+      poNumber:supp.poNumber||o.poNumber,
+      purchaserName:supp.purchaserName||o.purchaserName,
+      orderedAt:supp.orderedAt||(orderedByStep&&!supp.ordered?new Date().toISOString():supp.orderedAt),
+    };
+  });
 }
 
 const L=({children,req})=><label style={{display:"block",fontSize:11,fontWeight:600,color:C.textMid,marginBottom:4}}>{children}{req&&<span style={{color:"#DC2626"}}> *</span>}</label>;
@@ -228,8 +249,19 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   const currentSession=getSessionForTimestamp(new Date());
   const isViewingCurrentSession=viewDate===currentSession.date&&viewSession===currentSession.session;
 
+  // Which session an entry belongs to for VIEWING purposes — a pending
+  // order belongs to whichever session it was originally submitted in.
+  // But an ORDERED one belongs to whichever session it was actually
+  // resolved in (based on when it was marked ordered), not necessarily
+  // where it started — otherwise an order submitted last week and only
+  // just marked ordered today would never show up in today's "Ordered"
+  // section, permanently stuck showing under a session that's long closed.
+  const viewSessionOf=(e)=>{
+    if(!e.ordered||!e.orderedAt)return{date:e.sessionDate,session:e.session};
+    return getSessionForTimestamp(new Date(e.orderedAt));
+  };
   const visible=useMemo(()=>{
-    const ownSession=list.filter(e=>e.sessionDate===viewDate&&e.session===viewSession);
+    const ownSession=list.filter(e=>{const s=viewSessionOf(e);return s.date===viewDate&&s.session===viewSession;});
     if(!isViewingCurrentSession)return ownSession; // browsing history — show exactly what belonged there
     // Viewing the current session — also pull in anything still pending
     // from an earlier session that never got ordered, so it doesn't just
@@ -294,7 +326,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
       // reality, never a cancelled or deleted order, regardless of how
       // long the page has been open.
       const freshList=await refresh();
-      const freshOwnSession=freshList.filter(e=>e.sessionDate===viewDate&&e.session===viewSession);
+      const freshOwnSession=freshList.filter(e=>{const s=viewSessionOf(e);return s.date===viewDate&&s.session===viewSession;});
       const freshCurrentSession=getSessionForTimestamp(new Date());
       const freshIsCurrentView=viewDate===freshCurrentSession.date&&viewSession===freshCurrentSession.session;
       const freshCarried=freshIsCurrentView?freshList.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession)):[];
@@ -401,9 +433,9 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         <button onClick={()=>setViewSession(2)} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${viewSession===2?C.blueBright:C.border}`,background:viewSession===2?"#EFF6FF":"#fff",color:viewSession===2?C.blueBright:C.textMid,fontWeight:700,fontSize:12,cursor:"pointer"}}>Session 2 · Due 5:30pm</button>
       </div>
       <div style={{flex:1}}/>
-      <GBtn onClick={savePhoto} disabled={savingPhoto||(isViewingCurrentSession&&unfilledCount>0)} title={isViewingCurrentSession&&unfilledCount>0?`Fill in a remark or click Ordered for every order first — ${unfilledCount} still untouched`:undefined}>{savingPhoto?"Saving…":"Save as Photo"}</GBtn>
+      <GBtn onClick={savePhoto} disabled={savingPhoto||unfilledCount>0} title={unfilledCount>0?`Fill in a remark or click Ordered for every order first — ${unfilledCount} still untouched`:undefined}>{savingPhoto?"Saving…":"Save as Photo"}</GBtn>
     </div>
-    {isViewingCurrentSession&&unfilledCount>0&&<div style={{fontSize:11,color:C.textLight,marginTop:-8,marginBottom:14}}>Save as Photo is locked until every order has a remark or is marked Ordered — {unfilledCount} still untouched.</div>}
+    {unfilledCount>0&&<div style={{fontSize:11,color:C.textLight,marginTop:-8,marginBottom:14}}>Save as Photo is locked until every order has a remark or is marked Ordered — {unfilledCount} still untouched.</div>}
 
     <div style={{...card}}>
       <SecHdr>Purchase Order — {fDate(viewDate)} · Session {viewSession} ({pendingCount} pending{carriedForwardCount>0?`, ${carriedForwardCount} overdue`:""})</SecHdr>
