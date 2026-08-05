@@ -90,8 +90,18 @@ function getSessionDeadline(dateStr,session){
 // list that could drift out of sync with reality.
 async function buildLiveList(){
   const allOrders=await listOrders(null);
-  const candidates=allOrders.filter(o=>o.stockStatus==="stock_request"&&!o.cancelled);
   const supp=(await loadData(SUPP_KEY))||{};
+  // An order still at Step 1 is always relevant — it genuinely needs
+  // purchasing. Once it's moved past Step 1, it only belongs here if this
+  // page has already been tracking it (i.e. it has a supplementary record
+  // from a previous run). Without that second condition, literally every
+  // Stock Request order that ever existed — including ones that finished
+  // being purchased months ago, long before this page tracked anything —
+  // gets swept in on the very first load and shows up already marked
+  // Ordered, which is exactly what's confusing here: a huge historical
+  // backlog appearing out of nowhere, not anything that actually happened
+  // through this page's own workflow.
+  const candidates=allOrders.filter(o=>o.stockStatus==="stock_request"&&!o.cancelled&&(o.step===1||!!supp[String(o.id)]));
   const nextSupp={...supp};
   let suppChanged=false;
   for(const o of candidates){
@@ -364,12 +374,10 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
       const secHdr=label=>`<div style="padding:10px 16px;background:linear-gradient(135deg,${C.navy},${C.navyLight});font-size:11px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.07em;">${label}</div>`;
 
       const orderedHtml=orderedRows.map((o,i)=>{
-        const ownDeadline=getSessionDeadline(o.sessionDate,o.session);
-        const wasLate=o.orderedAt&&new Date(o.orderedAt)>ownDeadline;
         return`
         <div style="padding:10px 20px;${i<orderedRows.length-1?`border-bottom:1px solid ${C.border};`:""}">
           <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:3px;">
-            <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(o.deviceName)}${wasLate?`<span style="font-size:8.5px;font-weight:700;color:#B45309;background:#FEF3C7;border-radius:10px;padding:1px 7px;margin-left:6px;">Completed Late</span>`:""}</div>
+            <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(o.deviceName)}</div>
             <div style="text-align:right;white-space:nowrap;">
               <div style="font-size:12px;font-weight:800;color:#15803D;">${fRM(o.actualPrice)}</div>
               <div style="font-size:8.5px;color:${C.textLight};text-transform:uppercase;letter-spacing:.04em;">Purchase Price</div>
@@ -479,10 +487,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
                 </td>
                 <td style={{padding:"8px 10px"}}>
                   {e.ordered
-                    ?<div>
-                        <span style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:20,padding:"3px 9px",whiteSpace:"nowrap"}}>Ordered</span>
-                        {e.orderedAt&&new Date(e.orderedAt)>getSessionDeadline(e.sessionDate,e.session)&&<div style={{fontSize:9,fontWeight:700,color:"#B45309",marginTop:3}}>Completed Late</div>}
-                      </div>
+                    ?<span style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:20,padding:"3px 9px",whiteSpace:"nowrap"}}>Ordered</span>
                     :isAdmin&&(isViewingCurrentSession
                       ?<button onClick={()=>setOrderedFor(e)} style={{padding:"6px 12px",borderRadius:7,border:"none",background:C.navy,color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>Ordered</button>
                       :<span style={{fontSize:10,fontWeight:700,color:C.textLight,whiteSpace:"nowrap"}}>View only — switch to the current session to act</span>)}
