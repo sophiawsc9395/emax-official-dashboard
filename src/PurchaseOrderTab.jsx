@@ -399,7 +399,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
           <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:3px;">
             <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(o.deviceName)}</div>
             <div style="text-align:right;white-space:nowrap;">
-              <div style="font-size:12px;font-weight:800;color:#15803D;">${fRM(o.actualPrice)}</div>
+              <div style="font-size:15px;font-weight:800;color:#15803D;">${fRM(o.actualPrice)}</div>
               <div style="font-size:8.5px;color:${C.textLight};text-transform:uppercase;letter-spacing:.04em;">Purchase Price</div>
             </div>
           </div>
@@ -412,7 +412,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         const isOverdue=freshIsCurrentView&&sessionKey(p.sessionDate,p.session)<sessionKey(viewDate,viewSession);
         const topQuotes=getTopQuotes(p);
         const quotesHtml=topQuotes.length
-          ?topQuotes.map((q,qi)=>`<span style="display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid ${C.border};border-radius:6px;padding:2px 8px;margin-right:5px;margin-top:3px;"><span style="font-size:10px;font-weight:700;color:${C.textLight};">${qi+1}.</span><span style="font-size:10px;font-weight:700;color:${C.text};">${escapeHtml(q.label)}</span><span style="font-size:10px;color:${C.textMid};font-weight:600;">${fRM(q.price)}</span></span>`).join("")
+          ?topQuotes.map((q,qi)=>`<span style="display:inline-block;background:#fff;border:1px solid ${C.border};border-radius:6px;padding:3px 8px;margin-right:5px;margin-top:3px;font-size:10px;font-weight:700;color:${C.text};white-space:nowrap;">${qi+1}. ${escapeHtml(q.label)} — ${fRM(q.price)}</span>`).join("")
           :`<span style="font-size:10.5px;color:${C.textLight};font-style:italic;">No quotes yet</span>`;
         return`
         <div style="padding:10px 20px;background:#FFFBEB;${i<pendingRows.length-1?"border-bottom:1px solid #FDE68A;":""}">
