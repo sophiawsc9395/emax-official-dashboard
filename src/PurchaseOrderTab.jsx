@@ -359,7 +359,17 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
       const freshOwnSession=freshList.filter(e=>{const s=viewSessionOf(e);return s.date===viewDate&&s.session===viewSession;});
       const freshCurrentSession=getSessionForTimestamp(new Date());
       const freshIsCurrentView=viewDate===freshCurrentSession.date&&viewSession===freshCurrentSession.session;
-      const freshCarried=freshIsCurrentView?freshList.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession)):[];
+      // Anything still pending right now that was originally submitted on
+      // or before the session being photographed genuinely WAS still
+      // outstanding as of that session's own deadline — the photo should
+      // show that honestly, not just whatever happened to be freshly
+      // submitted in that exact window. This applies to any session being
+      // photographed, current or past, not just the live one — a photo
+      // of yesterday's Session 2 should show every order still pending as
+      // of yesterday 5:30pm, including backlog carried in from even
+      // earlier sessions, regardless of whether it's since moved on to
+      // being tracked under today's live session instead.
+      const freshCarried=freshList.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession));
       const freshVisible=[...freshCarried,...freshOwnSession];
       if(!freshVisible.length){alert("Nothing in this session to save yet.");setSavingPhoto(false);return;}
       if(!window.html2canvas){
@@ -409,7 +419,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
       `;}).join("");
 
       const pendingHtml=pendingRows.map((p,i)=>{
-        const isOverdue=freshIsCurrentView&&sessionKey(p.sessionDate,p.session)<sessionKey(viewDate,viewSession);
+        const isOverdue=sessionKey(p.sessionDate,p.session)<sessionKey(viewDate,viewSession);
         const topQuotes=getTopQuotes(p);
         const quotesHtml=topQuotes.length
           ?topQuotes.map((q,qi)=>`<span style="display:inline-block;background:#fff;border:1px solid ${C.border};border-radius:6px;padding:3px 8px;margin-right:5px;margin-top:3px;font-size:10px;font-weight:700;color:${C.text};white-space:nowrap;">${qi+1}. ${escapeHtml(q.label)} — ${fRM(q.price)}</span>`).join("")
