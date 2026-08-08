@@ -15,8 +15,13 @@ import { supabase, loadData } from './storage/index.js'
 // and the Orders/Daily Sales tabs are hidden entirely for this email below.
 const JCL_ONLY_EMAILS = ["emaxjcl@gmail.com"]
 
-// Only emails with a role in orderRoles.js, plus JCL-only admins, can reach this page.
-const ALLOWED = [...Object.keys(ORDER_USER_ROLES), ...JCL_ONLY_EMAILS]
+// Only emails with a role in orderRoles.js, plus JCL-only admins, can reach
+// this page — except Knock-off role, deliberately excluded here. She has
+// her own dedicated login (knockoff.html) that already includes Order
+// Tracking merged in, so allowing her here too would just be a second,
+// redundant way in. Her role definition stays in orderRoles.js untouched,
+// since knockoff.html's permission lookup still depends on it.
+const ALLOWED = [...Object.keys(ORDER_USER_ROLES), ...JCL_ONLY_EMAILS].filter(e => e !== "emaxknockoff@gmail.com")
 
 const SR_KEY = "emax_v5_sr_list", BM_KEY = "emax_v5_branch_meta"
 
@@ -123,6 +128,12 @@ function OrderOnlyApp(){
   const isSuperAdminForPO = !orderPermissions || orderPermissions.adminSteps === "all"
   const isPurchaseRole = orderPermissions && orderPermissions.adminSteps !== "all" && orderPermissions.adminSteps.includes(2)
   const canSeePurchaseOrder = isSuperAdminForPO || isPurchaseRole
+  // Purchase and Stock roles never had step 7 (Billed) in their adminSteps,
+  // which is what getDailySalesAccess actually checks for canSubmit — so
+  // they were already functionally locked out of doing anything here, just
+  // seeing an empty tab. This hides the tab itself for them, keeping it
+  // for whoever genuinely has capability (Billing, Manager, Sophia).
+  const canSeeDailySales = isSuperAdminForPO || (orderPermissions && orderPermissions.adminSteps !== "all" && orderPermissions.adminSteps.includes(7))
 
   return (
     <div style={{ minHeight:"100vh", background:"#F7F9FC", fontFamily:"Inter,-apple-system,sans-serif" }}>
@@ -150,16 +161,16 @@ function OrderOnlyApp(){
         {/* MAIN CONTENT */}
         <div style={{ flex:1, minWidth:0, padding:"20px", maxWidth:1180 }}>
           <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-            {(isJCLOnly?[["jclApplications","JCL Applications"]]:[["orders","Order Tracking"],["dailySales","Daily Sales Report"],["jclApplications","JCL Applications"],...(canSeePurchaseOrder?[["purchaseOrder","Purchase Order"]]:[])]).map(([id,label])=>(
+            {(isJCLOnly?[["jclApplications","JCL Applications"]]:[["orders","Order Tracking"],...(canSeeDailySales?[["dailySales","Daily Sales Report"]]:[]),...(isSuperAdminForPO?[["jclApplications","JCL Applications"]]:[]),...(canSeePurchaseOrder?[["purchaseOrder","Purchase Order"]]:[])]).map(([id,label])=>(
               <button key={id} onClick={()=>setPageTab(id)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${pageTab===id?"#0A1628":"#E4EAF2"}`,background:pageTab===id?"#0A1628":"#fff",color:pageTab===id?"#fff":"#4A5568",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{label}</button>
             ))}
           </div>
           {!isJCLOnly && pageTab==="orders" && <OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} isReadOnly={false} orderPermissions={orderPermissions} email={email} />}
-          {!isJCLOnly && pageTab==="dailySales" && (()=>{
+          {!isJCLOnly && canSeeDailySales && pageTab==="dailySales" && (()=>{
             const {isSuperAdminOrder,canSubmit,canVerify} = getDailySalesAccess(true, orderPermissions, false)
             return <DailySalesTab branchMeta={branchMeta} isAdmin={isSuperAdminOrder} canSubmit={canSubmit} canVerify={canVerify} email={email} />
           })()}
-          {pageTab==="jclApplications" && <JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={email} />}
+          {(isJCLOnly||isSuperAdminForPO) && pageTab==="jclApplications" && <JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={email} />}
           {canSeePurchaseOrder && pageTab==="purchaseOrder" && <PurchaseOrderTab branchMeta={branchMeta} isAdmin={true} />}
         </div>
 

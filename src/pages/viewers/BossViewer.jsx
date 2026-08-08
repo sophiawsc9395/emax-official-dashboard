@@ -765,7 +765,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   const [selEndDay,setSelEndDay]=useState(daysInMonth(now.getMonth()+1,now.getFullYear()));
   const periodDays=days.filter(d=>d>=selStartDay&&d<=selEndDay);
   const [selBranch,setSelBranch]=useState(BRANCH_ORDER[0]);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto"]:isKnockOff?["overview","report","daily","orders"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications",...(elevateOrderAccess?["purchaseOrder"]:[])];return allowed.includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto"]:isKnockOff?["overview","report","daily","orders","dailySales"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications",...(elevateOrderAccess?["purchaseOrder"]:[])];return allowed.includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
 
@@ -1054,7 +1054,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   const TABS=isHR
     ?ALL_TABS.filter(t=>["overview","rankings","points","report","repair","rto"].includes(t.id))
     :isKnockOff
-    ?ALL_TABS.filter(t=>["overview","report","daily","orders"].includes(t.id))
+    ?ALL_TABS.filter(t=>["overview","report","daily","orders","dailySales"].includes(t.id))
     :ALL_TABS.filter(t=>elevateOrderAccess||t.id!=="purchaseOrder");
 
   if(loading)return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
@@ -1274,7 +1274,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
 
       {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}><RTOSummary branchMeta={bMeta}/></div>}
       {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!((elevateOrderAccess||isKnockOff)&&orderPermissions)} orderPermissions={(elevateOrderAccess||isKnockOff)?orderPermissions:null} srList={srList} email={currentEmail}/></div>}
-      {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} canSubmit={false} canVerify={elevateOrderAccess} email={currentEmail}/></div>}
+      {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} canSubmit={false} canVerify={elevateOrderAccess||isKnockOff} email={currentEmail}/></div>}
       {tab==="jclApplications"&&<div className="fade-in"><JCLTab branchMeta={bMeta} isAdmin={elevateOrderAccess} userBranch={null} srList={srList} email={currentEmail}/></div>}
       {tab==="purchaseOrder"&&elevateOrderAccess&&<div className="fade-in"><PurchaseOrderTab branchMeta={bMeta} isAdmin={elevateOrderAccess}/></div>}
     </div>{/* end main content */}
