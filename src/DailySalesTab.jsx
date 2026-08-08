@@ -123,13 +123,15 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,canVerify,email,o
     setSaving(false);
     setRows(empty());
   };
-  return<div style={{...card,padding:"14px 16px",marginBottom:14}}>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:12}}>
-      <div style={{fontSize:13,fontWeight:700,color:C.text}}>{canSubmit?"Submit Daily Sales Report — All Branches":"Daily Sales Report — All Branches"}</div>
+  return<div style={{...card,marginBottom:14}}>
+    <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>{canSubmit?"Submit Daily Sales Report — All Branches":"Daily Sales Report — All Branches"}</span>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <L req>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)} max={nowDate()} style={{width:"auto"}}/>
+        <span style={{fontSize:11,color:"rgba(255,255,255,.6)"}}>Date <span style={{color:"#FCA5A5"}}>*</span></span>
+        <input type="date" value={date} onChange={e=>setDate(e.target.value)} max={nowDate()} style={{padding:"5px 9px",border:"1px solid rgba(255,255,255,.2)",borderRadius:6,fontSize:11,background:"rgba(255,255,255,.06)",color:"#fff",fontFamily:"Inter,sans-serif"}}/>
       </div>
     </div>
+    <div style={{padding:"14px 16px"}}>
     <div style={{overflowX:"auto"}}>
     <table style={{width:"100%",borderCollapse:"collapse",minWidth:860}}>
       <thead><tr style={{background:C.surface}}>
@@ -215,6 +217,7 @@ function BatchSubmitForm({branchMeta,reports,isAdmin,canSubmit,canVerify,email,o
     {canSubmit&&<div style={{display:"flex",alignItems:"center",gap:10,marginTop:12}}>
       <PBtn onClick={submitAll} disabled={!filledCount||saving}>{saving?"Saving…":`Submit ${filledCount||""} Report${filledCount!==1?"s":""}`}</PBtn>
     </div>}
+    </div>
   </div>;
 }
 
