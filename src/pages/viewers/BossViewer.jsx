@@ -1072,7 +1072,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
           <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
             <div>
               <div style={{fontWeight:900,fontSize:12,color:"#fff",letterSpacing:"0.06em",lineHeight:1}}>EMAX NETWORK</div>
-              <div style={{fontSize:9,color:"rgba(255,255,255,.3)",letterSpacing:"0.14em",textTransform:"uppercase",marginTop:1}}>{isHR?"HR View":elevateOrderAccess?"Manager View":"Boss View"} · All Branches</div>
+              <div style={{fontSize:9,color:"rgba(255,255,255,.3)",letterSpacing:"0.14em",textTransform:"uppercase",marginTop:1}}>{isHR?"HR View":isKnockOff?"Knock-off View":elevateOrderAccess?"Manager View":"Boss View"} · All Branches</div>
 
             </div>
           </div>
