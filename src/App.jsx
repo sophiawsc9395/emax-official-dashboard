@@ -1744,7 +1744,7 @@ function srVisibleInMonth(sr,m,y){
 }
 
 // ─── DAILY ENTRY ──────────────────────────────────────────
-function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,recordsKey,onRepairSave}){
+export function DailyEntry({records,setRecords,srList,branchMeta,month,year,days,recordsKey,onRepairSave}){
   const now = new Date();
   const defaultDay = days.includes(now.getDate())?now.getDate():days[days.length-1];
   const [selDay,setSelDay]         = useState(defaultDay);

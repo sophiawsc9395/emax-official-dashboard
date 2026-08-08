@@ -5,7 +5,7 @@ import OrderTab from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
 import JCLTab from "../../JCLTab.jsx";
 import PurchaseOrderTab from "../../PurchaseOrderTab.jsx";
-import {SRBMModal,TargetModal} from "../../App.jsx";
+import {SRBMModal,TargetModal,DailyEntry} from "../../App.jsx";
 import { mergeOrderPermissions } from "../../auth/orderRoles.js";
 import { RTOSummaryInner } from "../../RTOSummary.jsx";
 
@@ -749,7 +749,7 @@ function RTOSummary({branchMeta}){
   return <RTOSummaryInner customers={customers} branchMeta={branchMeta}/>;
 }
 
-export default function App({elevateOrderAccess=false,isHR=false}){
+export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=false}){
   const now=new Date();
   const [selMonth,setSelMonth]=useState(now.getMonth()+1);
   const [selYear,setSelYear]=useState(now.getFullYear());
@@ -765,7 +765,7 @@ export default function App({elevateOrderAccess=false,isHR=false}){
   const [selEndDay,setSelEndDay]=useState(daysInMonth(now.getMonth()+1,now.getFullYear()));
   const periodDays=days.filter(d=>d>=selStartDay&&d<=selEndDay);
   const [selBranch,setSelBranch]=useState(BRANCH_ORDER[0]);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications",...(elevateOrderAccess?["purchaseOrder"]:[])];return allowed.includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto"]:isKnockOff?["overview","report","daily","orders"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications",...(elevateOrderAccess?["purchaseOrder"]:[])];return allowed.includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
 
@@ -1050,8 +1050,12 @@ export default function App({elevateOrderAccess=false,isHR=false}){
     return{name:s.canon,status:s.status,branch:s.branch,sub:(bMeta[s.branch]?.name||s.branch).toUpperCase(),wi:rankSRTotals[s.id]?.wi||0,ae:rankSRTotals[s.id]?.ae||0,profit,target,bonus,bonusEarned:branchHit&&profit>=target&&bonus>0,branchPct,role:"sr",points:calcRewardPoints(p,branchPct)};
   }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target));
 
-  const ALL_TABS=[{id:"overview",label:"Overview"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"report",label:"Monthly Report"},{id:"repair",label:"Repair & Service"},{id:"rto",label:"RTO Summary"},{id:"orders",label:"Order Tracking"},{id:"dailySales",label:"Daily Sales Report"},{id:"jclApplications",label:"JCL Applications"},{id:"purchaseOrder",label:"Purchase Order"}];
-  const TABS=isHR?ALL_TABS.filter(t=>["overview","rankings","points","report","repair","rto"].includes(t.id)):ALL_TABS.filter(t=>elevateOrderAccess||t.id!=="purchaseOrder");
+  const ALL_TABS=[{id:"overview",label:"Overview"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"report",label:"Monthly Report"},{id:"daily",label:"Daily Entry"},{id:"repair",label:"Repair & Service"},{id:"rto",label:"RTO Summary"},{id:"orders",label:"Order Tracking"},{id:"dailySales",label:"Daily Sales Report"},{id:"jclApplications",label:"JCL Applications"},{id:"purchaseOrder",label:"Purchase Order"}];
+  const TABS=isHR
+    ?ALL_TABS.filter(t=>["overview","rankings","points","report","repair","rto"].includes(t.id))
+    :isKnockOff
+    ?ALL_TABS.filter(t=>["overview","report","daily","orders"].includes(t.id))
+    :ALL_TABS.filter(t=>elevateOrderAccess||t.id!=="purchaseOrder");
 
   if(loading)return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
     <div style={{textAlign:"center"}}>
@@ -1156,6 +1160,9 @@ export default function App({elevateOrderAccess=false,isHR=false}){
           })()}
         </div>
       </div>}
+
+      {/* DAILY ENTRY — Knock-off role gets full admin access here */}
+      {tab==="daily"&&<DailyEntry records={records} setRecords={setRecords} srList={srList} branchMeta={bMeta} month={selMonth} year={selYear} days={days} recordsKey={`emax_v5_records_${selYear}_${selMonth}`}/>}
 
       {/* MONTHLY REPORT */}
       {tab==="report"&&<div className="fade-in">
@@ -1266,7 +1273,7 @@ export default function App({elevateOrderAccess=false,isHR=false}){
       </div>}
 
       {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}><RTOSummary branchMeta={bMeta}/></div>}
-      {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!(elevateOrderAccess&&orderPermissions)} orderPermissions={elevateOrderAccess?orderPermissions:null} srList={srList} email={currentEmail}/></div>}
+      {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!((elevateOrderAccess||isKnockOff)&&orderPermissions)} orderPermissions={(elevateOrderAccess||isKnockOff)?orderPermissions:null} srList={srList} email={currentEmail}/></div>}
       {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} canSubmit={false} canVerify={elevateOrderAccess} email={currentEmail}/></div>}
       {tab==="jclApplications"&&<div className="fade-in"><JCLTab branchMeta={bMeta} isAdmin={elevateOrderAccess} userBranch={null} srList={srList} email={currentEmail}/></div>}
       {tab==="purchaseOrder"&&elevateOrderAccess&&<div className="fade-in"><PurchaseOrderTab branchMeta={bMeta} isAdmin={elevateOrderAccess}/></div>}
