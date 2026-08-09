@@ -9,6 +9,7 @@ import OrderTab from "./OrderTab.jsx";
 import DailySalesTab from "./DailySalesTab.jsx";
 import JCLTab from "./JCLTab.jsx";
 import PurchaseOrderTab from "./PurchaseOrderTab.jsx";
+import DailyPaymentTab from "./DailyPaymentTab.jsx";
 import DailyReportPanel from "./DailyReportPanel.jsx";
 
 const T = {
@@ -2796,6 +2797,7 @@ export default function App(){
     {id:"dailySales",label:"Daily Sales Report"},
     {id:"jclApplications",label:"JCL Applications"},
     {id:"purchaseOrder",label:"Purchase Order"},
+    {id:"dailyPayment",label:"Daily Payment"},
   ];
 
   if(loading)return <div style={{display:"flex",height:"100vh",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
@@ -3016,6 +3018,7 @@ export default function App(){
       {tab==="dailySales"&&<DailySalesTab branchMeta={branchMeta} isAdmin={true} canSubmit={true} canVerify={true} email={currentEmail}/>}
       {tab==="jclApplications"&&<JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={currentEmail}/>}
       {tab==="purchaseOrder"&&<PurchaseOrderTab branchMeta={branchMeta} isAdmin={true}/>}
+      {tab==="dailyPayment"&&<DailyPaymentTab email={currentEmail}/>}
 
       </div>{/* end main content */}
 
