@@ -4,6 +4,7 @@ import { loadData, saveData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
 import JCLTab from "../../JCLTab.jsx";
+import ChaileaseTab from "../../ChaileaseTab.jsx";
 import PurchaseOrderTab from "../../PurchaseOrderTab.jsx";
 import DailyPaymentTab from "../../DailyPaymentTab.jsx";
 import {SRBMModal,TargetModal,DailyEntry} from "../../App.jsx";
@@ -766,7 +767,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   const [selEndDay,setSelEndDay]=useState(daysInMonth(now.getMonth()+1,now.getFullYear()));
   const periodDays=days.filter(d=>d>=selStartDay&&d<=selEndDay);
   const [selBranch,setSelBranch]=useState(BRANCH_ORDER[0]);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto"]:isKnockOff?["overview","report","daily","orders","dailySales","dailyPayment"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications",...(elevateOrderAccess?["purchaseOrder"]:[])];return allowed.includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto"]:isKnockOff?["overview","report","daily","orders","dailySales","dailyPayment"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications","chaileaseApplications",...(elevateOrderAccess?["purchaseOrder"]:[])];return allowed.includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
 
@@ -1051,12 +1052,61 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
     return{name:s.canon,status:s.status,branch:s.branch,sub:(bMeta[s.branch]?.name||s.branch).toUpperCase(),wi:rankSRTotals[s.id]?.wi||0,ae:rankSRTotals[s.id]?.ae||0,profit,target,bonus,bonusEarned:branchHit&&profit>=target&&bonus>0,branchPct,role:"sr",points:calcRewardPoints(p,branchPct)};
   }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target));
 
-  const ALL_TABS=[{id:"overview",label:"Overview"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"report",label:"Monthly Report"},{id:"daily",label:"Daily Entry"},{id:"repair",label:"Repair & Service"},{id:"rto",label:"RTO Summary"},{id:"orders",label:"Order Tracking"},{id:"dailySales",label:"Daily Sales Report"},{id:"jclApplications",label:"JCL Applications"},{id:"purchaseOrder",label:"Purchase Order"},{id:"dailyPayment",label:"Daily Payment"}];
-  const TABS=isHR
-    ?ALL_TABS.filter(t=>["overview","rankings","points","report","repair","rto"].includes(t.id))
+  // HR and Knock-off keep their existing simple flat sidebars, unchanged.
+  // Boss and Manager get the same collapsible grouping as the main
+  // dashboard — but only including pages this specific role can actually
+  // reach. Purchase Order only appears in the Purchasing group when
+  // elevateOrderAccess is true (Manager); Boss still sees the Purchasing
+  // group for Order Tracking, just without that child.
+  const SIDEBAR_STRUCTURE=isHR
+    ?[
+      {id:"overview",label:"Overview"},
+      {id:"rankings",label:"Rankings"},
+      {id:"points",label:"Reward Point Ranking"},
+      {id:"report",label:"Monthly Report"},
+      {id:"repair",label:"Repair & Service"},
+      {id:"rto",label:"RTO Summary"},
+    ]
     :isKnockOff
-    ?ALL_TABS.filter(t=>["overview","report","daily","orders","dailySales","dailyPayment"].includes(t.id))
-    :ALL_TABS.filter(t=>elevateOrderAccess||t.id!=="purchaseOrder");
+    ?[
+      {id:"overview",label:"Overview"},
+      {id:"report",label:"Monthly Report"},
+      {id:"daily",label:"Daily Entry"},
+      {id:"orders",label:"Order Tracking"},
+      {id:"dailySales",label:"Daily Sales Report"},
+      {id:"dailyPayment",label:"Daily Payment"},
+    ]
+    :[
+      {id:"overview",label:"Overview"},
+      {group:"ranking",label:"Ranking",children:[
+        {id:"rankings",label:"Performance Rankings"},
+        {id:"points",label:"Reward Point Ranking"},
+      ]},
+      {group:"monthlyReport",label:"Monthly Report",children:[
+        {id:"report",label:"Branch Report"},
+        {id:"repair",label:"Repair & Service"},
+      ]},
+      {id:"rto",label:"RTO Summary"},
+      {group:"purchasing",label:"Purchasing",children:[
+        {id:"orders",label:"Order Tracking"},
+        ...(elevateOrderAccess?[{id:"purchaseOrder",label:"Purchase Order"}]:[]),
+      ]},
+      {id:"dailySales",label:"Daily Sales Report"},
+      {group:"ccmApplication",label:"CCM Application",children:[
+        {id:"jclApplications",label:"JCL Application"},
+        {id:"chaileaseApplications",label:"Chailease Application"},
+      ]},
+    ];
+  const [expandedGroups,setExpandedGroups]=useState(()=>{
+    const initial={};
+    SIDEBAR_STRUCTURE.forEach(item=>{if(item.children)initial[item.group]=item.children.some(c=>c.id===tab);});
+    return initial;
+  });
+  useEffect(()=>{
+    SIDEBAR_STRUCTURE.forEach(item=>{
+      if(item.children&&item.children.some(c=>c.id===tab))setExpandedGroups(p=>p[item.group]?p:{...p,[item.group]:true});
+    });
+  },[tab]);
 
   if(loading)return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
     <div style={{textAlign:"center"}}>
@@ -1163,7 +1213,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       </div>}
 
       {/* DAILY ENTRY — Knock-off role gets full admin access here */}
-      {tab==="daily"&&<DailyEntry records={records} setRecords={setRecords} srList={srList} branchMeta={bMeta} month={selMonth} year={selYear} days={days} recordsKey={`emax_v5_records_${selYear}_${selMonth}`}/>}
+      {tab==="daily"&&isKnockOff&&<DailyEntry records={records} setRecords={setRecords} srList={srList} branchMeta={bMeta} month={selMonth} year={selYear} days={days} recordsKey={`emax_v5_records_${selYear}_${selMonth}`}/>}
 
       {/* MONTHLY REPORT */}
       {tab==="report"&&<div className="fade-in">
@@ -1277,6 +1327,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!((elevateOrderAccess||isKnockOff)&&orderPermissions)} orderPermissions={(elevateOrderAccess||isKnockOff)?orderPermissions:null} srList={srList} email={currentEmail}/></div>}
       {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} canSubmit={false} canVerify={elevateOrderAccess||isKnockOff} email={currentEmail}/></div>}
       {tab==="jclApplications"&&<div className="fade-in"><JCLTab branchMeta={bMeta} isAdmin={elevateOrderAccess} userBranch={null} srList={srList} email={currentEmail}/></div>}
+      {tab==="chaileaseApplications"&&<div className="fade-in"><ChaileaseTab branchMeta={bMeta} isAdmin={elevateOrderAccess} userBranch={null} srList={srList} email={currentEmail}/></div>}
       {tab==="purchaseOrder"&&elevateOrderAccess&&<div className="fade-in"><PurchaseOrderTab branchMeta={bMeta} isAdmin={elevateOrderAccess}/></div>}
       {tab==="dailyPayment"&&isKnockOff&&<div className="fade-in"><DailyPaymentTab email={currentEmail}/></div>}
     </div>{/* end main content */}
@@ -1288,16 +1339,41 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
         minHeight:"calc(100vh - 49px)",position:"sticky",top:49,alignSelf:"flex-start",
       }}>
         <div style={{width:220,padding:"16px 10px",visibility:sidebarOpen?"visible":"hidden"}}>
-          {TABS.map(t=>(
-            <button key={t.id} onClick={()=>{setTab(t.id);setSidebarOpen(false);}} style={{
-              display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
-              border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
-              background:tab===t.id?"rgba(255,255,255,.1)":"transparent",color:tab===t.id?"#fff":"rgba(255,255,255,.45)",
-              transition:"background .15s",
-            }}>
-              {t.label}
-            </button>
-          ))}
+          {SIDEBAR_STRUCTURE.map(item=>{
+            if(!item.children)return(
+              <button key={item.id} onClick={()=>{setTab(item.id);setSidebarOpen(false);}} style={{
+                display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+                border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                background:tab===item.id?"rgba(255,255,255,.1)":"transparent",color:tab===item.id?"#fff":"rgba(255,255,255,.45)",
+                transition:"background .15s",
+              }}>
+                {item.label}
+              </button>
+            );
+            const isOpen=!!expandedGroups[item.group];
+            return<div key={item.group}>
+              <button onClick={()=>setExpandedGroups(p=>({...p,[item.group]:!p[item.group]}))} style={{
+                display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+                border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                background:"transparent",color:"rgba(255,255,255,.45)",transition:"background .15s",
+              }}>
+                <span>{item.label}</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{transform:isOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform .15s",flexShrink:0}}>
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
+              {isOpen&&item.children.map(c=>(
+                <button key={c.id} onClick={()=>{setTab(c.id);setSidebarOpen(false);}} style={{
+                  display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px 9px 26px",marginBottom:3,
+                  border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                  background:tab===c.id?"rgba(255,255,255,.1)":"transparent",color:tab===c.id?"#fff":"rgba(255,255,255,.45)",
+                  transition:"background .15s",
+                }}>
+                  {c.label}
+                </button>
+              ))}
+            </div>;
+          })}
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
 
           {isHR&&<>

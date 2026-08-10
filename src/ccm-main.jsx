@@ -1,27 +1,20 @@
 import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
-import OrderTab from './OrderTab.jsx'
-import DailySalesTab from './DailySalesTab.jsx'
-import PurchaseOrderTab from './PurchaseOrderTab.jsx'
+import JCLTab from './JCLTab.jsx'
+import ChaileaseTab from './ChaileaseTab.jsx'
 import AuthGate from './auth/AuthGate.jsx'
-import { mergeOrderPermissions, ORDER_USER_ROLES, getDailySalesAccess } from './auth/orderRoles.js'
 import { supabase, loadData } from './storage/index.js'
 
-// Knock-off role is deliberately excluded here — she has her own dedicated
-// login (knockoff.html) that already includes Order Tracking merged in, so
-// allowing her here too would just be a second, redundant way in. Her role
-// definition stays in orderRoles.js untouched, since knockoff.html's
-// permission lookup still depends on it. emaxjcl@gmail.com now has her own
-// dedicated page (ccm.html) for JCL/Chailease Application instead — she was
-// never in ORDER_USER_ROLES to begin with (only reached this page before
-// via a separate JCL_ONLY_EMAILS allowlist, now removed).
-const ALLOWED = Object.keys(ORDER_USER_ROLES).filter(e => e !== "emaxknockoff@gmail.com")
+// Dedicated page for emaxjcl@gmail.com — she used to reach JCL Application
+// through order.html via a special-cased allowlist, but that page has since
+// been simplified back down to just Order Tracking/Daily Sales/Purchase
+// Order. This page exists solely for JCL Application and Chailease
+// Application, grouped under one "CCM Application" parent menu, matching
+// the same grouped-sidebar look used everywhere else in this app.
+const ALLOWED = ["emaxjcl@gmail.com", "sophiawsc9395@gmail.com"]
 
 const SR_KEY = "emax_v5_sr_list", BM_KEY = "emax_v5_branch_meta"
 
-// This is the exact CSS OrderTab.jsx's classNames (.card, .detail-grid,
-// .order-info-grid, .fade-in, etc.) depend on — without it the detail page
-// loses its two-column layout, spacing, and responsive breakpoints entirely.
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -77,7 +70,14 @@ const DEFAULT_BRANCH_META = {
   SDK:{name:"EC SDK",manager:"",mStatus:""},
 }
 
-function OrderOnlyApp(){
+const SIDEBAR_STRUCTURE = [
+  {group:"ccmApplication",label:"CCM Application",children:[
+    {id:"jclApplications",label:"JCL Application"},
+    {id:"chaileaseApplications",label:"Chailease Application"},
+  ]},
+]
+
+function CCMApp(){
   const [email, setEmail] = useState(null)
   const [branchMeta, setBranchMeta] = useState(DEFAULT_BRANCH_META)
   const [srList, setSrList] = useState([])
@@ -85,9 +85,19 @@ function OrderOnlyApp(){
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTab, setPageTabRaw] = useState(() => {
     const h = window.location.hash.replace('#', '')
-    return ['orders', 'dailySales', 'purchaseOrder'].includes(h) ? h : 'orders'
+    return ['jclApplications', 'chaileaseApplications'].includes(h) ? h : 'jclApplications'
   })
   const setPageTab = (t) => { setPageTabRaw(t); window.location.hash = t }
+  const [expandedGroups, setExpandedGroups] = useState(() => {
+    const initial = {}
+    SIDEBAR_STRUCTURE.forEach(item => { if (item.children) initial[item.group] = item.children.some(c => c.id === pageTab) })
+    return initial
+  })
+  useEffect(() => {
+    SIDEBAR_STRUCTURE.forEach(item => {
+      if (item.children && item.children.some(c => c.id === pageTab)) setExpandedGroups(p => p[item.group] ? p : { ...p, [item.group]: true })
+    })
+  }, [pageTab])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setEmail(data.session?.user?.email || null))
@@ -111,17 +121,6 @@ function OrderOnlyApp(){
     </div>
   }
 
-  const orderPermissions = mergeOrderPermissions(email)
-  const isSuperAdminForPO = !orderPermissions || orderPermissions.adminSteps === "all"
-  const isPurchaseRole = orderPermissions && orderPermissions.adminSteps !== "all" && orderPermissions.adminSteps.includes(2)
-  const canSeePurchaseOrder = isSuperAdminForPO || isPurchaseRole
-  // Purchase and Stock roles never had step 7 (Billed) in their adminSteps,
-  // which is what getDailySalesAccess actually checks for canSubmit — so
-  // they were already functionally locked out of doing anything here, just
-  // seeing an empty tab. This hides the tab itself for them, keeping it
-  // for whoever genuinely has capability (Billing, Manager, Sophia).
-  const canSeeDailySales = isSuperAdminForPO || (orderPermissions && orderPermissions.adminSteps !== "all" && orderPermissions.adminSteps.includes(7))
-
   return (
     <div style={{ minHeight:"100vh", background:"#F7F9FC", fontFamily:"Inter,-apple-system,sans-serif" }}>
       <style>{CSS}</style>
@@ -132,6 +131,7 @@ function OrderOnlyApp(){
             <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
               <div>
                 <div style={{ fontWeight:900, fontSize:12, color:"#fff", letterSpacing:"0.06em", lineHeight:1 }}>EMAX NETWORK</div>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,.3)", letterSpacing:"0.14em", textTransform:"uppercase", marginTop:1 }}>CCM Application</div>
               </div>
             </div>
             <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap", rowGap:6 }}>
@@ -147,28 +147,54 @@ function OrderOnlyApp(){
       <div style={{ display:"flex", maxWidth:1400, margin:"0 auto" }}>
         {/* MAIN CONTENT */}
         <div style={{ flex:1, minWidth:0, padding:"20px", maxWidth:1180 }}>
-          <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-            {[["orders","Order Tracking"],...(canSeeDailySales?[["dailySales","Daily Sales Report"]]:[]),...(canSeePurchaseOrder?[["purchaseOrder","Purchase Order"]]:[])].map(([id,label])=>(
-              <button key={id} onClick={()=>setPageTab(id)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${pageTab===id?"#0A1628":"#E4EAF2"}`,background:pageTab===id?"#0A1628":"#fff",color:pageTab===id?"#fff":"#4A5568",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{label}</button>
-            ))}
-          </div>
-          {pageTab==="orders" && <OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} isReadOnly={false} orderPermissions={orderPermissions} email={email} />}
-          {canSeeDailySales && pageTab==="dailySales" && (()=>{
-            const {isSuperAdminOrder,canSubmit,canVerify} = getDailySalesAccess(true, orderPermissions, false)
-            return <DailySalesTab branchMeta={branchMeta} isAdmin={isSuperAdminOrder} canSubmit={canSubmit} canVerify={canVerify} email={email} />
-          })()}
-          {canSeePurchaseOrder && pageTab==="purchaseOrder" && <PurchaseOrderTab branchMeta={branchMeta} isAdmin={true} />}
+          {pageTab==="jclApplications" && <JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={email} />}
+          {pageTab==="chaileaseApplications" && <ChaileaseTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={email} />}
         </div>
 
-        {/* SIDEBAR — right side, collapsible, same treatment as the main dashboard's */}
+        {/* SIDEBAR — right side, collapsible, same grouped treatment as the main dashboard */}
         <div style={{
           width:sidebarOpen?220:0, flexShrink:0, overflow:"hidden",
           transition:"width .2s ease", background:"#0F1B30", borderLeft:sidebarOpen?"1px solid #1C2D4A":"none",
           minHeight:"calc(100vh - 49px)", position:"sticky", top:49, alignSelf:"flex-start",
         }}>
           <div style={{ width:220, padding:"16px 10px", visibility:sidebarOpen?"visible":"hidden" }}>
+            {SIDEBAR_STRUCTURE.map(item=>{
+              if(!item.children)return(
+                <button key={item.id} onClick={()=>{setPageTab(item.id);setSidebarOpen(false);}} style={{
+                  display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+                  border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                  background:pageTab===item.id?"rgba(255,255,255,.1)":"transparent",color:pageTab===item.id?"#fff":"rgba(255,255,255,.45)",
+                  transition:"background .15s",
+                }}>
+                  {item.label}
+                </button>
+              );
+              const isOpen=!!expandedGroups[item.group];
+              return<div key={item.group}>
+                <button onClick={()=>setExpandedGroups(p=>({...p,[item.group]:!p[item.group]}))} style={{
+                  display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+                  border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                  background:"transparent",color:"rgba(255,255,255,.45)",transition:"background .15s",
+                }}>
+                  <span>{item.label}</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{transform:isOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform .15s",flexShrink:0}}>
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+                {isOpen&&item.children.map(c=>(
+                  <button key={c.id} onClick={()=>{setPageTab(c.id);setSidebarOpen(false);}} style={{
+                    display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px 9px 26px",marginBottom:3,
+                    border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                    background:pageTab===c.id?"rgba(255,255,255,.1)":"transparent",color:pageTab===c.id?"#fff":"rgba(255,255,255,.45)",
+                    transition:"background .15s",
+                  }}>
+                    {c.label}
+                  </button>
+                ))}
+              </div>;
+            })}
+            <div style={{ width:"100%", height:1, background:"rgba(255,255,255,.08)", margin:"10px 0" }}/>
             <div style={{ padding:"9px 12px", marginBottom:3, fontSize:11, color:"rgba(255,255,255,.35)", wordBreak:"break-all" }}>{email}</div>
-            <div style={{ width:"100%", height:1, background:"rgba(255,255,255,.08)", margin:"6px 0 10px" }}/>
             <button onClick={()=>supabase.auth.signOut()} style={{
               display:"flex", alignItems:"center", gap:8, width:"100%", textAlign:"left", padding:"9px 12px",
               border:"none", cursor:"pointer", fontFamily:"Inter,sans-serif", fontWeight:600, fontSize:12, borderRadius:8,
@@ -187,7 +213,7 @@ function OrderOnlyApp(){
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <AuthGate allowedEmails={ALLOWED}>
-      <OrderOnlyApp />
+      <CCMApp />
     </AuthGate>
   </React.StrictMode>
 )

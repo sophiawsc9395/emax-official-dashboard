@@ -8,6 +8,7 @@ import RTOTab from "./RTOTab.jsx";
 import OrderTab from "./OrderTab.jsx";
 import DailySalesTab from "./DailySalesTab.jsx";
 import JCLTab from "./JCLTab.jsx";
+import ChaileaseTab from "./ChaileaseTab.jsx";
 import PurchaseOrderTab from "./PurchaseOrderTab.jsx";
 import DailyPaymentTab from "./DailyPaymentTab.jsx";
 import DailyReportPanel from "./DailyReportPanel.jsx";
@@ -2799,15 +2800,18 @@ export default function App(){
     {group:"monthlyReport",label:"Monthly Report",children:[
       {id:"report",label:"Branch Report"},
       {id:"repair",label:"Repair & Service"},
+      {id:"daily",label:"Daily Entry"},
     ]},
-    {id:"daily",label:"Daily Entry"},
     {id:"rto",label:"Rent to Own"},
     {group:"purchasing",label:"Purchasing",children:[
       {id:"orders",label:"Order Tracking"},
       {id:"purchaseOrder",label:"Purchase Order"},
     ]},
     {id:"dailySales",label:"Daily Sales Report"},
-    {id:"jclApplications",label:"JCL Applications"},
+    {group:"ccmApplication",label:"CCM Application",children:[
+      {id:"jclApplications",label:"JCL Application"},
+      {id:"chaileaseApplications",label:"Chailease Application"},
+    ]},
     {id:"dailyPayment",label:"Daily Payment"},
   ];
   const [expandedGroups,setExpandedGroups]=useState(()=>{
@@ -3041,6 +3045,7 @@ export default function App(){
       {tab==="orders"&&<OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} email={currentEmail}/>}
       {tab==="dailySales"&&<DailySalesTab branchMeta={branchMeta} isAdmin={true} canSubmit={true} canVerify={true} email={currentEmail}/>}
       {tab==="jclApplications"&&<JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={currentEmail}/>}
+      {tab==="chaileaseApplications"&&<ChaileaseTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={currentEmail}/>}
       {tab==="purchaseOrder"&&<PurchaseOrderTab branchMeta={branchMeta} isAdmin={true}/>}
       {tab==="dailyPayment"&&<DailyPaymentTab email={currentEmail}/>}
 

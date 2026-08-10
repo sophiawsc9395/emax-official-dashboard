@@ -6,6 +6,7 @@ import { loadData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
 import JCLTab from "../../JCLTab.jsx";
+import ChaileaseTab from "../../ChaileaseTab.jsx";
 
 const BRANCH_ID = "LD";
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
@@ -380,7 +381,28 @@ export default function App(){
   const [allSRList,setAllSRList]=useState(DEFAULT_SR); // all branches, for company-wide ranking
   const [bMeta,setBMeta]=useState(DEFAULT_BRANCH_META);
   const [loading,setLoading]=useState(true);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications"].includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications","chaileaseApplications"].includes(h)?h:"overview";});
+  const SIDEBAR_STRUCTURE=[
+    {id:"overview",label:"Performance"},
+    {id:"rankings",label:"Rankings"},
+    {id:"points",label:"Reward Point Ranking"},
+    {id:"orders",label:"Order Request"},
+    {id:"dailySales",label:"Daily Sales Report"},
+    {group:"ccmApplication",label:"CCM Application",children:[
+      {id:"jclApplications",label:"JCL Application"},
+      {id:"chaileaseApplications",label:"Chailease Application"},
+    ]},
+  ];
+  const [expandedGroups,setExpandedGroups]=useState(()=>{
+    const initial={};
+    SIDEBAR_STRUCTURE.forEach(item=>{if(item.children)initial[item.group]=item.children.some(c=>c.id===tab);});
+    return initial;
+  });
+  useEffect(()=>{
+    SIDEBAR_STRUCTURE.forEach(item=>{
+      if(item.children&&item.children.some(c=>c.id===tab))setExpandedGroups(p=>p[item.group]?p:{...p,[item.group]:true});
+    });
+  },[tab]);
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
   const [isMobile,setIsMobile]=useState(typeof window!=="undefined"&&window.innerWidth<=760);
@@ -605,6 +627,7 @@ export default function App(){
       {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
       {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} canSubmit={false} canVerify={false}/></div>}
       {tab==="jclApplications"&&<div className="fade-in"><JCLTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
+      {tab==="chaileaseApplications"&&<div className="fade-in"><ChaileaseTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
       {tab==="rankings"&&<div className="fade-in" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:20}}>
         <RankingTable title="Branch Manager Ranking" rows={bmRankRows} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
         <RankingTable title="Online SR Ranking — Company" rows={srRankRows.filter(r=>r.type==="Online")} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
@@ -888,16 +911,41 @@ export default function App(){
         minHeight:"calc(100vh - 49px)",position:"sticky",top:49,alignSelf:"flex-start",
       }}>
         <div style={{width:220,padding:"16px 10px",visibility:sidebarOpen?"visible":"hidden"}}>
-          {[{id:"overview",label:"Performance"},{id:"rankings",label:"Rankings"},{id:"points",label:"Reward Point Ranking"},{id:"orders",label:"Order Request"},{id:"dailySales",label:"Daily Sales Report"},{id:"jclApplications",label:"JCL Applications"}].map(t=>(
-            <button key={t.id} onClick={()=>{setTab(t.id);setSidebarOpen(false);}} style={{
-              display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
-              border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
-              background:tab===t.id?"rgba(255,255,255,.1)":"transparent",color:tab===t.id?"#fff":"rgba(255,255,255,.45)",
-              transition:"background .15s",
-            }}>
-              {t.label}
-            </button>
-          ))}
+          {SIDEBAR_STRUCTURE.map(item=>{
+            if(!item.children)return(
+              <button key={item.id} onClick={()=>{setTab(item.id);setSidebarOpen(false);}} style={{
+                display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+                border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                background:tab===item.id?"rgba(255,255,255,.1)":"transparent",color:tab===item.id?"#fff":"rgba(255,255,255,.45)",
+                transition:"background .15s",
+              }}>
+                {item.label}
+              </button>
+            );
+            const isOpen=!!expandedGroups[item.group];
+            return<div key={item.group}>
+              <button onClick={()=>setExpandedGroups(p=>({...p,[item.group]:!p[item.group]}))} style={{
+                display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+                border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                background:"transparent",color:"rgba(255,255,255,.45)",transition:"background .15s",
+              }}>
+                <span>{item.label}</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{transform:isOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform .15s",flexShrink:0}}>
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
+              {isOpen&&item.children.map(c=>(
+                <button key={c.id} onClick={()=>{setTab(c.id);setSidebarOpen(false);}} style={{
+                  display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px 9px 26px",marginBottom:3,
+                  border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                  background:tab===c.id?"rgba(255,255,255,.1)":"transparent",color:tab===c.id?"#fff":"rgba(255,255,255,.45)",
+                  transition:"background .15s",
+                }}>
+                  {c.label}
+                </button>
+              ))}
+            </div>;
+          })}
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
 
           <button onClick={()=>supabase.auth.signOut()} style={{
