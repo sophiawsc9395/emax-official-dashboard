@@ -170,38 +170,39 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
-    // ── localStorage shim for window.storage API ──────────────────────
+    // ── window.storage API, bridged to the parent app's real shared
+    // storage via postMessage (this file is a standalone page running in
+    // an iframe, with no direct access to the parent's Supabase
+    // connection or credentials) ──────────────────────────────────────
+    let _reqCounter = 0;
+    const _pending = {};
+    window.addEventListener('message', (e) => {
+      const msg = e.data;
+      if (!msg || msg.source !== 'emax-report-storage-result') return;
+      const resolver = _pending[msg.requestId];
+      if (resolver) { delete _pending[msg.requestId]; resolver(msg.result); }
+    });
+    function _bridgeRequest(action, payload) {
+      return new Promise((resolve) => {
+        const requestId = 'r' + (++_reqCounter) + '_' + Date.now();
+        _pending[requestId] = resolve;
+        // Don't hang forever if the parent never responds for some reason
+        setTimeout(() => { if (_pending[requestId]) { delete _pending[requestId]; resolve(null); } }, 10000);
+        window.parent.postMessage({ source: 'emax-report-storage', action, requestId, ...payload }, '*');
+      });
+    }
     window.storage = {
       get: async (key) => {
-        try {
-          const val = localStorage.getItem('emax_report:' + key);
-          return val !== null ? { key, value: val } : null;
-        } catch(e) { return null; }
+        try { return await _bridgeRequest('get', { key }); } catch(e) { return null; }
       },
       set: async (key, value) => {
-        try {
-          localStorage.setItem('emax_report:' + key, value);
-          return { key, value };
-        } catch(e) { return null; }
+        try { return await _bridgeRequest('set', { key, value }); } catch(e) { return null; }
       },
       delete: async (key) => {
-        try {
-          localStorage.removeItem('emax_report:' + key);
-          return { key, deleted: true };
-        } catch(e) { return null; }
+        try { return await _bridgeRequest('delete', { key }); } catch(e) { return null; }
       },
       list: async (prefix) => {
-        try {
-          const fullPrefix = 'emax_report:' + prefix;
-          const keys = [];
-          for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && k.startsWith(fullPrefix)) {
-              keys.push(k.replace('emax_report:', ''));
-            }
-          }
-          return { keys, prefix };
-        } catch(e) { return { keys: [], prefix }; }
+        try { return await _bridgeRequest('list', { prefix }); } catch(e) { return { keys: [], prefix }; }
       }
     };
     // ──────────────────────────────────────────────────────────────────
