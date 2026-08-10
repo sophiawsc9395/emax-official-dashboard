@@ -57,6 +57,9 @@ export function RTOSummaryInner({customers,branchMeta}){
   const summaryRef=useRef(null);
   const now=new Date();
   const currentKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+  const nextMonthDate=new Date(now.getFullYear(),now.getMonth()+1,1);
+  const nextMonthKey=`${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth()+1).padStart(2,"0")}`;
+  const nextMonthLabel=`${MONTHS[nextMonthDate.getMonth()]} ${nextMonthDate.getFullYear()}`;
 
   const analytics=customers.map(c=>{
     const schedule=genSchedule(c);
@@ -84,6 +87,12 @@ export function RTOSummaryInner({customers,branchMeta}){
     totalPL:analytics.reduce((s,c)=>s+c.pl,0),
     overdueCount:analytics.filter(c=>c.overdue.length>0).length,
     completeCount:analytics.filter(c=>c.isComplete).length,
+    // Next month's expected collection — each customer's scheduled
+    // installment for next month specifically, summed across everyone who
+    // actually has one due then (i.e. still within their tenure at that
+    // point). Not filtered by paid/unpaid since it's a forward-looking
+    // projection, not a collection-status check.
+    nextMonthEC:analytics.reduce((s,c)=>s+(c.schedule.find(x=>x.key===nextMonthKey)?.amount||0),0),
   };
 
   const overdueCustomers=analytics.filter(c=>c.overdue.length>0).sort((a,b)=>b.overdue.length-a.overdue.length);
@@ -134,6 +143,7 @@ export function RTOSummaryInner({customers,branchMeta}){
           <StatTile label="Total Received" value={fRM(totals.totalReceived)} icon={Ic.coins} accent={C.navy}/>
           <StatTile label="Outstanding" value={fRM(totals.totalOutstanding)} icon={Ic.alertCircle} accent={C.navy}/>
           <StatTile label="Portfolio P&L" value={fRM(totals.totalPL)} color={totals.totalPL>=0?"#15803D":"#DC2626"} icon={Ic.trendUp} accent={C.navy}/>
+          <StatTile label={`Next Month E/C (${nextMonthLabel})`} value={fRM(totals.nextMonthEC)} icon={Ic.coins} accent={C.navy}/>
         </div>
 
         {overdueCustomers.length>0&&<>

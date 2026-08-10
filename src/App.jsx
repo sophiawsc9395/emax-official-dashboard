@@ -2785,20 +2785,44 @@ export default function App(){
     w.document.close();setTimeout(()=>w.print(),400);
   };
 
-  const TABS=[
+  // Sidebar structure — a mix of flat top-level items and collapsible
+  // groups. Each group's own tab ids are unchanged from before (routes,
+  // permissions, and render logic elsewhere in this file all still key
+  // off these same ids) — only the sidebar's visual grouping and a couple
+  // of labels changed, nothing about what each page actually does.
+  const SIDEBAR_STRUCTURE=[
     {id:"overview",label:"Overview"},
-    {id:"rankings",label:"Rankings"},
-    {id:"points",label:"Reward Point Ranking"},
-    {id:"report",label:"Monthly Report"},
+    {group:"ranking",label:"Ranking",children:[
+      {id:"rankings",label:"Performance Rankings"},
+      {id:"points",label:"Reward Point Ranking"},
+    ]},
+    {group:"monthlyReport",label:"Monthly Report",children:[
+      {id:"report",label:"Branch Report"},
+      {id:"repair",label:"Repair & Service"},
+    ]},
     {id:"daily",label:"Daily Entry"},
-    {id:"repair",label:"Repair & Service"},
     {id:"rto",label:"Rent to Own"},
-    {id:"orders",label:"Order Tracking"},
+    {group:"purchasing",label:"Purchasing",children:[
+      {id:"orders",label:"Order Tracking"},
+      {id:"purchaseOrder",label:"Purchase Order"},
+    ]},
     {id:"dailySales",label:"Daily Sales Report"},
     {id:"jclApplications",label:"JCL Applications"},
-    {id:"purchaseOrder",label:"Purchase Order"},
     {id:"dailyPayment",label:"Daily Payment"},
   ];
+  const [expandedGroups,setExpandedGroups]=useState(()=>{
+    const initial={};
+    SIDEBAR_STRUCTURE.forEach(item=>{if(item.children)initial[item.group]=item.children.some(c=>c.id===tab);});
+    return initial;
+  });
+  // Whenever the active tab changes to something inside a group, force
+  // that group open — even if the person had previously collapsed it —
+  // so the active page is never hidden inside a closed group.
+  useEffect(()=>{
+    SIDEBAR_STRUCTURE.forEach(item=>{
+      if(item.children&&item.children.some(c=>c.id===tab))setExpandedGroups(p=>p[item.group]?p:{...p,[item.group]:true});
+    });
+  },[tab]);
 
   if(loading)return <div style={{display:"flex",height:"100vh",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
     <div style={{textAlign:"center"}}>
@@ -3029,16 +3053,41 @@ export default function App(){
         minHeight:"calc(100vh - 49px)",position:"sticky",top:49,alignSelf:"flex-start",
       }}>
         <div style={{width:220,padding:"16px 10px",visibility:sidebarOpen?"visible":"hidden"}}>
-          {TABS.map(t=>(
-            <button key={t.id} onClick={()=>{setTab(t.id);setSidebarOpen(false);}} style={{
-              display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
-              border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
-              background:tab===t.id?"rgba(255,255,255,.1)":"transparent",color:tab===t.id?"#fff":"rgba(255,255,255,.45)",
-              transition:"background .15s",
-            }}>
-              {t.label}
-            </button>
-          ))}
+          {SIDEBAR_STRUCTURE.map(item=>{
+            if(!item.children)return(
+              <button key={item.id} onClick={()=>{setTab(item.id);setSidebarOpen(false);}} style={{
+                display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+                border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                background:tab===item.id?"rgba(255,255,255,.1)":"transparent",color:tab===item.id?"#fff":"rgba(255,255,255,.45)",
+                transition:"background .15s",
+              }}>
+                {item.label}
+              </button>
+            );
+            const isOpen=!!expandedGroups[item.group];
+            return<div key={item.group}>
+              <button onClick={()=>setExpandedGroups(p=>({...p,[item.group]:!p[item.group]}))} style={{
+                display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+                border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                background:"transparent",color:"rgba(255,255,255,.45)",transition:"background .15s",
+              }}>
+                <span>{item.label}</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{transform:isOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform .15s",flexShrink:0}}>
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
+              {isOpen&&item.children.map(c=>(
+                <button key={c.id} onClick={()=>{setTab(c.id);setSidebarOpen(false);}} style={{
+                  display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px 9px 26px",marginBottom:3,
+                  border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                  background:tab===c.id?"rgba(255,255,255,.1)":"transparent",color:tab===c.id?"#fff":"rgba(255,255,255,.45)",
+                  transition:"background .15s",
+                }}>
+                  {c.label}
+                </button>
+              ))}
+            </div>;
+          })}
           <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
           <button onClick={async()=>{
             const d=new Date();
