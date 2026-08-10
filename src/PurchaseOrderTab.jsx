@@ -81,6 +81,32 @@ function getSessionDeadline(dateStr,session){
   return dl;
 }
 
+// Only ONE session is ever actionable at a time — whichever is the
+// earliest one whose own deadline hasn't passed yet. Session 1 (due noon)
+// keeps priority over Session 2 even after Session 2 has started accepting
+// new submissions at 8:30am — Session 2 doesn't become the open, editable
+// session until Session 1 has actually closed at noon. Walks through
+// deadline boundaries (not submission-window boundaries) chronologically
+// and returns the first one still in the future.
+function getOpenSession(ts){
+  const base=new Date(ts);base.setHours(0,0,0,0);
+  const boundaries=[];
+  for(let offset=-3;offset<=7;offset++){
+    const day=new Date(base);day.setDate(day.getDate()+offset);
+    const wd=day.getDay(); // 0=Sun..6=Sat
+    if(wd===0)continue;
+    const s1=new Date(day);s1.setHours(12,0,0,0);
+    boundaries.push({date:localDateStr(day),session:1,deadline:s1});
+    if(wd!==6){
+      const s2=new Date(day);s2.setHours(17,30,0,0);
+      boundaries.push({date:localDateStr(day),session:2,deadline:s2});
+    }
+  }
+  boundaries.sort((a,b)=>a.deadline-b.deadline);
+  for(const b of boundaries)if(ts<=b.deadline)return{date:b.date,session:b.session};
+  return{date:localDateStr(base),session:1};
+}
+
 // The one and only place that decides which orders appear on this page,
 // and what their supplementary purchase-specific fields are. Called fresh
 // every time — on load, on any relevant realtime event, when the tab
@@ -229,8 +255,8 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   const[list,setList]=useState([]);
   const[loading,setLoading]=useState(true);
   const[savingPhoto,setSavingPhoto]=useState(false);
-  const[viewDate,setViewDate]=useState(()=>getSessionForTimestamp(new Date()).date);
-  const[viewSession,setViewSession]=useState(()=>getSessionForTimestamp(new Date()).session);
+  const[viewDate,setViewDate]=useState(()=>getOpenSession(new Date()).date);
+  const[viewSession,setViewSession]=useState(()=>getOpenSession(new Date()).session);
   const[orderedFor,setOrderedFor]=useState(null);
   const[expandedLog,setExpandedLog]=useState({});
 
@@ -278,19 +304,13 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   // 8:30am and left open past noon must correctly stop treating Session 1
   // as "current" once its window has actually closed, not keep it frozen
   // at whatever was true the moment the page first loaded.
-  const currentSession=getSessionForTimestamp(new Date());
-  // A session stays open/editable until its OWN deadline passes — not just
-  // until the next session's submission window opens. Session 1 (due
-  // 12:00pm) and Session 2 (which starts accepting new submissions at
-  // 8:30am) genuinely overlap for those few hours: both are legitimately
-  // "current" at, say, 9:55am. Checking only "does this exactly match
-  // getSessionForTimestamp(now)" incorrectly treated Session 1 as already
-  // closed the instant Session 2's window opened, hours before Session 1's
-  // actual deadline. This checks two things instead: the session must be
-  // the current one or an earlier one (never a not-yet-open future
-  // session), AND its own deadline must not have passed yet.
-  const isNotFutureSession=sessionKey(viewDate,viewSession)<=sessionKey(currentSession.date,currentSession.session);
-  const isViewingCurrentSession=isNotFutureSession&&new Date()<=getSessionDeadline(viewDate,viewSession);
+  // Only one session is ever open/editable at a time — whichever is the
+  // earliest one whose own deadline hasn't passed yet. Session 1 (due
+  // 12:00pm) keeps priority over Session 2 even after Session 2 has
+  // started accepting new submissions at 8:30am — Session 2 doesn't
+  // become editable until Session 1 has actually closed at noon.
+  const openSession=getOpenSession(new Date());
+  const isViewingCurrentSession=viewDate===openSession.date&&viewSession===openSession.session;
 
   // Which session an entry belongs to for VIEWING purposes — a pending
   // order belongs to whichever session it was originally submitted in.
@@ -306,10 +326,18 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   const visible=useMemo(()=>{
     const ownSession=list.filter(e=>{const s=viewSessionOf(e);return s.date===viewDate&&s.session===viewSession;});
     if(!isViewingCurrentSession)return ownSession; // browsing history — show exactly what belonged there
-    // Viewing the current session — also pull in anything still pending
-    // from an earlier session that never got ordered, so it doesn't just
-    // sit forgotten back on a day nobody's looking at anymore.
-    const carriedForward=list.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession));
+    // Viewing an open session — also pull in anything still pending from
+    // an earlier session that never got ordered, so it doesn't just sit
+    // forgotten once nobody's looking at that day anymore. Critically,
+    // "earlier" alone isn't enough anymore now that sessions can overlap
+    // (Session 1 stays open until its own noon deadline, even after
+    // Session 2 has started accepting submissions at 8:30am) — an earlier
+    // session's pending items should only carry forward once THAT
+    // session's own deadline has actually passed, not just because a
+    // newer session has begun. Otherwise Session 2's view would show
+    // Session 1's items as carried-forward backlog hours before Session 1
+    // itself has even closed.
+    const carriedForward=list.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession)&&new Date()>getSessionDeadline(e.sessionDate,e.session));
     return[...carriedForward,...ownSession];
   },[list,viewDate,viewSession,isViewingCurrentSession]);
   const pendingCount=visible.filter(e=>!e.ordered).length;
@@ -319,7 +347,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   // progress/status, so it doesn't nag someone who's actively working an
   // order but hasn't finished confirming it.
   const unfilledCount=visible.filter(e=>!e.ordered&&!e.remark?.trim()).length;
-  const carriedForwardCount=useMemo(()=>isViewingCurrentSession?list.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession)).length:0,[list,viewDate,viewSession,isViewingCurrentSession]);
+  const carriedForwardCount=useMemo(()=>isViewingCurrentSession?list.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession)&&new Date()>getSessionDeadline(e.sessionDate,e.session)).length:0,[list,viewDate,viewSession,isViewingCurrentSession]);
 
   const deadline=getSessionDeadline(viewDate,viewSession);
   const now=new Date();
@@ -368,9 +396,8 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
       // long the page has been open.
       const freshList=await refresh();
       const freshOwnSession=freshList.filter(e=>{const s=viewSessionOf(e);return s.date===viewDate&&s.session===viewSession;});
-      const freshCurrentSession=getSessionForTimestamp(new Date());
-      const freshIsNotFuture=sessionKey(viewDate,viewSession)<=sessionKey(freshCurrentSession.date,freshCurrentSession.session);
-      const freshIsCurrentView=freshIsNotFuture&&new Date()<=getSessionDeadline(viewDate,viewSession);
+      const freshOpenSession=getOpenSession(new Date());
+      const freshIsCurrentView=viewDate===freshOpenSession.date&&viewSession===freshOpenSession.session;
       // Anything still pending right now that was originally submitted on
       // or before the session being photographed genuinely WAS still
       // outstanding as of that session's own deadline — the photo should
@@ -381,7 +408,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
       // of yesterday 5:30pm, including backlog carried in from even
       // earlier sessions, regardless of whether it's since moved on to
       // being tracked under today's live session instead.
-      const freshCarried=freshList.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession));
+      const freshCarried=freshList.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession)&&new Date()>getSessionDeadline(e.sessionDate,e.session));
       const freshVisible=[...freshCarried,...freshOwnSession];
       if(!freshVisible.length){alert("Nothing in this session to save yet.");setSavingPhoto(false);return;}
       if(!window.html2canvas){
@@ -471,7 +498,9 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
 
   return<div>
     {!isViewingCurrentSession&&<div style={{...card,borderLeft:"3px solid #8A96A8",padding:"12px 14px",marginBottom:14}}>
-      <div style={{fontSize:12,color:C.textMid}}>You're viewing a closed session — it's read-only from here. Anything still pending from this session has already carried forward into the current session, where it can be actioned.</div>
+      <div style={{fontSize:12,color:C.textMid}}>{sessionKey(viewDate,viewSession)>sessionKey(openSession.date,openSession.session)
+        ?`This session isn't open yet — Session ${openSession.session} (${fDate(openSession.date)}) is still being worked through and takes priority until its own deadline passes.`
+        :"You're viewing a closed session — it's read-only from here. Anything still pending from this session has already carried forward into the current session, where it can be actioned."}</div>
     </div>}
     {isPastDeadline&&unfilledCount>0&&<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Late Submission</div>
