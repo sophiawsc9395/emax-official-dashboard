@@ -279,7 +279,18 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   // as "current" once its window has actually closed, not keep it frozen
   // at whatever was true the moment the page first loaded.
   const currentSession=getSessionForTimestamp(new Date());
-  const isViewingCurrentSession=viewDate===currentSession.date&&viewSession===currentSession.session;
+  // A session stays open/editable until its OWN deadline passes — not just
+  // until the next session's submission window opens. Session 1 (due
+  // 12:00pm) and Session 2 (which starts accepting new submissions at
+  // 8:30am) genuinely overlap for those few hours: both are legitimately
+  // "current" at, say, 9:55am. Checking only "does this exactly match
+  // getSessionForTimestamp(now)" incorrectly treated Session 1 as already
+  // closed the instant Session 2's window opened, hours before Session 1's
+  // actual deadline. This checks two things instead: the session must be
+  // the current one or an earlier one (never a not-yet-open future
+  // session), AND its own deadline must not have passed yet.
+  const isNotFutureSession=sessionKey(viewDate,viewSession)<=sessionKey(currentSession.date,currentSession.session);
+  const isViewingCurrentSession=isNotFutureSession&&new Date()<=getSessionDeadline(viewDate,viewSession);
 
   // Which session an entry belongs to for VIEWING purposes — a pending
   // order belongs to whichever session it was originally submitted in.
@@ -358,7 +369,8 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
       const freshList=await refresh();
       const freshOwnSession=freshList.filter(e=>{const s=viewSessionOf(e);return s.date===viewDate&&s.session===viewSession;});
       const freshCurrentSession=getSessionForTimestamp(new Date());
-      const freshIsCurrentView=viewDate===freshCurrentSession.date&&viewSession===freshCurrentSession.session;
+      const freshIsNotFuture=sessionKey(viewDate,viewSession)<=sessionKey(freshCurrentSession.date,freshCurrentSession.session);
+      const freshIsCurrentView=freshIsNotFuture&&new Date()<=getSessionDeadline(viewDate,viewSession);
       // Anything still pending right now that was originally submitted on
       // or before the session being photographed genuinely WAS still
       // outstanding as of that session's own deadline — the photo should

@@ -1318,6 +1318,25 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
             <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
           </>}
 
+          {isKnockOff&&<>
+            <button onClick={async()=>{
+              const d=new Date();
+              const ldd=lastDataDay||d.getDate();
+              const ds=`${selYear}-${String(selMonth).padStart(2,"0")}-${String(ldd).padStart(2,"0")}`;
+              setPublishedUntil(ds);
+              await saveData(`emax_v5_published_${selYear}_${selMonth}`,ds);
+              setSidebarOpen(false);
+              alert(`Data up to ${ldd}/${selMonth}/${selYear} published to viewers.`);
+            }} style={{
+              display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+              border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+              background:"rgba(30,111,219,.25)",color:"#60A5FA",transition:"background .15s",
+            }}>
+              Publish to Viewers
+            </button>
+            <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
+          </>}
+
           <button onClick={()=>supabase.auth.signOut()} style={{
             display:"flex",alignItems:"center",gap:8,width:"100%",textAlign:"left",padding:"9px 12px",
             border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
