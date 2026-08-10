@@ -321,7 +321,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   // section, permanently stuck showing under a session that's long closed.
   const viewSessionOf=(e)=>{
     if(!e.ordered||!e.orderedAt)return{date:e.sessionDate,session:e.session};
-    return getSessionForTimestamp(new Date(e.orderedAt));
+    return getOpenSession(new Date(e.orderedAt));
   };
   const visible=useMemo(()=>{
     const ownSession=list.filter(e=>{const s=viewSessionOf(e);return s.date===viewDate&&s.session===viewSession;});
