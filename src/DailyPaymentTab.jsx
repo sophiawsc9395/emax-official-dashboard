@@ -15,7 +15,7 @@ import {useState,useEffect} from "react";
 import {loadData,saveData} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl} from "./storage/ordersApi.js";
 
-const KEY="emax_v5_daily_payment";
+export const KEY="emax_v5_daily_payment";
 const SOPHIA_EMAIL="sophiawsc9395@gmail.com";
 
 const C={navy:"#0A1628",navyLight:"#162B52",blue:"#1B3F72",blueBright:"#2C5AA0",surface:"#F7F9FC",border:"#E4EAF2",text:"#0A1628",textMid:"#4A5568",textLight:"#8A96A8"};

@@ -10,7 +10,7 @@ import DailySalesTab from "./DailySalesTab.jsx";
 import JCLTab from "./JCLTab.jsx";
 import ChaileaseTab from "./ChaileaseTab.jsx";
 import PurchaseOrderTab from "./PurchaseOrderTab.jsx";
-import DailyPaymentTab from "./DailyPaymentTab.jsx";
+import DailyPaymentTab, {KEY as DAILY_PAYMENT_KEY} from "./DailyPaymentTab.jsx";
 import DailyReportPanel from "./DailyReportPanel.jsx";
 
 const T = {
@@ -2828,6 +2828,24 @@ export default function App(){
     });
   },[tab]);
 
+  // Red-dot notification on the Daily Payment sidebar item — lit whenever
+  // there's at least one invoice still sitting at "pending" (uploaded by
+  // Knock-off, not yet marked Completed). Checked once on load, then kept
+  // live via a Supabase Realtime subscription scoped to this specific
+  // storage key, so the dot appears/clears without needing a refresh.
+  const [hasPendingDailyPayment,setHasPendingDailyPayment]=useState(false);
+  useEffect(()=>{
+    const checkPending=async()=>{
+      const entries=(await loadData(DAILY_PAYMENT_KEY))||[];
+      setHasPendingDailyPayment(Array.isArray(entries)&&entries.some(e=>e.status==="pending"));
+    };
+    checkPending();
+    const channel=supabase.channel("daily-payment-notify")
+      .on("postgres_changes",{event:"*",schema:"public",table:"app_storage",filter:`key=eq.${DAILY_PAYMENT_KEY}`},checkPending)
+      .subscribe();
+    return()=>{supabase.removeChannel(channel);};
+  },[]);
+
   if(loading)return <div style={{display:"flex",height:"100vh",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
     <div style={{textAlign:"center"}}>
       <div style={{fontWeight:900,fontSize:18,color:"#fff",letterSpacing:"0.05em",marginBottom:8}}>EMAX NETWORK</div>
@@ -3061,12 +3079,13 @@ export default function App(){
           {SIDEBAR_STRUCTURE.map(item=>{
             if(!item.children)return(
               <button key={item.id} onClick={()=>{setTab(item.id);setSidebarOpen(false);}} style={{
-                display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+                display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
                 border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
                 background:tab===item.id?"rgba(255,255,255,.1)":"transparent",color:tab===item.id?"#fff":"rgba(255,255,255,.45)",
                 transition:"background .15s",
               }}>
-                {item.label}
+                <span>{item.label}</span>
+                {item.id==="dailyPayment"&&hasPendingDailyPayment&&<span style={{width:7,height:7,borderRadius:"50%",background:"#DC2626",flexShrink:0}}/>}
               </button>
             );
             const isOpen=!!expandedGroups[item.group];
