@@ -494,9 +494,32 @@ function BranchMonthlyReport({branchMeta,userBranch,reports}){
 }
 
 function downloadMonthlyBankInPDF(reports,branchMeta,month,scopeBranch){
-  const rows=reports
+  const filtered=reports
     .filter(r=>r.verifiedAt&&r.date.slice(0,7)===month&&(!scopeBranch||r.branch===scopeBranch))
     .sort((a,b)=>a.branch.localeCompare(b.branch)||a.date.localeCompare(b.date));
+  // Each report can have multiple payments (e.g. AGRO + AGRO + AGRO), plus
+  // an optional short payment on top — every one of those is its own real
+  // payment with its own method, amount, and date, so each gets its own
+  // row here instead of being squashed into one row with the methods
+  // concatenated but only a single combined total shown.
+  const lines=[];
+  filtered.forEach(r=>{
+    const entries=getPaymentEntries(r);
+    entries.forEach((e,i)=>{
+      lines.push({
+        branch:r.branch,salesDate:r.date,groupStart:i===0,
+        paymentDate:e.date,method:e.method,amount:e.amount,
+        remark:i===0?(r.remark||""):"",
+      });
+    });
+    if(r.shortPayment&&r.secondPaymentAmount!=null){
+      lines.push({
+        branch:r.branch,salesDate:r.date,groupStart:entries.length===0,
+        paymentDate:r.secondPaymentDate,method:r.secondPaymentMethod,amount:r.secondPaymentAmount,
+        remark:"Short Payment"+(r.shortPaymentRemark?` — ${r.shortPaymentRemark}`:""),
+      });
+    }
+  });
   const monthLabel=new Date(month+"-01").toLocaleDateString("en-MY",{month:"long",year:"numeric"});
   const titleSuffix=scopeBranch?` — ${branchMeta[scopeBranch]?.name||scopeBranch}`:"";
   const w=window.open("","_blank");
@@ -506,11 +529,12 @@ function downloadMonthlyBankInPDF(reports,branchMeta,month,scopeBranch){
   table{border-collapse:collapse;width:100%;font-size:12px;}
   th{background:#0A1628;color:rgba(255,255,255,.8);padding:9px 14px;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.06em;text-align:right;}
   th.L{text-align:left;}td{padding:8px 14px;border-bottom:1px solid #E4EAF2;text-align:right;}td.L{text-align:left;font-weight:700;}
+  tr.group-start td{border-top:1.5px solid #CBD5E1;}
   @page{size:A4;margin:12mm;}</style></head><body>
   <h2>Daily Sales Bank-in Report${titleSuffix} — EMAX NETWORK SDN BHD</h2>
-  <div class="period">Month: ${monthLabel} · ${rows.length} verified report${rows.length!==1?"s":""}</div>
-  <table><thead><tr><th class="L">Branch</th><th class="L">Sales Date</th><th class="L">Bank-in Date</th><th class="L">Payment Method</th><th>Actual Bank-in Amount</th><th class="L">Remark</th><th class="L">Short Payment Remark</th><th>2nd Actual Amount Received</th><th class="L">2nd Actual Payment Date</th><th class="L">2nd Payment Method</th></tr></thead>
-  <tbody>${rows.map(r=>`<tr><td class="L">${branchMeta[r.branch]?.name||r.branch}</td><td class="L">${fDate(r.date)}</td><td class="L">${fDate(r.actualPaymentDate)}</td><td class="L">${getPaymentEntries(r).map(e=>e.method).join(" + ")||"—"}</td><td>${fRM(totalVerifiedAmount(r))}</td><td class="L">${r.remark||"—"}</td><td class="L">${r.shortPaymentRemark||"—"}</td><td>${r.secondPaymentAmount!=null?fRM(r.secondPaymentAmount):"—"}</td><td class="L">${fDate(r.secondPaymentDate)}</td><td class="L">${r.secondPaymentMethod||"—"}</td></tr>`).join("")}</tbody></table>
+  <div class="period">Month: ${monthLabel} · ${filtered.length} verified report${filtered.length!==1?"s":""} · ${lines.length} payment${lines.length!==1?"s":""}</div>
+  <table><thead><tr><th class="L">Branch</th><th class="L">Sales Date</th><th class="L">Payment Date</th><th class="L">Method</th><th>Amount</th><th class="L">Remark</th></tr></thead>
+  <tbody>${lines.map(l=>`<tr class="${l.groupStart?"group-start":""}"><td class="L">${branchMeta[l.branch]?.name||l.branch}</td><td class="L">${fDate(l.salesDate)}</td><td class="L">${fDate(l.paymentDate)}</td><td class="L">${l.method||"—"}</td><td>${fRM(l.amount)}</td><td class="L">${l.remark||"—"}</td></tr>`).join("")}</tbody></table>
   </body></html>`);
   w.document.close();setTimeout(()=>w.print(),400);
 }
