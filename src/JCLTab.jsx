@@ -17,6 +17,7 @@
 import {useState,useEffect,useMemo} from "react";
 import {loadData,saveData} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl,reconcile} from "./storage/ordersApi.js";
+import {CHAILEASE_KEY} from "./ChaileaseTab.jsx";
 
 const JCL_KEY="emax_v5_jcl_applications";
 
@@ -231,7 +232,7 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     <div style={{marginBottom:10}}><GBtn onClick={onCancel}>{Ic.chevL} Back</GBtn></div>
     <div style={{...card,marginBottom:16,padding:0,overflow:"hidden"}}>
       <div style={{padding:"14px 18px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
-        <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>{editingApp?"Edit Application":"New Application"}</div>
+        <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>{editingApp?"Edit JCL Application":"New JCL Application"}</div>
         <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>{branchMeta[formBranch]?.name||formBranch||"Pick a branch below to get started"} · 8 sections — everything on this form is required</div>
       </div>
     </div>
@@ -535,6 +536,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
     </div>
 
     <div style={{...card,padding:"16px 18px",marginBottom:14}}>
+      <div style={{fontSize:10,fontWeight:700,color:C.blue,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>JCL Application</div>
       <div style={{fontSize:15,fontWeight:800,color:C.text,marginBottom:2}}>{app.customerName}</div>
       <div style={{fontSize:11,color:C.textLight}}>{branchMeta[app.branch]?.name||app.branch} · Submitted {fDate(app.submittedAt)}</div>
     </div>
@@ -689,9 +691,34 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
   },[loading]);
 
   const save=async(updated)=>{
+    const prevApp=apps.find(a=>a.id===updated.id);
+    // Only fires the moment an application actually TRANSITIONS into
+    // Rejected — not on every subsequent edit/save of an application that
+    // was already sitting at step 5, which would otherwise create a fresh
+    // Chailease duplicate every single time.
+    const isFreshRejection=updated.step===5&&prevApp?.step!==5;
     const next=[...apps.filter(a=>a.id!==updated.id),updated].sort((a,b)=>b.submittedAt.localeCompare(a.submittedAt));
     setApps(next);
     await saveData(JCL_KEY,next);
+    if(isFreshRejection){
+      const chaileaseApps=(await loadData(CHAILEASE_KEY))||[];
+      const newId=`chailease_${Date.now()}`;
+      // Full spread carries over every customer/device/employment/emergency-
+      // contact field and every already-uploaded document, so the customer
+      // doesn't have to redo any of that for the fallback application —
+      // only the status-specific fields get reset to start a clean pipeline.
+      const newApp={
+        ...updated,
+        id:newId,merchant:"Chailease",step:1,
+        submittedAt:nowDate(),submittedTime:nowTime(),
+        submittedToChaileaseDate:null,followUpRemark:null,followUpRequestedDate:null,
+        followUpResponseFiles:[],followUpRespondedDate:null,
+        approvedDate:null,approvedRemark:null,rejectedDate:null,rejectedRemark:null,
+        linkedOrderId:null,
+        history:[{step:1,date:nowDate(),time:nowTime(),note:`New Application auto-created after rejection by JCL`}],
+      };
+      await saveData(CHAILEASE_KEY,[...chaileaseApps,newApp]);
+    }
   };
 
   const deleteApp=async(id)=>{
@@ -793,6 +820,10 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
     onCreateOrder={createOrderFromApp}/>;
 
   return<div>
+    <div style={{marginBottom:14}}>
+      <div style={{fontSize:17,fontWeight:800,color:C.navy}}>JCL Application</div>
+      <div style={{fontSize:11,color:C.textLight,marginTop:2}}>Customer financing applications submitted to JCL</div>
+    </div>
     {overdueSubmissions.length>0&&<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Not Yet Submitted to JCL</div>
       {overdueSubmissions.map(a=><div key={a.id} onClick={()=>{setView("detail");setSelectedId(a.id);}} style={{fontSize:12,color:"#DC2626",padding:"3px 0",cursor:"pointer"}}>{a.customerName} — {branchMeta[a.branch]?.name||a.branch} — submitted {daysSince(a.submittedAt)} day{daysSince(a.submittedAt)>1?"s":""} ago, still not sent to JCL</div>)}

@@ -18,7 +18,7 @@ import {useState,useEffect,useMemo} from "react";
 import {loadData,saveData} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl,reconcile} from "./storage/ordersApi.js";
 
-const CHAILEASE_KEY="emax_v5_chailease_applications";
+export const CHAILEASE_KEY="emax_v5_chailease_applications";
 
 const STEPS=[
   {step:1,label:"New Application",color:"#1D4ED8",bg:"#EFF6FF"},
@@ -231,7 +231,7 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     <div style={{marginBottom:10}}><GBtn onClick={onCancel}>{Ic.chevL} Back</GBtn></div>
     <div style={{...card,marginBottom:16,padding:0,overflow:"hidden"}}>
       <div style={{padding:"14px 18px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
-        <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>{editingApp?"Edit Application":"New Application"}</div>
+        <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>{editingApp?"Edit Chailease Application":"New Chailease Application"}</div>
         <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:2}}>{branchMeta[formBranch]?.name||formBranch||"Pick a branch below to get started"} · 8 sections — everything on this form is required</div>
       </div>
     </div>
@@ -535,6 +535,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
     </div>
 
     <div style={{...card,padding:"16px 18px",marginBottom:14}}>
+      <div style={{fontSize:10,fontWeight:700,color:C.blue,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>Chailease Application</div>
       <div style={{fontSize:15,fontWeight:800,color:C.text,marginBottom:2}}>{app.customerName}</div>
       <div style={{fontSize:11,color:C.textLight}}>{branchMeta[app.branch]?.name||app.branch} · Submitted {fDate(app.submittedAt)}</div>
     </div>
@@ -793,6 +794,10 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
     onCreateOrder={createOrderFromApp}/>;
 
   return<div>
+    <div style={{marginBottom:14}}>
+      <div style={{fontSize:17,fontWeight:800,color:C.navy}}>Chailease Application</div>
+      <div style={{fontSize:11,color:C.textLight,marginTop:2}}>Customer financing applications submitted to Chailease</div>
+    </div>
     {overdueSubmissions.length>0&&<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:14}}>
       <div style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Not Yet Submitted to Chailease</div>
       {overdueSubmissions.map(a=><div key={a.id} onClick={()=>{setView("detail");setSelectedId(a.id);}} style={{fontSize:12,color:"#DC2626",padding:"3px 0",cursor:"pointer"}}>{a.customerName} — {branchMeta[a.branch]?.name||a.branch} — submitted {daysSince(a.submittedAt)} day{daysSince(a.submittedAt)>1?"s":""} ago, still not sent to Chailease</div>)}
