@@ -861,12 +861,12 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   const [currentEmail,setCurrentEmail]=useState(null);
   useEffect(()=>{supabase.auth.getSession().then(({data})=>setCurrentEmail(data?.session?.user?.email||null));},[]);
   useEffect(()=>{
-    if(!elevateOrderAccess)return;
+    if(!elevateOrderAccess&&!isKnockOff)return;
     supabase.auth.getSession().then(({data})=>{
       const email=data.session?.user?.email;
       if(email)setOrderPermissions(mergeOrderPermissions(email));
     });
-  },[elevateOrderAccess]);
+  },[elevateOrderAccess,isKnockOff]);
 
   useEffect(()=>{
     setLoading(true);setRecords({});
