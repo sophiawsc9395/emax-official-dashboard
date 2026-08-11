@@ -44,11 +44,14 @@ export const ORDER_ROLE_DEFS = {
     visibleSteps: [6, 7, 8, 9, 10, 11, 12, 13],
     reports: ["agreementReceived", "claim", "knockoff", "collectionOverdue"],
   },
-  // Sees every step from Billing Request through Claim Released — never acts
-  // as admin on any of them, purely for pulling the payment/knock-off
-  // reports (which pull from the full order set regardless of card visibility).
+  // Sees every step from Billing Request through Claim Released. Can
+  // directly complete Step 13 (Claim Released) — this is where Knock-off
+  // Date/Amount actually get entered, so without this she could view the
+  // step but never act on it herself, only use the separate bulk report
+  // actions (which pull from the full order set regardless of step-level
+  // admin access).
   knockoff: {
-    adminSteps: [],
+    adminSteps: [13],
     visibleSteps: [6, 7, 8, 9, 10, 11, 12, 13],
     reports: ["upfront", "firstInstallment", "firstInstallmentKnockoff", "knockoff", "cashKnockoff"],
   },
