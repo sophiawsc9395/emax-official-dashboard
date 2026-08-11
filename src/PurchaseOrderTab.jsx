@@ -33,7 +33,7 @@
  */
 import {useState,useEffect,useMemo,useRef} from "react";
 import {loadData,saveData,supabase} from "./storage/index.js";
-import {listOrders,getOrder,getOrderHistory,reconcile,uploadOrderFile} from "./storage/ordersApi.js";
+import {listStockRequestOrders,getOrder,getOrderHistory,reconcile,uploadOrderFile} from "./storage/ordersApi.js";
 
 const SUPP_KEY="emax_v5_purchase_order_supp"; // supplementary data only, keyed by orderId
 
@@ -115,7 +115,7 @@ function getOpenSession(ts){
 // deleted order is never even a candidate — there's no separate cached
 // list that could drift out of sync with reality.
 async function buildLiveList(){
-  const allOrders=await listOrders(null);
+  const allOrders=await listStockRequestOrders();
   const supp=(await loadData(SUPP_KEY))||{};
   // An order still at Step 1 is always relevant — it genuinely needs
   // purchasing. Once it's moved past Step 1, it only belongs here if this
@@ -279,11 +279,17 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   // orders table. No surgical patching of specific fields — a complete
   // rebuild is simpler and structurally can't drift, since it always
   // starts from the same live query used everywhere else on this page.
+  // Debounced (400ms) rather than refreshing on every single event —
+  // without this, a busy day with many staff updating orders at once would
+  // trigger a fresh full-list rebuild for every single change, back to
+  // back, which adds up fast across everyone with this page open.
   useEffect(()=>{
+    let refreshTimer;
+    const scheduleRefresh=()=>{clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>{refresh();},400);};
     const channel=supabase.channel("purchase-order-live")
-      .on("postgres_changes",{event:"*",schema:"public",table:"orders"},()=>{refresh();})
+      .on("postgres_changes",{event:"*",schema:"public",table:"orders"},scheduleRefresh)
       .subscribe();
-    return()=>{supabase.removeChannel(channel);};
+    return()=>{clearTimeout(refreshTimer);supabase.removeChannel(channel);};
   },[]);
 
   // Belt-and-suspenders on top of the live subscription — a browser tab

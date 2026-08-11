@@ -118,6 +118,18 @@ export async function listOrders(branch = null) {
   return (data || []).map(rowToOrder);
 }
 
+// Purchase Order page only ever cares about orders that were originally
+// marked Stock Request — filtering at the database level here (rather than
+// fetching every order that ever existed and filtering client-side, which
+// is what the page used to do) means this stops growing more expensive
+// over time as the orders table accumulates months of unrelated Ready
+// Stock/completed history that this page never displays anyway.
+export async function listStockRequestOrders() {
+  const { data, error } = await supabase.from(ORDERS_TABLE).select("*").eq("stock_status", "stock_request").order("id", { ascending: false });
+  if (error) { console.error("listStockRequestOrders error:", error); return []; }
+  return (data || []).map(rowToOrder);
+}
+
 // Fetch one order's full timeline — called only when opening Order Detail.
 export async function getOrderHistory(orderId) {
   const { data, error } = await supabase
