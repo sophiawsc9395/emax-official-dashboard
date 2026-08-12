@@ -7,6 +7,7 @@ import JCLTab from "../../JCLTab.jsx";
 import ChaileaseTab from "../../ChaileaseTab.jsx";
 import PurchaseOrderTab from "../../PurchaseOrderTab.jsx";
 import DailyPaymentTab from "../../DailyPaymentTab.jsx";
+import StockProfitTab from "../../StockProfitTab.jsx";
 import {SRBMModal,TargetModal,DailyEntry} from "../../App.jsx";
 import { mergeOrderPermissions } from "../../auth/orderRoles.js";
 import { RTOSummaryInner } from "../../RTOSummary.jsx";
@@ -767,7 +768,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   const [selEndDay,setSelEndDay]=useState(daysInMonth(now.getMonth()+1,now.getFullYear()));
   const periodDays=days.filter(d=>d>=selStartDay&&d<=selEndDay);
   const [selBranch,setSelBranch]=useState(BRANCH_ORDER[0]);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto"]:isKnockOff?["overview","report","daily","orders","dailySales","dailyPayment"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications","chaileaseApplications",...(elevateOrderAccess?["purchaseOrder"]:[])];return allowed.includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto"]:isKnockOff?["overview","report","daily","orders","dailySales","dailyPayment"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications","chaileaseApplications","stockProfit",...(elevateOrderAccess?["purchaseOrder"]:[])];return allowed.includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
 
@@ -1096,6 +1097,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
         {id:"jclApplications",label:"JCL Application"},
         {id:"chaileaseApplications",label:"Chailease Application"},
       ]},
+      {id:"stockProfit",label:"Stock Profit Checker"},
     ];
   const [expandedGroups,setExpandedGroups]=useState(()=>{
     const initial={};
@@ -1328,6 +1330,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} canSubmit={false} canVerify={elevateOrderAccess||isKnockOff} email={currentEmail}/></div>}
       {tab==="jclApplications"&&<div className="fade-in"><JCLTab branchMeta={bMeta} isAdmin={elevateOrderAccess} userBranch={null} srList={srList} email={currentEmail}/></div>}
       {tab==="chaileaseApplications"&&<div className="fade-in"><ChaileaseTab branchMeta={bMeta} isAdmin={elevateOrderAccess} userBranch={null} srList={srList} email={currentEmail}/></div>}
+      {tab==="stockProfit"&&<div className="fade-in"><StockProfitTab email={currentEmail}/></div>}
       {tab==="purchaseOrder"&&elevateOrderAccess&&<div className="fade-in"><PurchaseOrderTab branchMeta={bMeta} isAdmin={elevateOrderAccess}/></div>}
       {tab==="dailyPayment"&&isKnockOff&&<div className="fade-in"><DailyPaymentTab email={currentEmail}/></div>}
     </div>{/* end main content */}

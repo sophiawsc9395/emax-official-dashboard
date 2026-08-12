@@ -11,6 +11,7 @@ import JCLTab from "./JCLTab.jsx";
 import ChaileaseTab from "./ChaileaseTab.jsx";
 import PurchaseOrderTab from "./PurchaseOrderTab.jsx";
 import DailyPaymentTab, {KEY as DAILY_PAYMENT_KEY} from "./DailyPaymentTab.jsx";
+import StockProfitTab from "./StockProfitTab.jsx";
 import DailyReportPanel from "./DailyReportPanel.jsx";
 
 const T = {
@@ -2813,6 +2814,7 @@ export default function App(){
       {id:"chaileaseApplications",label:"Chailease Application"},
     ]},
     {id:"dailyPayment",label:"Daily Payment"},
+    {id:"stockProfit",label:"Stock Profit Checker"},
   ];
   const [expandedGroups,setExpandedGroups]=useState(()=>{
     const initial={};
@@ -3066,6 +3068,7 @@ export default function App(){
       {tab==="chaileaseApplications"&&<ChaileaseTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={currentEmail}/>}
       {tab==="purchaseOrder"&&<PurchaseOrderTab branchMeta={branchMeta} isAdmin={true}/>}
       {tab==="dailyPayment"&&<DailyPaymentTab email={currentEmail}/>}
+      {tab==="stockProfit"&&<StockProfitTab email={currentEmail}/>}
 
       </div>{/* end main content */}
 

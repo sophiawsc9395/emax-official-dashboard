@@ -7,6 +7,7 @@ import OrderTab from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
 import JCLTab from "../../JCLTab.jsx";
 import ChaileaseTab from "../../ChaileaseTab.jsx";
+import StockProfitTab from "../../StockProfitTab.jsx";
 
 const BRANCH_ID = "ITCC";
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
@@ -381,7 +382,7 @@ export default function App(){
   const [allSRList,setAllSRList]=useState(DEFAULT_SR); // all branches, for company-wide ranking
   const [bMeta,setBMeta]=useState(DEFAULT_BRANCH_META);
   const [loading,setLoading]=useState(true);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications","chaileaseApplications"].includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications","chaileaseApplications","stockProfit"].includes(h)?h:"overview";});
   const SIDEBAR_STRUCTURE=[
     {id:"overview",label:"Performance"},
     {id:"rankings",label:"Rankings"},
@@ -392,6 +393,7 @@ export default function App(){
       {id:"jclApplications",label:"JCL Application"},
       {id:"chaileaseApplications",label:"Chailease Application"},
     ]},
+    {id:"stockProfit",label:"Stock Profit Checker"},
   ];
   const [expandedGroups,setExpandedGroups]=useState(()=>{
     const initial={};
@@ -628,6 +630,7 @@ export default function App(){
       {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} canSubmit={false} canVerify={false}/></div>}
       {tab==="jclApplications"&&<div className="fade-in"><JCLTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
       {tab==="chaileaseApplications"&&<div className="fade-in"><ChaileaseTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
+      {tab==="stockProfit"&&<div className="fade-in"><StockProfitTab/></div>}
       {tab==="rankings"&&<div className="fade-in" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:20}}>
         <RankingTable title="Branch Manager Ranking" rows={bmRankRows} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
         <RankingTable title="Online SR Ranking — Company" rows={srRankRows.filter(r=>r.type==="Online")} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
