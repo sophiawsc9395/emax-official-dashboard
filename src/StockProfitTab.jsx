@@ -152,6 +152,17 @@ export default function StockProfitTab({email}){
     setData(null);
   };
 
+  const handleRemoveGroup=async(group)=>{
+    if(!isSophia||!data)return;
+    const countInGroup=data.items.filter(i=>i.group===group).length;
+    if(!window.confirm(`Remove all ${countInGroup} item${countInGroup!==1?"s":""} in "${group}"? The rest of the data stays untouched.`))return;
+    const remaining=data.items.filter(i=>i.group!==group);
+    const record={...data,items:remaining,updatedAt:new Date().toISOString(),updatedAtDisplay:nowStamp()};
+    await saveData(KEY,record);
+    setData(record);
+    setGroupFilter("");
+  };
+
   const items=data?.items||[];
   const groups=useMemo(()=>[...new Set(items.map(i=>i.group).filter(Boolean))].sort(),[items]);
 
@@ -245,6 +256,7 @@ export default function StockProfitTab({email}){
               <option value="">All Item Groups</option>
               {groups.map(g=><option key={g} value={g}>{g}</option>)}
             </select>
+            {isSophia&&groupFilter&&<GBtn onClick={()=>handleRemoveGroup(groupFilter)} style={{color:"#DC2626",borderColor:"#FECACA"}}>Remove "{groupFilter}" Group</GBtn>}
           </div>
           <div style={{padding:"0 16px 12px",fontSize:10.5,color:C.textLight}}>
             {results.length} item{results.length!==1?"s":""}{query.trim()||groupFilter?" found":" total"}
