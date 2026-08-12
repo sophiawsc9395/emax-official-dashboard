@@ -62,9 +62,13 @@ function parseStockProfitWorkbook(arrayBuffer){
     if(!row||!row.length)return;
     const first=row[0];
     if(typeof first==="string"&&first.trim()==="Item Group :"){
-      // Every remaining non-null text cell on this row makes up the group
-      // label — the source report sometimes splits it across two cells.
-      currentGroup=row.slice(1).filter(v=>typeof v==="string"&&v.trim()).map(v=>v.trim()).join(" ");
+      // Column index 3 is always a clean, short group code (e.g. "B/TOOTH",
+      // "H/PHONE") — reliable across every group in the source file. The
+      // later text in this row (originally also being pulled in) is
+      // inconsistent: usually a fuller name, but for any group with only
+      // one item it becomes that item's own description instead, which
+      // produced doubled-looking and sometimes outright wrong labels.
+      currentGroup=str(row[3]);
       return;
     }
     const code=row[1];
@@ -120,7 +124,7 @@ export default function StockProfitTab({email}){
   },[]);
 
   const handleUpload=async(file)=>{
-    if(!file)return;
+    if(!file||!isSophia)return;
     setUploading(true);setUploadMsg(null);
     try{
       const buf=await file.arrayBuffer();
@@ -139,6 +143,7 @@ export default function StockProfitTab({email}){
   };
 
   const handleRemove=async()=>{
+    if(!isSophia)return;
     if(!window.confirm("Remove the current Stock Profit data? Everyone will see an empty checker until a new file is uploaded."))return;
     await saveData(KEY,null);
     setData(null);
@@ -182,7 +187,7 @@ export default function StockProfitTab({email}){
       <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,background:C.surface,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
         <div style={{fontSize:11,color:C.textLight}}>
           {data
-            ?<>Last updated <strong style={{color:C.text}}>{data.updatedAtDisplay}</strong> by <strong style={{color:C.text}}>{data.updatedBy}</strong></>
+            ?<>Last updated <strong style={{color:C.text}}>{data.updatedAtDisplay}</strong></>
             :"No data uploaded yet."}
         </div>
         {isSophia&&<div style={{display:"flex",gap:8}}>
