@@ -2210,7 +2210,7 @@ export default function App(){
   const [loading,setLoading]       = useState(true);
   const [tab,setTabRaw]             = useState(()=>{
     const h=window.location.hash.replace("#","");
-    return ["overview","rankings","points","report","daily","repair","rto","orders","dailySales","jclApplications","purchaseOrder"].includes(h)?h:"overview";
+    return ["overview","rankings","points","report","daily","repair","rto","orders","purchaseOrder","dailySales","jclApplications","chaileaseApplications","dailyPayment","stockProfit"].includes(h)?h:"overview";
   });
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen] = useState(false);

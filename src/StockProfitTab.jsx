@@ -102,6 +102,9 @@ export default function StockProfitTab({email}){
   const fileRef=useRef(null);
 
   const isSophia=(email||"").toLowerCase()===SOPHIA_EMAIL;
+  const[unlocked,setUnlocked]=useState(()=>sessionStorage.getItem("emax_stock_profit_unlocked")==="1");
+  const[pwInput,setPwInput]=useState("");
+  const[pwError,setPwError]=useState(false);
 
   useEffect(()=>{
     (async()=>{
@@ -170,11 +173,34 @@ export default function StockProfitTab({email}){
     return r;
   },[items,query,groupFilter,sortKey,sortDir]);
 
-  const shown=results.slice(0,500);
+  const shown=results;
 
   const SortArrow=({active,dir})=><span style={{marginLeft:4,fontSize:9,opacity:active?1:.3}}>{active?(dir==="desc"?"▼":"▲"):"▼"}</span>;
 
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
+
+  if(!unlocked)return<div style={{...card,maxWidth:360,margin:"60px auto",padding:"28px 24px",textAlign:"center"}}>
+    <div style={{fontSize:15,fontWeight:800,color:C.navy,marginBottom:4}}>Stock Profit Checker</div>
+    <div style={{fontSize:12,color:C.textLight,marginBottom:18}}>This page contains sensitive cost and margin data. Enter the password to continue.</div>
+    <input
+      type="password"
+      value={pwInput}
+      onChange={e=>{setPwInput(e.target.value);setPwError(false);}}
+      onKeyDown={e=>{
+        if(e.key!=="Enter")return;
+        if(pwInput==="coffee"){sessionStorage.setItem("emax_stock_profit_unlocked","1");setUnlocked(true);}
+        else{setPwError(true);setPwInput("");}
+      }}
+      placeholder="Password"
+      autoFocus
+      style={{width:"100%",padding:"10px 14px",border:`1.5px solid ${pwError?"#DC2626":C.border}`,borderRadius:8,fontSize:13,boxSizing:"border-box",fontFamily:"Inter,sans-serif",textAlign:"center",marginBottom:10}}
+    />
+    {pwError&&<div style={{fontSize:11,color:"#DC2626",marginBottom:10}}>Incorrect password — please try again.</div>}
+    <PBtn onClick={()=>{
+      if(pwInput==="coffee"){sessionStorage.setItem("emax_stock_profit_unlocked","1");setUnlocked(true);}
+      else{setPwError(true);setPwInput("");}
+    }} style={{width:"100%"}}>Unlock</PBtn>
+  </div>;
 
   return<div
     style={!isSophia?{userSelect:"none",WebkitUserSelect:"none",MozUserSelect:"none"}:{}}
@@ -222,7 +248,6 @@ export default function StockProfitTab({email}){
           </div>
           <div style={{padding:"0 16px 12px",fontSize:10.5,color:C.textLight}}>
             {results.length} item{results.length!==1?"s":""}{query.trim()||groupFilter?" found":" total"}
-            {shown.length<results.length&&` (showing first ${shown.length} — narrow your search or group for more specific results)`}
           </div>
           <div style={{overflowX:"auto",maxHeight:560,overflowY:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12.5,minWidth:640}}>
