@@ -215,7 +215,7 @@ export async function uploadOrderFile(orderId, blob, name) {
   return { name: name || path.split("/").pop(), path };
 }
 
-export async function signFileUrl(path, expiresIn = 60 * 60 * 24) {
+export async function signFileUrl(path, expiresIn = 60 * 60 * 24 * 7) {
   if (!path) return null;
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, expiresIn);
   if (error) { console.error("signFileUrl error:", error); return null; }
@@ -264,7 +264,7 @@ function applySignedUrls(obj, urlByPath) {
 // an order with N files cost N sequential network round-trips (this is what
 // made opening orders at/after Customer Collection — the step with multiple
 // collection-proof photos plus every prior step's files — slow to load).
-export async function signOrderFiles(orderOrHistory, expiresIn = 60 * 60 * 24) {
+export async function signOrderFiles(orderOrHistory, expiresIn = 60 * 60 * 24 * 7) {
   const paths = [];
   const withPlaceholders = collectFileRefs(orderOrHistory, paths);
   if (paths.length === 0) return withPlaceholders;
