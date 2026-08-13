@@ -386,8 +386,10 @@ export default function App(){
   const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications","chaileaseApplications","stockProfit","stockTransfer"].includes(h)?h:"overview";});
   const SIDEBAR_STRUCTURE=[
     {id:"overview",label:"Performance"},
-    {id:"rankings",label:"Rankings"},
-    {id:"points",label:"Reward Point Ranking"},
+    {group:"ranking",label:"Ranking",children:[
+      {id:"rankings",label:"Performance Rankings"},
+      {id:"points",label:"Reward Point Ranking"},
+    ]},
     {id:"orders",label:"Order Request"},
     {id:"dailySales",label:"Daily Sales Report"},
     {group:"ccmApplication",label:"CCM Application",children:[
@@ -924,14 +926,16 @@ export default function App(){
         });
         const branchTWI=branchRows.reduce((s,r)=>s+r.wi,0),branchTAE=branchRows.reduce((s,r)=>s+r.ae,0),branchTUN=branchRows.reduce((s,r)=>s+r.un,0),branchTotal=branchTWI+branchTAE+branchTUN;
         const thS={padding:"6px 12px",fontSize:10,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",whiteSpace:"nowrap"};
-        return<div style={{maxWidth:560,marginTop:16,border:"1px solid #E4EAF2",borderRadius:14,overflow:"hidden",background:"#fff",boxShadow:"0 2px 8px rgba(10,22,40,.06)"}}>
+        return<div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:isMobile?12:16,marginTop:16}}>
+        <div style={{border:"1px solid #E4EAF2",borderRadius:14,overflow:"hidden",background:"#fff",boxShadow:"0 2px 8px rgba(10,22,40,.06)"}}>
           <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"14px 16px"}}>
             <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>EMAX NETWORK SDN BHD</div>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:5,gap:8}}>
               <span style={{fontWeight:800,fontSize:15,color:"#fff"}}>{bMeta[BRANCH_ID]?.name||BRANCH_ID} — Branch Total</span>
             </div>
           </div>
-          <table style={{width:"100%",borderCollapse:"collapse"}}>
+          <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:340}}>
             <thead><tr>
               <th style={{...thS,textAlign:"center",width:48}}>Date</th>
               <th style={{...thS,color:"#4A5568"}}>Unallocated</th>
@@ -950,6 +954,7 @@ export default function App(){
               </tr>;
             })}</tbody>
           </table>
+          </div>
           <div style={{padding:"12px 16px",background:"#F7F9FC",borderTop:"2px solid #E4EAF2"}}>
             {[["Unallocated",fRM(branchTUN)],["Walk In",fRM(branchTWI)],["Invoice",fRM(branchTAE)],["Branch Total",fRM(branchTotal)]].map(([l,v])=>(
               <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",fontSize:11}}>
@@ -958,6 +963,7 @@ export default function App(){
               </div>
             ))}
           </div>
+        </div>
         </div>;
       })()}
 
