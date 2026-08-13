@@ -8,6 +8,7 @@ import DailySalesTab from "../../DailySalesTab.jsx";
 import JCLTab from "../../JCLTab.jsx";
 import ChaileaseTab from "../../ChaileaseTab.jsx";
 import StockProfitTab from "../../StockProfitTab.jsx";
+import StockTransferTab from "../../StockTransferTab.jsx";
 
 const BRANCH_ID = "HQ";
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
@@ -382,7 +383,7 @@ export default function App(){
   const [allSRList,setAllSRList]=useState(DEFAULT_SR); // all branches, for company-wide ranking
   const [bMeta,setBMeta]=useState(DEFAULT_BRANCH_META);
   const [loading,setLoading]=useState(true);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications","chaileaseApplications","stockProfit"].includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications","chaileaseApplications","stockProfit","stockTransfer"].includes(h)?h:"overview";});
   const SIDEBAR_STRUCTURE=[
     {id:"overview",label:"Performance"},
     {id:"rankings",label:"Rankings"},
@@ -394,6 +395,7 @@ export default function App(){
       {id:"chaileaseApplications",label:"Chailease Application"},
     ]},
     {id:"stockProfit",label:"Stock Profit Checker"},
+    {id:"stockTransfer",label:"Stock Transfer"},
   ];
   const [expandedGroups,setExpandedGroups]=useState(()=>{
     const initial={};
@@ -631,6 +633,7 @@ export default function App(){
       {tab==="jclApplications"&&<div className="fade-in"><JCLTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
       {tab==="chaileaseApplications"&&<div className="fade-in"><ChaileaseTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
       {tab==="stockProfit"&&<div className="fade-in"><StockProfitTab/></div>}
+      {tab==="stockTransfer"&&<div className="fade-in"><StockTransferTab canCreate={false} userBranch={BRANCH_ID} branchMeta={bMeta}/></div>}
       {tab==="rankings"&&<div className="fade-in" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:20}}>
         <RankingTable title="Branch Manager Ranking" rows={bmRankRows} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
         <RankingTable title="Online SR Ranking — Company" rows={srRankRows.filter(r=>r.type==="Online")} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
@@ -902,6 +905,61 @@ export default function App(){
   </div>;
         })}
       </div>
+
+      {/* ── BRANCH CARD — day-by-day Walk In / Invoice / Unallocated,
+          aggregated across every SR in this branch plus whatever's logged
+          directly against the Branch Manager. Unallocated is broken out as
+          its own column rather than folded into Walk In, so it's visible
+          how much of the branch's daily profit wasn't attributed to any
+          specific SR — Branch Total still sums all three, matching the
+          same overall total bTotal above already produces. ── */}
+      {(()=>{
+        const branchRows=days.map(d=>{
+          const k=`${d}/${month}/${year}`;
+          const day=records[k]||{};
+          let wi=0,ae=0,un=0;
+          srList.forEach(sr=>{wi+=(day[sr.id]?.walkin||0);ae+=(day[sr.id]?.aeon||0);});
+          wi+=(day[`BM_${BRANCH_ID}`]?.walkin||0);ae+=(day[`BM_${BRANCH_ID}`]?.aeon||0);un+=(day[`BM_${BRANCH_ID}`]?.unalloc||0);
+          return{day:d,wi,ae,un};
+        });
+        const branchTWI=branchRows.reduce((s,r)=>s+r.wi,0),branchTAE=branchRows.reduce((s,r)=>s+r.ae,0),branchTUN=branchRows.reduce((s,r)=>s+r.un,0),branchTotal=branchTWI+branchTAE+branchTUN;
+        const thS={padding:"6px 12px",fontSize:10,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",whiteSpace:"nowrap"};
+        return<div style={{maxWidth:560,marginTop:16,border:"1px solid #E4EAF2",borderRadius:14,overflow:"hidden",background:"#fff",boxShadow:"0 2px 8px rgba(10,22,40,.06)"}}>
+          <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"14px 16px"}}>
+            <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>EMAX NETWORK SDN BHD</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:5,gap:8}}>
+              <span style={{fontWeight:800,fontSize:15,color:"#fff"}}>{bMeta[BRANCH_ID]?.name||BRANCH_ID} — Branch Total</span>
+            </div>
+          </div>
+          <table style={{width:"100%",borderCollapse:"collapse"}}>
+            <thead><tr>
+              <th style={{...thS,textAlign:"center",width:48}}>Date</th>
+              <th style={{...thS,color:"#4A5568"}}>Unallocated</th>
+              <th style={{...thS,color:"#4A5568"}}>Walk In</th>
+              <th style={{...thS,color:"#4A5568"}}>Invoice</th>
+              <th style={{...thS,color:"#4A5568"}}>Total</th>
+            </tr></thead>
+            <tbody>{branchRows.map(({day,wi,ae,un})=>{
+              const rt=wi+ae+un;
+              return<tr key={day} style={{borderBottom:"1px solid rgba(228,234,242,.8)",background:day%2===0?"#fff":"#F7F9FC"}}>
+                <td style={{padding:"4px 8px",color:"#4A5568",fontWeight:600,textAlign:"center",fontSize:11,borderRight:"1px solid rgba(228,234,242,.6)"}}>{day}/{month}</td>
+                <td style={{padding:"4px 12px",textAlign:"right",fontSize:11,color:un!==0?"#4A5568":"#E4EAF2",fontWeight:un!==0?500:300}}>{un!==0?f2(un):"—"}</td>
+                <td style={{padding:"4px 12px",textAlign:"right",fontSize:11,color:wi!==0?"#4A5568":"#E4EAF2",fontWeight:wi!==0?500:300}}>{wi!==0?f2(wi):"—"}</td>
+                <td style={{padding:"4px 12px",textAlign:"right",fontSize:11,color:ae!==0?"#4A5568":"#E4EAF2",fontWeight:ae!==0?500:300}}>{ae!==0?f2(ae):"—"}</td>
+                <td style={{padding:"4px 12px",textAlign:"right",fontWeight:rt!==0?600:300,fontSize:11,color:rt>0?"#0A1628":rt<0?"#F0354B":"#E4EAF2"}}>{rt!==0?f2(rt):"—"}</td>
+              </tr>;
+            })}</tbody>
+          </table>
+          <div style={{padding:"12px 16px",background:"#F7F9FC",borderTop:"2px solid #E4EAF2"}}>
+            {[["Unallocated",fRM(branchTUN)],["Walk In",fRM(branchTWI)],["Invoice",fRM(branchTAE)],["Branch Total",fRM(branchTotal)]].map(([l,v])=>(
+              <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"2px 0",fontSize:11}}>
+                <span style={{color:"#5A6472"}}>{l}</span>
+                <span style={{color:l==="Branch Total"?"#0A1628":"#4A5568",fontWeight:l==="Branch Total"?700:400}}>{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>;
+      })()}
 
       <PdfDownloads month={month} year={year}/>
       </div>}{/* end overview tab */}

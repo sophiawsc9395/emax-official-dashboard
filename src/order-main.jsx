@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import OrderTab from './OrderTab.jsx'
 import DailySalesTab from './DailySalesTab.jsx'
 import PurchaseOrderTab from './PurchaseOrderTab.jsx'
+import StockTransferTab from './StockTransferTab.jsx'
 import AuthGate from './auth/AuthGate.jsx'
 import { mergeOrderPermissions, ORDER_USER_ROLES, getDailySalesAccess } from './auth/orderRoles.js'
 import { supabase, loadData } from './storage/index.js'
@@ -85,7 +86,7 @@ function OrderOnlyApp(){
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTab, setPageTabRaw] = useState(() => {
     const h = window.location.hash.replace('#', '')
-    return ['orders', 'dailySales', 'purchaseOrder'].includes(h) ? h : 'orders'
+    return ['orders', 'dailySales', 'purchaseOrder', 'stockTransfer'].includes(h) ? h : 'orders'
   })
   const setPageTab = (t) => { setPageTabRaw(t); window.location.hash = t }
 
@@ -115,6 +116,8 @@ function OrderOnlyApp(){
   const isSuperAdminForPO = !orderPermissions || orderPermissions.adminSteps === "all"
   const isPurchaseRole = orderPermissions && orderPermissions.adminSteps !== "all" && orderPermissions.adminSteps.includes(2)
   const canSeePurchaseOrder = isSuperAdminForPO || isPurchaseRole
+  const isStockRole = orderPermissions && orderPermissions.adminSteps !== "all" && orderPermissions.adminSteps.includes(4)
+  const canSeeStockTransfer = isSuperAdminForPO || isStockRole
   // Purchase and Stock roles never had step 7 (Billed) in their adminSteps,
   // which is what getDailySalesAccess actually checks for canSubmit — so
   // they were already functionally locked out of doing anything here, just
@@ -148,7 +151,7 @@ function OrderOnlyApp(){
         {/* MAIN CONTENT */}
         <div style={{ flex:1, minWidth:0, padding:"20px", maxWidth:1180 }}>
           <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-            {[["orders","Order Tracking"],...(canSeeDailySales?[["dailySales","Daily Sales Report"]]:[]),...(canSeePurchaseOrder?[["purchaseOrder","Purchase Order"]]:[])].map(([id,label])=>(
+            {[["orders","Order Tracking"],...(canSeeDailySales?[["dailySales","Daily Sales Report"]]:[]),...(canSeePurchaseOrder?[["purchaseOrder","Purchase Order"]]:[]),...(canSeeStockTransfer?[["stockTransfer","Stock Transfer"]]:[])].map(([id,label])=>(
               <button key={id} onClick={()=>setPageTab(id)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${pageTab===id?"#0A1628":"#E4EAF2"}`,background:pageTab===id?"#0A1628":"#fff",color:pageTab===id?"#fff":"#4A5568",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{label}</button>
             ))}
           </div>
@@ -158,6 +161,7 @@ function OrderOnlyApp(){
             return <DailySalesTab branchMeta={branchMeta} isAdmin={isSuperAdminOrder} canSubmit={canSubmit} canVerify={canVerify} email={email} />
           })()}
           {canSeePurchaseOrder && pageTab==="purchaseOrder" && <PurchaseOrderTab branchMeta={branchMeta} isAdmin={true} />}
+          {canSeeStockTransfer && pageTab==="stockTransfer" && <StockTransferTab canCreate={true} branchMeta={branchMeta} email={email} />}
         </div>
 
         {/* SIDEBAR — right side, collapsible, same treatment as the main dashboard's */}

@@ -12,6 +12,7 @@ import ChaileaseTab from "./ChaileaseTab.jsx";
 import PurchaseOrderTab from "./PurchaseOrderTab.jsx";
 import DailyPaymentTab, {KEY as DAILY_PAYMENT_KEY} from "./DailyPaymentTab.jsx";
 import StockProfitTab from "./StockProfitTab.jsx";
+import StockTransferTab from "./StockTransferTab.jsx";
 import DailyReportPanel from "./DailyReportPanel.jsx";
 
 const T = {
@@ -2210,7 +2211,7 @@ export default function App(){
   const [loading,setLoading]       = useState(true);
   const [tab,setTabRaw]             = useState(()=>{
     const h=window.location.hash.replace("#","");
-    return ["overview","rankings","points","report","daily","repair","rto","orders","purchaseOrder","dailySales","jclApplications","chaileaseApplications","dailyPayment","stockProfit"].includes(h)?h:"overview";
+    return ["overview","rankings","points","report","daily","repair","rto","orders","purchaseOrder","dailySales","jclApplications","chaileaseApplications","dailyPayment","stockProfit","stockTransfer"].includes(h)?h:"overview";
   });
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen] = useState(false);
@@ -2815,6 +2816,7 @@ export default function App(){
     ]},
     {id:"dailyPayment",label:"Daily Payment"},
     {id:"stockProfit",label:"Stock Profit Checker"},
+    {id:"stockTransfer",label:"Stock Transfer"},
   ];
   const [expandedGroups,setExpandedGroups]=useState(()=>{
     const initial={};
@@ -3069,6 +3071,7 @@ export default function App(){
       {tab==="purchaseOrder"&&<PurchaseOrderTab branchMeta={branchMeta} isAdmin={true}/>}
       {tab==="dailyPayment"&&<DailyPaymentTab email={currentEmail}/>}
       {tab==="stockProfit"&&<StockProfitTab email={currentEmail}/>}
+      {tab==="stockTransfer"&&<StockTransferTab canCreate={true} branchMeta={branchMeta} email={currentEmail}/>}
 
       </div>{/* end main content */}
 
