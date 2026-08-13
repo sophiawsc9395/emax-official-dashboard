@@ -45,19 +45,23 @@ const Ic={
 const STEP_ICONS={1:Ic.fileText,2:Ic.share2,3:Ic.alertCircle,4:Ic.checkCircle,5:Ic.x};
 const SHORT_LABELS={1:"New App",2:"Submitted",3:"Follow-Up",4:"Approved",5:"Rejected"};
 
-function ProgressBar({step}){
+function ProgressBar({step,history=[]}){
   const pct=Math.round(((Math.min(step,5)-1)/4)*100);
   const cur=stepDef(step);
+  const visibleSteps=STEPS.filter(s=>{
+    const skippedInPast=step>s.step&&!history.some(h=>h.step===s.step);
+    return!skippedInPast;
+  });
   return<div style={{...card,padding:"16px 18px",marginBottom:14}}>
     <div style={{display:"flex",width:"100%"}}>
-      {STEPS.map((s,i)=>{
-        const done=step>s.step,active=step===s.step;
-        return<div key={s.step} style={{flex:i<STEPS.length-1?1:"0 0 auto",display:"flex",flexDirection:"column",alignItems:"flex-start"}}>
+      {visibleSteps.map((s,i)=>{
+        const done=step>s.step&&history.some(h=>h.step===s.step),active=step===s.step;
+        return<div key={s.step} style={{flex:i<visibleSteps.length-1?1:"0 0 auto",display:"flex",flexDirection:"column",alignItems:"flex-start"}}>
           <div style={{display:"flex",alignItems:"center",width:"100%"}}>
             <div style={{width:24,height:24,borderRadius:"50%",background:done?C.navy:active?C.blueBright:"#E4EAF2",border:`2px solid ${done?C.navy:active?C.blueBright:"#E4EAF2"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff",transition:"all .2s"}}>
               {done?<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>:active?<div style={{width:7,height:7,borderRadius:"50%",background:"#fff"}}/>:<span style={{fontSize:8,fontWeight:700,color:C.textLight}}>{i+1}</span>}
             </div>
-            {i<STEPS.length-1&&<div style={{flex:1,height:2,background:done?C.navy:"#E4EAF2",margin:"0 3px",transition:"background .3s"}}/>}
+            {i<visibleSteps.length-1&&<div style={{flex:1,height:2,background:done?C.navy:"#E4EAF2",margin:"0 3px",transition:"background .3s"}}/>}
           </div>
           <div style={{marginTop:5,paddingLeft:1}}>
             <div style={{fontSize:9,fontWeight:700,color:active?C.blue:done?C.textMid:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",lineHeight:1.2,whiteSpace:"nowrap"}}>{SHORT_LABELS[s.step]}</div>
@@ -131,11 +135,27 @@ const DOC_FIELDS=[
 /* ── Timeline ──────────────────────────────────────────────────────────── */
 function Timeline({app}){
   const cur=app.step;
-  return<div>{STEPS.map((s,i)=>{
-    const done=cur>s.step;
+  const hist=app.history||[];
+  // A step only counts as genuinely completed if there's an actual history
+  // entry recording it happened — not just because its step number is
+  // lower than the current one. This workflow branches (step 2 "Submitted
+  // to Chailease" can jump straight to step 5 "Rejected", skipping 3
+  // "Follow-Up Required" and 4 "Approved" entirely). Steps that were
+  // definitively skipped (already in the past, with no history evidence
+  // they ever happened) are left out of the timeline entirely, rather than
+  // shown grayed-out — otherwise a rejected application still looks like
+  // it passed through Follow-Up and Approval first. Steps still ahead in
+  // an in-progress application stay visible as pending, since their
+  // outcome genuinely hasn't been decided yet.
+  const visibleSteps=STEPS.filter(s=>{
+    const skippedInPast=cur>s.step&&!hist.some(h=>h.step===s.step);
+    return!skippedInPast;
+  });
+  return<div>{visibleSteps.map((s,i)=>{
+    const done=cur>s.step&&hist.some(h=>h.step===s.step);
     const active=cur===s.step;
-    const histEntries=(app.history||[]).filter(h=>h.step===s.step);
-    const isLast=i===STEPS.length-1;
+    const histEntries=hist.filter(h=>h.step===s.step);
+    const isLast=i===visibleSteps.length-1;
     return<div key={s.step} style={{display:"flex",position:"relative"}}>
       {!isLast&&<div style={{position:"absolute",left:11,top:24,width:1,height:"calc(100% + 2px)",background:done?C.navy+"30":C.border,zIndex:0}}/>}
       <div style={{flexShrink:0,width:22,height:22,borderRadius:"50%",background:done?C.navy:active?C.blueBright:C.surface,border:`2px solid ${done?C.navy:active?C.blueBright:C.border}`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,marginRight:10,marginTop:1,color:"#fff"}}>
@@ -540,7 +560,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
       <div style={{fontSize:11,color:C.textLight}}>{branchMeta[app.branch]?.name||app.branch} · Submitted {fDate(app.submittedAt)}</div>
     </div>
 
-    <ProgressBar step={app.step}/>
+    <ProgressBar step={app.step} history={app.history||[]}/>
 
     <div style={{...card,marginBottom:14}}>
       <DetailSecHdr>Application &amp; Device</DetailSecHdr>
