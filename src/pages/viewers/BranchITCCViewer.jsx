@@ -935,6 +935,7 @@ export default function App(){
                 <span style={{fontWeight:800,fontSize:15,color:"#fff"}}>{bMeta[BRANCH_ID]?.name||BRANCH_ID} — Branch Total</span>
               </div>
             </div>
+            <div style={{padding:"7px 16px",background:"#0F2040",minHeight:30,boxSizing:"border-box"}}/>
             <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",minWidth:340}}>
               <thead><tr>
