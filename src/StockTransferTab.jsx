@@ -91,6 +91,20 @@ export default function StockTransferTab({canCreate=false,userBranch=null,branch
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
+  // Belt-and-suspenders on top of the live subscription — a browser tab
+  // that's been backgrounded for a while can have its realtime connection
+  // silently drop and miss events entirely (common on mobile, where
+  // backgrounded tabs get suspended). This is the most likely explanation
+  // for an admin needing a manual refresh to see a branch's "Received"
+  // update — refreshing every time this tab becomes visible again closes
+  // that gap without anyone needing to remember to manually reload.
+  useEffect(()=>{
+    const onVisible=()=>{if(document.visibilityState==="visible")load();};
+    document.addEventListener("visibilitychange",onVisible);
+    return()=>document.removeEventListener("visibilitychange",onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
   const save=async(next)=>{
     setTransfers(next);
     await saveData(KEY,next);
