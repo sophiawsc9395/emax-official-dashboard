@@ -1419,7 +1419,7 @@ function FormCard({title,children}){
   </div>;
 }
 
-function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,orderPermissions,email}){
+function OrderForm({order,orders=[],branchMeta,onSave,onCancel,isAdmin,userBranch,srList,orderPermissions,email}){
   const empty={phoneModel:"",branch:userBranch||"KM",merchant:"Aeon",agreementNumber:"",customerName:"",customerIC:"",customerEmail:"",customerHP:"",customerAddress:"",customerPostCode:"",customerCity:"",salesAgentId:"",salesAgentName:"",aeonApprovalDate:"",financePrice:"",deposit:"",stampingFee:"",agreementFee:"",monthlyInstallment:"",retailPrice:"",stockStatus:"stock_request",orderType:"ccm",depositPaymentDate:"",depositPaymentMethod:"RHB",depositSlip:null,pickUpBranch:""};
   const [f,setF]=useState(order?{...order}:empty);
   const [slipFile,setSlipFile]=useState(null);
@@ -1432,8 +1432,13 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
   const REQUIRED=["phoneModel","customerName","salesAgentId","customerIC","customerEmail","customerHP","customerAddress","customerPostCode","customerCity",...(!order?["pickUpBranch"]:[]),...(isCash?["retailPrice","deposit","depositPaymentDate","depositPaymentMethod"]:["merchant","agreementNumber","aeonApprovalDate","financePrice","stampingFee","agreementFee","deposit","monthlyInstallment"])];
   const missing=REQUIRED.filter(k=>!f[k]?.toString().trim());
   const missingSlip=isCash&&!slipFile&&!f.depositSlip;
+  // Duplicate Agreement No. / Case ID No. check — cancelled orders are
+  // excluded since they're voided and the number is free to reuse; the
+  // order currently being edited is excluded from matching itself.
+  const duplicateAgreement=!isCash&&f.agreementNumber?.toString().trim()&&orders.some(o=>!o.cancelled&&o.id!==order?.id&&(o.agreementNumber||"").toString().trim().toLowerCase()===f.agreementNumber.toString().trim().toLowerCase());
   const submit=async()=>{
     if(missing.length||missingSlip){alert("Please fill in all required fields.");return;}
+    if(duplicateAgreement){alert("This Agreement No. / Case ID No. is already used by another order. Please check and enter a unique number.");return;}
     const id=order?.id||Date.now().toString();
     let depositSlip=f.depositSlip||null;
     if(slipFile)depositSlip=await readFile(slipFile,id);
@@ -1531,6 +1536,7 @@ function OrderForm({order,branchMeta,onSave,onCancel,isAdmin,userBranch,srList,o
     {!isCash&&<FormCard title="CCM / Financing Details">
       <div><L req>Merchant</L><SEL value={f.merchant} onChange={e=>set("merchant",e.target.value)} disabled={isFieldLocked("merchant")} style={isFieldLocked("merchant")?lockedStyle:{}}>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
       {row("agreementNumber","Agreement No. / Case ID No.","text",true)}
+      {duplicateAgreement&&<div style={{gridColumn:"1/-1",fontSize:11,color:"#DC2626",marginTop:-10}}>This Agreement No. / Case ID No. is already used by another order.</div>}
       {row("aeonApprovalDate","Merchant Approval Date","date",true)}
       {row("financePrice","Finance Price (RM)","number",true)}
       {row("stampingFee","Stamping Fee (RM)","number",true)}
@@ -2309,7 +2315,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     if(!live)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading order…</div>;
     return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} orderPermissions={orderPermissions} userBranch={userBranch} email={email} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
   }
-  if(view==="form")return<OrderForm order={editOrder} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} orderPermissions={orderPermissions} email={email} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
+  if(view==="form")return<OrderForm order={editOrder} orders={orders} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} orderPermissions={orderPermissions} email={email} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
   return<div className="fade-in">
     {showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}
@@ -2517,7 +2523,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       const upfront2Pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.secondPaymentAmount)>0&&!o.upfront2KnockOffDate);
       const claimPending=orders.filter(o=>!o.cancelled&&o.knockOffDate&&!o.claimReportKnockOffDate);
       const depositPending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&o.depositPaymentDate&&!o.cashDepositKnockOffDate);
-      const balancePending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!o.cashBalanceKnockOffDate);
+      const balancePending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&parseFloat(o.lastVerification?.monthlyInstallment)>0&&!o.cashBalanceKnockOffDate);
       const totalPending=upfront1Pending.length+upfront2Pending.length+claimPending.length+depositPending.length+balancePending.length;
       if(!totalPending)return null;
       // Small colored pill for an amount — badge style, so different amount
@@ -2592,7 +2598,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             const h=o.lastVerification;
             return<Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,cashBalanceKnockOffDate:nowDate()}])}]}
               meta={[o.invoiceNo||"—",h?.upfrontPaymentDate?`Balance Date: ${fDate(h.upfrontPaymentDate)}`:null,h?.paymentMethod?`Method: ${h.paymentMethod}`:null].filter(Boolean).join(" · ")}
-              amounts={<AmtBadge label="Amount" value={parseFloat(h?.paymentProofAmount)||0} bg="#FFFBEB" fg="#B45309"/>}/>;
+              amounts={<AmtBadge label="Amount" value={parseFloat(h?.monthlyInstallment)||0} bg="#FFFBEB" fg="#B45309"/>}/>;
           }}/>
         </div>}
       </div>;
