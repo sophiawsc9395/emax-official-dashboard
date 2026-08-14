@@ -77,13 +77,20 @@ function parseStockProfitWorkbook(arrayBuffer){
     if(code===null||code===undefined||code==="")return;
     if(typeof code==="string"&&code.trim()==="Item Code")return;
     const desc=str(row[5])||str(code);
+    const cost=num(row[10]);
+    const price=num(row[13]);
+    // Profit and Profit% are no longer read from the file — always
+    // computed from Cost and Price, so they can never drift out of sync
+    // with whatever cost/price actually got imported.
+    const profit=price-cost;
+    const pct=price!==0?(profit/price)*100:0;
     items.push({
       code:str(code),
       desc,
-      cost:num(row[10]),
-      price:num(row[13]),
-      profit:num(row[18]),
-      pct:num(row[25])*100,
+      cost,
+      price,
+      profit,
+      pct,
       group:currentGroup,
     });
   });
