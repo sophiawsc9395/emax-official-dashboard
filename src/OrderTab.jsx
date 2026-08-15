@@ -1633,7 +1633,7 @@ function getOrderAlerts(orders,userBranch=null){
   });
   return alerts;
 }
-function AlertBanner({alerts,onClickOrder}){
+function AlertBanner({alerts,isAdmin,onClickOrder}){
   const isMobile=useIsMobile();
   if(!alerts.length)return null;
   const expired=alerts.filter(a=>a.type==="approval_expired");
@@ -1643,13 +1643,20 @@ function AlertBanner({alerts,onClickOrder}){
   const cashBalanceOverdue=alerts.filter(a=>a.type==="cash_balance_payment_overdue");
   const merchantRejected=alerts.filter(a=>a.type==="merchant_rejected");
   const agreementReceivedOverdue=alerts.filter(a=>a.type==="agreement_received_overdue");
-  const Block=({items,color,title})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
-    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
+  // Approval Warning starts collapsed on the admin order page (there's
+  // usually a lot of them, and admin has plenty else to look at) but
+  // starts expanded on a branch's own view (a short, directly relevant
+  // list they should see right away). Urgent Attention — and every other
+  // alert block — has no collapse toggle at all, always fully expanded.
+  const [warningExpanded,setWarningExpanded]=useState(!isAdmin);
+  const Block=({items,color,title,collapsible,expanded,onToggle})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
+    <div onClick={collapsible?onToggle:undefined} style={{display:"flex",alignItems:"center",gap:8,marginBottom:collapsible&&!expanded?0:9,cursor:collapsible?"pointer":"default",userSelect:collapsible?"none":"auto"}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
       <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>{title}</span>
       <span style={{fontSize:10,fontWeight:700,color,background:color+"15",padding:"1px 8px",borderRadius:20}}>{items.length}</span>
+      {collapsible&&<span style={{marginLeft:"auto",color,transition:"transform .15s",transform:expanded?"rotate(180deg)":"none"}}>{Ic.chevDown}</span>}
     </div>
-    {items.map((a,i)=><div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:isMobile?"flex-start":"center",gap:isMobile?3:10,padding:"8px 4px",borderTop:i>0?`1px solid ${C.border}`:"none",cursor:onClickOrder?"pointer":"default"}}>
+    {(!collapsible||expanded)&&items.map((a,i)=><div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:isMobile?"flex-start":"center",gap:isMobile?3:10,padding:"8px 4px",borderTop:i>0?`1px solid ${C.border}`:"none",cursor:onClickOrder?"pointer":"default"}}>
       <div style={isMobile?{minWidth:0}:{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
         <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.phoneModel}</div>
         <div style={{fontSize:11,color:C.textLight}}>{a.customerName} · {a.branch}</div>
@@ -1664,7 +1671,7 @@ function AlertBanner({alerts,onClickOrder}){
     <Block items={cashBalanceOverdue} color="#7C3AED" title="Cash Balance Payment Slip Overdue"/>
     <Block items={merchantRejected} color="#DC2626" title="Merchant Rejected"/>
     <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out"/>
-    <Block items={warning} color="#B45309" title="Approval Warning"/>
+    <Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={warningExpanded} onToggle={()=>setWarningExpanded(p=>!p)}/>
   </div>;
 }
 
@@ -2345,7 +2352,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     </div>
 
     {/* Alerts */}
-    <AlertBanner alerts={alerts} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
+    <AlertBanner alerts={alerts} isAdmin={isAdmin} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
 
     {(()=>{
       const outOfStockUnacked=cancelledOrders.filter(o=>o.outOfStock&&!(o.outOfStockAckAdmin&&o.outOfStockAckBranch));

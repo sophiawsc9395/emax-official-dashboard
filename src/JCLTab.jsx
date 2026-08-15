@@ -19,7 +19,7 @@ import {loadData,saveData} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl,reconcile} from "./storage/ordersApi.js";
 import {CHAILEASE_KEY} from "./ChaileaseTab.jsx";
 
-const JCL_KEY="emax_v5_jcl_applications";
+export const JCL_KEY="emax_v5_jcl_applications";
 
 const STEPS=[
   {step:1,label:"New Application",color:"#1D4ED8",bg:"#EFF6FF"},
@@ -97,7 +97,8 @@ const PBtn=({children,disabled,...p})=><button disabled={disabled} {...p} style=
 const GBtn=({children,...p})=><button {...p} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"8px 14px",background:"transparent",color:C.textMid,border:`1px solid ${C.border}`,borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif",transition:"all .15s",...(p.style||{})}}>{children}</button>;
 const DBtnLocal=({children,...p})=><button {...p} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 16px",background:"transparent",color:"#DC2626",border:"1px solid rgba(220,38,38,.3)",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"Inter,sans-serif",opacity:p.disabled?.5:1,...(p.style||{})}}>{children}</button>;
 
-function StepBadge({step}){
+function StepBadge({app,step}){
+  if(app&&app.step===1&&app.amendmentRequestedDate&&!app.amendmentRespondedDate)return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:"#FFFBEB",color:"#B45309",whiteSpace:"nowrap"}}>Amendment Requested</span>;
   const d=stepDef(step);
   return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:d.bg,color:d.color,whiteSpace:"nowrap"}}>{d.label}</span>;
 }
@@ -237,12 +238,19 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
       submittedAt:nowDate(),submittedTime:nowTime(),
       submittedToJCLDate:null,followUpRemark:null,followUpRequestedDate:null,
       followUpResponseFiles:[],followUpRespondedDate:null,
+      amendmentRemark:null,amendmentRequestedDate:null,amendmentRespondedDate:null,
       approvedDate:null,approvedRemark:null,rejectedDate:null,rejectedRemark:null,
       linkedOrderId:null,history:[{step:1,date:nowDate(),time:nowTime(),note:"New Application submitted"}],
     };
+    // If this application had a pending amendment request (branch fixing
+    // wrong details before admin ever submitted to JCL), resubmitting here
+    // clears that pending state so it goes back to admin as a normal new
+    // application, ready for Submit to JCL again.
+    const hadPendingAmendment=editingApp?.amendmentRequestedDate&&!editingApp?.amendmentRespondedDate;
     const app={
       ...base,id,...f,financePrice:parseFloat(f.financePrice)||0,...uploadedDocs,
-      history:editingApp?[...(editingApp.history||[]),{step:editingApp.step,date:nowDate(),time:nowTime(),note:"Application details edited"}]:base.history,
+      ...(hadPendingAmendment?{amendmentRespondedDate:nowDate()}:{}),
+      history:editingApp?[...(editingApp.history||[]),{step:editingApp.step,date:nowDate(),time:nowTime(),note:hadPendingAmendment?"Application corrected and resubmitted":"Application details edited"}]:base.history,
     };
     await onSaved(app);
     setSaving(false);
@@ -271,7 +279,7 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     </FormCard>
 
     <FormCard title="Personal Details">
-      <div><L req>Customer IC</L><I value={f.customerIC} onChange={e=>set("customerIC",e.target.value)} placeholder="e.g. 900101-12-3456"/></div>
+      <div><L req>Customer IC</L><I value={f.customerIC} onChange={e=>set("customerIC",e.target.value.replace(/\D/g,""))} placeholder="e.g. 900101123456" inputMode="numeric"/></div>
       <div><L req>Race</L><SEL value={f.race} onChange={e=>set("race",e.target.value)}>{["Chinese","Indian","Malay","Other"].map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Gender</L><SEL value={f.gender} onChange={e=>set("gender",e.target.value)}>{["Male","Female"].map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Residency Status</L><SEL value={f.residencyStatus} onChange={e=>set("residencyStatus",e.target.value)}>{["Bumiputera","Non-Bumiputera"].map(x=><option key={x}>{x}</option>)}</SEL></div>
@@ -374,6 +382,8 @@ function FollowUpResponseBox({app,onSaved}){
 function AdminActions({app,onSaved,onCreateOrder}){
   const [showFollowUp,setShowFollowUp]=useState(false);
   const [followUpRemark,setFollowUpRemark]=useState("");
+  const [showAmendment,setShowAmendment]=useState(false);
+  const [amendmentRemark,setAmendmentRemark]=useState("");
   const [showApprove,setShowApprove]=useState(false);
   const [approvedRemark,setApprovedRemark]=useState("");
   const [agreementNumber,setAgreementNumber]=useState(app.agreementNumber||"");
@@ -405,6 +415,13 @@ function AdminActions({app,onSaved,onCreateOrder}){
     await onSaved({...app,step:3,followUpRemark,followUpRequestedDate:nowDate(),followUpRespondedDate:null,
       history:[...(app.history||[]),{step:3,date:nowDate(),time:nowTime(),note:`Follow-up requested: ${followUpRemark}`}]});
     setSaving(false);setShowFollowUp(false);setFollowUpRemark("");
+  };
+  const requestAmendment=async()=>{
+    if(!amendmentRemark.trim()){alert("Remark required.");return;}
+    setSaving(true);
+    await onSaved({...app,amendmentRemark,amendmentRequestedDate:nowDate(),amendmentRespondedDate:null,
+      history:[...(app.history||[]),{step:1,date:nowDate(),time:nowTime(),note:`Amendment requested: ${amendmentRemark}`}]});
+    setSaving(false);setShowAmendment(false);setAmendmentRemark("");
   };
   const approveMissing=!agreementNumber.trim()||!merchantApprovalDate||!approveFinancePrice.toString().trim()||!agreementFee.toString().trim()||!stampingFee.toString().trim()||!deposit.toString().trim()||!approveTenure||!monthlyInstallment.toString().trim()||!jclApplicationForm||!jclNotice1||!jclAgreementJCLCopy||!jclAgreementCustomerCopy||!jclCreditAckForm;
   const approve=async()=>{
@@ -446,8 +463,25 @@ function AdminActions({app,onSaved,onCreateOrder}){
     <div style={{fontSize:12,color:"#B45309"}}>Waiting on branch to respond to this follow-up request.</div>
   </ActionBox>;
 
+  if(app.step===1&&app.amendmentRequestedDate&&!app.amendmentRespondedDate)return<ActionBox title="Amendment Requested" desc={`What needs fixing: ${app.amendmentRemark}`}>
+    <div style={{fontSize:12,color:"#B45309"}}>Waiting on branch to correct and resubmit this application.</div>
+  </ActionBox>;
+
   if(app.step===1)return<ActionBox title="Next: Submit to JCL" desc="New application ready to be submitted to JCL for review.">
-    <PBtn onClick={submitToJCL} disabled={saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Submit to JCL"}</PBtn>
+    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {!showAmendment&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <PBtn onClick={submitToJCL} disabled={saving} style={{flex:1,justifyContent:"center"}}>{saving?"Saving…":"Submit to JCL"}</PBtn>
+        <GBtn onClick={()=>setShowAmendment(true)} style={{fontSize:12,color:"#B45309",borderColor:"#FDE68A"}}>Request Amendment</GBtn>
+      </div>}
+      {showAmendment&&<div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:10}}>
+        <L req>Amendment Remark (what's wrong / needs fixing)</L>
+        <TX rows={2} value={amendmentRemark} onChange={e=>setAmendmentRemark(e.target.value)} style={{marginBottom:8}}/>
+        <div style={{display:"flex",gap:8}}>
+          <GBtn onClick={()=>{setShowAmendment(false);setAmendmentRemark("");}} style={{fontSize:11,padding:"6px 12px"}}>Cancel</GBtn>
+          <PBtn onClick={requestAmendment} disabled={saving} style={{fontSize:11,padding:"6px 12px",background:"#B45309",boxShadow:"none"}}>{saving?"Saving…":"Confirm"}</PBtn>
+        </div>
+      </div>}
+    </div>
   </ActionBox>;
 
   // step 2, or step 3 with a branch response already in — either way it's
@@ -549,7 +583,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
         <GBtn onClick={copyLink}>{linkCopied?<>{Ic.checkCircle} Copied!</>:<>{Ic.share} Copy Link</>}</GBtn>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <StepBadge step={app.step}/>
+        <StepBadge app={app} step={app.step}/>
         {isAdmin&&<GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>}
         {canDelete&&<DBtnLocal onClick={onDelete}>{Ic.trash} Delete</DBtnLocal>}
       </div>
@@ -671,7 +705,11 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
       <div>
         {isAdmin&&<AdminActions app={app} onSaved={onSaved} onCreateOrder={onCreateOrder}/>}
         {!isAdmin&&app.step===3&&!app.followUpRespondedDate&&<FollowUpResponseBox app={app} onSaved={onSaved}/>}
-        {!isAdmin&&!(app.step===3&&!app.followUpRespondedDate)&&<ActionBox title="Action">
+        {!isAdmin&&app.step===1&&app.amendmentRequestedDate&&!app.amendmentRespondedDate&&<ActionBox title="Amendment Requested" desc={`What needs fixing: ${app.amendmentRemark}`}>
+          <div style={{fontSize:12,color:C.textMid,marginBottom:8}}>Please correct the application details, then save to resubmit.</div>
+          <PBtn onClick={onEdit} style={{width:"100%",justifyContent:"center"}}>Edit Application</PBtn>
+        </ActionBox>}
+        {!isAdmin&&!(app.step===3&&!app.followUpRespondedDate)&&!(app.step===1&&app.amendmentRequestedDate&&!app.amendmentRespondedDate)&&<ActionBox title="Action">
           <div style={{fontSize:12,color:C.textLight}}>No action needed from your side right now — admin handles the rest of this application.</div>
         </ActionBox>}
       </div>
@@ -816,6 +854,7 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
   },[scoped]);
 
   const needsBranchAction=useMemo(()=>userBranch?apps.filter(a=>a.branch===userBranch&&a.step===3&&!a.followUpRespondedDate):[],[apps,userBranch]);
+  const needsAmendment=useMemo(()=>userBranch?apps.filter(a=>a.branch===userBranch&&a.step===1&&a.amendmentRequestedDate&&!a.amendmentRespondedDate):[],[apps,userBranch]);
 
   // Alert — admin hasn't submitted to JCL within 1 day of the branch's New
   // Application. Clears itself the moment it actually gets submitted
@@ -857,6 +896,21 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
       </div>)}
     </div>}
 
+    {needsAmendment.length>0&&<div style={{...card,borderLeft:"3px solid #B91C1C",padding:"12px 14px",marginBottom:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
+        <span style={{color:"#B91C1C",flexShrink:0}}>{Ic.alertCircle}</span>
+        <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Amendment Needed From You</span>
+        <span style={{fontSize:10,fontWeight:700,color:"#B91C1C",background:"#B91C1C15",padding:"1px 8px",borderRadius:20}}>{needsAmendment.length}</span>
+      </div>
+      {needsAmendment.map((a,i)=><div key={a.id} onClick={()=>{setView("detail");setSelectedId(a.id);}} style={{display:"flex",flexDirection:"row",justifyContent:"space-between",alignItems:"center",gap:10,padding:"8px 4px",borderTop:i>0?`1px solid ${C.border}`:"none",cursor:"pointer"}}>
+        <div style={{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.customerName}</div>
+          <div style={{fontSize:11,color:C.textLight}}>{a.phoneModel} · {branchMeta[a.branch]?.name||a.branch}</div>
+        </div>
+        <span style={{fontSize:11,color:"#B91C1C",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{a.amendmentRemark}</span>
+      </div>)}
+    </div>}
+
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:14}}>
       {STEPS.map(s=>{
         const active=stepFilter===s.step;
@@ -895,7 +949,7 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
               <div style={{fontSize:13,fontWeight:700,color:C.text}}>{a.customerName} <span style={{fontWeight:500,color:C.textLight,fontSize:11}}>· {branchMeta[a.branch]?.name||a.branch} · {fDate(a.submittedAt)}</span></div>
               <div style={{fontSize:11,color:C.textMid,marginTop:3}}>{a.phoneModel} · {fRM(a.financePrice)} · IC {a.customerIC} · {a.customerHP} · Agent: {a.salesAgentName||a.salesAgentId||"—"}</div>
             </div>
-            <StepBadge step={a.step}/>
+            <StepBadge app={a} step={a.step}/>
           </div>
         </div>)}</div>}
     </div>
