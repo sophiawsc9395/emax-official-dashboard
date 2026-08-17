@@ -1521,9 +1521,9 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
           const bm=localBM[b];
           return <div key={b} style={{marginBottom:20,border:"1px solid #E4EAF2",borderRadius:14,overflow:"hidden",boxShadow:"0 1px 3px rgba(10,22,40,.05)"}}>
             {/* Branch header */}
-            <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"12px 18px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontWeight:800,fontSize:14,color:"#fff"}}>{branchMeta[b]?.name||b}</div>
-              <div style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>{active.length} SR{active.length!==1?"s":""}</div>
+            <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"12px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+              <input value={bm?.name||branchMeta[b]?.name||b} onChange={e=>setLocalBM(p=>({...p,[b]:{...p[b],name:e.target.value}}))} onBlur={saveBM} readOnly={hrLocked} style={{fontWeight:800,fontSize:14,color:"#fff",border:"none",background:"transparent",padding:"2px 0",flex:1,minWidth:0}}/>
+              <div style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em",whiteSpace:"nowrap"}}>{active.length} SR{active.length!==1?"s":""}</div>
             </div>
 
             {/* BM card */}
