@@ -15,7 +15,7 @@
  * this ships without any manual Supabase schema migration.
  */
 import {useState,useEffect,useMemo} from "react";
-import {loadData,saveData} from "./storage/index.js";
+import {loadData,saveData,supabase} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl,reconcile} from "./storage/ordersApi.js";
 
 export const CHAILEASE_KEY="emax_v5_chailease_applications";
@@ -730,6 +730,19 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
 
   useEffect(()=>{loadData(CHAILEASE_KEY).then(d=>{setApps(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>setLoading(false));},[]);
 
+  // Keeps the displayed list current without needing a manual refresh —
+  // complements the re-fetch-before-save fix in save()/deleteApp() below,
+  // which is what actually prevents data loss; this just keeps what's
+  // shown on screen from drifting stale in the meantime.
+  useEffect(()=>{
+    const channel=supabase.channel("chailease-applications-live")
+      .on("postgres_changes",{event:"*",schema:"public",table:"app_storage",filter:`key=eq.${CHAILEASE_KEY}`},()=>{
+        loadData(CHAILEASE_KEY).then(d=>{if(Array.isArray(d))setApps(d);});
+      })
+      .subscribe();
+    return()=>{supabase.removeChannel(channel);};
+  },[]);
+
   // Shared link support — "?chaileaseId=..." in the URL (from the Copy Link
   // button on an application's detail page) opens straight to it, for
   // whoever opens it (their own access rights/branch filtering still apply
@@ -748,14 +761,22 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
   },[loading]);
 
   const save=async(updated)=>{
-    const next=[...apps.filter(a=>a.id!==updated.id),updated].sort((a,b)=>b.submittedAt.localeCompare(a.submittedAt));
+    // Re-fetch the latest data right before merging, rather than trusting
+    // local React state — apps only loads once on page open, so a page
+    // left open for a while would have a stale copy missing anything
+    // submitted by any branch since. Building the saved array from that
+    // stale copy would silently overwrite and permanently erase those
+    // in-between submissions.
+    const latest=(await loadData(CHAILEASE_KEY))||apps;
+    const next=[...latest.filter(a=>a.id!==updated.id),updated].sort((a,b)=>b.submittedAt.localeCompare(a.submittedAt));
     setApps(next);
     await saveData(CHAILEASE_KEY,next);
   };
 
   const deleteApp=async(id)=>{
     if(!window.confirm("Delete this application permanently? This cannot be undone."))return;
-    const next=apps.filter(a=>a.id!==id);
+    const latest=(await loadData(CHAILEASE_KEY))||apps;
+    const next=latest.filter(a=>a.id!==id);
     setApps(next);
     await saveData(CHAILEASE_KEY,next);
     setView("list");setSelectedId(null);

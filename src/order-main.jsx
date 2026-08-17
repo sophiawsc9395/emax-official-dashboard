@@ -66,7 +66,7 @@ const CSS = `
 
 const DEFAULT_BRANCH_META = {
   KM:{name:"EMAX Kota Marudu",manager:"SUHAINIZAM",mStatus:"Confirmed (P5 F0)"},
-  T1:{name:"EMAX Tuaran",manager:"REX WENMIN",mStatus:"Confirmed (P5 F0)"},
+  T1:{name:"EMAX Tuaran 1",manager:"REX WENMIN",mStatus:"Confirmed (P5 F0)"},
   TW2:{name:"EMAX Tawau 2",manager:"TONY YONG",mStatus:"Confirmed (P5 F0)"},
   TW1:{name:"EMAX Tawau 1",manager:"MAX SIEW",mStatus:"Director"},
   LD:{name:"EMAX Lahad Datu",manager:"SHAHRUL",mStatus:"Confirmed (P3 F0)"},
