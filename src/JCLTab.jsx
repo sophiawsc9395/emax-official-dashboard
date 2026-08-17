@@ -135,9 +135,8 @@ const DOC_FIELDS=[
 ];
 
 // ── IC photo OCR verification ────────────────────────────────────────────
-// Loads Tesseract.js from CDN on demand — same pattern already used
-// elsewhere in this app for other client-side libraries (pdf.js,
-// html2canvas). Runs entirely in the browser, no backend needed.
+// Loads Tesseract.js from CDN on demand. Runs entirely in the browser, no
+// backend needed.
 let tesseractLoadPromise=null;
 function loadTesseract(){
   if(window.Tesseract)return Promise.resolve(window.Tesseract);
@@ -152,6 +151,179 @@ function loadTesseract(){
   return tesseractLoadPromise;
 }
 
+// Loads jsPDF from CDN on demand — same pattern as loadTesseract above.
+let jsPdfLoadPromise=null;
+function loadJsPdf(){
+  if(window.jspdf?.jsPDF)return Promise.resolve(window.jspdf.jsPDF);
+  if(jsPdfLoadPromise)return jsPdfLoadPromise;
+  jsPdfLoadPromise=new Promise((res,rej)=>{
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    s.onload=()=>res(window.jspdf.jsPDF);
+    s.onerror=rej;
+    document.head.appendChild(s);
+  });
+  return jsPdfLoadPromise;
+}
+
+// Loads PDF.js from CDN on demand — used to render an uploaded PDF's first
+// page down to a canvas/image, so it can be merged the same way a photo
+// would be, regardless of what file type the branch actually uploaded.
+let pdfJsLoadPromise=null;
+function loadPdfJs(){
+  if(window.pdfjsLib)return Promise.resolve(window.pdfjsLib);
+  if(pdfJsLoadPromise)return pdfJsLoadPromise;
+  pdfJsLoadPromise=new Promise((res,rej)=>{
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    s.onload=()=>{
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      res(window.pdfjsLib);
+    };
+    s.onerror=rej;
+    document.head.appendChild(s);
+  });
+  return pdfJsLoadPromise;
+}
+
+// Loads JSZip from CDN on demand — same pattern as the loaders above. Used
+// to bundle multiple documents into a single downloadable .zip.
+let jsZipLoadPromise=null;
+function loadJsZip(){
+  if(window.JSZip)return Promise.resolve(window.JSZip);
+  if(jsZipLoadPromise)return jsZipLoadPromise;
+  jsZipLoadPromise=new Promise((res,rej)=>{
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    s.onload=()=>res(window.JSZip);
+    s.onerror=rej;
+    document.head.appendChild(s);
+  });
+  return jsZipLoadPromise;
+}
+
+function loadImageEl(url){
+  return new Promise((res,rej)=>{
+    const img=new Image();
+    img.crossOrigin="anonymous";
+    img.onload=()=>res(img);
+    img.onerror=rej;
+    img.src=url;
+  });
+}
+
+// Renders a PDF file's first page to a canvas at a reasonably high
+// resolution (2x scale, roughly print quality) so it can be embedded into
+// the merged PDF the same way a photo would be.
+async function renderPdfFirstPageToCanvas(url){
+  const pdfjsLib=await loadPdfJs();
+  const pdf=await pdfjsLib.getDocument(url).promise;
+  const page=await pdf.getPage(1);
+  const viewport=page.getViewport({scale:2});
+  const canvas=document.createElement("canvas");
+  canvas.width=viewport.width;
+  canvas.height=viewport.height;
+  await page.render({canvasContext:canvas.getContext("2d"),viewport}).promise;
+  return canvas;
+}
+
+// Merges the IC Front and IC Back photos into a single PDF document object
+// — each one gets its own A4 page, scaled to fit while keeping its
+// original aspect ratio (not stretched/distorted). Works no matter what
+// file type was actually uploaded for each slot (PDF, PNG, JPG, JPEG) — a
+// PDF upload's first page gets rendered to a canvas first via PDF.js, then
+// handled identically to a photo from that point on. Returns the jsPDF
+// document object itself (not yet saved/downloaded) plus which parts, if
+// any, couldn't be included — reused by both the standalone "Download IC
+// PDF" button and the bulk "Download All Documents" zip.
+async function buildIcPdfDoc(frontUrl,frontName,backUrl,backName){
+  const jsPDF=await loadJsPdf();
+  const doc=new jsPDF({unit:"mm",format:"a4"});
+  const pageW=210,pageH=297,margin=10;
+  let addedAny=false;
+  let skipped=[];
+  const addPhotoPage=async(url,name,label,isFirst)=>{
+    if(!url){skipped.push(label);return;}
+    try{
+      const isPdf=/\.pdf$/i.test(name||"");
+      const source=isPdf?await renderPdfFirstPageToCanvas(url):await loadImageEl(url);
+      if(!isFirst)doc.addPage();
+      const availW=pageW-margin*2,availH=pageH-margin*2-10;
+      const scale=Math.min(availW/source.width,availH/source.height);
+      const w=source.width*scale,h=source.height*scale;
+      const x=(pageW-w)/2,y=margin+10;
+      doc.setFontSize(11);
+      doc.text(label,margin,margin+5);
+      // A rendered PDF-page canvas is always embedded as PNG (lossless,
+      // and canvas.toDataURL defaults to PNG); an actual photo upload
+      // keeps its own real format so it isn't needlessly re-encoded.
+      const fmt=isPdf?"PNG":(/\.png$/i.test(name||"")?"PNG":"JPEG");
+      doc.addImage(source,fmt,x,y,w,h);
+      addedAny=true;
+    }catch(e){
+      skipped.push(`${label} (couldn't load)`);
+    }
+  };
+  await addPhotoPage(frontUrl,frontName,"IC Front",true);
+  await addPhotoPage(backUrl,backName,"IC Back",!addedAny);
+  return{doc,addedAny,skipped};
+}
+
+async function downloadIcPdf(frontUrl,frontName,backUrl,backName,customerName){
+  const{doc,addedAny,skipped}=await buildIcPdfDoc(frontUrl,frontName,backUrl,backName);
+  if(!addedAny)return{ok:false,skipped};
+  doc.save(`${(customerName||"customer").replace(/[^a-zA-Z0-9]+/g,"_")}_IC.pdf`);
+  return{ok:true,skipped};
+}
+
+// Bundles the IC Front + Back (merged into one PDF, reusing the exact
+// same logic as the standalone IC download above), Latest Salary Slip,
+// EPF Statement, and Latest Bank Statement into a single downloadable
+// .zip — the other three documents are kept in whatever format they were
+// actually uploaded in (no conversion needed, they're not being merged
+// with anything). Zip file is named after the customer's full name.
+async function downloadAllDocuments(app,fileUrls){
+  const[JSZip,icResult]=await Promise.all([
+    loadJsZip(),
+    buildIcPdfDoc(fileUrls[`${app.id}_icFrontFile`],app.icFrontFile?.name,fileUrls[`${app.id}_icBackFile`],app.icBackFile?.name),
+  ]);
+  const zip=new JSZip();
+  const skipped=icResult.skipped.map(s=>`IC: ${s}`);
+  if(icResult.addedAny)zip.file("IC Front and Back.pdf",icResult.doc.output("blob"));
+  else skipped.push("IC PDF (neither photo could be loaded)");
+
+  const otherDocs=[
+    {key:"salarySlipFile",label:"Latest Salary Slip"},
+    {key:"epfStatementFile",label:"EPF Statement"},
+    {key:"bankStatementFile",label:"Latest Bank Statement"},
+  ];
+  for(const{key,label} of otherDocs){
+    const url=fileUrls[`${app.id}_${key}`];
+    const fileMeta=app[key];
+    if(!url||!fileMeta){skipped.push(`${label} (not uploaded)`);continue;}
+    try{
+      const res=await fetch(url);
+      if(!res.ok)throw new Error("fetch failed");
+      const blob=await res.blob();
+      const ext=(fileMeta.name.match(/\.[a-zA-Z0-9]+$/)||[".pdf"])[0];
+      zip.file(`${label}${ext}`,blob);
+    }catch(e){
+      skipped.push(`${label} (couldn't load)`);
+    }
+  }
+
+  const zipBlob=await zip.generateAsync({type:"blob"});
+  const url=URL.createObjectURL(zipBlob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=`${(app.customerName||"customer").replace(/[^a-zA-Z0-9]+/g,"_")}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  return{ok:true,skipped};
+}
+
 // Digits-only comparison for the IC number — OCR often inserts stray
 // spaces/dashes around the number's natural groupings, so both sides are
 // stripped down to bare digits before checking whether the typed number
@@ -162,16 +334,48 @@ function icNumberFoundIn(ocrText,typedIC){
   return typedDigits.length>0&&ocrDigits.includes(typedDigits);
 }
 
-// Name comparison — checks that every word of the typed name appears
-// somewhere in the OCR'd text (not necessarily contiguous, since OCR line
-// breaks can split a name across what it treats as separate lines).
-// Case-insensitive, ignores punctuation.
+// Simple edit-distance (Levenshtein) between two strings — used to tolerate
+// individual OCR character misreads (0/O, 1/I/l, S/5, etc.) rather than
+// requiring byte-for-byte exact text.
+function levenshtein(a,b){
+  const m=a.length,n=b.length;
+  const dp=Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++)dp[i][0]=i;
+  for(let j=0;j<=n;j++)dp[0][j]=j;
+  for(let i=1;i<=m;i++){
+    for(let j=1;j<=n;j++){
+      dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
+    }
+  }
+  return dp[m][n];
+}
+
+// Checks a single typed word against every word Tesseract actually found,
+// allowing roughly 1 character of error per 4 characters (min 1) — enough
+// to absorb a misread letter or two on an unusual name OCR has never seen
+// before, without being so loose that a genuinely different word passes.
+function wordFuzzyFoundIn(ocrWords,word){
+  if(ocrWords.includes(word))return true; // exact match, fast path
+  const tolerance=Math.max(1,Math.floor(word.length/4));
+  return ocrWords.some(t=>Math.abs(t.length-word.length)<=tolerance&&levenshtein(t,word)<=tolerance);
+}
+
+// Name comparison — checks the typed name's words against what Tesseract
+// actually read, word by word (not requiring exact contiguous text, since
+// OCR line breaks can split a name across what it treats as separate
+// lines). Uses fuzzy per-word matching, and for names of 3+ words allows
+// exactly one word to fail — an unusual name is more likely to have a
+// single word misread by OCR than the entire photo being wrong, so
+// requiring 100% was too strict and produced false "doesn't match"
+// results on genuinely correct photos.
 function nameFoundIn(ocrText,typedName){
   const clean=s=>(s||"").toUpperCase().replace(/[^A-Z\s]/g," ").replace(/\s+/g," ").trim();
-  const ocrClean=clean(ocrText);
+  const ocrWords=clean(ocrText).split(" ").filter(Boolean);
   const words=clean(typedName).split(" ").filter(w=>w.length>1); // skip single-letter initials, too easy to false-match
   if(words.length===0)return false;
-  return words.every(w=>ocrClean.includes(w));
+  const matchedCount=words.filter(w=>wordFuzzyFoundIn(ocrWords,w)).length;
+  const allowedMisses=words.length>=3?1:0;
+  return matchedCount>=words.length-allowedMisses;
 }
 
 /* ── Timeline ──────────────────────────────────────────────────────────── */
@@ -274,6 +478,8 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
   ];
   const missing=required.filter(k=>!String(f[k]||"").trim());
   const invalidHP=f.customerHP&&(f.customerHP.length<10||f.customerHP.length>11);
+  const invalidEc1Contact=f.ec1ContactNumber&&(f.ec1ContactNumber.length<10||f.ec1ContactNumber.length>11);
+  const invalidEc2Contact=f.ec2ContactNumber&&(f.ec2ContactNumber.length<10||f.ec2ContactNumber.length>11);
   const missingDocs=DOC_FIELDS.filter(({key})=>!docs[key]&&!docFiles[key]);
   // Detects the same file picked for two different document slots (e.g.
   // IC Front and IC Back accidentally set to the identical photo) — a
@@ -327,6 +533,7 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
   const submit=async()=>{
     if(missing.length||missingDocs.length){alert("Please fill in every field and upload every document before submitting.");return;}
     if(invalidHP){alert("Customer HP No. must be 10 to 11 digits.");return;}
+    if(invalidEc1Contact||invalidEc2Contact){alert("Emergency Contact Number(s) must be 10 to 11 digits.");return;}
     if(duplicateDocKeys.size>0){alert("The same file has been selected for more than one document slot. Please check each upload and select the correct, distinct file for each one.");return;}
     if(icNeedsOverride){alert("The IC photo doesn't appear to match the typed IC number and name. Please check the photo, or tick the confirmation box if you've verified it's correct.");return;}
     setSaving(true);
@@ -437,7 +644,8 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
           {!icOcrRunning&&icOcrError&&<div style={{fontSize:11,color:"#B45309"}}>Couldn't read this photo automatically — please confirm it's correct below.</div>}
           {!icOcrRunning&&!icOcrError&&icOcrText!==null&&icFullyMatched&&<div style={{fontSize:11,color:"#15803D",fontWeight:600}}>✓ Photo matches typed IC number and name.</div>}
           {!icOcrRunning&&!icOcrError&&icOcrText!==null&&!icFullyMatched&&<div style={{fontSize:11,color:"#B45309"}}>
-            Couldn't confirm this photo matches: {[!icNumberMatches&&"IC number",!icNameMatches&&"name"].filter(Boolean).join(" and ")} not found on the photo. Please check you've uploaded the right photo.
+            <div>Couldn't confirm this photo matches: {[!icNumberMatches&&"IC number",!icNameMatches&&"name"].filter(Boolean).join(" and ")} not found on the photo. Please check you've uploaded the right photo.</div>
+            {icOcrText.trim()&&<div style={{marginTop:4,fontSize:10,color:C.textLight}}>Text detected on photo: "{icOcrText.replace(/\s+/g," ").trim().slice(0,200)}"</div>}
           </div>}
           {icNeedsOverride&&<label style={{display:"flex",alignItems:"flex-start",gap:6,marginTop:6,fontSize:11,color:C.textMid,cursor:"pointer"}}>
             <input type="checkbox" checked={icOverrideConfirmed} onChange={e=>setIcOverrideConfirmed(e.target.checked)} style={{marginTop:2}}/>
@@ -451,7 +659,9 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
       <div><L req>Name</L><I value={f.ec1Name} onChange={e=>set("ec1Name",e.target.value)} placeholder="Full name"/></div>
       <div><L req>Relationship</L><SEL value={f.ec1Relationship} onChange={e=>set("ec1Relationship",e.target.value)}>{RELATIONS.map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Stay With Applicant?</L><SEL value={f.ec1StayWith} onChange={e=>set("ec1StayWith",e.target.value)}>{["Yes","No"].map(x=><option key={x}>{x}</option>)}</SEL></div>
-      <div><L req>Contact Number</L><I value={f.ec1ContactNumber} onChange={e=>set("ec1ContactNumber",e.target.value)} placeholder="e.g. 0121234567"/></div>
+      <div><L req>Contact Number</L><I value={f.ec1ContactNumber} onChange={e=>set("ec1ContactNumber",e.target.value.replace(/\D/g,"").slice(0,11))} placeholder="e.g. 0121234567" inputMode="numeric"/>
+        {invalidEc1Contact&&<div style={{fontSize:11,color:"#DC2626",marginTop:4}}>Must be 10 to 11 digits.</div>}
+      </div>
       <div><L req>Best Time to Contact</L><SEL value={f.ec1BestTime} onChange={e=>set("ec1BestTime",e.target.value)}>{TIMES.map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div style={{gridColumn:"1/-1"}}><L req>Address</L><TX rows={2} value={f.ec1Address} onChange={e=>set("ec1Address",e.target.value)}/></div>
     </FormCard>
@@ -460,7 +670,9 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
       <div><L req>Name</L><I value={f.ec2Name} onChange={e=>set("ec2Name",e.target.value)} placeholder="Full name"/></div>
       <div><L req>Relationship</L><SEL value={f.ec2Relationship} onChange={e=>set("ec2Relationship",e.target.value)}>{RELATIONS.map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div><L req>Stay With Applicant?</L><SEL value={f.ec2StayWith} onChange={e=>set("ec2StayWith",e.target.value)}>{["Yes","No"].map(x=><option key={x}>{x}</option>)}</SEL></div>
-      <div><L req>Contact Number</L><I value={f.ec2ContactNumber} onChange={e=>set("ec2ContactNumber",e.target.value)} placeholder="e.g. 0121234567"/></div>
+      <div><L req>Contact Number</L><I value={f.ec2ContactNumber} onChange={e=>set("ec2ContactNumber",e.target.value.replace(/\D/g,"").slice(0,11))} placeholder="e.g. 0121234567" inputMode="numeric"/>
+        {invalidEc2Contact&&<div style={{fontSize:11,color:"#DC2626",marginTop:4}}>Must be 10 to 11 digits.</div>}
+      </div>
       <div><L req>Best Time to Contact</L><SEL value={f.ec2BestTime} onChange={e=>set("ec2BestTime",e.target.value)}>{TIMES.map(x=><option key={x}>{x}</option>)}</SEL></div>
       <div style={{gridColumn:"1/-1"}}><L req>Address</L><TX rows={2} value={f.ec2Address} onChange={e=>set("ec2Address",e.target.value)}/></div>
     </FormCard>
@@ -675,6 +887,8 @@ function ActionBox({icon,title,desc,children}){
 function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDelete,onEdit,onCreateOrder,fileUrls}){
   const copyField=(v)=>{if(!v)return;navigator.clipboard?.writeText(String(v)).catch(()=>{});};
   const [copiedField,setCopiedField]=useState(null);
+  const [mergingIcPdf,setMergingIcPdf]=useState(false);
+  const [zippingAll,setZippingAll]=useState(false);
   const InfoCell=({label,value,full})=><div style={{gridColumn:full?"1/-1":"auto",padding:"10px 16px",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
     <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:3}}>{label}</div>
     <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -792,6 +1006,27 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
             {doc?(fileUrls[`${app.id}_${key}`]?<a href={fileUrls[`${app.id}_${key}`]} target="_blank" rel="noopener noreferrer" style={{color:C.blueBright,fontWeight:600}}>{doc.name}</a>:<span style={{color:C.textLight}}>Loading…</span>):<span style={{color:"#DC2626"}}>Not uploaded</span>}
           </div>;
         })}
+        {isAdmin&&(app.icFrontFile||app.icBackFile)&&<div style={{marginTop:6}}>
+          <GBtn onClick={async()=>{
+            setMergingIcPdf(true);
+            const result=await downloadIcPdf(
+              fileUrls[`${app.id}_icFrontFile`],app.icFrontFile?.name,
+              fileUrls[`${app.id}_icBackFile`],app.icBackFile?.name,
+              app.customerName
+            );
+            setMergingIcPdf(false);
+            if(!result.ok)alert("Couldn't create the PDF — neither IC photo could be loaded.");
+            else if(result.skipped.length)alert(`PDF downloaded, but skipped: ${result.skipped.join(", ")}.`);
+          }} disabled={mergingIcPdf}>{mergingIcPdf?"Preparing PDF…":"Download IC Front + Back as PDF"}</GBtn>
+        </div>}
+        {isAdmin&&<div style={{marginTop:6}}>
+          <GBtn onClick={async()=>{
+            setZippingAll(true);
+            const result=await downloadAllDocuments(app,fileUrls);
+            setZippingAll(false);
+            if(result.skipped.length)alert(`Zip downloaded, but skipped: ${result.skipped.join(", ")}.`);
+          }} disabled={zippingAll}>{zippingAll?"Preparing Zip…":"Download All Documents (Zip)"}</GBtn>
+        </div>}
       </div>
     </div>
 
