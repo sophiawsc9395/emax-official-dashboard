@@ -134,6 +134,46 @@ const DOC_FIELDS=[
   {key:"bankStatementFile",label:"Latest Bank Statement"},
 ];
 
+// ── IC photo OCR verification ────────────────────────────────────────────
+// Loads Tesseract.js from CDN on demand — same pattern already used
+// elsewhere in this app for other client-side libraries (pdf.js,
+// html2canvas). Runs entirely in the browser, no backend needed.
+let tesseractLoadPromise=null;
+function loadTesseract(){
+  if(window.Tesseract)return Promise.resolve(window.Tesseract);
+  if(tesseractLoadPromise)return tesseractLoadPromise;
+  tesseractLoadPromise=new Promise((res,rej)=>{
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js";
+    s.onload=()=>res(window.Tesseract);
+    s.onerror=rej;
+    document.head.appendChild(s);
+  });
+  return tesseractLoadPromise;
+}
+
+// Digits-only comparison for the IC number — OCR often inserts stray
+// spaces/dashes around the number's natural groupings, so both sides are
+// stripped down to bare digits before checking whether the typed number
+// appears anywhere in what was read off the photo.
+function icNumberFoundIn(ocrText,typedIC){
+  const ocrDigits=(ocrText||"").replace(/\D/g,"");
+  const typedDigits=(typedIC||"").replace(/\D/g,"");
+  return typedDigits.length>0&&ocrDigits.includes(typedDigits);
+}
+
+// Name comparison — checks that every word of the typed name appears
+// somewhere in the OCR'd text (not necessarily contiguous, since OCR line
+// breaks can split a name across what it treats as separate lines).
+// Case-insensitive, ignores punctuation.
+function nameFoundIn(ocrText,typedName){
+  const clean=s=>(s||"").toUpperCase().replace(/[^A-Z\s]/g," ").replace(/\s+/g," ").trim();
+  const ocrClean=clean(ocrText);
+  const words=clean(typedName).split(" ").filter(w=>w.length>1); // skip single-letter initials, too easy to false-match
+  if(words.length===0)return false;
+  return words.every(w=>ocrClean.includes(w));
+}
+
 /* ── Timeline ──────────────────────────────────────────────────────────── */
 function Timeline({app}){
   const cur=app.step;
@@ -208,6 +248,17 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
   });
   const [docFiles,setDocFiles]=useState({});
   const [saving,setSaving]=useState(false);
+  // IC photo verification — OCRs the IC Front photo in-browser and checks
+  // whether the typed IC number and name actually appear in it. Genuine
+  // OCR misreads happen on real phone photos (glare, angle, lighting), so
+  // this blocks submission by default on a mismatch, but allows a manual
+  // override once the branch has actually looked and confirmed it's
+  // correct — rather than an absolute block that could lock someone out
+  // over nothing more than a bad camera angle.
+  const [icOcrRunning,setIcOcrRunning]=useState(false);
+  const [icOcrText,setIcOcrText]=useState(null); // raw extracted text, null = not yet run
+  const [icOcrError,setIcOcrError]=useState(false); // OCR itself failed to run at all
+  const [icOverrideConfirmed,setIcOverrideConfirmed]=useState(false);
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
   const formBranch=userBranch||f.branch;
   const branchSRs=(srList||[]).filter(s=>s.branch===formBranch);
@@ -222,10 +273,62 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     "ec2Name","ec2Relationship","ec2StayWith","ec2Address","ec2ContactNumber","ec2BestTime",
   ];
   const missing=required.filter(k=>!String(f[k]||"").trim());
+  const invalidHP=f.customerHP&&(f.customerHP.length<10||f.customerHP.length>11);
   const missingDocs=DOC_FIELDS.filter(({key})=>!docs[key]&&!docFiles[key]);
+  // Detects the same file picked for two different document slots (e.g.
+  // IC Front and IC Back accidentally set to the identical photo) — a
+  // File object's name+size+lastModified together reliably identify "the
+  // exact same file" without needing to read its actual contents.
+  const duplicateDocKeys=useMemo(()=>{
+    const entries=DOC_FIELDS.filter(({key})=>docFiles[key]).map(({key})=>({key,file:docFiles[key]}));
+    const dupes=new Set();
+    for(let i=0;i<entries.length;i++){
+      for(let j=i+1;j<entries.length;j++){
+        const a=entries[i].file,b=entries[j].file;
+        if(a.name===b.name&&a.size===b.size&&a.lastModified===b.lastModified){
+          dupes.add(entries[i].key);dupes.add(entries[j].key);
+        }
+      }
+    }
+    return dupes;
+  },[docFiles]);
+
+  // Runs OCR only when the IC Front file itself changes — not on every
+  // keystroke elsewhere in the form. Resets the manual override whenever a
+  // new photo is picked, since a fresh photo needs its own fresh check.
+  useEffect(()=>{
+    const file=docFiles.icFrontFile;
+    if(!file){setIcOcrText(null);setIcOcrError(false);return;}
+    let cancelled=false;
+    setIcOcrRunning(true);setIcOcrText(null);setIcOcrError(false);setIcOverrideConfirmed(false);
+    (async()=>{
+      try{
+        const Tesseract=await loadTesseract();
+        const result=await Tesseract.recognize(file,"eng");
+        if(!cancelled)setIcOcrText(result?.data?.text||"");
+      }catch(e){
+        if(!cancelled)setIcOcrError(true);
+      }finally{
+        if(!cancelled)setIcOcrRunning(false);
+      }
+    })();
+    return()=>{cancelled=true;};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[docFiles.icFrontFile]);
+
+  const icNumberMatches=icOcrText!==null&&icNumberFoundIn(icOcrText,f.customerIC);
+  const icNameMatches=icOcrText!==null&&nameFoundIn(icOcrText,f.customerName);
+  const icFullyMatched=icOcrText!==null&&icNumberMatches&&icNameMatches;
+  // Blocks submission when: a photo is selected, OCR has finished running,
+  // and either it failed to run at all, or it ran but didn't confirm both
+  // the IC number and name — unless the branch has manually overridden it.
+  const icNeedsOverride=!!docFiles.icFrontFile&&!icOcrRunning&&(icOcrError||(icOcrText!==null&&!icFullyMatched))&&!icOverrideConfirmed;
 
   const submit=async()=>{
     if(missing.length||missingDocs.length){alert("Please fill in every field and upload every document before submitting.");return;}
+    if(invalidHP){alert("Customer HP No. must be 10 to 11 digits.");return;}
+    if(duplicateDocKeys.size>0){alert("The same file has been selected for more than one document slot. Please check each upload and select the correct, distinct file for each one.");return;}
+    if(icNeedsOverride){alert("The IC photo doesn't appear to match the typed IC number and name. Please check the photo, or tick the confirmation box if you've verified it's correct.");return;}
     setSaving(true);
     const id=editingApp?.id||`jcl_${Date.now()}`;
     const uploadedDocs={};
@@ -288,7 +391,9 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     </FormCard>
 
     <FormCard title="Contact & Address">
-      <div><L req>Customer HP No.</L><I value={f.customerHP} onChange={e=>set("customerHP",e.target.value)} placeholder="e.g. 0121234567"/></div>
+      <div><L req>Customer HP No.</L><I value={f.customerHP} onChange={e=>set("customerHP",e.target.value.replace(/\D/g,"").slice(0,11))} placeholder="e.g. 0121234567" inputMode="numeric"/>
+        {invalidHP&&<div style={{fontSize:11,color:"#DC2626",marginTop:4}}>Must be 10 to 11 digits.</div>}
+      </div>
       <div><L req>Customer Email Address</L><I type="email" value={f.customerEmail} onChange={e=>set("customerEmail",e.target.value)} placeholder="e.g. ahmad@email.com"/></div>
       <div><L req>Length of Stay</L><I value={f.lengthOfStay} onChange={e=>set("lengthOfStay",e.target.value)} placeholder="e.g. 3 years"/></div>
       <div><L req>Postcode</L><I value={f.postcode} onChange={e=>set("postcode",e.target.value)} placeholder="e.g. 88000"/></div>
@@ -324,8 +429,21 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
       {DOC_FIELDS.map(({key,label})=><div key={key}>
         <L req>{label}</L>
         <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setDocFiles(p=>({...p,[key]:e.target.files[0]||null}))} style={{fontSize:11}}/>
-        {docFiles[key]?<div style={{fontSize:10,color:"#15803D",marginTop:3}}>New file selected: {docFiles[key].name}</div>
+        {docFiles[key]?<div style={{fontSize:10,color:duplicateDocKeys.has(key)?"#DC2626":"#15803D",marginTop:3}}>New file selected: {docFiles[key].name}</div>
           :docs[key]?<div style={{fontSize:10,color:C.textLight,marginTop:3}}>On file: {docs[key].name}</div>:null}
+        {duplicateDocKeys.has(key)&&<div style={{fontSize:10,color:"#DC2626",marginTop:2}}>Same file as another document below — please select the correct, distinct file.</div>}
+        {key==="icFrontFile"&&docFiles.icFrontFile&&<div style={{marginTop:6,padding:"8px 10px",background:C.surface,borderRadius:7,border:`1px solid ${C.border}`}}>
+          {icOcrRunning&&<div style={{fontSize:11,color:C.textMid}}>Checking photo against typed IC number and name…</div>}
+          {!icOcrRunning&&icOcrError&&<div style={{fontSize:11,color:"#B45309"}}>Couldn't read this photo automatically — please confirm it's correct below.</div>}
+          {!icOcrRunning&&!icOcrError&&icOcrText!==null&&icFullyMatched&&<div style={{fontSize:11,color:"#15803D",fontWeight:600}}>✓ Photo matches typed IC number and name.</div>}
+          {!icOcrRunning&&!icOcrError&&icOcrText!==null&&!icFullyMatched&&<div style={{fontSize:11,color:"#B45309"}}>
+            Couldn't confirm this photo matches: {[!icNumberMatches&&"IC number",!icNameMatches&&"name"].filter(Boolean).join(" and ")} not found on the photo. Please check you've uploaded the right photo.
+          </div>}
+          {icNeedsOverride&&<label style={{display:"flex",alignItems:"flex-start",gap:6,marginTop:6,fontSize:11,color:C.textMid,cursor:"pointer"}}>
+            <input type="checkbox" checked={icOverrideConfirmed} onChange={e=>setIcOverrideConfirmed(e.target.checked)} style={{marginTop:2}}/>
+            <span>I've manually checked this photo and confirm it matches the customer's IC number and name.</span>
+          </label>}
+        </div>}
       </div>)}
     </FormCard>
 
@@ -908,14 +1026,28 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
       <div style={{fontSize:11,color:C.textLight,marginTop:2}}>Customer financing applications submitted to JCL</div>
     </div>
     {overdueSubmissions.length>0&&<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:14}}>
-      <div style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Not Yet Submitted to JCL</div>
-      {overdueSubmissions.map(a=><div key={a.id} onClick={()=>{setView("detail");setSelectedId(a.id);}} style={{fontSize:12,color:"#DC2626",padding:"3px 0",cursor:"pointer"}}>{a.customerName} — {branchMeta[a.branch]?.name||a.branch} — submitted {daysSince(a.submittedAt)} day{daysSince(a.submittedAt)>1?"s":""} ago, still not sent to JCL</div>)}
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
+        <span style={{color:"#DC2626",flexShrink:0}}>{Ic.alertCircle}</span>
+        <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Not Yet Submitted to JCL</span>
+        <span style={{fontSize:10,fontWeight:700,color:"#DC2626",background:"#DC262615",padding:"1px 8px",borderRadius:20}}>{overdueSubmissions.length}</span>
+      </div>
+      {overdueSubmissions.map((a,i)=><div key={a.id} onClick={()=>{setView("detail");setSelectedId(a.id);}} style={{display:"flex",flexDirection:"row",justifyContent:"space-between",alignItems:"center",gap:10,padding:"8px 4px",borderTop:i>0?`1px solid ${C.border}`:"none",cursor:"pointer"}}>
+        <div style={{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.customerName}</div>
+          <div style={{fontSize:11,color:C.textLight}}>{branchMeta[a.branch]?.name||a.branch}</div>
+        </div>
+        <span style={{fontSize:11,color:"#DC2626",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>Submitted {daysSince(a.submittedAt)} day{daysSince(a.submittedAt)>1?"s":""} ago</span>
+      </div>)}
     </div>}
 
     {needsBranchAction.length>0&&<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:14}}>
-      <div style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Follow-Up Needed From You</div>
-      {needsBranchAction.map(a=><div key={a.id} style={{borderTop:`1px solid ${C.border}`,padding:"8px 0"}}>
-        <div style={{fontSize:12,fontWeight:600,color:C.text,marginBottom:4}}>{a.customerName} — {a.phoneModel}</div>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
+        <span style={{color:"#B45309",flexShrink:0}}>{Ic.alertCircle}</span>
+        <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Follow-Up Needed From You</span>
+        <span style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#B4530915",padding:"1px 8px",borderRadius:20}}>{needsBranchAction.length}</span>
+      </div>
+      {needsBranchAction.map((a,i)=><div key={a.id} style={{borderTop:i>0?`1px solid ${C.border}`:"none",padding:"8px 4px"}}>
+        <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:4}}>{a.customerName} · {a.phoneModel}</div>
         <FollowUpResponseBox app={a} onSaved={save}/>
       </div>)}
     </div>}

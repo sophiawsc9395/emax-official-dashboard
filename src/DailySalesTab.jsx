@@ -24,6 +24,7 @@ const dailySalesBranches=branchMeta=>Object.keys(branchMeta||{}).filter(b=>b!=="
 
 const C={navy:"#0A1628",navyMid:"#0F2040",navyLight:"#162B52",blue:"#1B3F72",blueBright:"#2C5AA0",white:"#fff",surface:"#F7F9FC",border:"#E4EAF2",text:"#0A1628",textMid:"#4A5568",textLight:"#8A96A8"};
 const card={background:C.white,border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)",overflow:"hidden"};
+const alertCircle=<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
 
 const nowDate=()=>new Date().toISOString().split("T")[0];
 const nowTime=()=>new Date().toTimeString().slice(0,5);
@@ -688,6 +689,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
     {/* Branch-facing reminder — upload/replace panel shown directly, no expand click needed */}
     {myPending.length>0&&<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <span style={{color:"#B45309",flexShrink:0}}>{alertCircle}</span>
         <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Bank In Cash Sales</span>
         <span style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"1px 8px",borderRadius:20}}>{myPending.length}</span>
       </div>
@@ -707,6 +709,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
     {/* Branch-facing reminder for short-payment balance slip */}
     {myBalancePending.length>0&&<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <span style={{color:"#B45309",flexShrink:0}}>{alertCircle}</span>
         <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Balance Payment Needed</span>
         <span style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"1px 8px",borderRadius:20}}>{myBalancePending.length}</span>
       </div>
@@ -719,6 +722,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
     {/* HQ-level overdue summary across all branches — branch users get the reminder above instead */}
     {!userBranch&&lateAlerts.length>0&&<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <span style={{color:"#DC2626",flexShrink:0}}>{alertCircle}</span>
         <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Bank-in Slip Overdue</span>
         <span style={{fontSize:10,fontWeight:700,color:"#DC2626",background:"#FEF2F226",padding:"1px 8px",borderRadius:20}}>{lateAlerts.length}</span>
       </div>
@@ -733,6 +737,7 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
     {/* HQ-level — slip uploaded but not yet verified by knock-off/admin */}
     {!userBranch&&unverifiedAlerts.length>0&&<div style={{...card,borderLeft:"3px solid #1D4ED8",padding:"12px 14px",marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <span style={{color:"#1D4ED8",flexShrink:0}}>{alertCircle}</span>
         <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Payment Slip Not Verified</span>
         <span style={{fontSize:10,fontWeight:700,color:"#1D4ED8",background:"#EFF6FF",padding:"1px 8px",borderRadius:20}}>{unverifiedAlerts.length}</span>
       </div>
