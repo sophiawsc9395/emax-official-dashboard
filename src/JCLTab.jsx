@@ -156,6 +156,39 @@ function loadTesseract(){
   return tesseractLoadPromise;
 }
 
+// Preprocesses a photo before OCR — converts to grayscale, boosts
+// contrast, and upscales if it's on the small side. These are standard,
+// well-established techniques for improving Tesseract's accuracy on
+// real-world phone photos and screenshots (as opposed to clean scans),
+// especially when there's a busy background (fabric, wood grain, etc.)
+// diluting the actual card in the frame.
+async function preprocessForOcr(file){
+  const objectUrl=URL.createObjectURL(file);
+  try{
+    const img=await loadImageEl(objectUrl);
+    // Upscale if small, so fine text isn't just a handful of pixels tall
+    const minWidth=1500;
+    const scale=img.width<minWidth?minWidth/img.width:1;
+    const canvas=document.createElement("canvas");
+    canvas.width=img.width*scale;
+    canvas.height=img.height*scale;
+    const ctx=canvas.getContext("2d");
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+    const d=imageData.data;
+    // Grayscale + simple contrast stretch, done in one pass over every pixel
+    for(let i=0;i<d.length;i+=4){
+      const gray=d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114;
+      const contrasted=Math.min(255,Math.max(0,(gray-128)*1.4+128));
+      d[i]=d[i+1]=d[i+2]=contrasted;
+    }
+    ctx.putImageData(imageData,0,0);
+    return canvas;
+  }finally{
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 // Runs OCR using the explicit, officially-documented worker pattern
 // (createWorker → recognize → terminate) instead of the one-shot
 // Tesseract.recognize() convenience wrapper, which is less reliable about
@@ -530,7 +563,8 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     setIcOcrRunning(true);setIcOcrText(null);setIcOcrError(false);setIcOverrideConfirmed(false);
     (async()=>{
       try{
-        const text=await ocrImage(file);
+        const processed=await preprocessForOcr(file);
+        const text=await ocrImage(processed);
         if(!cancelled)setIcOcrText(text);
       }catch(e){
         if(!cancelled)setIcOcrError(true);
