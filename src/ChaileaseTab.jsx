@@ -996,7 +996,16 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
     const latest=(await loadData(CHAILEASE_KEY))||apps;
     const next=[...latest.filter(a=>a.id!==updated.id),updated].sort((a,b)=>b.submittedAt.localeCompare(a.submittedAt));
     setApps(next);
-    await saveData(CHAILEASE_KEY,next);
+    const result=await saveData(CHAILEASE_KEY,next);
+    if(!result.ok){
+      // The database write actually failed — revert the optimistic update
+      // so the screen doesn't keep showing a "successful" state that was
+      // never really saved, and tell the person clearly so they know to
+      // retry rather than assuming it went through.
+      setApps(latest);
+      alert("This didn't save — please check your connection and try again. If it keeps happening, let admin know.");
+      return false;
+    }
   };
 
   const deleteApp=async(id)=>{
@@ -1004,7 +1013,12 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
     const latest=(await loadData(CHAILEASE_KEY))||apps;
     const next=latest.filter(a=>a.id!==id);
     setApps(next);
-    await saveData(CHAILEASE_KEY,next);
+    const result=await saveData(CHAILEASE_KEY,next);
+    if(!result.ok){
+      setApps(latest);
+      alert("This didn't delete — please check your connection and try again.");
+      return;
+    }
     setView("list");setSelectedId(null);
   };
 
@@ -1087,7 +1101,7 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
 
   if(view==="form")return<ApplicationForm branchMeta={branchMeta} userBranch={userBranch} isAdmin={isAdmin} srList={srList} editingApp={editingApp}
-    onSaved={async(app)=>{await save(app);setView("detail");setSelectedId(app.id);setEditingApp(null);}}
+    onSaved={async(app)=>{const ok=await save(app);if(ok!==false){setView("detail");setSelectedId(app.id);setEditingApp(null);}}}
     onCancel={()=>{setView(editingApp?"detail":"list");setEditingApp(null);}}/>;
 
   const isSuperAdmin=(email||"").toLowerCase()==="sophiawsc9395@gmail.com";

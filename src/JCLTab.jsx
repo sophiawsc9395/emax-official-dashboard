@@ -1006,7 +1006,16 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
     const isFreshRejection=updated.step===5&&prevApp?.step!==5;
     const next=[...latest.filter(a=>a.id!==updated.id),updated].sort((a,b)=>b.submittedAt.localeCompare(a.submittedAt));
     setApps(next);
-    await saveData(JCL_KEY,next);
+    const result=await saveData(JCL_KEY,next);
+    if(!result.ok){
+      // The database write actually failed — revert the optimistic update
+      // so the screen doesn't keep showing a "successful" state that was
+      // never really saved, and tell the person clearly so they know to
+      // retry rather than assuming it went through.
+      setApps(latest);
+      alert("This didn't save — please check your connection and try again. If it keeps happening, let admin know.");
+      return false;
+    }
     if(isFreshRejection){
       const chaileaseApps=(await loadData(CHAILEASE_KEY))||[];
       const newId=`chailease_${Date.now()}`;
@@ -1024,7 +1033,8 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
         linkedOrderId:null,
         history:[{step:1,date:nowDate(),time:nowTime(),note:`New Application auto-created after rejection by JCL`}],
       };
-      await saveData(CHAILEASE_KEY,[...chaileaseApps,newApp]);
+      const chaileaseResult=await saveData(CHAILEASE_KEY,[...chaileaseApps,newApp]);
+      if(!chaileaseResult.ok)alert("The rejection was saved, but the automatic Chailease application couldn't be created — please create it manually.");
     }
   };
 
@@ -1033,7 +1043,12 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
     const latest=(await loadData(JCL_KEY))||apps;
     const next=latest.filter(a=>a.id!==id);
     setApps(next);
-    await saveData(JCL_KEY,next);
+    const result=await saveData(JCL_KEY,next);
+    if(!result.ok){
+      setApps(latest);
+      alert("This didn't delete — please check your connection and try again.");
+      return;
+    }
     setView("list");setSelectedId(null);
   };
 
@@ -1116,7 +1131,7 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
 
   if(view==="form")return<ApplicationForm branchMeta={branchMeta} userBranch={userBranch} isAdmin={isAdmin} srList={srList} editingApp={editingApp}
-    onSaved={async(app)=>{await save(app);setView("detail");setSelectedId(app.id);setEditingApp(null);}}
+    onSaved={async(app)=>{const ok=await save(app);if(ok!==false){setView("detail");setSelectedId(app.id);setEditingApp(null);}}}
     onCancel={()=>{setView(editingApp?"detail":"list");setEditingApp(null);}}/>;
 
   const isSuperAdmin=(email||"").toLowerCase()==="sophiawsc9395@gmail.com";
