@@ -521,9 +521,10 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[docFiles.icFrontFile]);
 
+  const icOcrEmpty=icOcrText!==null&&icOcrText.trim()==="";// OCR ran but found literally no text at all — a technical failure (worker/language-data didn't load, image couldn't be processed), not "photo doesn't match"
   const icNumberMatches=icOcrText!==null&&icNumberFoundIn(icOcrText,f.customerIC);
   const icNameMatches=icOcrText!==null&&nameFoundIn(icOcrText,f.customerName);
-  const icFullyMatched=icOcrText!==null&&icNumberMatches&&icNameMatches;
+  const icFullyMatched=icOcrText!==null&&!icOcrEmpty&&icNumberMatches&&icNameMatches;
   // Blocks submission when: a photo is selected, OCR has finished running,
   // and either it failed to run at all, or it ran but didn't confirm both
   // the IC number and name — unless the branch has manually overridden it.
@@ -640,11 +641,11 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
         {duplicateDocKeys.has(key)&&<div style={{fontSize:10,color:"#DC2626",marginTop:2}}>Same file as another document below — please select the correct, distinct file.</div>}
         {key==="icFrontFile"&&docFiles.icFrontFile&&<div style={{marginTop:6,padding:"8px 10px",background:C.surface,borderRadius:7,border:`1px solid ${C.border}`}}>
           {icOcrRunning&&<div style={{fontSize:11,color:C.textMid}}>Checking photo against typed IC number and name…</div>}
-          {!icOcrRunning&&icOcrError&&<div style={{fontSize:11,color:"#B45309"}}>Couldn't read this photo automatically — please confirm it's correct below.</div>}
-          {!icOcrRunning&&!icOcrError&&icOcrText!==null&&icFullyMatched&&<div style={{fontSize:11,color:"#15803D",fontWeight:600}}>✓ Photo matches typed IC number and name.</div>}
-          {!icOcrRunning&&!icOcrError&&icOcrText!==null&&!icFullyMatched&&<div style={{fontSize:11,color:"#B45309"}}>
+          {!icOcrRunning&&(icOcrError||icOcrEmpty)&&<div style={{fontSize:11,color:"#B45309"}}>Couldn't read any text off this photo automatically — please confirm it's correct below.</div>}
+          {!icOcrRunning&&!icOcrError&&!icOcrEmpty&&icOcrText!==null&&icFullyMatched&&<div style={{fontSize:11,color:"#15803D",fontWeight:600}}>✓ Photo matches typed IC number and name.</div>}
+          {!icOcrRunning&&!icOcrError&&!icOcrEmpty&&icOcrText!==null&&!icFullyMatched&&<div style={{fontSize:11,color:"#B45309"}}>
             <div>Couldn't confirm this photo matches: {[!icNumberMatches&&"IC number",!icNameMatches&&"name"].filter(Boolean).join(" and ")} not found on the photo. Please check you've uploaded the right photo.</div>
-            {icOcrText.trim()&&<div style={{marginTop:4,fontSize:10,color:C.textLight}}>Text detected on photo: "{icOcrText.replace(/\s+/g," ").trim().slice(0,200)}"</div>}
+            <div style={{marginTop:4,fontSize:10,color:C.textLight}}>Text detected on photo: "{icOcrText.replace(/\s+/g," ").trim().slice(0,200)}"</div>
           </div>}
           {icNeedsOverride&&<label style={{display:"flex",alignItems:"flex-start",gap:6,marginTop:6,fontSize:11,color:C.textMid,cursor:"pointer"}}>
             <input type="checkbox" checked={icOverrideConfirmed} onChange={e=>setIcOverrideConfirmed(e.target.checked)} style={{marginTop:2}}/>
