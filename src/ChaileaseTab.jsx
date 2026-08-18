@@ -135,19 +135,40 @@ const DOC_FIELDS=[
 
 // ── IC photo OCR verification ────────────────────────────────────────────
 // Loads Tesseract.js from CDN on demand. Runs entirely in the browser, no
-// backend needed.
+// backend needed. Uses jsdelivr (matching Tesseract.js's own official
+// documented CDN example) rather than cdnjs — a mismatched CDN was the
+// suspected cause of OCR silently returning zero text on every photo,
+// since a dynamically-injected script tag can break a library's own
+// auto-detection of where to load its companion worker/core/language
+// files from.
 let tesseractLoadPromise=null;
 function loadTesseract(){
   if(window.Tesseract)return Promise.resolve(window.Tesseract);
   if(tesseractLoadPromise)return tesseractLoadPromise;
   tesseractLoadPromise=new Promise((res,rej)=>{
     const s=document.createElement("script");
-    s.src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js";
+    s.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
     s.onload=()=>res(window.Tesseract);
     s.onerror=rej;
     document.head.appendChild(s);
   });
   return tesseractLoadPromise;
+}
+
+// Runs OCR using the explicit, officially-documented worker pattern
+// (createWorker → recognize → terminate) instead of the one-shot
+// Tesseract.recognize() convenience wrapper, which is less reliable about
+// correctly locating its own companion files when the library itself was
+// loaded via a dynamically-injected script tag rather than a static one.
+async function ocrImage(image){
+  const Tesseract=await loadTesseract();
+  const worker=await Tesseract.createWorker("eng");
+  try{
+    const{data}=await worker.recognize(image);
+    return data?.text||"";
+  }finally{
+    await worker.terminate();
+  }
 }
 
 // Loads jsPDF from CDN on demand — same pattern as loadTesseract above.
@@ -508,9 +529,8 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     setIcOcrRunning(true);setIcOcrText(null);setIcOcrError(false);setIcOverrideConfirmed(false);
     (async()=>{
       try{
-        const Tesseract=await loadTesseract();
-        const result=await Tesseract.recognize(file,"eng");
-        if(!cancelled)setIcOcrText(result?.data?.text||"");
+        const text=await ocrImage(file);
+        if(!cancelled)setIcOcrText(text);
       }catch(e){
         if(!cancelled)setIcOcrError(true);
       }finally{
