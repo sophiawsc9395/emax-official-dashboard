@@ -134,78 +134,7 @@ const DOC_FIELDS=[
   {key:"bankStatementFile",label:"Latest Bank Statement"},
 ];
 
-// ── IC photo OCR verification ────────────────────────────────────────────
-// Loads Tesseract.js from CDN on demand. Runs entirely in the browser, no
-// backend needed. Uses jsdelivr (matching Tesseract.js's own official
-// documented CDN example) rather than cdnjs — a mismatched CDN was the
-// suspected cause of OCR silently returning zero text on every photo,
-// since a dynamically-injected script tag can break a library's own
-// auto-detection of where to load its companion worker/core/language
-// files from.
-let tesseractLoadPromise=null;
-function loadTesseract(){
-  if(window.Tesseract)return Promise.resolve(window.Tesseract);
-  if(tesseractLoadPromise)return tesseractLoadPromise;
-  tesseractLoadPromise=new Promise((res,rej)=>{
-    const s=document.createElement("script");
-    s.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
-    s.onload=()=>res(window.Tesseract);
-    s.onerror=rej;
-    document.head.appendChild(s);
-  });
-  return tesseractLoadPromise;
-}
-
-// Preprocesses a photo before OCR — converts to grayscale, boosts
-// contrast, and upscales if it's on the small side. These are standard,
-// well-established techniques for improving Tesseract's accuracy on
-// real-world phone photos and screenshots (as opposed to clean scans),
-// especially when there's a busy background (fabric, wood grain, etc.)
-// diluting the actual card in the frame.
-async function preprocessForOcr(file){
-  const objectUrl=URL.createObjectURL(file);
-  try{
-    const img=await loadImageEl(objectUrl);
-    // Upscale if small, so fine text isn't just a handful of pixels tall
-    const minWidth=1500;
-    const scale=img.width<minWidth?minWidth/img.width:1;
-    const canvas=document.createElement("canvas");
-    canvas.width=img.width*scale;
-    canvas.height=img.height*scale;
-    const ctx=canvas.getContext("2d");
-    ctx.drawImage(img,0,0,canvas.width,canvas.height);
-    const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
-    const d=imageData.data;
-    // Grayscale + simple contrast stretch, done in one pass over every pixel
-    for(let i=0;i<d.length;i+=4){
-      const gray=d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114;
-      const contrasted=Math.min(255,Math.max(0,(gray-128)*1.4+128));
-      d[i]=d[i+1]=d[i+2]=contrasted;
-    }
-    ctx.putImageData(imageData,0,0);
-    return canvas;
-  }finally{
-    URL.revokeObjectURL(objectUrl);
-  }
-}
-
-// Runs OCR using the explicit, officially-documented worker pattern
-// (createWorker → recognize → terminate) instead of the one-shot
-// Tesseract.recognize() convenience wrapper, which is less reliable about
-// correctly locating its own companion files when the library itself was
-// loaded via a dynamically-injected script tag rather than a static one.
-async function ocrImage(image){
-  const Tesseract=await loadTesseract();
-  const worker=await Tesseract.createWorker("eng");
-  try{
-    const{data}=await worker.recognize(image);
-    return data?.text||"";
-  }finally{
-    await worker.terminate();
-  }
-}
-
-// Loads jsPDF from CDN on demand — same pattern as loadTesseract above.
+// Loads jsPDF from CDN on demand.
 let jsPdfLoadPromise=null;
 function loadJsPdf(){
   if(window.jspdf?.jsPDF)return Promise.resolve(window.jspdf.jsPDF);
@@ -378,60 +307,6 @@ async function downloadAllDocuments(app,fileUrls){
   return{ok:true,skipped};
 }
 
-// Digits-only comparison for the IC number — OCR often inserts stray
-// spaces/dashes around the number's natural groupings, so both sides are
-// stripped down to bare digits before checking whether the typed number
-// appears anywhere in what was read off the photo.
-function icNumberFoundIn(ocrText,typedIC){
-  const ocrDigits=(ocrText||"").replace(/\D/g,"");
-  const typedDigits=(typedIC||"").replace(/\D/g,"");
-  return typedDigits.length>0&&ocrDigits.includes(typedDigits);
-}
-
-// Simple edit-distance (Levenshtein) between two strings — used to tolerate
-// individual OCR character misreads (0/O, 1/I/l, S/5, etc.) rather than
-// requiring byte-for-byte exact text.
-function levenshtein(a,b){
-  const m=a.length,n=b.length;
-  const dp=Array.from({length:m+1},()=>new Array(n+1).fill(0));
-  for(let i=0;i<=m;i++)dp[i][0]=i;
-  for(let j=0;j<=n;j++)dp[0][j]=j;
-  for(let i=1;i<=m;i++){
-    for(let j=1;j<=n;j++){
-      dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
-    }
-  }
-  return dp[m][n];
-}
-
-// Checks a single typed word against every word Tesseract actually found,
-// allowing roughly 1 character of error per 4 characters (min 1) — enough
-// to absorb a misread letter or two on an unusual name OCR has never seen
-// before, without being so loose that a genuinely different word passes.
-function wordFuzzyFoundIn(ocrWords,word){
-  if(ocrWords.includes(word))return true; // exact match, fast path
-  const tolerance=Math.max(1,Math.floor(word.length/4));
-  return ocrWords.some(t=>Math.abs(t.length-word.length)<=tolerance&&levenshtein(t,word)<=tolerance);
-}
-
-// Name comparison — checks the typed name's words against what Tesseract
-// actually read, word by word (not requiring exact contiguous text, since
-// OCR line breaks can split a name across what it treats as separate
-// lines). Uses fuzzy per-word matching, and for names of 3+ words allows
-// exactly one word to fail — an unusual name is more likely to have a
-// single word misread by OCR than the entire photo being wrong, so
-// requiring 100% was too strict and produced false "doesn't match"
-// results on genuinely correct photos.
-function nameFoundIn(ocrText,typedName){
-  const clean=s=>(s||"").toUpperCase().replace(/[^A-Z\s]/g," ").replace(/\s+/g," ").trim();
-  const ocrWords=clean(ocrText).split(" ").filter(Boolean);
-  const words=clean(typedName).split(" ").filter(w=>w.length>1); // skip single-letter initials, too easy to false-match
-  if(words.length===0)return false;
-  const matchedCount=words.filter(w=>wordFuzzyFoundIn(ocrWords,w)).length;
-  const allowedMisses=words.length>=3?1:0;
-  return matchedCount>=words.length-allowedMisses;
-}
-
 /* ── Timeline ──────────────────────────────────────────────────────────── */
 function Timeline({app}){
   const cur=app.step;
@@ -506,17 +381,6 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
   });
   const [docFiles,setDocFiles]=useState({});
   const [saving,setSaving]=useState(false);
-  // IC photo verification — OCRs the IC Front photo in-browser and checks
-  // whether the typed IC number and name actually appear in it. Genuine
-  // OCR misreads happen on real phone photos (glare, angle, lighting), so
-  // this blocks submission by default on a mismatch, but allows a manual
-  // override once the branch has actually looked and confirmed it's
-  // correct — rather than an absolute block that could lock someone out
-  // over nothing more than a bad camera angle.
-  const [icOcrRunning,setIcOcrRunning]=useState(false);
-  const [icOcrText,setIcOcrText]=useState(null); // raw extracted text, null = not yet run
-  const [icOcrError,setIcOcrError]=useState(false); // OCR itself failed to run at all
-  const [icOverrideConfirmed,setIcOverrideConfirmed]=useState(false);
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
   const formBranch=userBranch||f.branch;
   const branchSRs=(srList||[]).filter(s=>s.branch===formBranch);
@@ -553,44 +417,11 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     return dupes;
   },[docFiles]);
 
-  // Runs OCR only when the IC Front file itself changes — not on every
-  // keystroke elsewhere in the form. Resets the manual override whenever a
-  // new photo is picked, since a fresh photo needs its own fresh check.
-  useEffect(()=>{
-    const file=docFiles.icFrontFile;
-    if(!file){setIcOcrText(null);setIcOcrError(false);return;}
-    let cancelled=false;
-    setIcOcrRunning(true);setIcOcrText(null);setIcOcrError(false);setIcOverrideConfirmed(false);
-    (async()=>{
-      try{
-        const processed=await preprocessForOcr(file);
-        const text=await ocrImage(processed);
-        if(!cancelled)setIcOcrText(text);
-      }catch(e){
-        if(!cancelled)setIcOcrError(true);
-      }finally{
-        if(!cancelled)setIcOcrRunning(false);
-      }
-    })();
-    return()=>{cancelled=true;};
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[docFiles.icFrontFile]);
-
-  const icOcrEmpty=icOcrText!==null&&icOcrText.trim()==="";// OCR ran but found literally no text at all — a technical failure (worker/language-data didn't load, image couldn't be processed), not "photo doesn't match"
-  const icNumberMatches=icOcrText!==null&&icNumberFoundIn(icOcrText,f.customerIC);
-  const icNameMatches=icOcrText!==null&&nameFoundIn(icOcrText,f.customerName);
-  const icFullyMatched=icOcrText!==null&&!icOcrEmpty&&icNumberMatches&&icNameMatches;
-  // Blocks submission when: a photo is selected, OCR has finished running,
-  // and either it failed to run at all, or it ran but didn't confirm both
-  // the IC number and name — unless the branch has manually overridden it.
-  const icNeedsOverride=!!docFiles.icFrontFile&&!icOcrRunning&&(icOcrError||(icOcrText!==null&&!icFullyMatched))&&!icOverrideConfirmed;
-
   const submit=async()=>{
     if(missing.length||missingDocs.length){alert("Please fill in every field and upload every document before submitting.");return;}
     if(invalidHP){alert("Customer HP No. must be 10 to 11 digits.");return;}
     if(invalidEc1Contact||invalidEc2Contact){alert("Emergency Contact Number(s) must be 10 to 11 digits.");return;}
     if(duplicateDocKeys.size>0){alert("The same file has been selected for more than one document slot. Please check each upload and select the correct, distinct file for each one.");return;}
-    if(icNeedsOverride){alert("The IC photo doesn't appear to match the typed IC number and name. Please check the photo, or tick the confirmation box if you've verified it's correct.");return;}
     setSaving(true);
     const id=editingApp?.id||`jcl_${Date.now()}`;
     const uploadedDocs={};
@@ -694,19 +525,6 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
         {docFiles[key]?<div style={{fontSize:10,color:duplicateDocKeys.has(key)?"#DC2626":"#15803D",marginTop:3}}>New file selected: {docFiles[key].name}</div>
           :docs[key]?<div style={{fontSize:10,color:C.textLight,marginTop:3}}>On file: {docs[key].name}</div>:null}
         {duplicateDocKeys.has(key)&&<div style={{fontSize:10,color:"#DC2626",marginTop:2}}>Same file as another document below — please select the correct, distinct file.</div>}
-        {key==="icFrontFile"&&docFiles.icFrontFile&&<div style={{marginTop:6,padding:"8px 10px",background:C.surface,borderRadius:7,border:`1px solid ${C.border}`}}>
-          {icOcrRunning&&<div style={{fontSize:11,color:C.textMid}}>Checking photo against typed IC number and name…</div>}
-          {!icOcrRunning&&(icOcrError||icOcrEmpty)&&<div style={{fontSize:11,color:"#B45309"}}>Couldn't read any text off this photo automatically — please confirm it's correct below.</div>}
-          {!icOcrRunning&&!icOcrError&&!icOcrEmpty&&icOcrText!==null&&icFullyMatched&&<div style={{fontSize:11,color:"#15803D",fontWeight:600}}>✓ Photo matches typed IC number and name.</div>}
-          {!icOcrRunning&&!icOcrError&&!icOcrEmpty&&icOcrText!==null&&!icFullyMatched&&<div style={{fontSize:11,color:"#B45309"}}>
-            <div>Couldn't confirm this photo matches: {[!icNumberMatches&&"IC number",!icNameMatches&&"name"].filter(Boolean).join(" and ")} not found on the photo. Please check you've uploaded the right photo.</div>
-            <div style={{marginTop:4,fontSize:10,color:C.textLight}}>Text detected on photo: "{icOcrText.replace(/\s+/g," ").trim().slice(0,200)}"</div>
-          </div>}
-          {icNeedsOverride&&<label style={{display:"flex",alignItems:"flex-start",gap:6,marginTop:6,fontSize:11,color:C.textMid,cursor:"pointer"}}>
-            <input type="checkbox" checked={icOverrideConfirmed} onChange={e=>setIcOverrideConfirmed(e.target.checked)} style={{marginTop:2}}/>
-            <span>I've manually checked this photo and confirm it matches the customer's IC number and name.</span>
-          </label>}
-        </div>}
       </div>)}
     </FormCard>
 
