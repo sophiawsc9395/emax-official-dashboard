@@ -570,6 +570,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
   const isCollectionOverdue=type==="collectionOverdue";
   const isFirstInstallmentKnockoff=type==="firstInstallmentKnockoff";
   const isUpfront1Knockoff=type==="upfront1Knockoff";
+  const isPaymentCollection=type==="paymentCollection";
   const isPurchaseClaim=type==="purchaseClaim";
   // Cash orders aren't tied to a merchant, so the merchant filter doesn't
   // apply to this report.
@@ -658,6 +659,21 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       return(o.upfront1KnockOffDate&&(!dateFilter||o.upfront1KnockOffDate===dateFilter))
         ||(o.upfront1KnockOff2Date&&(!dateFilter||o.upfront1KnockOff2Date===dateFilter));
     }
+    // Payment Collection Overview — every payment actually collected from
+    // the customer, cash and CCM orders together: cash Deposit (from New
+    // Order Request) + Balance (from Collection Verified), CCM Upfront 1 +
+    // Upfront 2 (both from Collection Verified). Matches if ANY of these
+    // dates falls on the selected date, since an order's Deposit and
+    // Balance (or Upfront 1 and Upfront 2) are very often collected on
+    // different days.
+    if(isPaymentCollection){
+      if(o.orderType==="cash"){
+        return(o.depositPaymentDate&&(!dateFilter||o.depositPaymentDate===dateFilter))
+          ||(o.lastVerification?.date&&(!dateFilter||o.lastVerification.date===dateFilter));
+      }
+      return(o.lastVerification?.date&&(!dateFilter||o.lastVerification.date===dateFilter))
+        ||(o.lastVerification?.secondPaymentDate&&(!dateFilter||o.lastVerification.secondPaymentDate===dateFilter));
+    }
     // Cash Order Knock Off — matches on EITHER the deposit payment date
     // (from New Order Request) OR the balance payment date (from Collection
     // Verified), cash orders only.
@@ -742,6 +758,17 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       return`<tr><td>${i+1}</td><td>${o.agreementNumber||"—"}</td><td>${o.customerName}</td><td><b>${o.invoiceNo||"—"}</b></td><td>RM ${amt.toFixed(2)}</td><td>${o.upfront1KnockOffDate?fDate(o.upfront1KnockOffDate):"Pending"}</td><td>${o.upfront1KnockOff2Date?fDate(o.upfront1KnockOff2Date):"Pending"}</td></tr>`;
     }).join("");
     rows+=`<tr class="tot"><td colspan="4"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td></td></tr>`;
+  } else if(isPaymentCollection){
+    rows=filtered.map((o,i)=>{
+      const isCash=o.orderType==="cash";
+      const amt1=isCash?(parseFloat(o.deposit)||0):(parseFloat(o.lastVerification?.paymentProofAmount)||0);
+      const date1=isCash?o.depositPaymentDate:o.lastVerification?.date;
+      const amt2=isCash?(parseFloat(o.lastVerification?.monthlyInstallment)||0):(parseFloat(o.lastVerification?.secondPaymentAmount)||0);
+      const date2=isCash?o.lastVerification?.date:o.lastVerification?.secondPaymentDate;
+      total1+=amt1; total2+=amt2;
+      return`<tr><td>${i+1}</td><td>${isCash?"Cash":"CCM"}</td><td>${o.customerName}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${amt1?`RM ${amt1.toFixed(2)}`:"—"}</td><td>${date1?fDate(date1):"—"}</td><td>${amt2?`RM ${amt2.toFixed(2)}`:"—"}</td><td>${date2?fDate(date2):"—"}</td><td>${o.lastVerification?.verificationRemark||"—"}</td></tr>`;
+    }).join("");
+    rows+=`<tr class="tot"><td colspan="4"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td><td></td></tr>`;
   } else if(isPurchaseClaim){
     rows=filtered.map((o,i)=>`<tr><td>${i+1}</td><td>${o.phoneModel||"—"}</td><td>${o.agreementNumber||"—"}</td><td>${o.branch}</td><td>${o.poNumber||"—"}</td><td>${o.purchaserName||"—"}</td><td>${fDate(o.orderDate)}</td><td>${o.supplierName||"—"}</td></tr>`).join("");
     rows+=`<tr class="tot"><td colspan="8"><b>TOTAL (${filtered.length})</b></td></tr>`;
@@ -765,7 +792,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     }).join("");
     rows+=`<tr class="tot"><td colspan="${!dateFilter?5:4}"><b>TOTAL (${filtered.length})</b></td><td></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td><td><b>RM ${total3.toFixed(2)}</b></td><td></td><td><b>RM ${total4.toFixed(2)}</b></td><td></td></tr>`;
   }
-  const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":isCashKnockoff?"Cash Order Knock Off Report":isCollectionOverdue?"Collection Proof Overdue Report":isFirstInstallmentKnockoff?"First Monthly Installment Knock Off Report":isUpfront1Knockoff?"Upfront 1 Payment Knock Off Report":isPurchaseClaim?"Purchase Claim Report":"Upfront Payment Report";
+  const title=isAgreementReceived?"Agreement Received by HQ Report":isCompleted?"Completed Orders Report":isKnockoff?"Claim Released - Knock Off Report":isClaim?"Claim Submitted Report":isFirstInstallment?"First Monthly Installment Report":isCashKnockoff?"Cash Order Knock Off Report":isCollectionOverdue?"Collection Proof Overdue Report":isFirstInstallmentKnockoff?"First Monthly Installment Knock Off Report":isUpfront1Knockoff?"Upfront 1 Payment Knock Off Report":isPaymentCollection?"Payment Collection Overview":isPurchaseClaim?"Purchase Claim Report":"Upfront Payment Report";
   const heads=isAgreementReceived?`<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Merchant Approval Date</th>${!dateFilter?"<th>Date of Agreement Received by HQ</th>":""}<th>Claim Amount</th>`
     :isCompleted?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Completed Date</th><th>Claim Amount</th>"
     :isKnockoff?"<th>#</th><th>Invoice No</th><th>Agreement No</th><th>Knock-off Amount</th><th>Expected Claim Amount</th><th>Reconciled</th>"
@@ -775,6 +802,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     :isCollectionOverdue?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Customer Name</th><th>Billing Date</th><th>Days Overdue</th>"
     :isFirstInstallmentKnockoff?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th><th>Knock-off Date</th>"
     :isUpfront1Knockoff?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Upfront 1 Amount</th><th>K/O 1 Date</th><th>K/O 2 Date</th>"
+    :isPaymentCollection?"<th>#</th><th>Type</th><th>Customer Name</th><th>Invoice No</th><th>Deposit / Upfront 1</th><th>Date</th><th>Balance / Upfront 2</th><th>Date</th><th>Remark</th>"
     :isPurchaseClaim?"<th>#</th><th>Device Name</th><th>Agreement No</th><th>Branch</th><th>PO Number</th><th>Purchaser</th><th>Order Date</th><th>Supplier Name</th>"
     :`${!dateFilter?"<th>Date Verified</th>":""}<th>#</th><th>Invoice No</th><th>Customer Name</th><th>Agreement No</th><th>Upfront Payment Date</th><th>Payment Proof Amount</th><th>Method</th><th>2nd Upfront Payment Date</th><th>2nd Payment Proof Amount</th><th>2nd Method</th><th>Upfront 1 Amount</th><th>Upfront 1 Knocked Off</th><th>Upfront 2 Amount</th><th>Upfront 2 Knocked Off</th>`;
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title} — ${dateStr}</title><style>body{font-family:Inter,sans-serif;margin:28px;color:#0A1628}h1{font-size:17px;font-weight:800;margin-bottom:2px}h2{font-size:12px;color:#8A96A8;margin:0 0 20px;font-weight:400}table{width:100%;border-collapse:collapse;font-size:11px}th{background:#0A1628;color:#fff;padding:7px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.05em}td{padding:7px 10px;border-bottom:1px solid #E4EAF2}tr:nth-child(even) td{background:#F7F9FC}.tot td{background:#0A1628;color:#fff;font-size:12px}.footer{margin-top:16px;font-size:10px;color:#8A96A8}</style></head><body><h1>${title}</h1><h2>${dateStr} · ${filtered.length} record${filtered.length!==1?"s":""} · Merchant: ${merchantLabel}</h2><table><thead><tr>${heads}</tr></thead><tbody>${rows}</tbody></table><div class="footer">Generated ${new Date().toLocaleString("en-MY")} · EMAX Network Sdn Bhd</div></body></html>`;
@@ -2189,6 +2217,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [purchaseClaimReportDate,setPurchaseClaimReportDate]=useState(nowDate());
   const [firstInstallmentKnockoffReportDate,setFirstInstallmentKnockoffReportDate]=useState(nowDate());
   const [upfront1KnockoffReportDate,setUpfront1KnockoffReportDate]=useState(nowDate());
+  const [paymentCollectionReportDate,setPaymentCollectionReportDate]=useState(nowDate());
   const [reportMerchant,setReportMerchant]=useState("all");
   const [expandedKnockoffReport,setExpandedKnockoffReport]=useState(null);
   const [reportsExpanded,setReportsExpanded]=useState(false);
@@ -2487,6 +2516,40 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       {agentOptions.length>0&&<SEL value={filterAgent} onChange={e=>setFilterAgent(e.target.value)} style={{flex:1,minWidth:140}}><option value="ALL">All Agents</option>{agentOptions.map(a=><option key={a} value={a}>{a}</option>)}</SEL>}
     </div>
 
+    {/* Payment breakdown for search results — Sophia only. The regular
+        order list below doesn't show the actual payment amounts/dates at
+        a glance, which is what she's usually searching for (an amount, a
+        date, a remark) — this shows exactly that, right above the normal
+        results, without her needing a separate report for a quick check. */}
+    {isSophia&&search&&filtered.length>0&&<div style={{...card,marginBottom:14}}>
+      <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Payment Breakdown ({filtered.length})</div>
+      <div style={{overflowX:"auto"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <thead><tr style={{background:C.surface}}>
+          <th style={{padding:"7px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase"}}>Invoice No</th>
+          <th style={{padding:"7px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase"}}>Deposit / Upfront 1</th>
+          <th style={{padding:"7px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase"}}>Date</th>
+          <th style={{padding:"7px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase"}}>Balance / Upfront 2</th>
+          <th style={{padding:"7px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase"}}>Date</th>
+        </tr></thead>
+        <tbody>{filtered.map((o,i)=>{
+          const isCashOrder=o.orderType==="cash";
+          const amt1=isCashOrder?(parseFloat(o.deposit)||0):(parseFloat(o.lastVerification?.paymentProofAmount)||0);
+          const date1=isCashOrder?o.depositPaymentDate:o.lastVerification?.date;
+          const amt2=isCashOrder?(parseFloat(o.lastVerification?.monthlyInstallment)||0):(parseFloat(o.lastVerification?.secondPaymentAmount)||0);
+          const date2=isCashOrder?o.lastVerification?.date:o.lastVerification?.secondPaymentDate;
+          return<tr key={o.id} onClick={()=>openOrder(o)} style={{borderTop:i>0?`1px solid ${C.border}`:"none",cursor:"pointer"}}>
+            <td style={{padding:"7px 12px",fontWeight:700,color:C.text}}>{o.invoiceNo||"—"}</td>
+            <td style={{padding:"7px 12px",textAlign:"right"}}>{amt1?fRM(amt1):"—"}</td>
+            <td style={{padding:"7px 12px",textAlign:"right",color:C.textLight,fontSize:11}}>{date1?fDate(date1):"—"}</td>
+            <td style={{padding:"7px 12px",textAlign:"right"}}>{amt2?fRM(amt2):"—"}</td>
+            <td style={{padding:"7px 12px",textAlign:"right",color:C.textLight,fontSize:11}}>{date2?fDate(date2):"—"}</td>
+          </tr>;
+        })}</tbody>
+      </table>
+      </div>
+    </div>}
+
     {/* Order list — compact rows in a fixed-height virtualized viewport.
         Only the rows actually in view (plus a small overscan buffer) are
         ever mounted, so scroll performance doesn't degrade as the order
@@ -2498,7 +2561,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
     {/* Report downloads — admin only, footer */}
     {(()=>{
-      const allReports=[["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment Knock Off","firstInstallmentKnockoff",firstInstallmentKnockoffReportDate,setFirstInstallmentKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Upfront 1 Payment Knock Off","upfront1Knockoff",upfront1KnockoffReportDate,setUpfront1KnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted to Merchant","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Cash Order Knock Off (Deposit + Balance Payment)","cashKnockoff",cashKnockoffReportDate,setCashKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Purchase Claim","purchaseClaim",purchaseClaimReportDate,setPurchaseClaimReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]];
+      const allReports=[["First Monthly Installment","firstInstallment",firstInstallmentReportDate,setFirstInstallmentReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["First Monthly Installment Knock Off","firstInstallmentKnockoff",firstInstallmentKnockoffReportDate,setFirstInstallmentKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Upfront 1 Payment Knock Off","upfront1Knockoff",upfront1KnockoffReportDate,setUpfront1KnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],...(isSophia?[["Payment Collection Overview","paymentCollection",paymentCollectionReportDate,setPaymentCollectionReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]]:[]),["Agreement Received by HQ","agreementReceived",agreementReceivedReportDate,setAgreementReceivedReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Submitted to Merchant","claim",claimDate,setClaimDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Claim Released - Knock Off","knockoff",knockOffReportDate,setKnockOffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Cash Order Knock Off (Deposit + Balance Payment)","cashKnockoff",cashKnockoffReportDate,setCashKnockoffReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)],["Purchase Claim","purchaseClaim",purchaseClaimReportDate,setPurchaseClaimReportDate,orders.filter(o=>!userBranch||o.branch===userBranch)]];
       const visibleReports=allReports.filter(([,type])=>canSeeReport(type));
       if(!isAdmin||isReadOnly||!visibleReports.length)return null;
       return<div style={{...card,marginTop:12}}>
