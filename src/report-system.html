@@ -215,7 +215,7 @@ const COMPANIES = {
     shortLabel: 'Combined',
     hasTime: true,
     isMerged: true,
-    mergedCompanies: ['emax','spoonfork','espacex','miniImpianBank']
+    mergedCompanies: ['spoonfork','espacex','miniImpianBank','emax']
   },
   emax: {
     name: 'EMAX NETWORK SDN BHD',
@@ -1644,7 +1644,7 @@ function buildPhotoHTML(){
 function buildMergedPhotoHTML(){
   const cfg = COMPANIES.merged;
   const savedCompany = currentCompany, savedData = currentData;
-  let inner = `<div style="text-align:center;margin-bottom:6px;"><h2 style="margin:0 0 4px;font-size:20px;">Daily Financial Report — Combined</h2><div style="color:#666;font-size:13px;">${mergedDataByCompany[cfg.mergedCompanies[0]].date}</div></div>`;
+  let inner = `<div style="text-align:center;margin-bottom:6px;"><div style="color:#666;font-size:13px;">${mergedDataByCompany[cfg.mergedCompanies[0]].date}</div></div>`;
   cfg.mergedCompanies.forEach((c,i)=>{
     currentCompany = c;
     currentData = mergedDataByCompany[c];
