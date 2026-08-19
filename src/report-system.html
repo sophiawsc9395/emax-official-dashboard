@@ -451,22 +451,24 @@ async function loadReport(company, date){
     } else {
       currentData = blankReport(company);
       currentData.date = date;
-      if(company==='emax') await autoFillLabelsFromYesterday(date);
+      await autoFillLabelsFromLastRecord(company,date);
     }
   }catch(e){
     currentData = blankReport(company);
     currentData.date = date;
+    await autoFillLabelsFromLastRecord(company,date);
   }
   renderMain();
 }
 
-async function autoFillLabelsFromYesterday(date){
-  const d = new Date(date); d.setDate(d.getDate()-1);
-  const yDate = d.toISOString().slice(0,10);
-  let yData = null;
+async function autoFillLabelsFromLastRecord(company,date){
+  const dates=await listReportDates(company);
+  const priorDate=dates.find(d=>d<date);
+  if(!priorDate)return;
+  let yData=null;
   try{
-    const res = await window.storage.get(storageKeyReport('emax',yDate), STORAGE_SHARED);
-    yData = res && res.value ? JSON.parse(res.value) : null;
+    const res=await window.storage.get(storageKeyReport(company,priorDate),STORAGE_SHARED);
+    yData=res&&res.value?JSON.parse(res.value):null;
   }catch(e){ return; }
   if(!yData||!yData.sections) return;
   if(yData.sections.bank && Array.isArray(yData.sections.bank))
