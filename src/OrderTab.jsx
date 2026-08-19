@@ -2086,7 +2086,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
               <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?alertDotColor(alert.type):"transparent"}}/>
               <div style={{flex:2,minWidth:0,marginLeft:10}}>
                 <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
-                <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
+                <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}{o.invoiceNo?` · Inv ${o.invoiceNo}`:""}</div>
               </div>
               <div style={{flex:2,minWidth:0,marginLeft:14,alignSelf:"stretch",display:"flex",alignItems:"center"}}>
                 <div style={{display:"flex",flexWrap:"wrap",gap:4,rowGap:5}}>
@@ -2145,7 +2145,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
             <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?alertDotColor(alert.type):"transparent"}}/>
             <div style={{flex:2,minWidth:0,marginLeft:10}}>
               <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
-              <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
+              <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}{o.invoiceNo?` · Inv ${o.invoiceNo}`:""}</div>
             </div>
             <div style={{flex:2.2,minWidth:0,marginLeft:14,overflow:"hidden"}}>
               <div style={{display:"flex",flexWrap:"nowrap",gap:4}}>
