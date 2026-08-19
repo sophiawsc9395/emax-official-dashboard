@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import OrderTab from './OrderTab.jsx'
 import DailySalesTab from './DailySalesTab.jsx'
 import PurchaseOrderTab from './PurchaseOrderTab.jsx'
@@ -193,5 +194,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <AuthGate allowedEmails={ALLOWED}>
       <OrderOnlyApp />
     </AuthGate>
+    <SpeedInsights />
   </React.StrictMode>
 )

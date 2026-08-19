@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import BossApp from './pages/viewers/BossViewer.jsx'
 import AuthGate from './auth/AuthGate.jsx'
 
@@ -19,5 +20,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <AuthGate allowedEmails={ALLOWED}>
       <BossApp isKnockOff={true} />
     </AuthGate>
+    <SpeedInsights />
   </React.StrictMode>
 )
