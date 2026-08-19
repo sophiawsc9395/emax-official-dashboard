@@ -14,7 +14,7 @@
  * Storage: same simple key-value table pattern as Daily Sales Report, so
  * this ships without any manual Supabase schema migration.
  */
-import {useState,useEffect,useMemo} from "react";
+import {useState,useEffect,useMemo,useRef} from "react";
 import {loadData,saveData,supabase} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl,reconcile} from "./storage/ordersApi.js";
 import {CHAILEASE_KEY} from "./ChaileaseTab.jsx";
@@ -949,6 +949,32 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
   const [view,setView]=useState("list"); // list | form | detail
   const [selectedId,setSelectedId]=useState(null);
   const [editingApp,setEditingApp]=useState(null);
+  // Browser back/forward button support — additive on top of the existing
+  // visible Back button, not a replacement for it. Unlike a single central
+  // nav() function, view/selectedId here get set directly from many
+  // different places, so instead of touching every one of those call
+  // sites, this just watches for any change and pushes a history entry
+  // automatically. isPopStateNav guards against the restoration inside
+  // the popstate handler itself triggering another push, which would
+  // otherwise create a duplicate/looping entry.
+  const isPopStateNav=useRef(false);
+  useEffect(()=>{
+    window.history.replaceState({jclView:view,jclSelectedId:selectedId},"");
+    const onPopState=e=>{
+      if(e.state&&"jclView" in e.state){
+        isPopStateNav.current=true;
+        setView(e.state.jclView);
+        setSelectedId(e.state.jclSelectedId);
+      }
+    };
+    window.addEventListener("popstate",onPopState);
+    return()=>window.removeEventListener("popstate",onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+  useEffect(()=>{
+    if(isPopStateNav.current){isPopStateNav.current=false;return;}
+    window.history.pushState({jclView:view,jclSelectedId:selectedId},"");
+  },[view,selectedId]);
   const [branchFilter,setBranchFilter]=useState("all");
   const [agentFilter,setAgentFilter]=useState("all");
   const [stepFilter,setStepFilter]=useState("all");

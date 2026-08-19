@@ -1679,7 +1679,7 @@ function getOrderAlerts(orders,userBranch=null){
   });
   return alerts;
 }
-function AlertBanner({alerts,isAdmin,onClickOrder}){
+function AlertBanner({alerts,isAdmin,isSophia,onClickOrder}){
   const isMobile=useIsMobile();
   if(!alerts.length)return null;
   const expired=alerts.filter(a=>a.type==="approval_expired");
@@ -1695,6 +1695,9 @@ function AlertBanner({alerts,isAdmin,onClickOrder}){
   // list they should see right away). Urgent Attention — and every other
   // alert block — has no collapse toggle at all, always fully expanded.
   const [warningExpanded,setWarningExpanded]=useState(!isAdmin);
+  // Agreement Received by HQ starts collapsed specifically for Sophia —
+  // everyone else still sees it always expanded, unchanged.
+  const [agreementExpanded,setAgreementExpanded]=useState(!isSophia);
   const Block=({items,color,title,collapsible,expanded,onToggle})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
     <div onClick={collapsible?onToggle:undefined} style={{display:"flex",alignItems:"center",gap:8,marginBottom:collapsible&&!expanded?0:9,cursor:collapsible?"pointer":"default",userSelect:collapsible?"none":"auto"}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
@@ -1716,7 +1719,7 @@ function AlertBanner({alerts,isAdmin,onClickOrder}){
     <Block items={collectionOverdue} color="#B91C1C" title="Collection Proof Overdue"/>
     <Block items={cashBalanceOverdue} color="#7C3AED" title="Cash Balance Payment Slip Overdue"/>
     <Block items={merchantRejected} color="#DC2626" title="Merchant Rejected"/>
-    <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out"/>
+    <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={agreementExpanded} onToggle={()=>setAgreementExpanded(p=>!p)}/>
     <Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={warningExpanded} onToggle={()=>setWarningExpanded(p=>!p)}/>
   </div>;
 }
@@ -2237,8 +2240,31 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const refreshList=useCallback(()=>listOrders(userBranch).then(d=>{setOrders(d);setLoading(false);}),[userBranch]);
   useEffect(()=>{refreshList();},[refreshList]);
 
-  const nav=useCallback((v,sel=null)=>{setView(v);setSelected(sel);sessionStorage.setItem("orderView",v);sessionStorage.setItem("orderSelected",sel?JSON.stringify(sel):"null");},[]);
+  const nav=useCallback((v,sel=null)=>{setView(v);setSelected(sel);sessionStorage.setItem("orderView",v);sessionStorage.setItem("orderSelected",sel?JSON.stringify(sel):"null");window.history.pushState({orderView:v,orderSelected:sel},"");},[]);
   const openOrder=useCallback(o=>nav("detail",o),[nav]);
+
+  // Browser back/forward button support — additive on top of the existing
+  // visible Back button, not a replacement for it. On mount, the current
+  // view becomes the baseline history entry (via replaceState, not
+  // pushState, so this doesn't add an extra step) — this way the very
+  // first back press from a freshly-loaded page goes to whatever page was
+  // open before this one, not some undefined in-between state. From then
+  // on, every nav() call above pushes a new entry, and this listens for
+  // the browser's own back/forward action to restore the matching view.
+  useEffect(()=>{
+    window.history.replaceState({orderView:view,orderSelected:selected},"");
+    const onPopState=e=>{
+      if(e.state&&"orderView" in e.state){
+        setView(e.state.orderView);
+        setSelected(e.state.orderSelected);
+        sessionStorage.setItem("orderView",e.state.orderView);
+        sessionStorage.setItem("orderSelected",e.state.orderSelected?JSON.stringify(e.state.orderSelected):"null");
+      }
+    };
+    window.addEventListener("popstate",onPopState);
+    return()=>window.removeEventListener("popstate",onPopState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
 
   const hydrateOrder=useCallback(async id=>{
     const [header,hist]=await Promise.all([getOrder(id),getOrderHistory(id)]);
@@ -2427,7 +2453,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     </div>
 
     {/* Alerts */}
-    <AlertBanner alerts={alerts} isAdmin={isAdmin} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
+    <AlertBanner alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
 
     {(()=>{
       const outOfStockUnacked=cancelledOrders.filter(o=>o.outOfStock&&!(o.outOfStockAckAdmin&&o.outOfStockAckBranch));
