@@ -662,17 +662,17 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     // Payment Collection Overview — every payment actually collected from
     // the customer, cash and CCM orders together: cash Deposit (from New
     // Order Request) + Balance (from Collection Verified), CCM Upfront 1 +
-    // Upfront 2 (both from Collection Verified). Matches if ANY of these
-    // dates falls on the selected date, since an order's Deposit and
-    // Balance (or Upfront 1 and Upfront 2) are very often collected on
-    // different days.
+    // Upfront 2 (both verified together in the same Collection Verified
+    // step, sharing one payment date). Uses upfrontPaymentDate — the date
+    // admin manually sets as the actual payment date — not .date, which
+    // is just the automatic system timestamp of when admin responded to
+    // that step, not when the payment itself happened.
     if(isPaymentCollection){
       if(o.orderType==="cash"){
         return(o.depositPaymentDate&&(!dateFilter||o.depositPaymentDate===dateFilter))
-          ||(o.lastVerification?.date&&(!dateFilter||o.lastVerification.date===dateFilter));
+          ||(o.lastVerification?.upfrontPaymentDate&&(!dateFilter||o.lastVerification.upfrontPaymentDate===dateFilter));
       }
-      return(o.lastVerification?.date&&(!dateFilter||o.lastVerification.date===dateFilter))
-        ||(o.lastVerification?.secondPaymentDate&&(!dateFilter||o.lastVerification.secondPaymentDate===dateFilter));
+      return o.lastVerification?.upfrontPaymentDate&&(!dateFilter||o.lastVerification.upfrontPaymentDate===dateFilter);
     }
     // Cash Order Knock Off — matches on EITHER the deposit payment date
     // (from New Order Request) OR the balance payment date (from Collection
@@ -761,10 +761,10 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
   } else if(isPaymentCollection){
     rows=filtered.map((o,i)=>{
       const isCash=o.orderType==="cash";
-      const amt1=isCash?(parseFloat(o.deposit)||0):(parseFloat(o.lastVerification?.paymentProofAmount)||0);
-      const date1=isCash?o.depositPaymentDate:o.lastVerification?.date;
-      const amt2=isCash?(parseFloat(o.lastVerification?.monthlyInstallment)||0):(parseFloat(o.lastVerification?.secondPaymentAmount)||0);
-      const date2=isCash?o.lastVerification?.date:o.lastVerification?.secondPaymentDate;
+      const amt1=isCash?(parseFloat(o.deposit)||0):calcUpfront(o).total;
+      const date1=isCash?o.depositPaymentDate:o.lastVerification?.upfrontPaymentDate;
+      const amt2=parseFloat(o.lastVerification?.monthlyInstallment)||0;
+      const date2=o.lastVerification?.upfrontPaymentDate;
       total1+=amt1; total2+=amt2;
       return`<tr><td>${i+1}</td><td>${isCash?"Cash":"CCM"}</td><td>${o.customerName}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${amt1?`RM ${amt1.toFixed(2)}`:"—"}</td><td>${date1?fDate(date1):"—"}</td><td>${amt2?`RM ${amt2.toFixed(2)}`:"—"}</td><td>${date2?fDate(date2):"—"}</td><td>${o.lastVerification?.verificationRemark||"—"}</td></tr>`;
     }).join("");
@@ -2349,7 +2349,17 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const viewingCompleted=filterPhase==="completed";
   const viewingCancelled=filterPhase==="cancelled";
   const viewingMerchantRejected=filterPhase==="merchantRejected";
-  const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||(viewingMerchantRejected?(o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate):(filterPhase==="all"||o.step===filterPhase)))&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo,...(isSophia?[o.lastVerification?.paymentProofAmount,o.lastVerification?.secondPaymentAmount,o.lastVerification?.totalUpfrontPayment,o.lastVerification?.monthlyInstallment,o.lastVerification?.date,o.lastVerification?.date&&fDate(o.lastVerification.date),o.lastVerification?.verificationRemark]:[])].some(v=>v?.toString().toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,viewingMerchantRejected,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,search,isSophia]);
+  const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||(viewingMerchantRejected?(o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate):(filterPhase==="all"||o.step===filterPhase)))&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toString().toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,viewingMerchantRejected,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
+  // Separate from the main order list above on purpose — the regular list
+  // stays predictable for everyone (only matches customer/model/agreement/
+  // invoice, same as always), while this handles the Sophia-only payment-
+  // detail search (amount/date/remark) that feeds the Payment Breakdown
+  // table exclusively, so an order matching only on an obscure payment
+  // number doesn't confusingly show up in the regular order list too.
+  const paymentSearchResults=useMemo(()=>{
+    if(!isSophia||!search)return[];
+    return(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||(viewingMerchantRejected?(o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate):(filterPhase==="all"||o.step===filterPhase)))&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo,o.lastVerification?.paymentProofAmount,o.lastVerification?.secondPaymentAmount,o.lastVerification?.totalUpfrontPayment,o.lastVerification?.monthlyInstallment,o.orderType!=="cash"&&calcUpfront(o).total,o.lastVerification?.upfrontPaymentDate,o.lastVerification?.upfrontPaymentDate&&fDate(o.lastVerification.upfrontPaymentDate),o.lastVerification?.verificationRemark].some(v=>v?.toString().toLowerCase().includes(search.toLowerCase())));
+  },[viewingCompleted,viewingCancelled,viewingMerchantRejected,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,search,isSophia]);
   const stepCounts=useMemo(()=>STEPS.filter(s=>s.step!==14).reduce((acc,s)=>{acc[s.step]=activeOrders.filter(o=>o.step===s.step).length;return acc;},{}),[activeOrders]);
   const merchantRejectedCount=useMemo(()=>activeOrders.filter(o=>o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate).length,[activeOrders]);
   // Step cards grouped by phase (Stock Order, Stock Transfer, Billing, etc.)
@@ -2521,29 +2531,45 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         a glance, which is what she's usually searching for (an amount, a
         date, a remark) — this shows exactly that, right above the normal
         results, without her needing a separate report for a quick check. */}
-    {isSophia&&search&&filtered.length>0&&<div style={{...card,marginBottom:14}}>
-      <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Payment Breakdown ({filtered.length})</div>
+    {isSophia&&search&&paymentSearchResults.length>0&&<div style={{...card,marginBottom:14}}>
+      <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>Payment Breakdown ({paymentSearchResults.length})</div>
       <div style={{overflowX:"auto"}}>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
         <thead><tr style={{background:C.surface}}>
           <th style={{padding:"7px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase"}}>Invoice No</th>
+          <th style={{padding:"7px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase"}}>Customer</th>
+          <th style={{padding:"7px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase"}}>Type</th>
           <th style={{padding:"7px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase"}}>Deposit / Upfront 1</th>
           <th style={{padding:"7px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase"}}>Date</th>
           <th style={{padding:"7px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase"}}>Balance / Upfront 2</th>
           <th style={{padding:"7px 12px",textAlign:"right",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase"}}>Date</th>
+          <th style={{padding:"7px 12px",textAlign:"left",fontSize:10,fontWeight:700,color:C.textMid,textTransform:"uppercase"}}>Remark</th>
         </tr></thead>
-        <tbody>{filtered.map((o,i)=>{
+        <tbody>{paymentSearchResults.map((o,i)=>{
           const isCashOrder=o.orderType==="cash";
-          const amt1=isCashOrder?(parseFloat(o.deposit)||0):(parseFloat(o.lastVerification?.paymentProofAmount)||0);
-          const date1=isCashOrder?o.depositPaymentDate:o.lastVerification?.date;
-          const amt2=isCashOrder?(parseFloat(o.lastVerification?.monthlyInstallment)||0):(parseFloat(o.lastVerification?.secondPaymentAmount)||0);
-          const date2=isCashOrder?o.lastVerification?.date:o.lastVerification?.secondPaymentDate;
+          // Upfront 1 = Agreement + Stamping + Deposit, computed straight
+          // from the order itself. Upfront 2 = monthlyInstallment.
+          // lastVerification.paymentProofAmount and .secondPaymentAmount
+          // are NOT these — the first is a separate cross-check field
+          // (staff type the payment slip's own total into it to verify
+          // against the expected combined total), the second is for an
+          // unrelated short-payment correction flow. Dates use
+          // upfrontPaymentDate — the date admin manually sets as the
+          // actual payment date — not .date, the automatic timestamp of
+          // when admin responded to that step.
+          const amt1=isCashOrder?(parseFloat(o.deposit)||0):calcUpfront(o).total;
+          const date1=isCashOrder?o.depositPaymentDate:o.lastVerification?.upfrontPaymentDate;
+          const amt2=parseFloat(o.lastVerification?.monthlyInstallment)||0;
+          const date2=o.lastVerification?.upfrontPaymentDate;
           return<tr key={o.id} onClick={()=>openOrder(o)} style={{borderTop:i>0?`1px solid ${C.border}`:"none",cursor:"pointer"}}>
             <td style={{padding:"7px 12px",fontWeight:700,color:C.text}}>{o.invoiceNo||"—"}</td>
+            <td style={{padding:"7px 12px",color:C.textMid}}>{o.customerName||"—"}</td>
+            <td style={{padding:"7px 12px",color:C.textMid}}>{isCashOrder?"Cash":"CCM"}</td>
             <td style={{padding:"7px 12px",textAlign:"right"}}>{amt1?fRM(amt1):"—"}</td>
             <td style={{padding:"7px 12px",textAlign:"right",color:C.textLight,fontSize:11}}>{date1?fDate(date1):"—"}</td>
             <td style={{padding:"7px 12px",textAlign:"right"}}>{amt2?fRM(amt2):"—"}</td>
             <td style={{padding:"7px 12px",textAlign:"right",color:C.textLight,fontSize:11}}>{date2?fDate(date2):"—"}</td>
+            <td style={{padding:"7px 12px",color:C.textLight,fontSize:11}}>{o.lastVerification?.verificationRemark||"—"}</td>
           </tr>;
         })}</tbody>
       </table>
@@ -2555,7 +2581,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         ever mounted, so scroll performance doesn't degrade as the order
         count grows into the hundreds. */}
     {filtered.length===0
-      ?<div style={{...card,padding:"44px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>{search||filterPhase!=="all"||filterBranch!=="ALL"||filterAgent!=="ALL"?"No orders match your filter.":"No orders yet. Click New Order to get started."}</div>
+      ?<div style={{...card,padding:"44px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>{isSophia&&search&&paymentSearchResults.length>0?"No orders match by customer, model, agreement, or invoice — see Payment Breakdown above for payment-detail matches.":search||filterPhase!=="all"||filterBranch!=="ALL"||filterAgent!=="ALL"?"No orders match your filter.":"No orders yet. Click New Order to get started."}</div>
       :<OrderListVirtualized orders={filtered} alertsByOrderId={alertsByOrderId} onOpen={openOrder} userBranch={userBranch}/>
     }
 
