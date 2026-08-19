@@ -2066,39 +2066,38 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
   // page flow (page itself scrolls), wrapped in a horizontally-scrollable
   // strip so columns can be swiped into view instead of wrapping/clipping. ──
   if(isMobile){
-    const MIN_W=780;
+    const MIN_W=700;
     const PAD="0 14px";
     return<div style={{...card,padding:0,overflow:"hidden"}}>
       <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
         <div style={{minWidth:MIN_W}}>
           <div style={{display:"flex",alignItems:"center",padding:PAD,height:36,background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
             <div style={{width:8,flexShrink:0}}/>
-            <div style={{flex:2,minWidth:0,marginLeft:10}}>Order</div>
-            <div style={{flex:2,minWidth:0,marginLeft:14}}>Status</div>
-            <div style={{flex:2.4,minWidth:0,marginLeft:20}}>Step</div>
+            <div style={{flex:1.8,minWidth:0,marginLeft:10}}>Order</div>
+            <div style={{width:150,flexShrink:0,marginLeft:14}}>Invoice No</div>
+            <div style={{flex:2.2,minWidth:0,marginLeft:14}}>Status</div>
             <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto"}}>Updated</div>
           </div>
           {orders.map((o,idx)=>{
-            const{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText,hasDifferentPickup}=rowFields(o);
+            const{alert,flagLabel,flagColor,hasDifferentPickup}=rowFields(o);
             const rowBg=idx%2===0?C.white:C.surface;
             return<div key={o.id} onClick={()=>onOpen(o)}
               style={{display:"flex",alignItems:"center",padding:`10px 14px`,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer"}}>
               <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?alertDotColor(alert.type):"transparent"}}/>
-              <div style={{flex:2,minWidth:0,marginLeft:10}}>
+              <div style={{flex:1.8,minWidth:0,marginLeft:10}}>
                 <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
-                <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}{o.invoiceNo?` · Inv ${o.invoiceNo}`:""}</div>
+                <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
               </div>
-              <div style={{flex:2,minWidth:0,marginLeft:14,alignSelf:"stretch",display:"flex",alignItems:"center"}}>
+              <div style={{width:150,flexShrink:0,marginLeft:14}}>
+                <div style={{fontSize:11,fontWeight:700,color:C.textMid}}>{o.invoiceNo||"—"}</div>
+              </div>
+              <div style={{flex:2.2,minWidth:0,marginLeft:14,alignSelf:"stretch",display:"flex",alignItems:"center"}}>
                 <div style={{display:"flex",flexWrap:"wrap",gap:4,rowGap:5}}>
                   {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
                   {hasDifferentPickup&&<span style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#B4530918",border:"1px solid #B4530940",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Pickup · {o.pickUpBranch}</span>}
                   <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
                   <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
                 </div>
-              </div>
-              <div style={{flex:2.4,minWidth:0,marginLeft:20}}>
-                <div style={{fontSize:11,fontWeight:600,color:C.textMid,...single}}>Step {o.step}/{mxS} · {s.label}</div>
-                <div style={{fontSize:10,color:C.textLight,marginTop:3,...single}}>{detailText}</div>
               </div>
               <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>
             </div>;
@@ -2128,24 +2127,27 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
     <div onScroll={e=>setScrollTop(e.currentTarget.scrollTop)} style={{height:VIEWPORT_H,overflow:"auto"}}>
       <div style={{position:"sticky",top:0,zIndex:2,height:HEADER_H,boxSizing:"border-box",display:"flex",alignItems:"center",padding:PAD,background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
         <div style={{width:8,flexShrink:0}}/>
-        <div style={{flex:2,minWidth:0,marginLeft:10}}>Order</div>
+        <div style={{flex:1.8,minWidth:0,marginLeft:10}}>Order</div>
+        <div style={{width:150,flexShrink:0,marginLeft:14}}>Invoice No</div>
         <div style={{flex:2.2,minWidth:0,marginLeft:14}}>Status</div>
-        <div style={{flex:2.6,minWidth:0,marginLeft:36}}>Step</div>
         <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto"}}>Updated</div>
       </div>
       <div style={{height:total*ROW_H,position:"relative"}}>
         {visible.map((o,i)=>{
           const idx=startIdx+i;
-          const{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText,hasDifferentPickup}=rowFields(o);
+          const{alert,flagLabel,flagColor,hasDifferentPickup}=rowFields(o);
           const rowBg=idx%2===0?C.white:C.surface;
           return<div key={o.id} onClick={()=>onOpen(o)}
             style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",padding:PAD,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer",overflow:"hidden"}}
             onMouseEnter={e=>{e.currentTarget.style.background="#EEF3FB";}}
             onMouseLeave={e=>{e.currentTarget.style.background=rowBg;}}>
             <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?alertDotColor(alert.type):"transparent"}}/>
-            <div style={{flex:2,minWidth:0,marginLeft:10}}>
+            <div style={{flex:1.8,minWidth:0,marginLeft:10}}>
               <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
-              <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}{o.invoiceNo?` · Inv ${o.invoiceNo}`:""}</div>
+              <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
+            </div>
+            <div style={{width:150,flexShrink:0,marginLeft:14,overflow:"hidden"}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.textMid,...single}}>{o.invoiceNo||"—"}</div>
             </div>
             <div style={{flex:2.2,minWidth:0,marginLeft:14,overflow:"hidden"}}>
               <div style={{display:"flex",flexWrap:"nowrap",gap:4}}>
@@ -2154,10 +2156,6 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
                 <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.stockStatus==="ready"?"Ready Stock":"Stock Request"}</span>
                 <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
               </div>
-            </div>
-            <div style={{flex:2.6,minWidth:0,marginLeft:36,overflow:"hidden"}}>
-              <div style={{fontSize:11,fontWeight:600,color:C.textMid,...single}}>Step {o.step}/{mxS} · {s.label}</div>
-              <div style={{fontSize:10,color:C.textLight,marginTop:3,...single}}>{detailText}</div>
             </div>
             <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>
           </div>;
