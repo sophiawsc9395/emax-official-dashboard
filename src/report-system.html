@@ -210,6 +210,13 @@
 const STORAGE_SHARED = true; // shared so the whole team sees the same reports
 
 const COMPANIES = {
+  merged: {
+    name: 'EMAX + Spoon & Fork + Espace X + Mini Impian',
+    shortLabel: 'Combined',
+    hasTime: true,
+    isMerged: true,
+    mergedCompanies: ['emax','spoonfork','espacex','miniImpianBank']
+  },
   emax: {
     name: 'EMAX NETWORK SDN BHD',
     shortLabel: 'Emax',
@@ -398,10 +405,11 @@ function blankFailedLog(){
   return { month:new Date().toISOString().slice(0,7), rows:[{name:'',contact:'',amount:''}] };
 }
 
-let currentCompany = 'emax';
+let currentCompany = 'merged';
 let refreshSummaryFn = null;
 let currentData = blankReport('emax');
 let currentFailed = blankFailedLog();
+let mergedDataByCompany = null; // {emax:{...},spoonfork:{...},espacex:{...},miniImpianBank:{...}} when in merged mode, else null
 
 function num(v){ const n = parseFloat(v); return isNaN(n)?0:n; }
 function fmt(n){ return n.toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -416,10 +424,16 @@ function showToast(msg){
 }
 
 // ---------- Tabs ----------
+// EMAX, Spoon & Fork, Espace X, Mini Impian (Bank) are merged into the
+// single "Combined" tab below — their own COMPANIES entries stay intact
+// (still used internally: storage keys, defaults, section configs), they
+// just no longer appear as separate clickable tabs.
+const MERGED_AWAY = new Set(['emax','spoonfork','espacex','miniImpianBank']);
 function renderTabs(){
   const tabs = document.getElementById('tabs');
   tabs.innerHTML = '';
   Object.keys(COMPANIES).forEach(key=>{
+    if(MERGED_AWAY.has(key))return;
     const b = document.createElement('button');
     b.className = 'tab-btn' + (key===currentCompany?' active':'');
     b.textContent = COMPANIES[key].shortLabel;
@@ -434,6 +448,13 @@ async function switchCompany(key){
   if(COMPANIES[key].isLog){
     const months = await listFailedMonths();
     await loadFailedLog(months.length ? months[0] : new Date().toISOString().slice(0,7));
+  } else if(COMPANIES[key].isMerged){
+    // Most recent date across ANY of the 4 merged companies — a date only
+    // needs one of them saved to count as "the latest", since they don't
+    // all necessarily get filled in at exactly the same moment.
+    const allDates = (await Promise.all(COMPANIES[key].mergedCompanies.map(c=>listReportDates(c)))).flat();
+    const latest = allDates.length ? allDates.sort().reverse()[0] : new Date().toISOString().slice(0,10);
+    await loadMergedReport(latest);
   } else {
     const dates = await listReportDates(key);
     await loadReport(key, dates.length ? dates[0] : new Date().toISOString().slice(0,10));
@@ -441,23 +462,37 @@ async function switchCompany(key){
 }
 
 // ---------- Load / Save ----------
-async function loadReport(company, date){
+async function loadSingleCompanyData(company,date){
   try{
     const res = await window.storage.get(storageKeyReport(company, date), STORAGE_SHARED);
     if(res && res.value){
-      currentData = JSON.parse(res.value);
-      if(currentData.sections && currentData.sections.rto) migratePendingMonths(currentData.sections.rto);
-      currentData.date = date;
-    } else {
-      currentData = blankReport(company);
-      currentData.date = date;
-      await autoFillLabelsFromLastRecord(company,date);
+      const d = JSON.parse(res.value);
+      if(d.sections && d.sections.rto) migratePendingMonths(d.sections.rto);
+      d.date = date;
+      return d;
     }
-  }catch(e){
-    currentData = blankReport(company);
-    currentData.date = date;
-    await autoFillLabelsFromLastRecord(company,date);
-  }
+  }catch(e){}
+  const d = blankReport(company);
+  d.date = date;
+  const savedCompany=currentCompany, savedData=currentData;
+  currentCompany=company; currentData=d;
+  await autoFillLabelsFromLastRecord(company,date);
+  currentCompany=savedCompany; currentData=savedData;
+  return d;
+}
+
+async function loadReport(company, date){
+  currentData = await loadSingleCompanyData(company,date);
+  renderMain();
+}
+
+async function loadMergedReport(date){
+  const cfg = COMPANIES.merged;
+  mergedDataByCompany = {};
+  await Promise.all(cfg.mergedCompanies.map(async c=>{
+    mergedDataByCompany[c] = await loadSingleCompanyData(c,date);
+  }));
+  currentData = { date }; // holds the shared date/time for the topbar only — not a real report
   renderMain();
 }
 
@@ -496,11 +531,24 @@ async function autoFillLabelsFromLastRecord(company,date){
 async function saveReport(){
   const company = currentCompany;
   if(COMPANIES[company].isLog){ return saveFailed(); }
+  if(COMPANIES[company].isMerged){ return saveMergedReport(); }
   try{
     const res = await window.storage.set(storageKeyReport(company, currentData.date), JSON.stringify(currentData), STORAGE_SHARED);
     if(res) showToast('Saved ✓ ' + currentData.date);
     else showToast('Save failed, try again');
   }catch(e){ showToast('Save failed: '+e.message); }
+}
+
+async function saveMergedReport(){
+  const cfg = COMPANIES.merged;
+  let allOk = true;
+  for(const c of cfg.mergedCompanies){
+    try{
+      const res = await window.storage.set(storageKeyReport(c, mergedDataByCompany[c].date), JSON.stringify(mergedDataByCompany[c]), STORAGE_SHARED);
+      if(!res) allOk = false;
+    }catch(e){ allOk = false; }
+  }
+  showToast(allOk ? 'Saved ✓ ' + mergedDataByCompany[cfg.mergedCompanies[0]].date + ' (all 4)' : 'Some companies failed to save — try again');
 }
 
 async function loadFailedLog(month){
@@ -536,6 +584,12 @@ function renderMain(){
   const main = document.getElementById('main');
   main.innerHTML = '';
   refreshSummaryFn = null;
+
+  if(COMPANIES[currentCompany].isMerged){
+    renderMergedMain(main);
+    return;
+  }
+
   // Mini Impian Sales renders two side-by-side columns — give it roughly
   // double the width so each column is as comfortable as Espace X's single
   // column, instead of squeezing two columns into the same 720px.
@@ -593,6 +647,55 @@ function renderMain(){
     else if(QTY_SECTIONS.has(sec)) main.appendChild(renderQtyListCard(sec));
     else main.appendChild(renderListCard(sec));
   });
+}
+
+// Renders all 4 merged companies in one view. Reuses every existing
+// per-section render function completely unchanged — each one reads the
+// global currentCompany/currentData, so this temporarily points those at
+// one company at a time while building that company's block, then moves
+// to the next. Add-row/delete buttons inside those render functions call
+// renderMain() by name; since renderMain() checks isMerged and delegates
+// back here, those buttons correctly refresh the whole combined view
+// instead of trying to render a single company.
+function renderMergedMain(main){
+  main.style.maxWidth = '';
+  const cfg = COMPANIES.merged;
+  const sharedDate = mergedDataByCompany[cfg.mergedCompanies[0]].date;
+
+  const topbar = document.createElement('div');
+  topbar.className = 'topbar';
+  topbar.innerHTML = `
+    <div><label>Date</label><input type="date" id="dateInput" value="${sharedDate}"></div>
+    <div><label>Time</label><input type="time" id="timeInput" value="${mergedDataByCompany.emax.time||''}"></div>
+  `;
+  main.appendChild(topbar);
+  document.getElementById('dateInput').onchange = async (e)=>{
+    await loadMergedReport(e.target.value);
+  };
+  document.getElementById('timeInput').oninput = (e)=>{
+    // Shared across all 4 — they're normally filled in at the same time,
+    // so one Time field avoids retyping the same value 4 times.
+    cfg.mergedCompanies.forEach(c=>{ mergedDataByCompany[c].time = e.target.value; });
+  };
+
+  const savedCompany = currentCompany, savedData = currentData;
+  cfg.mergedCompanies.forEach(c=>{
+    const heading = document.createElement('div');
+    heading.style.cssText = 'font-weight:800;font-size:15px;color:var(--navy,#0A1628);margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #C9D9F0;';
+    if(main.children.length<=1) heading.style.marginTop = '10px'; // first company, less top gap right under the topbar
+    heading.textContent = COMPANIES[c].name;
+    main.appendChild(heading);
+
+    currentCompany = c;
+    currentData = mergedDataByCompany[c];
+    COMPANIES[c].sections.forEach(sec=>{
+      if(sec==='stock') main.appendChild(renderStockCard());
+      else if(sec==='rto') main.appendChild(renderRtoCard());
+      else main.appendChild(renderListCard(sec));
+    });
+  });
+  currentCompany = savedCompany;
+  currentData = savedData;
 }
 
 function renderListCard(sec){
@@ -1532,6 +1635,28 @@ function buildPhotoHTML(){
   return inner;
 }
 
+// Builds the combined photo by calling the existing, per-company
+// buildPhotoHTML() once for each of the 4 merged companies (same
+// temporary-swap approach as renderMergedMain), then stitching all 4
+// outputs together with a divider between each — reuses that function
+// completely unchanged rather than re-implementing per-section photo
+// layout a second time.
+function buildMergedPhotoHTML(){
+  const cfg = COMPANIES.merged;
+  const savedCompany = currentCompany, savedData = currentData;
+  let inner = `<div style="text-align:center;margin-bottom:6px;"><h2 style="margin:0 0 4px;font-size:20px;">Daily Financial Report — Combined</h2><div style="color:#666;font-size:13px;">${mergedDataByCompany[cfg.mergedCompanies[0]].date}</div></div>`;
+  cfg.mergedCompanies.forEach((c,i)=>{
+    currentCompany = c;
+    currentData = mergedDataByCompany[c];
+    inner += `<div style="margin-top:${i===0?18:26}px;padding-top:${i===0?0:4}px;${i>0?'border-top:2px solid #C9D9F0;':''}">`;
+    inner += buildPhotoHTML();
+    inner += `</div>`;
+  });
+  currentCompany = savedCompany;
+  currentData = savedData;
+  return inner;
+}
+
 async function buildAllFailedPhotoHTML(){
   const months = await listFailedMonths();
   let inner = `<h2 style="margin:0 0 4px;font-size:19px;">FAILED PAYMENT (RTO)</h2>`;
@@ -1589,11 +1714,12 @@ async function saveAsPhoto(){
   const photoWidth = currentCompany==='miniImpianSales' ? 1100 : 560;
   container.style.cssText = `position:fixed;left:-9999px;top:0;width:${photoWidth}px;background:#F6F4EE;padding:20px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#20242E;`;
   const isFailed = COMPANIES[currentCompany].isLog;
-  container.innerHTML = isFailed ? await buildAllFailedPhotoHTML() : buildPhotoHTML();
+  const isMerged = COMPANIES[currentCompany].isMerged;
+  container.innerHTML = isFailed ? await buildAllFailedPhotoHTML() : isMerged ? buildMergedPhotoHTML() : buildPhotoHTML();
   document.body.appendChild(container);
   try{
     const canvas = await html2canvas(container, {backgroundColor:'#F6F4EE', scale:2});
-    const name = isFailed ? `failed-payments-all-months` : `${currentCompany}-${currentData.date}`;
+    const name = isFailed ? `failed-payments-all-months` : isMerged ? `combined-${mergedDataByCompany.emax.date}` : `${currentCompany}-${currentData.date}`;
 
     canvas.toBlob(function(blob){
       if(!blob){ showToast('Could not generate photo'); return; }
@@ -1623,8 +1749,9 @@ document.getElementById('saveBtn').onclick = saveReport;
 // ---------- Init ----------
 (async function init(){
   renderTabs();
-  const dates = await listReportDates('emax');
-  await loadReport('emax', dates.length ? dates[0] : new Date().toISOString().slice(0,10));
+  const allDates = (await Promise.all(COMPANIES.merged.mergedCompanies.map(c=>listReportDates(c)))).flat();
+  const latest = allDates.length ? allDates.sort().reverse()[0] : new Date().toISOString().slice(0,10);
+  await loadMergedReport(latest);
 })();
 </script>
 </body>
