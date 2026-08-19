@@ -14,6 +14,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../storage/index.js";
 import LoginPage from "./LoginPage.jsx";
 import ResetPasswordPage from "./ResetPasswordPage.jsx";
+import { Analytics } from "@vercel/analytics/react";
 
 export default function AuthGate({ children, allowedEmails }) {
   const [session, setSession] = useState(undefined); // undefined = still loading
@@ -92,5 +93,10 @@ export default function AuthGate({ children, allowedEmails }) {
   }
 
   // Logged in and authorised — render the page
-  return children;
+  return (
+    <>
+      {children}
+      <Analytics />
+    </>
+  );
 }
