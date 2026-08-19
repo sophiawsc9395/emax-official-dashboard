@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import BranchApp from './pages/viewers/BranchLDViewer.jsx'
 import AuthGate from './auth/AuthGate.jsx'
 
@@ -11,5 +12,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <AuthGate allowedEmails={ALLOWED}>
       <BranchApp />
     </AuthGate>
+    <SpeedInsights />
   </React.StrictMode>
 )

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import JCLTab from './JCLTab.jsx'
 import ChaileaseTab from './ChaileaseTab.jsx'
 import AuthGate from './auth/AuthGate.jsx'
@@ -215,5 +216,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <AuthGate allowedEmails={ALLOWED}>
       <CCMApp />
     </AuthGate>
+    <SpeedInsights />
   </React.StrictMode>
 )
