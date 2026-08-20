@@ -474,10 +474,7 @@ async function loadSingleCompanyData(company,date){
   }catch(e){}
   const d = blankReport(company);
   d.date = date;
-  const savedCompany=currentCompany, savedData=currentData;
-  currentCompany=company; currentData=d;
-  await autoFillLabelsFromLastRecord(company,date);
-  currentCompany=savedCompany; currentData=savedData;
+  await autoFillLabelsFromLastRecord(company,date,d);
   return d;
 }
 
@@ -496,7 +493,7 @@ async function loadMergedReport(date){
   renderMain();
 }
 
-async function autoFillLabelsFromLastRecord(company,date){
+async function autoFillLabelsFromLastRecord(company,date,targetData){
   const dates=await listReportDates(company);
   const priorDate=dates.find(d=>d<date);
   if(!priorDate)return;
@@ -507,20 +504,20 @@ async function autoFillLabelsFromLastRecord(company,date){
   }catch(e){ return; }
   if(!yData||!yData.sections) return;
   if(yData.sections.bank && Array.isArray(yData.sections.bank))
-    currentData.sections.bank = yData.sections.bank.map(r=>({label:r.label,amount:''}));
+    targetData.sections.bank = yData.sections.bank.map(r=>({label:r.label,amount:''}));
   if(yData.sections.aeon && Array.isArray(yData.sections.aeon))
-    currentData.sections.aeon = yData.sections.aeon.map(r=>({label:r.label,amount:''}));
+    targetData.sections.aeon = yData.sections.aeon.map(r=>({label:r.label,amount:''}));
   if(yData.sections.jcl && Array.isArray(yData.sections.jcl))
-    currentData.sections.jcl = yData.sections.jcl.map(r=>({label:r.label,amount:''}));
+    targetData.sections.jcl = yData.sections.jcl.map(r=>({label:r.label,amount:''}));
   if(yData.sections.supplier && Array.isArray(yData.sections.supplier))
-    currentData.sections.supplier = yData.sections.supplier.map(r=>({label:r.label,amount:''}));
+    targetData.sections.supplier = yData.sections.supplier.map(r=>({label:r.label,amount:''}));
   if(yData.sections.customer && Array.isArray(yData.sections.customer))
-    currentData.sections.customer = yData.sections.customer.map(r=>({label:r.label,amount:''}));
+    targetData.sections.customer = yData.sections.customer.map(r=>({label:r.label,amount:''}));
   if(yData.sections.rto){
     const yr = yData.sections.rto;
     if(yr.pendingMonth&&!yr.pendingMonths)
       yr.pendingMonths=[{month:yr.pendingMonth,count:yr.pendingCount||'',amount:''}];
-    currentData.sections.rto = {
+    targetData.sections.rto = {
       contractValue:'', deviceDTP:'', expectedProfit:'', collectedPayment:'',
       pendingMonths:(yr.pendingMonths||[{month:'',count:'',amount:''}]).map(pm=>({month:pm.month,count:'',amount:''})),
       nextMonthLabel:yr.nextMonthLabel||'', nextMonthAmount:''

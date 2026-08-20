@@ -12,6 +12,55 @@ const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 const PICKUP_BRANCH_OPTIONS=[...BRANCH_ORDER,"SDK"];
 const MERCHANTS=["Aeon","JCL","Chailease"];
 const PAYMENT_METHODS=["RHB","Public Bank"];
+const MERCHANT_BADGE_COLORS={Aeon:"#1D4ED8",JCL:"#7C3AED",Chailease:"#B45309",Cash:"#15803D"};
+// Small colored badge showing which merchant (Aeon/JCL/Chailease) or Cash
+// an order belongs to — reused across the order list, knock-off
+// checklists, and the payment breakdown table so it looks the same
+// everywhere.
+const MerchantBadge=({order})=>{
+  const label=order.orderType==="cash"?"Cash":(order.merchant||"—");
+  const color=MERCHANT_BADGE_COLORS[label]||"#8A96A8";
+  return<span style={{fontSize:9,fontWeight:700,color,background:color+"18",border:`1px solid ${color}40`,padding:"1px 7px",borderRadius:4,whiteSpace:"nowrap",display:"inline-block"}}>{label}</span>;
+};
+
+// Which merchant filter buttons a given report type should offer. Kept
+// as a lookup here (rather than one shared dropdown above every report)
+// since different reports cover different slices of orders: some are
+// CCM-merchant-specific and have no notion of "Cash" at all, one is
+// cash-specific and has no notion of merchants, one genuinely covers
+// both, and one (Purchase Claim) already covers everything regardless of
+// merchant so it needs no filter at all.
+const REPORT_MERCHANT_BUTTONS={
+  cashKnockoff:["cash"],
+  paymentCollection:["all","Aeon","JCL","Chailease","cash"],
+  purchaseClaim:[],
+};
+const merchantButtonsFor=type=>REPORT_MERCHANT_BUTTONS[type]||["all","Aeon","JCL","Chailease"];
+const merchantButtonLabel=v=>v==="all"?"All":v==="cash"?"Cash":v;
+
+// Each report card manages its own local merchant filter (not a shared
+// dropdown above the whole grid), since different cards may need
+// different button sets and different people may want to check different
+// merchants side by side without one selection affecting every card.
+function MerchantReportCard({label,type,date,setDate,src,isMobile}){
+  const buttons=merchantButtonsFor(type);
+  const [merchantFilter,setMerchantFilter]=useState(buttons[0]||"all");
+  const isLiveSnapshot=["firstInstallment","agreementReceived","claim","collectionOverdue"].includes(type);
+  const noDateNeeded=type==="collectionOverdue"||type==="purchaseClaim";
+  return<div style={{border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",background:C.surface,display:"flex",flexDirection:"column",height:"100%"}}>
+    <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>{label} Report</div>
+    {buttons.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
+      {buttons.map(b=><button key={b} onClick={()=>setMerchantFilter(b)} style={{fontSize:10,fontWeight:700,padding:"4px 10px",borderRadius:20,cursor:"pointer",fontFamily:"Inter,sans-serif",border:`1px solid ${merchantFilter===b?C.blue:C.border}`,background:merchantFilter===b?C.blue:"#fff",color:merchantFilter===b?"#fff":C.textMid}}>{merchantButtonLabel(b)}</button>)}
+    </div>}
+    {noDateNeeded
+      ?<div style={{fontSize:10,color:C.textLight,marginBottom:10}}>{type==="purchaseClaim"?"Always shows orders still waiting on their Claim Release to Purchaser file.":"Always shows who's currently overdue."}</div>
+      :<div style={{marginBottom:10}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>}
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginTop:"auto"}}>
+      {!noDateNeeded?<button onClick={()=>downloadReport(src,type,"",merchantFilter)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",whiteSpace:"nowrap",padding:0}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>:<span/>}
+      <PBtn onClick={()=>downloadReport(src,type,noDateNeeded?"":date,merchantFilter)} style={{padding:"9px 12px",width:38,height:38,justifyContent:"center",flexShrink:0}}>{Ic.download}</PBtn>
+    </div>
+  </div>;
+}
 
 const PHASES=[
   {id:"stock",label:"Stock Order",steps:[1,2,3],color:"#1E6FDB",bg:"#EFF6FF"},
@@ -573,8 +622,9 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
   const isPaymentCollection=type==="paymentCollection";
   const isPurchaseClaim=type==="purchaseClaim";
   // Cash orders aren't tied to a merchant, so the merchant filter doesn't
-  // apply to this report.
-  orders=(merchantFilter&&merchantFilter!=="all"&&!isCashKnockoff)?orders.filter(o=>o.merchant===merchantFilter):orders;
+  // apply to this report. "cash" itself is a special filter value (not a
+  // real merchant) that filters by orderType instead of the merchant field.
+  orders=(merchantFilter&&merchantFilter!=="all"&&!isCashKnockoff)?(merchantFilter==="cash"?orders.filter(o=>o.orderType==="cash"):orders.filter(o=>o.merchant===merchantFilter)):orders;
   // The `orders` array passed in only has header fields — no `.history` (that's
   // lazily loaded per-order elsewhere for performance). These two report types
   // need to scan actual history entries, so fetch it in one batched query and
@@ -703,7 +753,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
   }).sort((a,b)=>(a.invoiceNo||"").localeCompare(b.invoiceNo||""));
   if(!filtered.length){alert(`No records found${dateFilter?` for ${fDate(dateFilter)}`:""}.`);return;}
   const dateStr=dateFilter?fDate(dateFilter):"All Dates";
-  const merchantLabel=isCashKnockoff?"N/A (Cash Orders)":(merchantFilter&&merchantFilter!=="all"?merchantFilter:"All Merchants");
+  const merchantLabel=isCashKnockoff?"N/A (Cash Orders)":(merchantFilter==="cash"?"Cash Orders":(merchantFilter&&merchantFilter!=="all"?merchantFilter:"All Merchants"));
   let rows="",total1=0,total2=0,total3=0,total4=0;
   if(isAgreementReceived){
     const showReceivedCol=!dateFilter;
@@ -2092,7 +2142,8 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
                 <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
               </div>
               <div style={{width:150,flexShrink:0,marginLeft:14}}>
-                <div style={{fontSize:11,fontWeight:700,color:C.textMid}}>{o.invoiceNo||"—"}</div>
+                <MerchantBadge order={o}/>
+                <div style={{fontSize:11,fontWeight:700,color:C.textMid,marginTop:2}}>{o.invoiceNo||"—"}</div>
               </div>
               <div style={{flex:1.4,minWidth:220,marginLeft:14,alignSelf:"stretch",display:"flex",alignItems:"center"}}>
                 <div style={{display:"flex",flexWrap:"wrap",gap:4,rowGap:5}}>
@@ -2150,7 +2201,8 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
               <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
             </div>
             <div style={{width:150,flexShrink:0,marginLeft:14,overflow:"hidden"}}>
-              <div style={{fontSize:11,fontWeight:700,color:C.textMid,...single}}>{o.invoiceNo||"—"}</div>
+              <MerchantBadge order={o}/>
+              <div style={{fontSize:11,fontWeight:700,color:C.textMid,marginTop:2,...single}}>{o.invoiceNo||"—"}</div>
             </div>
             <div style={{flex:1.4,minWidth:220,marginLeft:14,overflow:"hidden"}}>
               <div style={{display:"flex",flexWrap:"nowrap",gap:4}}>
@@ -2225,7 +2277,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [firstInstallmentKnockoffReportDate,setFirstInstallmentKnockoffReportDate]=useState(nowDate());
   const [upfront1KnockoffReportDate,setUpfront1KnockoffReportDate]=useState(nowDate());
   const [paymentCollectionReportDate,setPaymentCollectionReportDate]=useState(nowDate());
-  const [reportMerchant,setReportMerchant]=useState("all");
   const [expandedKnockoffReport,setExpandedKnockoffReport]=useState(null);
   const [reportsExpanded,setReportsExpanded]=useState(false);
   const [knockOffExpanded,setKnockOffExpanded]=useState(false);
@@ -2614,31 +2665,11 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         </div>
       </div>
       {reportsExpanded&&<div style={{padding:"0 16px 16px",borderTop:`1px solid ${C.border}`}}>
-        <div style={{padding:"14px 0 12px",maxWidth:260}}><L>Merchant</L><SEL value={reportMerchant} onChange={e=>setReportMerchant(e.target.value)}><option value="all">All Merchants</option>{MERCHANTS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
-        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10,marginTop:14}}>
           {/* Knock Off checklists moved to their own standalone section below */}
-          {visibleReports.map(([label,type,date,setDate,src])=>{
-            // For these report types, leaving the date blank doesn't mean
-            // "every record ever" — it means "what's outstanding right now".
-            // Calling that button "All dates" implies full history, which is
-            // the opposite of what actually happens, so it gets a clearer
-            // label specifically for these.
-            const isLiveSnapshot=["firstInstallment","agreementReceived","claim","collectionOverdue"].includes(type);
-            // This report ignores the date entirely — it's always a live
-            // snapshot — so showing a date picker that does nothing is just
-            // confusing.
-            const noDateNeeded=type==="collectionOverdue"||type==="purchaseClaim";
-            return<div key={type} style={{border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",background:C.surface,display:"flex",flexDirection:"column",height:"100%"}}>
-              <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:10}}>{label} Report</div>
-              {noDateNeeded
-                ?<div style={{fontSize:10,color:C.textLight,marginBottom:10}}>{type==="purchaseClaim"?"Always shows orders still waiting on their Claim Release to Purchaser file.":"Always shows who's currently overdue."}</div>
-                :<div style={{marginBottom:10}}><L>Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>}
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginTop:"auto"}}>
-                {!noDateNeeded?<button onClick={()=>downloadReport(src,type,"",reportMerchant)} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",whiteSpace:"nowrap",padding:0}}>{isLiveSnapshot?"Show Outstanding Now":"All dates"}</button>:<span/>}
-                <PBtn onClick={()=>downloadReport(src,type,noDateNeeded?"":date,reportMerchant)} style={{padding:"9px 12px",width:38,height:38,justifyContent:"center",flexShrink:0}}>{Ic.download}</PBtn>
-              </div>
-            </div>;
-          })}
+          {visibleReports.map(([label,type,date,setDate,src])=>
+            <MerchantReportCard key={type} label={label} type={type} date={date} setDate={setDate} src={src} isMobile={isMobile}/>
+          )}
         </div>
       </div>}
     </div>;
@@ -2665,8 +2696,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       // with its own done state; the row itself only leaves the pending
       // list once every button in the row is done (handled by each
       // checklist's own pending filter above).
-      const Row=({meta,amounts,remark,buttons})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",flexWrap:"wrap"}}>
+      const Row=({order,meta,amounts,remark,buttons})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:0}}>
+          {order&&<div style={{marginBottom:4}}><MerchantBadge order={order}/></div>}
           {meta&&<div style={{fontSize:10,color:C.textLight,marginBottom:5}}>{meta}</div>}
           <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:remark?5:0}}>{amounts}</div>
           {remark&&<div style={{fontSize:11,color:C.textMid}}>Remark: {remark}</div>}
@@ -2702,7 +2734,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         {knockOffExpanded&&<div style={{padding:"14px 16px",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:10}}>
           <Checklist checklistKey="upfront1" title="Upfront 1 Knock Off (CCM Order)" items={upfront1Pending} rowRenderer={o=>{
             const h=o.lastVerification;
-            return<Row key={o.id} buttons={[
+            return<Row key={o.id} order={o} buttons={[
               {label:"K/O 1",done:!!o.upfront1KnockOffDate,onClick:()=>bulkSave([{...o,upfront1KnockOffDate:nowDate()}])},
               {label:"K/O 2",done:!!o.upfront1KnockOff2Date,onClick:()=>bulkSave([{...o,upfront1KnockOff2Date:nowDate()}])},
             ]} meta={`Invoice: ${o.invoiceNo||"—"} · Agreement: ${o.agreementNumber||"—"}`} amounts={<>
@@ -2712,23 +2744,23 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
           }}/>
           <Checklist checklistKey="upfront2" title="Upfront 2 Knock Off (CCM Order)" items={upfront2Pending} rowRenderer={o=>{
             const h=o.lastVerification;
-            return<Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,upfront2KnockOffDate:nowDate()}])}]}
+            return<Row key={o.id} order={o} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,upfront2KnockOffDate:nowDate()}])}]}
               meta={[o.invoiceNo||"—",o.agreementNumber||"—",o.merchant||"—",h?.secondPaymentDate?`2nd Upfront Date: ${fDate(h.secondPaymentDate)}`:null,h?.secondPayMethod?`Method: ${h.secondPayMethod}`:null].filter(Boolean).join(" · ")}
               amounts={<AmtBadge label="2nd Payment Proof" value={parseFloat(h?.secondPaymentAmount)||0} bg="#F5F0FF" fg="#7C3AED"/>}/>;
           }}/>
           <Checklist checklistKey="knockoff" title="Claim Released Knock Off (CCM Order)" items={claimPending} rowRenderer={o=>
-            <Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,claimReportKnockOffDate:nowDate()}])}]}
+            <Row key={o.id} order={o} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,claimReportKnockOffDate:nowDate()}])}]}
               meta={[o.invoiceNo||"—",o.agreementNumber||"—"].filter(Boolean).join(" · ")}
               amounts={<AmtBadge label="Amount" value={parseFloat(o.knockOffAmount)||0} bg="#F0FDF4" fg="#15803D"/>}/>
           }/>
           <Checklist checklistKey="deposit" title="Deposit Knock Off (Cash Order)" items={depositPending} rowRenderer={o=>
-            <Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,cashDepositKnockOffDate:nowDate()}])}]}
+            <Row key={o.id} order={o} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,cashDepositKnockOffDate:nowDate()}])}]}
               meta={[o.invoiceNo||"—",o.customerName||"—",o.phoneModel||"—",o.branch||"—",`Deposit Date: ${fDate(o.depositPaymentDate)}`,o.depositPaymentMethod?`Method: ${o.depositPaymentMethod}`:null].filter(Boolean).join(" · ")}
               amounts={<AmtBadge label="Deposit" value={parseFloat(o.deposit)||0} bg="#EFF6FF" fg="#1D4ED8"/>}/>
           }/>
           <Checklist checklistKey="balance" title="Balance Payment Knock Off (Cash Order)" items={balancePending} rowRenderer={o=>{
             const h=o.lastVerification;
-            return<Row key={o.id} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,cashBalanceKnockOffDate:nowDate()}])}]}
+            return<Row key={o.id} order={o} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,cashBalanceKnockOffDate:nowDate()}])}]}
               meta={[o.invoiceNo||"—",h?.upfrontPaymentDate?`Balance Date: ${fDate(h.upfrontPaymentDate)}`:null,h?.paymentMethod?`Method: ${h.paymentMethod}`:null].filter(Boolean).join(" · ")}
               amounts={<AmtBadge label="Amount" value={parseFloat(h?.monthlyInstallment)||0} bg="#FFFBEB" fg="#B45309"/>}/>;
           }}/>
@@ -2784,7 +2816,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
           return<tr key={o.id} onClick={()=>openOrder(o)} style={{borderTop:i>0?`1px solid ${C.border}`:"none",cursor:"pointer"}}>
             <td style={{padding:"7px 12px",fontWeight:700,color:C.text}}>{o.invoiceNo||"—"}</td>
             <td style={{padding:"7px 12px",color:C.textMid}}>{o.customerName||"—"}</td>
-            <td style={{padding:"7px 12px",color:C.textMid}}>{isCashOrder?"Cash":"CCM"}</td>
+            <td style={{padding:"7px 12px"}}><MerchantBadge order={o}/></td>
             <td style={{padding:"7px 12px",textAlign:"right"}}>{amt1?fRM(amt1):"—"}</td>
             <td style={{padding:"7px 12px",textAlign:"right",color:C.textLight,fontSize:11}}>{date1?fDate(date1):"—"}</td>
             <td style={{padding:"7px 12px",textAlign:"right"}}>{amt2?fRM(amt2):"—"}</td>
