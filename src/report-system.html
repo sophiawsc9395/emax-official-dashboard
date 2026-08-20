@@ -594,7 +594,13 @@ function renderMain(){
         <div style="font-weight:700;margin-bottom:6px;">Something went wrong showing the Combined tab.</div>
         <div style="font-size:13px;color:#7F1D1D;">${escapeHtml(err.message||String(err))}</div>
         <button onclick="renderMain()" style="margin-top:14px;margin-right:8px;background:#fff;color:#0A1628;border:1.5px solid #0A1628;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit;">Try Again</button>
-        <button onclick="window.location.reload()" style="margin-top:14px;background:#0A1628;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit;">Reload Page</button>
+        <button onclick="window.location.reload()" style="margin-top:14px;margin-right:8px;background:#0A1628;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit;">Reload Page</button>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid #FECACA;font-size:12px;color:#7F1D1D;">
+          Or work on one company at a time while this gets fixed:
+          <div style="margin-top:8px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
+            ${COMPANIES.merged.mergedCompanies.map(c=>`<button onclick="switchCompany('${c}')" style="background:#fff;color:#B91C1C;border:1px solid #FECACA;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit;">${COMPANIES[c].shortLabel}</button>`).join('')}
+          </div>
+        </div>
       </div>`;
     }
     return;
@@ -711,7 +717,12 @@ function renderMergedMain(main){
 function renderListCard(sec){
   const card = document.createElement('div');
   card.className = 'card';
+  // Defensive: if this section's data is missing or the wrong shape (e.g.
+  // corrupted/legacy data), repair it in place to an empty array rather
+  // than letting the crash take down the whole page.
+  if(!Array.isArray(currentData.sections[sec])) currentData.sections[sec] = [];
   const rows = currentData.sections[sec];
+  rows.forEach(r=>{ if(r.label==null)r.label=''; if(r.amount==null)r.amount=''; });
   const total = rows.reduce((s,r)=>s+num(r.amount),0);
 
   card.innerHTML = `<div class="card-head"><span>${SECTION_TITLES[sec]}</span></div>`;
@@ -808,7 +819,9 @@ function updateQtyTotal(card, rows){
 function renderStockCard(){
   const card = document.createElement('div');
   card.className = 'card';
+  if(!Array.isArray(currentData.sections.stock)) currentData.sections.stock = [];
   const rows = currentData.sections.stock;
+  rows.forEach(r=>{ if(r.branch==null)r.branch=''; if(r.category==null)r.category=''; if(r.total==null)r.total=''; });
   card.innerHTML = `<div class="card-head"><span>Stock Balance</span></div>`;
   const head = document.createElement('div');
   head.className = 'stock-head';
@@ -857,8 +870,15 @@ function updateStockTotal(card, rows){
 function renderRtoCard(){
   const card = document.createElement('div');
   card.className = 'card';
-  migratePendingMonths(currentData.sections.rto);
+  // Defensive: repair the rto object in place if it's missing or any of
+  // its fields are the wrong type, so malformed/legacy data can't throw
+  // and blank the page.
+  if(!currentData.sections.rto || typeof currentData.sections.rto !== 'object') currentData.sections.rto = {};
   const d = currentData.sections.rto;
+  ['contractValue','deviceDTP','expectedProfit','collectedPayment','nextMonthLabel','nextMonthAmount'].forEach(k=>{ if(d[k]==null)d[k]=''; });
+  if(!Array.isArray(d.pendingMonths)||d.pendingMonths.length===0) d.pendingMonths=[{month:'',count:'',amount:''}];
+  d.pendingMonths.forEach(pm=>{ if(pm.month==null)pm.month=''; if(pm.count==null)pm.count=''; if(pm.amount==null)pm.amount=''; });
+  migratePendingMonths(currentData.sections.rto);
   card.innerHTML = `<div class="card-head"><span>Rent-to-Own (RTO)</span></div>`;
   const ff = document.createElement('div');
   ff.className = 'fixed-fields';
