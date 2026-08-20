@@ -462,21 +462,29 @@ async function switchCompany(key){
 }
 
 // ---------- Load / Save ----------
-// Repairs a loaded/carried-forward record if a section that's supposed to
-// have meaningful, non-blank default labels (Bank, Supplier, Stock) ended
-// up with every row's label/branch blank. That's not a legitimate state
-// for those specific sections (unlike AEON/JCL/Customer, which are
-// blank-by-design) — it's a sign the underlying saved data itself got
-// corrupted at some point (e.g. saved while an earlier bug had the page
-// showing broken/empty data), and carrying that forward faithfully just
-// perpetuates the corruption. Restores the company's real defaults for
-// just the affected section, not the whole record.
+// Repairs a loaded/carried-forward record if any section ended up either
+// completely empty (zero rows — should never happen, every section has
+// at least one default row) or, for sections that are supposed to have
+// meaningful, non-blank default labels (Bank, Supplier, Stock), every
+// row's label/branch blank. Neither is a legitimate state — it's a sign
+// the underlying saved data itself got corrupted at some point (e.g.
+// saved while an earlier bug had the page showing broken/empty data),
+// and carrying that forward faithfully just perpetuates the corruption.
+// Restores the company's real defaults for just the affected section,
+// not the whole record.
 function repairBlankDefaultSections(company,d){
-  if(d.sections?.bank?.length && d.sections.bank.every(r=>!r.label))
+  const emptyOrAllBlank=(arr,key)=>!arr||!arr.length||arr.every(r=>!r[key]);
+  if(emptyOrAllBlank(d.sections?.bank,"label"))
     d.sections.bank = defaultRows(company,"bank");
-  if(d.sections?.supplier?.length && d.sections.supplier.every(r=>!r.label))
+  if(!d.sections?.aeon?.length)
+    d.sections.aeon = defaultRows(company,"aeon");
+  if(!d.sections?.jcl?.length)
+    d.sections.jcl = defaultRows(company,"jcl");
+  if(emptyOrAllBlank(d.sections?.supplier,"label"))
     d.sections.supplier = defaultRows(company,"supplier");
-  if(d.sections?.stock?.length && d.sections.stock.every(r=>!r.branch))
+  if(!d.sections?.customer?.length)
+    d.sections.customer = defaultRows(company,"customer");
+  if(emptyOrAllBlank(d.sections?.stock,"branch"))
     d.sections.stock = defaultStockRows();
   return d;
 }
