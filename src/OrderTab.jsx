@@ -1465,11 +1465,11 @@ function FormCard({title,children}){
   </div>;
 }
 
-function OrderForm({order,orders=[],branchMeta,onSave,onCancel,isAdmin,userBranch,srList,orderPermissions,email}){
+function OrderForm({order,orders=[],branchMeta,onSave,onCancel,isAdmin,userBranch,srList,orderPermissions,email,onDirtyChange}){
   const empty={phoneModel:"",branch:userBranch||"KM",merchant:"Aeon",agreementNumber:"",customerName:"",customerIC:"",customerEmail:"",customerHP:"",customerAddress:"",customerPostCode:"",customerCity:"",salesAgentId:"",salesAgentName:"",aeonApprovalDate:"",financePrice:"",deposit:"",stampingFee:"",agreementFee:"",monthlyInstallment:"",retailPrice:"",stockStatus:"stock_request",orderType:"ccm",depositPaymentDate:"",depositPaymentMethod:"RHB",depositSlip:null,pickUpBranch:""};
   const [f,setF]=useState(order?{...order}:empty);
   const [slipFile,setSlipFile]=useState(null);
-  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const set=(k,v)=>{setF(p=>({...p,[k]:v}));onDirtyChange&&onDirtyChange(true);};
   // SDK displays with a plain hyphen per request ("SDK-EC SDK"), unlike every
   // other branch which uses the standard "CODE — Full Name" format.
   const branchLabel=b=>`${b} — ${branchMeta[b]?.name||b}`;
@@ -1595,7 +1595,7 @@ function OrderForm({order,orders=[],branchMeta,onSave,onCancel,isAdmin,userBranc
       {row("deposit","Deposit (RM)","number",true)}
       <div><L req>Deposit Payment Method</L><SEL value={f.depositPaymentMethod||"RHB"} onChange={e=>set("depositPaymentMethod",e.target.value)} disabled={isFieldLocked("depositPaymentMethod")} style={isFieldLocked("depositPaymentMethod")?lockedStyle:{}}><option value="RHB">RHB</option><option value="PBB">PBB</option></SEL></div>
       {row("depositPaymentDate","Deposit Payment Date","date",true)}
-      <div><L req>Deposit Payment Slip</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setSlipFile(e.target.files[0]||null)} disabled={isFieldLocked("depositSlip")} style={{fontSize:11,width:"100%"}}/>{(slipFile||f.depositSlip)&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>{slipFile?.name||f.depositSlip?.name}</div>}{!slipFile&&!f.depositSlip&&<div style={{fontSize:10,color:"#DC2626",marginTop:3}}>Required</div>}</div>
+      <div><L req>Deposit Payment Slip</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>{setSlipFile(e.target.files[0]||null);onDirtyChange&&onDirtyChange(true);}} disabled={isFieldLocked("depositSlip")} style={{fontSize:11,width:"100%"}}/>{(slipFile||f.depositSlip)&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>{slipFile?.name||f.depositSlip?.name}</div>}{!slipFile&&!f.depositSlip&&<div style={{fontSize:10,color:"#DC2626",marginTop:3}}>Required</div>}</div>
     </FormCard>}
     {(missing.length>0||missingSlip)&&!order&&<div style={{padding:"9px 12px",background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:8,fontSize:11,color:"#92400E",marginBottom:12,display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill all required fields to submit.</div>}
     <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><GBtn onClick={onCancel}>Cancel</GBtn><PBtn onClick={submit} disabled={!order&&(missing.length>0||missingSlip)}>{isReady?"Submit & Dispatch":"Submit Order Request"}</PBtn></div>
@@ -2243,6 +2243,19 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const nav=useCallback((v,sel=null)=>{setView(v);setSelected(sel);sessionStorage.setItem("orderView",v);sessionStorage.setItem("orderSelected",sel?JSON.stringify(sel):"null");window.history.pushState({orderView:v,orderSelected:sel},"");},[]);
   const openOrder=useCallback(o=>nav("detail",o),[nav]);
 
+  // Refs, not state — the popstate handler is set up once on mount (empty
+  // deps below) so a plain state variable would be captured stale in that
+  // closure forever; refs always read the current value. selectedRef
+  // itself is declared further below (already used there for a different,
+  // unrelated purpose) — reused here rather than duplicated.
+  const viewRef=useRef(view);
+  const formDirtyRef=useRef(false);
+  useEffect(()=>{viewRef.current=view;},[view]);
+  // Resets whenever the form is freshly entered, so a leftover dirty flag
+  // from a previous New Order/Edit session doesn't wrongly warn on a form
+  // the person hasn't touched yet.
+  useEffect(()=>{if(view==="form")formDirtyRef.current=false;},[view]);
+
   // Browser back/forward button support — additive on top of the existing
   // visible Back button, not a replacement for it. On mount, the current
   // view becomes the baseline history entry (via replaceState, not
@@ -2254,6 +2267,17 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   useEffect(()=>{
     window.history.replaceState({orderView:view,orderSelected:selected},"");
     const onPopState=e=>{
+      if(viewRef.current==="form"&&formDirtyRef.current){
+        const leave=window.confirm("You have unsaved changes. Are you sure you want to leave without saving?");
+        if(!leave){
+          // Browser already moved back one step — push the form state
+          // straight back on top to undo that, since the person chose to
+          // stay.
+          window.history.pushState({orderView:"form",orderSelected:selectedRef.current},"");
+          return;
+        }
+        formDirtyRef.current=false;
+      }
       if(e.state&&"orderView" in e.state){
         setView(e.state.orderView);
         setSelected(e.state.orderSelected);
@@ -2423,7 +2447,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     if(!live)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading order…</div>;
     return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} orderPermissions={orderPermissions} userBranch={userBranch} email={email} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
   }
-  if(view==="form")return<OrderForm order={editOrder} orders={orders} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} orderPermissions={orderPermissions} email={email} onSave={async o=>{await saveOrder(o);setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
+  if(view==="form")return<OrderForm order={editOrder} orders={orders} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} orderPermissions={orderPermissions} email={email} onDirtyChange={d=>{formDirtyRef.current=d;}} onSave={async o=>{await saveOrder(o);formDirtyRef.current=false;setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
 
   return<div className="fade-in">
     {showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}

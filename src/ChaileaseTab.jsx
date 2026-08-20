@@ -371,7 +371,7 @@ const emptyApp=(branch="")=>({
 });
 
 /* ── Application form — used for both New Application and Edit ─────────── */
-function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSaved,onCancel}){
+function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSaved,onCancel,onDirtyChange}){
   const [f,setF]=useState(()=>editingApp?{...emptyApp(),...editingApp}:emptyApp(userBranch||""));
   const [docs,setDocs]=useState(()=>{
     const d={};
@@ -380,7 +380,7 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
   });
   const [docFiles,setDocFiles]=useState({});
   const [saving,setSaving]=useState(false);
-  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const set=(k,v)=>{setF(p=>({...p,[k]:v}));onDirtyChange&&onDirtyChange(true);};
   const formBranch=userBranch||f.branch;
   const branchSRs=(srList||[]).filter(s=>s.branch===formBranch);
 
@@ -520,7 +520,7 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     <FormCard title="Document Uploads">
       {DOC_FIELDS.map(({key,label})=><div key={key}>
         <L req>{label}</L>
-        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setDocFiles(p=>({...p,[key]:e.target.files[0]||null}))} style={{fontSize:11}}/>
+        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>{setDocFiles(p=>({...p,[key]:e.target.files[0]||null}));onDirtyChange&&onDirtyChange(true);}} style={{fontSize:11}}/>
         {docFiles[key]?<div style={{fontSize:10,color:duplicateDocKeys.has(key)?"#DC2626":"#15803D",marginTop:3}}>New file selected: {docFiles[key].name}</div>
           :docs[key]?<div style={{fontSize:10,color:C.textLight,marginTop:3}}>On file: {docs[key].name}</div>:null}
         {duplicateDocKeys.has(key)&&<div style={{fontSize:10,color:"#DC2626",marginTop:2}}>Same file as another document below — please select the correct, distinct file.</div>}
@@ -957,9 +957,34 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
   // the popstate handler itself triggering another push, which would
   // otherwise create a duplicate/looping entry.
   const isPopStateNav=useRef(false);
+  // Refs, not state — the popstate handler is set up once on mount (empty
+  // deps below) so a plain state variable would be captured stale in that
+  // closure forever; refs always read the current value.
+  const viewRef=useRef(view);
+  const selectedIdRef=useRef(selectedId);
+  const formDirtyRef=useRef(false);
+  useEffect(()=>{viewRef.current=view;},[view]);
+  useEffect(()=>{selectedIdRef.current=selectedId;},[selectedId]);
+  // Resets whenever the form is freshly entered, so a leftover dirty flag
+  // from a previous edit session doesn't wrongly warn on a form the person
+  // hasn't touched yet.
+  useEffect(()=>{if(view==="form")formDirtyRef.current=false;},[view]);
   useEffect(()=>{
     window.history.replaceState({chaileaseView:view,chaileaseSelectedId:selectedId},"");
     const onPopState=e=>{
+      if(viewRef.current==="form"&&formDirtyRef.current){
+        const leave=window.confirm("You have unsaved changes. Are you sure you want to leave without saving?");
+        if(!leave){
+          // Browser already moved back one step — push the form state
+          // straight back on top to undo that, since the person chose to
+          // stay. isPopStateNav prevents this push from being mistaken
+          // for a real navigation by the effect below.
+          isPopStateNav.current=true;
+          window.history.pushState({chaileaseView:"form",chaileaseSelectedId:selectedIdRef.current},"");
+          return;
+        }
+        formDirtyRef.current=false;
+      }
       if(e.state&&"chaileaseView" in e.state){
         isPopStateNav.current=true;
         setView(e.state.chaileaseView);
@@ -1127,7 +1152,8 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
 
   if(view==="form")return<ApplicationForm branchMeta={branchMeta} userBranch={userBranch} isAdmin={isAdmin} srList={srList} editingApp={editingApp}
-    onSaved={async(app)=>{const ok=await save(app);if(ok!==false){setView("detail");setSelectedId(app.id);setEditingApp(null);}}}
+    onDirtyChange={d=>{formDirtyRef.current=d;}}
+    onSaved={async(app)=>{const ok=await save(app);if(ok!==false){formDirtyRef.current=false;setView("detail");setSelectedId(app.id);setEditingApp(null);}}}
     onCancel={()=>{setView(editingApp?"detail":"list");setEditingApp(null);}}/>;
 
   const isSuperAdmin=(email||"").toLowerCase()==="sophiawsc9395@gmail.com";
