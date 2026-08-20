@@ -617,6 +617,10 @@ function renderMain(){
   }
 
   const cfg = COMPANIES[currentCompany];
+  // Same defensive repair as the merged view - a company's saved record
+  // can end up without its sections object entirely.
+  if(!currentData || typeof currentData !== 'object') currentData = {date:new Date().toISOString().slice(0,10),sections:{}};
+  if(!currentData.sections || typeof currentData.sections !== 'object') currentData.sections = {};
 
   // topbar: date/time
   const topbar = document.createElement('div');
@@ -704,6 +708,13 @@ function renderMergedMain(main){
 
     currentCompany = c;
     currentData = mergedDataByCompany[c];
+    // Defensive: repair the whole sections object if it's missing or the
+    // wrong type, since a company record can end up without it entirely
+    // (not just with an individual section missing/wrong-shaped) — this
+    // was the actual root cause of the Combined tab going blank.
+    if(!currentData || typeof currentData !== 'object') currentData = {date:'',sections:{}};
+    if(!currentData.sections || typeof currentData.sections !== 'object') currentData.sections = {};
+    mergedDataByCompany[c] = currentData;
     COMPANIES[c].sections.forEach(sec=>{
       if(sec==='stock') main.appendChild(renderStockCard());
       else if(sec==='rto') main.appendChild(renderRtoCard());
