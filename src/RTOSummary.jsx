@@ -90,9 +90,14 @@ export function RTOSummaryInner({customers,branchMeta}){
     // Next month's expected collection — each customer's scheduled
     // installment for next month specifically, summed across everyone who
     // actually has one due then (i.e. still within their tenure at that
-    // point). Not filtered by paid/unpaid since it's a forward-looking
-    // projection, not a collection-status check.
-    nextMonthEC:analytics.reduce((s,c)=>s+(c.schedule.find(x=>x.key===nextMonthKey)?.amount||0),0),
+    // point) AND hasn't already paid it early. A customer who's already
+    // settled next month's installment ahead of schedule shouldn't still
+    // count toward what's expected to come in.
+    nextMonthEC:analytics.reduce((s,c)=>{
+      const sched=c.schedule.find(x=>x.key===nextMonthKey);
+      if(!sched)return s;
+      return c.payments?.[nextMonthKey]?.paid?s:s+sched.amount;
+    },0),
   };
 
   const overdueCustomers=analytics.filter(c=>c.overdue.length>0).sort((a,b)=>b.overdue.length-a.overdue.length);
