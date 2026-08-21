@@ -1018,7 +1018,6 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
           <div style={{fontSize:12,marginBottom:8}}><span style={{color:C.textLight,fontWeight:600}}>Claim Sent: </span>{fDate(order.claimSentDate)}</div>
           <div style={{fontSize:12,marginBottom:8}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Date: </span>{fDate(order.knockOffDate)}</div>
           {order.knockOffAmount&&<div style={{fontSize:12,marginBottom:12}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Amount: </span>{fRM(order.knockOffAmount)}</div>}
-          {isAdmin&&<><Divider/><DBtn onClick={async()=>{if(!confirm("Move to Completed?"))return;setSaving(true);const h={step:14,date:nowDate(),time:nowTime(),note:"Completed and archived"};await onUpdate({...order,step:14,history:[...(order.history||[]),h]});setSaving(false);}} style={{width:"100%",justifyContent:"center"}}>{Ic.trash} Mark as Completed</DBtn></>}
         </div>
       </div>
     </div>;
@@ -1479,7 +1478,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
 
     {order.firstInstallmentKnockOffDate&&isSuperAdminOrder&&<div style={{...card,borderLeft:"3px solid #15803D",padding:"10px 14px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
       <div style={{fontSize:12,color:C.textMid}}><b style={{color:"#15803D"}}>First Monthly Installment Knocked Off</b> — {fDate(order.firstInstallmentKnockOffDate)}</div>
-      <GBtn onClick={()=>{if(window.confirm("Undo this knock-off? The order will show as pending again."))onUpdate({...order,firstInstallmentKnockOffDate:null});}} style={{fontSize:11,padding:"6px 12px",color:"#DC2626",borderColor:"#FECACA"}}>Undo</GBtn>
+      <GBtn onClick={()=>{if(window.confirm("Undo this knock-off? The order will move back to Claim Released instead of staying Completed."))onUpdate({...order,firstInstallmentKnockOffDate:null,step:13,history:[...(order.history||[]),{step:13,date:nowDate(),time:nowTime(),note:"Moved back to Claim Released (First Monthly Installment knock-off undone)"}]});}} style={{fontSize:11,padding:"6px 12px",color:"#DC2626",borderColor:"#FECACA"}}>Undo</GBtn>
     </div>}
 
     {/* Two-col: timeline | action */}
@@ -1857,46 +1856,6 @@ function BulkDispatch({orders,onSave,onClose}){
   </div>;
 }
 
-/* ── Bulk Claim Sent ──────────────────────────────────────────────────── */
-function BulkMarkCompleted({orders,onSave,onClose}){
-  const pending=orders.filter(o=>!o.cancelled&&o.step===13);
-  const [sel,setSel]=useState(new Set());
-  const [date,setDate]=useState(nowDate());
-  const [search,setSearch]=useState("");
-  const list=pending.filter(o=>!search||(o.invoiceNo||"").toLowerCase().includes(search.toLowerCase())||(o.agreementNumber||"").toLowerCase().includes(search.toLowerCase())||o.customerName?.toLowerCase().includes(search.toLowerCase()));
-  const canSubmit=sel.size>0&&date;
-  return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-    <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
-      <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
-        <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.checkCircle} Mark as Completed (Bulk)</div>
-        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>×</button>
-      </div>
-      <div style={{padding:16,overflowY:"auto",flex:1}}>
-        {pending.length===0?<div style={{textAlign:"center",padding:24,color:C.textLight,fontSize:13}}>No orders awaiting completion.</div>:<>
-          <div style={{fontSize:10,color:C.textLight,marginBottom:10}}>Tick every "Claim Released" order to mark as completed together — the same completed date is applied to all of them.</div>
-          <div style={{marginBottom:10}}><I placeholder="Search by invoice number, agreement number, or customer name…" value={search} onChange={e=>setSearch(e.target.value)}/></div>
-          <div style={{marginBottom:12}}><L req>Completed Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <div style={{fontSize:12,color:C.textLight}}>{list.length} shown</div>
-            <button onClick={()=>setSel(sel.size===list.length?new Set():new Set(list.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===list.length&&list.length>0?"Deselect All":"Select All Shown"}</button>
-          </div>
-          {list.map(o=><div key={o.id} onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7,cursor:"pointer"}}>
-            <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#15803D":"#fff",border:`2px solid ${sel.has(o.id)?"#15803D":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
-            <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600,color:C.text}}>Invoice: {o.invoiceNo||"—"}</div><div style={{fontSize:10,color:C.textLight}}>{o.phoneModel} · {o.customerName} · Agreement: {o.agreementNumber||"—"}</div></div>
-          </div>)}
-        </>}
-      </div>
-      <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:8}}>
-        {sel.size>0&&!canSubmit&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the completed date to continue.</div>}
-        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-          <GBtn onClick={onClose}>Cancel</GBtn>
-          <PBtn onClick={async()=>{if(!canSubmit)return;const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,step:14,stepDates:{...(o.stepDates||{}),14:{date,time:nowTime()}},history:[{step:14,date,time:nowTime(),note:"Completed and archived (bulk)"}]}));const ok=await onSave(changed);if(ok)onClose();}} disabled={!canSubmit}>{Ic.checkCircle} Confirm ({sel.size})</PBtn>
-        </div>
-      </div>
-    </div>
-  </div>;
-}
-
 function BulkKnockOffInstallment({orders,onSave,onClose}){
   // Eligible: CCM orders whose first monthly installment has actually been
   // collected (payment verified at Collection Verified) and not already
@@ -1934,7 +1893,20 @@ function BulkKnockOffInstallment({orders,onSave,onClose}){
         {sel.size>0&&!canSubmit&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the knock-off date to continue.</div>}
         <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
           <GBtn onClick={onClose}>Cancel</GBtn>
-          <PBtn onClick={async()=>{if(!canSubmit)return;const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,firstInstallmentKnockOffDate:date,history:[{step:o.step,date:nowDate(),time:nowTime(),note:"First Monthly Installment Knocked Off (bulk)",firstInstallmentKnockOffDate:date}]}));const ok=await onSave(changed);if(ok)onClose();}} disabled={!canSubmit}>{Ic.checkCircle} Confirm ({sel.size})</PBtn>
+          <PBtn onClick={async()=>{
+            if(!canSubmit)return;
+            const changed=orders.filter(o=>sel.has(o.id)).map(o=>({
+              ...o,
+              firstInstallmentKnockOffDate:date,
+              step:14,
+              stepDates:{...(o.stepDates||{}),14:{date:nowDate(),time:nowTime()}},
+              history:[
+                {step:o.step,date:nowDate(),time:nowTime(),note:"First Monthly Installment Knocked Off (bulk)",firstInstallmentKnockOffDate:date},
+                {step:14,date:nowDate(),time:nowTime(),note:"Completed and archived (automatic, following First Monthly Installment knock-off)"}
+              ]
+            }));
+            const ok=await onSave(changed);if(ok)onClose();
+          }} disabled={!canSubmit}>{Ic.checkCircle} Confirm ({sel.size})</PBtn>
         </div>
       </div>
     </div>
@@ -2036,7 +2008,7 @@ function BulkKnockOff({orders,onSave,onClose}){
   return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{...card,width:"90%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
-        <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.calendar} Set Knock-off Date (Bulk)</div>
+        <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.calendar} Set Knock-off Merchant Claim (Bulk)</div>
         <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14}}>×</button>
       </div>
       <div style={{padding:16,overflowY:"auto",flex:1}}>
@@ -2047,7 +2019,7 @@ function BulkKnockOff({orders,onSave,onClose}){
             <button onClick={()=>setSel(sel.size===list.length?new Set():new Set(list.map(o=>o.id)))} style={{fontSize:11,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{sel.size===list.length&&list.length>0?"Deselect All":"Select All Shown"}</button>
           </div>
           <div style={{marginBottom:12}}><L req>Knock-off Date</L><I type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
-          <div style={{...lbl,marginBottom:4}}>Same date applies to all selected — fill in each one's own knock-off amount</div>
+          <div style={{...lbl,marginBottom:4}}>Same date applies to all selected — fill in each one's own knock-off amount. Once set, these orders move straight to Completed.</div>
           {list.map(o=><div key={o.id} style={{padding:"10px 12px",borderRadius:9,background:sel.has(o.id)?"#F0FDF4":C.surface,border:`1px solid ${sel.has(o.id)?"#BBF7D0":C.border}`,marginBottom:7}}>
             <div onClick={()=>setSel(p=>{const n=new Set(p);n.has(o.id)?n.delete(o.id):n.add(o.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",marginBottom:sel.has(o.id)?8:0}}>
               <div style={{width:18,height:18,borderRadius:4,background:sel.has(o.id)?"#15803D":"#fff",border:`2px solid ${sel.has(o.id)?"#15803D":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{sel.has(o.id)&&Ic.check}</div>
@@ -2061,7 +2033,7 @@ function BulkKnockOff({orders,onSave,onClose}){
         {sel.size>0&&!allAmountsFilled&&<div style={{fontSize:11,color:"#DC2626",display:"flex",alignItems:"center",gap:6}}>{Ic.alertCircle} Fill in the knock-off amount for every selected invoice.</div>}
         <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
           <GBtn onClick={onClose}>Cancel</GBtn>
-          <PBtn onClick={async()=>{if(!sel.size||!date||!allAmountsFilled)return;const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,step:13,knockOffDate:date,knockOffAmount:amounts[o.id],history:[{step:13,date:nowDate(),time:nowTime(),note:"Claim Released (bulk)",knockOffDate:date,knockOffAmount:amounts[o.id]}]}));const ok=await onSave(changed);if(ok)onClose();}} disabled={!sel.size||!date||!allAmountsFilled}>{Ic.calendar} Set Knock-off ({sel.size})</PBtn>
+          <PBtn onClick={async()=>{if(!sel.size||!date||!allAmountsFilled)return;const changed=orders.filter(o=>sel.has(o.id)).map(o=>({...o,step:13,knockOffDate:date,knockOffAmount:amounts[o.id],history:[{step:13,date:nowDate(),time:nowTime(),note:"Claim Released (bulk)",knockOffDate:date,knockOffAmount:amounts[o.id]}]}));const ok=await onSave(changed);if(ok)onClose();}} disabled={!sel.size||!date||!allAmountsFilled}>{Ic.calendar} Set Knock-off Merchant Claim ({sel.size})</PBtn>
         </div>
       </div>
     </div>
@@ -2227,11 +2199,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   // specific steps/reports for the restricted Order-page-only roles (billing,
   // knock-off, purchase, stock). null = legacy unrestricted behavior.
   const isSuperAdminOrder = isAdmin && (!orderPermissions || orderPermissions.adminSteps==="all");
-  // Distinct from isSuperAdminOrder: true super admin means accessed WITHOUT
-  // any orderPermissions restriction at all (i.e. the main dashboard), not
-  // just holding the "order admin user" role. Remove Completed is destructive
-  // enough that even "order admin user" shouldn't get it.
-  const isTrueSuperAdmin = isAdmin && !orderPermissions;
   const canSeeStep = (step) => !orderPermissions || orderPermissions.visibleSteps==="all" || orderPermissions.visibleSteps.includes(step);
   // Branch viewers still see their own orders all the way through (via
   // canSeeStep above) — this only hides the Claim Submitted/Claim Released
@@ -2263,7 +2230,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [showBulkDispatch,setShowBulkDispatch]=useState(false);
   const [showBulkAgreementReceived,setShowBulkAgreementReceived]=useState(false);
   const [showBulkKnockOffInstallment,setShowBulkKnockOffInstallment]=useState(false);
-  const [showBulkMarkCompleted,setShowBulkMarkCompleted]=useState(false);
   const [showBulkClaimSent,setShowBulkClaimSent]=useState(false);
   const [showBulkKnockoff,setShowBulkKnockoff]=useState(false);
   const [upfrontDate,setUpfrontDate]=useState(nowDate());
@@ -2505,7 +2471,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     {showBulkDispatch&&<BulkDispatch orders={orders} onSave={bulkSave} onClose={()=>setShowBulkDispatch(false)}/>}
     {showBulkAgreementReceived&&<BulkAgreementReceived orders={orders} onSave={bulkSave} onClose={()=>setShowBulkAgreementReceived(false)}/>}
     {showBulkKnockOffInstallment&&<BulkKnockOffInstallment orders={orders} onSave={bulkSave} onClose={()=>setShowBulkKnockOffInstallment(false)}/>}
-    {showBulkMarkCompleted&&<BulkMarkCompleted orders={orders} onSave={bulkSave} onClose={()=>setShowBulkMarkCompleted(false)}/>}
     {showBulkClaimSent&&<BulkClaimSent orders={orders} onSave={bulkSave} onClose={()=>setShowBulkClaimSent(false)}/>}
     {showBulkKnockoff&&<BulkKnockOff orders={orders} onSave={bulkSave} onClose={()=>setShowBulkKnockoff(false)}/>}
 
@@ -2520,9 +2485,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         {isAdmin&&!isReadOnly&&canAdminStep(11)&&orders.some(o=>!o.cancelled&&o.step===10)&&<GBtn onClick={()=>setShowBulkAgreementReceived(true)}>{Ic.checkCircle} Set Agreement Received by HQ Date</GBtn>}
         {isAdmin&&!isReadOnly&&canSeeReport("firstInstallmentKnockoff")&&orders.some(o=>!o.cancelled&&o.orderType!=="cash"&&o.lastVerification?.paymentChecked&&o.lastVerification?.monthlyInstallment&&!o.firstInstallmentKnockOffDate)&&<GBtn onClick={()=>setShowBulkKnockOffInstallment(true)}>{Ic.checkCircle} Knock Off First Monthly Installment</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(12)&&orders.some(o=>!o.cancelled&&o.step===11)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Agreement Sent to Merchant Date</GBtn>}
-        {isAdmin&&!isReadOnly&&canAdminStep(13)&&orders.some(o=>!o.cancelled&&o.step===12)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Date</GBtn>}
-        {isSuperAdminOrder&&!isReadOnly&&orders.some(o=>!o.cancelled&&o.step===13)&&<GBtn onClick={()=>setShowBulkMarkCompleted(true)}>{Ic.checkCircle} Mark as Completed</GBtn>}
-        {isTrueSuperAdmin&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
+        {isAdmin&&!isReadOnly&&canAdminStep(13)&&orders.some(o=>!o.cancelled&&o.step===12)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Merchant Claim</GBtn>}
+        {isSophia&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
         {(isSuperAdminOrder||!isAdmin)&&!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
       </div>
     </div>
