@@ -697,15 +697,26 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       if(!billingDate)return false;
       return daysSince(billingDate)>=1;
     }
-    // First Monthly Installment Knock Off — a record of installments that
-    // HAVE been knocked off (paid to the merchant), the flip side of the
-    // First Monthly Installment Report above.
-    if(isFirstInstallmentKnockoff)return o.firstInstallmentKnockOffDate&&(!dateFilter||o.firstInstallmentKnockOffDate===dateFilter);
+    // First Monthly Installment Knock Off — shows both what's already been
+    // knocked off (matching the date filter) AND what's still pending, so
+    // a missed knock-off shows up here as "Pending" instead of silently
+    // not appearing at all. Pending items always show regardless of the
+    // date filter, since they don't have a knock-off date to match yet.
+    if(isFirstInstallmentKnockoff){
+      if(o.orderType==="cash")return false;
+      const eligible=o.lastVerification?.paymentChecked&&o.lastVerification?.monthlyInstallment;
+      if(!eligible)return false;
+      if(!o.firstInstallmentKnockOffDate)return true;
+      return!dateFilter||o.firstInstallmentKnockOffDate===dateFilter;
+    }
     // Upfront 1 Payment Knock Off — Upfront 1 has two separate knock-off
-    // stages (K/O 1 and K/O 2), so this matches on EITHER date being set
-    // and matching the filter, non-cash CCM orders only.
+    // stages (K/O 1 and K/O 2). Shows orders with either stage matching the
+    // date filter, PLUS orders where neither stage has happened yet (fully
+    // pending), so a missed knock-off is never invisible — it shows up
+    // with both columns reading "Pending" instead of not appearing at all.
     if(isUpfront1Knockoff){
       if(o.orderType==="cash")return false;
+      if(!o.upfront1KnockOffDate&&!o.upfront1KnockOff2Date)return true;
       return(o.upfront1KnockOffDate&&(!dateFilter||o.upfront1KnockOffDate===dateFilter))
         ||(o.upfront1KnockOff2Date&&(!dateFilter||o.upfront1KnockOff2Date===dateFilter));
     }
@@ -784,9 +795,9 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
       const balAmt=bal?parseFloat(bal.monthlyInstallment)||0:0;
       const expected=showExpected?(parseFloat(o.retailPrice)||0)-(parseFloat(o.deposit)||0):0;
       total1+=balAmt;total2+=expected;
-      return`<tr><td>${i+1}</td><td>${o.phoneModel}</td><td>${o.branch}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${depositOk?fDate(o.depositPaymentDate):"—"}</td><td>${depositOk?(o.depositPaymentMethod||"—"):"—"}</td><td>${depositOk?`RM ${depositAmt.toFixed(2)}`:"—"}</td><td>${bal?fDate(bal.date):"—"}</td><td>${bal?(bal.paymentMethod||"—"):"—"}</td><td>${bal?`RM ${balAmt.toFixed(2)}`:"—"}</td><td>${showExpected?`RM ${expected.toFixed(2)}`:"—"}</td><td>${o.cashReportKnockOffDate?fDate(o.cashReportKnockOffDate):"Pending"}</td></tr>`;
+      return`<tr><td>${i+1}</td><td>${o.phoneModel}</td><td>${o.branch}</td><td><b>${o.invoiceNo||"—"}</b></td><td>${depositOk?fDate(o.depositPaymentDate):"—"}</td><td>${depositOk?(o.depositPaymentMethod||"—"):"—"}</td><td>${depositOk?`RM ${depositAmt.toFixed(2)}`:"—"}</td><td>${o.cashDepositKnockOffDate?fDate(o.cashDepositKnockOffDate):"Pending"}</td><td>${bal?fDate(bal.date):"—"}</td><td>${bal?(bal.paymentMethod||"—"):"—"}</td><td>${bal?`RM ${balAmt.toFixed(2)}`:"—"}</td><td>${o.cashBalanceKnockOffDate?fDate(o.cashBalanceKnockOffDate):"Pending"}</td><td>${showExpected?`RM ${expected.toFixed(2)}`:"—"}</td></tr>`;
     }).join("");
-    rows+=`<tr class="tot"><td colspan="9"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td><b>RM ${total2.toFixed(2)}</b></td><td></td></tr>`;
+    rows+=`<tr class="tot"><td colspan="10"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td><b>RM ${total2.toFixed(2)}</b></td></tr>`;
   } else if(isCollectionOverdue){
     rows=filtered.map((o,i)=>{
       const billingDate=o.billingData?.billingDate;
@@ -848,7 +859,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     :isKnockoff?"<th>#</th><th>Invoice No</th><th>Agreement No</th><th>Knock-off Amount</th><th>Expected Claim Amount</th><th>Reconciled</th>"
     :isClaim?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Claim Sent Date</th><th>Claim Amount</th>"
     :isFirstInstallment?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th>"
-    :isCashKnockoff?"<th>#</th><th>Device Name</th><th>Branch</th><th>Invoice No</th><th>Deposit Payment Date</th><th>Deposit Payment Method</th><th>Deposit Amount</th><th>Balance Payment Date</th><th>Balance Payment Method</th><th>Balance Payment Amount</th><th>Expected Balance Payment Amount</th><th>Reconciled</th>"
+    :isCashKnockoff?"<th>#</th><th>Device Name</th><th>Branch</th><th>Invoice No</th><th>Deposit Payment Date</th><th>Deposit Payment Method</th><th>Deposit Amount</th><th>Deposit Knocked Off</th><th>Balance Payment Date</th><th>Balance Payment Method</th><th>Balance Payment Amount</th><th>Balance Knocked Off</th><th>Expected Balance Payment Amount</th>"
     :isCollectionOverdue?"<th>#</th><th>Invoice No</th><th>Branch</th><th>Agreement No</th><th>Customer Name</th><th>Billing Date</th><th>Days Overdue</th>"
     :isFirstInstallmentKnockoff?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Monthly Installment Amount</th><th>Knock-off Date</th>"
     :isUpfront1Knockoff?"<th>#</th><th>Agreement No</th><th>Customer Name</th><th>Invoice No</th><th>Upfront 1 Amount</th><th>K/O 1 Date</th><th>K/O 2 Date</th>"
@@ -2244,6 +2255,54 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [upfront1KnockoffReportDate,setUpfront1KnockoffReportDate]=useState(nowDate());
   const [paymentCollectionReportDate,setPaymentCollectionReportDate]=useState(nowDate());
   const [expandedKnockoffReport,setExpandedKnockoffReport]=useState(null);
+  // Pending lists for the Knock Off section, computed once here (not
+  // inside the render-time IIFE below) so the payment-slip fetch effect
+  // can share the exact same lists without duplicating the filter logic.
+  const upfront1Pending=useMemo(()=>orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!(o.upfront1KnockOffDate&&o.upfront1KnockOff2Date)),[orders]);
+  const upfront2Pending=useMemo(()=>orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.secondPaymentAmount)>0&&!o.upfront2KnockOffDate),[orders]);
+  const claimPending=useMemo(()=>orders.filter(o=>!o.cancelled&&o.knockOffDate&&!o.claimReportKnockOffDate),[orders]);
+  const depositPending=useMemo(()=>orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&o.depositPaymentDate&&!o.cashDepositKnockOffDate),[orders]);
+  const balancePending=useMemo(()=>orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&parseFloat(o.lastVerification?.monthlyInstallment)>0&&!o.cashBalanceKnockOffDate),[orders]);
+  // Payment slips for Knock Off — signed order+history objects keyed by
+  // order id, so the branch's uploaded proof (deposit slip, payment
+  // proof, any additional balance payment proof) can be reviewed again
+  // right from the knock-off checklist, without navigating away to each
+  // order's own detail page.
+  const [knockOffSlipsByOrder,setKnockOffSlipsByOrder]=useState({});
+  const knockOffOrderIds=useMemo(()=>[...new Set([...upfront1Pending,...upfront2Pending,...depositPending,...balancePending].map(o=>o.id))],[upfront1Pending,upfront2Pending,depositPending,balancePending]);
+  useEffect(()=>{
+    if(!knockOffOrderIds.length){setKnockOffSlipsByOrder({});return;}
+    let cancelled=false;
+    (async()=>{
+      const histByOrder=await getHistoryForOrders(knockOffOrderIds);
+      const withHistory=knockOffOrderIds.map(id=>{
+        const header=orders.find(o=>o.id===id);
+        return{...header,history:histByOrder[id]||[]};
+      });
+      const signed=await signOrderFiles(withHistory);
+      if(cancelled)return;
+      const byId={};
+      signed.forEach(o=>{byId[o.id]=o;});
+      setKnockOffSlipsByOrder(byId);
+    })();
+    return()=>{cancelled=true;};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[knockOffOrderIds]);
+  // Collects every payment-related file for an order from wherever it
+  // actually lives — depositSlip is a top-level field (set at order
+  // creation), while paymentProof and balancePaymentProof (the "additional"
+  // proof from a short-payment correction) live inside history entries,
+  // possibly more than one if it happened more than once.
+  const getPaymentSlips=order=>{
+    if(!order)return[];
+    const slips=[];
+    if(order.depositSlip)slips.push({label:"Deposit Payment Slip",file:order.depositSlip});
+    (order.history||[]).forEach(h=>{
+      if(h.files?.paymentProof)slips.push({label:"Payment Proof",file:h.files.paymentProof});
+      if(h.files?.balancePaymentProof)slips.push({label:"Additional Balance Payment Proof",file:h.files.balancePaymentProof});
+    });
+    return slips;
+  };
   const [reportsExpanded,setReportsExpanded]=useState(false);
   const [knockOffExpanded,setKnockOffExpanded]=useState(false);
   // Fully hydrated + signed order (header + history, with every {name,path}
@@ -2646,11 +2705,6 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         Knock-off role (or super admin) — these are their action items
         regardless of which printable reports still exist. */}
     {(isSuperAdminOrder||canSeeReport("knockoff"))&&(()=>{
-      const upfront1Pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!(o.upfront1KnockOffDate&&o.upfront1KnockOff2Date));
-      const upfront2Pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.secondPaymentAmount)>0&&!o.upfront2KnockOffDate);
-      const claimPending=orders.filter(o=>!o.cancelled&&o.knockOffDate&&!o.claimReportKnockOffDate);
-      const depositPending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&o.depositPaymentDate&&!o.cashDepositKnockOffDate);
-      const balancePending=orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&parseFloat(o.lastVerification?.monthlyInstallment)>0&&!o.cashBalanceKnockOffDate);
       const totalPending=upfront1Pending.length+upfront2Pending.length+claimPending.length+depositPending.length+balancePending.length;
       if(!totalPending)return null;
       // Small colored pill for an amount — badge style, so different amount
@@ -2660,17 +2714,24 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       // with its own done state; the row itself only leaves the pending
       // list once every button in the row is done (handled by each
       // checklist's own pending filter above).
-      const Row=({order,meta,amounts,remark,buttons})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",flexWrap:"wrap"}}>
+      const Row=({order,meta,amounts,remark,buttons})=>{
+        const slips=order?getPaymentSlips(knockOffSlipsByOrder[order.id]):[];
+        return<div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:0}}>
           {order&&<div style={{marginBottom:4}}><MerchantBadge order={order}/></div>}
           {meta&&<div style={{fontSize:10,color:C.textLight,marginBottom:5}}>{meta}</div>}
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:remark?5:0}}>{amounts}</div>
-          {remark&&<div style={{fontSize:11,color:C.textMid}}>Remark: {remark}</div>}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:(remark||slips.length)?5:0}}>{amounts}</div>
+          {remark&&<div style={{fontSize:11,color:C.textMid,marginBottom:slips.length?5:0}}>Remark: {remark}</div>}
+          {slips.length>0&&<div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+            {slips.map((s,i)=><a key={i} href={s.file.url||s.file.data} target={s.file.url?"_blank":undefined} rel={s.file.url?"noopener noreferrer":undefined} download={s.file.url?undefined:s.file.name} style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:9,color:C.blue,textDecoration:"none",background:"#EEF1F7",padding:"2px 7px",borderRadius:4,fontWeight:600}}>{Ic.download} {s.label}</a>)}
+          </div>}
+          {order&&!slips.length&&knockOffSlipsByOrder[order.id]&&<div style={{fontSize:10,color:"#DC2626",fontStyle:"italic"}}>No payment slip on file</div>}
         </div>
         <div style={{display:"flex",gap:6,flexShrink:0}}>
           {buttons.map((b,i)=><button key={i} onClick={b.onClick} disabled={b.done} style={{fontSize:10,fontWeight:700,color:b.done?"#15803D":C.blueBright,background:b.done?"#F0FDF4":"#EFF6FF",border:`1px solid ${b.done?"#BBF7D0":C.border}`,borderRadius:6,padding:"4px 9px",cursor:b.done?"default":"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>{b.label}</button>)}
         </div>
       </div>;
+      };
       const Checklist=({checklistKey,title,items,rowRenderer})=>{
         if(!items.length)return null;
         const open=expandedKnockoffReport===checklistKey;
