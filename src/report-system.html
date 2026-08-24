@@ -486,6 +486,16 @@ function repairBlankDefaultSections(company,d){
     d.sections.customer = defaultRows(company,"customer");
   if(emptyOrAllBlank(d.sections?.stock,"branch"))
     d.sections.stock = defaultStockRows();
+  if(COMPANIES[company]?.sections?.includes("salesReport") && (!d.sections?.salesReport || typeof d.sections.salesReport!=="object"))
+    d.sections.salesReport = defaultSalesReport(company);
+  ["playground","activateGame","other"].forEach(sec=>{
+    if(!COMPANIES[company]?.sections?.includes(sec))return;
+    const val=d.sections?.[sec];
+    const isValidShape=company==="miniImpianSales"
+      ?(val&&typeof val==="object"&&Array.isArray(val.sandakan)&&Array.isArray(val.tawau))
+      :Array.isArray(val);
+    if(!isValidShape)d.sections[sec]=defaultQtyRows(sec,company);
+  });
   return d;
 }
 
@@ -550,6 +560,25 @@ async function autoFillLabelsFromLastRecord(company,date,targetData){
       nextMonthLabel:yr.nextMonthLabel||'', nextMonthAmount:''
     };
   }
+  // Qty-based sections (Children Playground, Activate Game, Other) — same
+  // "carry the row structure forward, blank the numbers" idea as above,
+  // just with qty blanked alongside amount. Mini Impian Sales specifically
+  // splits these per branch (sandakan/tawau, each its own row list), while
+  // every other company using these sections keeps one flat row list.
+  const blankQtyRow=r=>({label:r.label,qty:'',amount:''});
+  ['playground','activateGame','other'].forEach(sec=>{
+    const yVal=yData.sections[sec];
+    if(!yVal)return;
+    if(Array.isArray(yVal)){
+      targetData.sections[sec]=yVal.map(blankQtyRow);
+    }else if(typeof yVal==='object'){
+      const out={};
+      Object.keys(yVal).forEach(branch=>{
+        if(Array.isArray(yVal[branch]))out[branch]=yVal[branch].map(blankQtyRow);
+      });
+      if(Object.keys(out).length)targetData.sections[sec]=out;
+    }
+  });
 }
 
 async function saveReport(){
