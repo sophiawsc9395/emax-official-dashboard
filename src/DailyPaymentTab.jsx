@@ -17,6 +17,11 @@ import {uploadOrderFile,signFileUrl} from "./storage/ordersApi.js";
 
 export const KEY="emax_v5_daily_payment";
 const SOPHIA_EMAIL="sophiawsc9395@gmail.com";
+// Emax keeps the original, un-suffixed key so all existing data stays
+// exactly where it already is — the other 3 companies are new tabs, so
+// they start fresh under their own keys.
+export const COMPANIES=[{key:"emax",label:"Emax"},{key:"dojo",label:"Dojo"},{key:"espace",label:"Espace"},{key:"miniImpian",label:"Mini Impian"}];
+export const keyFor=company=>company==="emax"?KEY:`${KEY}_${company}`;
 
 const C={navy:"#0A1628",navyLight:"#162B52",blue:"#1B3F72",blueBright:"#2C5AA0",surface:"#F7F9FC",border:"#E4EAF2",text:"#0A1628",textMid:"#4A5568",textLight:"#8A96A8"};
 const card={background:"#fff",border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)",overflow:"hidden"};
@@ -37,6 +42,7 @@ const PBtn=({children,disabled,...p})=><button disabled={disabled} {...p} style=
 const GBtn=({children,...p})=><button {...p} style={{padding:"6px 14px",borderRadius:7,border:`1px solid ${C.border}`,background:"#fff",color:C.textMid,fontWeight:600,fontSize:11,cursor:"pointer",fontFamily:"Inter,sans-serif",...(p.style||{})}}>{children}</button>;
 
 export default function DailyPaymentTab({email}){
+  const [company,setCompany]=useState("emax");
   const [entries,setEntries]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showUpload,setShowUpload]=useState(false);
@@ -51,19 +57,21 @@ export default function DailyPaymentTab({email}){
   const isSophia=(email||"").toLowerCase()===SOPHIA_EMAIL;
 
   useEffect(()=>{
+    setLoading(true);
+    setSelected({});
     (async()=>{
-      const list=(await loadData(KEY))||[];
+      const list=(await loadData(keyFor(company)))||[];
       setEntries(list);
       setLoading(false);
     })();
-  },[]);
+  },[company]);
 
-  const save=async(next)=>{setEntries(next);await saveData(KEY,next);};
+  const save=async(next)=>{setEntries(next);await saveData(keyFor(company),next);};
 
   const addEntry=async()=>{
     if(!file||!payeeName.trim()||!description.trim())return;
     setUploading(true);
-    const id=`dp_${Date.now()}`;
+    const id=`dp_${company}_${Date.now()}`;
     const uploaded=await uploadOrderFile(id,file,file.name);
     const entry={
       id,date:nowDate(),file:uploaded,payeeName:payeeName.trim(),description:description.trim(),
@@ -97,7 +105,11 @@ export default function DailyPaymentTab({email}){
     if(signed){setFileUrls(p=>({...p,[path]:signed}));window.open(signed,"_blank");}
   };
 
-  if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
+  const tabBar=<div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+    {COMPANIES.map(c=><button key={c.key} onClick={()=>setCompany(c.key)} style={{padding:"7px 16px",borderRadius:8,border:`1.5px solid ${company===c.key?C.blue:C.border}`,background:company===c.key?C.blue:"#fff",color:company===c.key?"#fff":C.textMid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{c.label}</button>)}
+  </div>;
+
+  if(loading)return<div>{tabBar}<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div></div>;
 
   const renderRow=(e,i,list)=>{
     const sm=statusMeta[e.status];
@@ -130,8 +142,9 @@ export default function DailyPaymentTab({email}){
   const historyEntries=entries.filter(e=>e.status==="printed");
 
   return<div>
+    {tabBar}
     <div style={{...card}}>
-      <SecHdr>Daily Payment</SecHdr>
+      <SecHdr>Daily Payment — {COMPANIES.find(c=>c.key===company)?.label}</SecHdr>
 
       {!isSophia&&<div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
         {!showUpload

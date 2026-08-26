@@ -10,7 +10,7 @@ import DailySalesTab from "./DailySalesTab.jsx";
 import JCLTab from "./JCLTab.jsx";
 import ChaileaseTab from "./ChaileaseTab.jsx";
 import PurchaseOrderTab from "./PurchaseOrderTab.jsx";
-import DailyPaymentTab, {KEY as DAILY_PAYMENT_KEY} from "./DailyPaymentTab.jsx";
+import DailyPaymentTab, {COMPANIES as DAILY_PAYMENT_COMPANIES, keyFor as dailyPaymentKeyFor} from "./DailyPaymentTab.jsx";
 import StockProfitTab from "./StockProfitTab.jsx";
 import StockTransferTab from "./StockTransferTab.jsx";
 import DailyReportPanel from "./DailyReportPanel.jsx";
@@ -2834,18 +2834,21 @@ export default function App(){
 
   // Red-dot notification on the Daily Payment sidebar item — lit whenever
   // there's at least one invoice still sitting at "pending" (uploaded by
-  // Knock-off, not yet marked Completed). Checked once on load, then kept
-  // live via a Supabase Realtime subscription scoped to this specific
-  // storage key, so the dot appears/clears without needing a refresh.
+  // Knock-off, not yet marked Completed), across ANY of the 4 company
+  // tabs, not just Emax. Checked once on load, then kept live via a
+  // Supabase Realtime subscription scoped to these specific storage keys,
+  // so the dot appears/clears without needing a refresh.
   const [hasPendingDailyPayment,setHasPendingDailyPayment]=useState(false);
   useEffect(()=>{
+    const dailyPaymentKeys=DAILY_PAYMENT_COMPANIES.map(c=>dailyPaymentKeyFor(c.key));
     const checkPending=async()=>{
-      const entries=(await loadData(DAILY_PAYMENT_KEY))||[];
-      setHasPendingDailyPayment(Array.isArray(entries)&&entries.some(e=>e.status==="pending"));
+      const results=await Promise.all(dailyPaymentKeys.map(k=>loadData(k)));
+      const anyPending=results.some(entries=>Array.isArray(entries)&&entries.some(e=>e.status==="pending"));
+      setHasPendingDailyPayment(anyPending);
     };
     checkPending();
     const channel=supabase.channel("daily-payment-notify")
-      .on("postgres_changes",{event:"*",schema:"public",table:"app_storage",filter:`key=eq.${DAILY_PAYMENT_KEY}`},checkPending)
+      .on("postgres_changes",{event:"*",schema:"public",table:"app_storage",filter:`key=in.(${dailyPaymentKeys.join(",")})`},checkPending)
       .subscribe();
     return()=>{supabase.removeChannel(channel);};
   },[]);
