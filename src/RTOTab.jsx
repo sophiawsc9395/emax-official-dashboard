@@ -439,9 +439,10 @@ export default function RTOTab({branchMeta,email}){
         // paid, but the invoice hasn't been opened yet.
         const items=[];
         summaryCustomers.forEach(c=>{
-          genSchedule(c).forEach(s=>{
+          const sched=genSchedule(c);
+          sched.forEach((s,idx)=>{
             const p=c.payments?.[s.key];
-            if(p?.paid&&!p?.invOpened)items.push({customer:c,schedKey:s.key,label:s.label,amount:p.amount||s.amount,paidDate:p.date,remark:p.remark});
+            if(p?.paid&&!p?.invOpened)items.push({customer:c,schedKey:s.key,label:s.label,amount:p.amount||s.amount,paidDate:p.date,remark:p.remark,installmentNo:idx+1,tenure:sched.length});
           });
         });
         items.sort((a,b)=>(a.paidDate||"").localeCompare(b.paidDate||""));
@@ -453,7 +454,7 @@ export default function RTOTab({branchMeta,email}){
               {items.map(it=><div key={it.customer.id+it.schedKey} style={{...card,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                 <div style={{minWidth:0}}>
                   <div style={{fontWeight:700,fontSize:13,color:C.text}}>{it.customer.name} <span style={{fontWeight:400,color:C.textLight}}>· {it.customer.memberId} · {it.customer.branch}</span></div>
-                  <div style={{fontSize:11,color:C.textMid,marginTop:2}}>{it.label} · {fRM(it.amount)} · Paid {fDate(it.paidDate)}</div>
+                  <div style={{fontSize:11,color:C.textMid,marginTop:2}}>{it.label} · Installment {it.installmentNo}/{it.tenure} · {fRM(it.amount)} · Paid {fDate(it.paidDate)}</div>
                   {it.remark&&<div style={{fontSize:11,color:C.textLight,marginTop:2,fontStyle:"italic"}}>Remark: {it.remark}</div>}
                 </div>
                 <PBtn onClick={()=>{
