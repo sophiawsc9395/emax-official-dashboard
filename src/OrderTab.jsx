@@ -1080,7 +1080,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
       return;
     }
     const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:nextDef.needsClaimInfo?claimConsignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,claimSentDate:nextDef.needsClaimInfo?claimSentDate:undefined,knockOffDate:nextDef.needsKnockOff?knockOffDate:undefined,knockOffAmount:nextDef.needsKnockOff&&knockOffAmount?knockOffAmount:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,paymentProofAmount:!isCash?paymentProofAmount:undefined,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+(parseFloat(upfrontMonthly)||0),paymentMethod:payMethod,...(isShortPaymentPending(order)?{secondPaymentDate,secondPayMethod,secondPaymentAmount}:{})}:{})};
-    const updated={...order,step:nextDef.step,history:[...(order.history||[]),h]};
+    const updated={...order,step:nextDef.step,history:[...(order.history||[]),h],stepDates:{...(order.stepDates||{}),[nextDef.step]:{date:nowDate(),time:nowTime()}}};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
     if(isCash&&nextDef.step===14){updated.step=14;}
     if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;if(poNumber)updated.poNumber=poNumber;if(purchaserName)updated.purchaserName=purchaserName;}
@@ -1721,6 +1721,16 @@ function getOrderAlerts(orders,userBranch=null){
     else if(days>=61)alerts.push({type:"approval_urgent",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval ${days} days ago — URGENT`});
     else if(days>=31)alerts.push({type:"approval_warning",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval ${days} days ago — action needed`});
   });
+  // Billing Request Overdue — fires once an order has sat at step 6
+  // (Billing Request, still awaiting the branch to submit) for 7+ days
+  // since it arrived at branch (step 5). Only catches orders that arrived
+  // at branch after stepDates started being recorded for every step —
+  // orders already past step 5 before that point won't have this date on
+  // file and won't trigger retroactively.
+  myOrders.filter(o=>o.step===6&&o.stepDates?.["5"]?.date).forEach(o=>{
+    const days=daysSince(o.stepDates["5"].date);
+    if(days>=7)alerts.push({type:"billing_request_overdue",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Arrived branch ${days} days ago — billing request not yet submitted`});
+  });
   myOrders.filter(o=>o.step<8&&o.step>=6).forEach(o=>{
     const billingDate=o.billingData?.billingDate;
     if(!billingDate)return;
@@ -1749,6 +1759,7 @@ function AlertBanner({alerts,isAdmin,isSophia,onClickOrder}){
   const cashBalanceOverdue=alerts.filter(a=>a.type==="cash_balance_payment_overdue");
   const merchantRejected=alerts.filter(a=>a.type==="merchant_rejected");
   const agreementReceivedOverdue=alerts.filter(a=>a.type==="agreement_received_overdue");
+  const billingRequestOverdue=alerts.filter(a=>a.type==="billing_request_overdue");
   // Approval Warning starts collapsed on the admin order page (there's
   // usually a lot of them, and admin has plenty else to look at) but
   // starts expanded on a branch's own view (a short, directly relevant
@@ -1779,6 +1790,7 @@ function AlertBanner({alerts,isAdmin,isSophia,onClickOrder}){
     <Block items={collectionOverdue} color="#B91C1C" title="Collection Proof Overdue"/>
     <Block items={cashBalanceOverdue} color="#7C3AED" title="Cash Balance Payment Slip Overdue"/>
     <Block items={merchantRejected} color="#DC2626" title="Merchant Rejected"/>
+    <Block items={billingRequestOverdue} color="#B91C1C" title="Billing Request Overdue"/>
     <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={agreementExpanded} onToggle={()=>setAgreementExpanded(p=>!p)}/>
     <Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={warningExpanded} onToggle={()=>setWarningExpanded(p=>!p)}/>
   </div>;
