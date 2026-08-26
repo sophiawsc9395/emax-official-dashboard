@@ -2833,17 +2833,19 @@ export default function App(){
   },[tab]);
 
   // Red-dot notification on the Daily Payment sidebar item — lit whenever
-  // there's at least one invoice still sitting at "pending" (uploaded by
-  // Knock-off, not yet marked Completed), across ANY of the 4 company
-  // tabs, not just Emax. Checked once on load, then kept live via a
-  // Supabase Realtime subscription scoped to these specific storage keys,
-  // so the dot appears/clears without needing a refresh.
+  // there's at least one item needing someone's attention: "pending"
+  // (uploaded by Knock-off, not yet reviewed by Sophia), "rejected" (Sophia
+  // sent it back, Knock-off needs to re-upload), or "requested" (Sophia
+  // asked for a file, Knock-off hasn't uploaded it yet) — across ANY of
+  // the 4 company tabs, not just Emax. Checked once on load, then kept
+  // live via a Supabase Realtime subscription scoped to these specific
+  // storage keys, so the dot appears/clears without needing a refresh.
   const [hasPendingDailyPayment,setHasPendingDailyPayment]=useState(false);
   useEffect(()=>{
     const dailyPaymentKeys=DAILY_PAYMENT_COMPANIES.map(c=>dailyPaymentKeyFor(c.key));
     const checkPending=async()=>{
       const results=await Promise.all(dailyPaymentKeys.map(k=>loadData(k)));
-      const anyPending=results.some(entries=>Array.isArray(entries)&&entries.some(e=>e.status==="pending"));
+      const anyPending=results.some(entries=>Array.isArray(entries)&&entries.some(e=>["pending","rejected","requested"].includes(e.status)));
       setHasPendingDailyPayment(anyPending);
     };
     checkPending();

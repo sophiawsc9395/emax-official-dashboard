@@ -30,7 +30,9 @@ const fDate=s=>{if(!s)return"—";const[y,m,d]=s.split("-");return`${d}/${m}/${y
 const nowStamp=()=>{const d=new Date();return`${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
 
 const statusMeta={
+  requested:{label:"Requested",bg:"#F5F0FF",fg:"#7C3AED",border:"#DDD6FE"},
   pending:{label:"Pending",bg:"#FFFBEB",fg:"#B45309",border:"#FDE68A"},
+  rejected:{label:"Needs Re-upload",bg:"#FEF2F2",fg:"#DC2626",border:"#FECACA"},
   completed:{label:"Completed",bg:"#EFF6FF",fg:"#1E6FDB",border:"#BFDBFE"},
   printed:{label:"Printed",bg:"#F0FDF4",fg:"#15803D",border:"#BBF7D0"},
 };
@@ -53,12 +55,26 @@ export default function DailyPaymentTab({email}){
   const [fileUrls,setFileUrls]=useState({});
   const [showHistory,setShowHistory]=useState(false);
   const [selected,setSelected]=useState({});
+  const [completingId,setCompletingId]=useState(null);
+  const [refNoInput,setRefNoInput]=useState("");
+  const [rejectingId,setRejectingId]=useState(null);
+  const [rejectReasonInput,setRejectReasonInput]=useState("");
+  const [showRequest,setShowRequest]=useState(false);
+  const [requestPayee,setRequestPayee]=useState("");
+  const [requestDescription,setRequestDescription]=useState("");
+  const [fulfillingId,setFulfillingId]=useState(null);
+  const [fulfillFile,setFulfillFile]=useState(null);
+  const [fulfilling,setFulfilling]=useState(false);
 
   const isSophia=(email||"").toLowerCase()===SOPHIA_EMAIL;
 
   useEffect(()=>{
     setLoading(true);
     setSelected({});
+    setCompletingId(null);setRefNoInput("");
+    setRejectingId(null);setRejectReasonInput("");
+    setShowRequest(false);setRequestPayee("");setRequestDescription("");
+    setFulfillingId(null);setFulfillFile(null);
     (async()=>{
       const list=(await loadData(keyFor(company)))||[];
       setEntries(list);
@@ -82,11 +98,40 @@ export default function DailyPaymentTab({email}){
     setUploading(false);
   };
 
-  const markCompleted=async(id)=>{
-    await save(entries.map(e=>e.id!==id?e:{...e,status:"completed",completedAt:nowStamp()}));
+  const markCompleted=async(id,refNo)=>{
+    await save(entries.map(e=>e.id!==id?e:{...e,status:"completed",completedAt:nowStamp(),refNo:refNo.trim()}));
+    setCompletingId(null);setRefNoInput("");
   };
   const markPrinted=async(id)=>{
     await save(entries.map(e=>e.id!==id?e:{...e,status:"printed",printedAt:nowStamp()}));
+  };
+
+  const rejectEntry=async(id,reason)=>{
+    await save(entries.map(e=>e.id!==id?e:{...e,status:"rejected",rejectReason:reason.trim(),rejectedAt:nowStamp()}));
+    setRejectingId(null);setRejectReasonInput("");
+  };
+
+  const requestFile=async()=>{
+    if(!requestPayee.trim()||!requestDescription.trim())return;
+    const id=`dp_${company}_${Date.now()}`;
+    const entry={
+      id,date:nowDate(),file:null,payeeName:requestPayee.trim(),description:requestDescription.trim(),
+      status:"requested",requestedAt:nowStamp(),uploadedAt:null,completedAt:null,printedAt:null,
+    };
+    await save([entry,...entries]);
+    setRequestPayee("");setRequestDescription("");setShowRequest(false);
+  };
+
+  // Shared by both "re-upload after rejection" and "fulfill a file request" —
+  // both cases end the same way: a file gets uploaded and the entry moves
+  // to Pending for Sophia to review, whether it's a correction or a
+  // first-time fulfillment.
+  const uploadForEntry=async(id)=>{
+    if(!fulfillFile)return;
+    setFulfilling(true);
+    const uploaded=await uploadOrderFile(id,fulfillFile,fulfillFile.name);
+    await save(entries.map(e=>e.id!==id?e:{...e,file:uploaded,status:"pending",uploadedAt:nowStamp()}));
+    setFulfillingId(null);setFulfillFile(null);setFulfilling(false);
   };
 
   const toggleSelected=(id)=>setSelected(p=>({...p,[id]:!p[id]}));
@@ -113,6 +158,7 @@ export default function DailyPaymentTab({email}){
 
   const renderRow=(e,i,list)=>{
     const sm=statusMeta[e.status];
+    const needsUploadFromKnockOff=e.status==="rejected"||e.status==="requested";
     return<div key={e.id} style={{padding:"12px 16px",borderBottom:i<list.length-1?`1px solid ${C.border}`:"none",display:"flex",gap:10}}>
       {isSophia&&<input type="checkbox" checked={!!selected[e.id]} onChange={()=>toggleSelected(e.id)} style={{marginTop:3,cursor:"pointer"}}/>}
       <div style={{flex:1}}>
@@ -120,20 +166,45 @@ export default function DailyPaymentTab({email}){
           <div>
             <div style={{fontSize:10,color:C.textLight,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em"}}>{fDate(e.date)}</div>
             <div style={{fontSize:13,fontWeight:700,marginTop:2}}>
-              <a href="#" onClick={ev=>{ev.preventDefault();openFile(e.file.path);}} style={{color:C.blueBright,textDecoration:"none"}}>{e.file.name}</a>
+              {e.file
+                ?<a href="#" onClick={ev=>{ev.preventDefault();openFile(e.file.path);}} style={{color:C.blueBright,textDecoration:"none"}}>{e.file.name}</a>
+                :<span style={{color:C.textLight,fontStyle:"italic"}}>No file yet</span>}
             </div>
           </div>
           <span style={{fontSize:10,fontWeight:700,color:sm.fg,background:sm.bg,border:`1px solid ${sm.border}`,borderRadius:20,padding:"3px 10px",whiteSpace:"nowrap"}}>{sm.label}</span>
         </div>
         <div style={{fontSize:12,color:C.textMid,marginBottom:2}}><strong style={{color:C.text}}>Payee:</strong> {e.payeeName}</div>
         <div style={{fontSize:12,color:C.textMid,marginBottom:6}}><strong style={{color:C.text}}>Description:</strong> {e.description||e.purchase}</div>
-        <div style={{fontSize:10.5,color:C.textLight}}>Uploaded {e.uploadedAt}</div>
-        {e.completedAt&&<div style={{fontSize:10.5,color:"#1E6FDB",marginTop:2}}>Sophia marked completed — keyed into Autocount {e.completedAt}</div>}
+        {e.status==="requested"
+          ?<div style={{fontSize:10.5,color:"#7C3AED"}}>Requested by Sophia {e.requestedAt}</div>
+          :<div style={{fontSize:10.5,color:C.textLight}}>Uploaded {e.uploadedAt}</div>}
+        {e.rejectReason&&<div style={{fontSize:10.5,color:"#DC2626",marginTop:2}}>Rejected {e.rejectedAt} — {e.rejectReason}</div>}
+        {e.completedAt&&<div style={{fontSize:10.5,color:"#1E6FDB",marginTop:2}}>Sophia marked completed — keyed into Autocount {e.completedAt}{e.refNo&&` · Ref No. ${e.refNo}`}</div>}
         {e.printedAt&&<div style={{fontSize:10.5,color:"#15803D",marginTop:2}}>Printed {e.printedAt}</div>}
-        <div style={{marginTop:8,display:"flex",gap:8}}>
-          {isSophia&&e.status==="pending"&&<PBtn onClick={()=>markCompleted(e.id)}>Mark Completed</PBtn>}
-          {!isSophia&&e.status==="completed"&&<PBtn onClick={()=>markPrinted(e.id)}>Mark Printed</PBtn>}
-        </div>
+        {isSophia&&completingId===e.id
+          ?<div style={{marginTop:8,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <input autoFocus value={refNoInput} onChange={ev=>setRefNoInput(ev.target.value)} onKeyDown={ev=>{if(ev.key==="Enter")markCompleted(e.id,refNoInput);}} placeholder="Ref No. (optional)…" style={{padding:"6px 10px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,width:180}}/>
+            <PBtn onClick={()=>markCompleted(e.id,refNoInput)}>Confirm</PBtn>
+            <GBtn onClick={()=>{setCompletingId(null);setRefNoInput("");}}>Cancel</GBtn>
+          </div>
+          :isSophia&&rejectingId===e.id
+          ?<div style={{marginTop:8,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <input autoFocus value={rejectReasonInput} onChange={ev=>setRejectReasonInput(ev.target.value)} onKeyDown={ev=>{if(ev.key==="Enter"&&rejectReasonInput.trim())rejectEntry(e.id,rejectReasonInput);}} placeholder="Reason for rejection…" style={{padding:"6px 10px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,width:220}}/>
+            <PBtn onClick={()=>rejectEntry(e.id,rejectReasonInput)} disabled={!rejectReasonInput.trim()} style={{background:"linear-gradient(135deg,#DC2626,#B91C1C)"}}>Confirm Reject</PBtn>
+            <GBtn onClick={()=>{setRejectingId(null);setRejectReasonInput("");}}>Cancel</GBtn>
+          </div>
+          :!isSophia&&needsUploadFromKnockOff&&fulfillingId===e.id
+          ?<div style={{marginTop:8,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={ev=>setFulfillFile(ev.target.files[0]||null)} style={{fontSize:12}}/>
+            <PBtn onClick={()=>uploadForEntry(e.id)} disabled={!fulfillFile||fulfilling}>{fulfilling?"Uploading…":"Upload"}</PBtn>
+            <GBtn onClick={()=>{setFulfillingId(null);setFulfillFile(null);}} disabled={fulfilling}>Cancel</GBtn>
+          </div>
+          :<div style={{marginTop:8,display:"flex",gap:8}}>
+            {isSophia&&e.status==="pending"&&<PBtn onClick={()=>{setCompletingId(e.id);setRefNoInput("");}}>Mark Completed</PBtn>}
+            {isSophia&&e.status==="pending"&&<GBtn onClick={()=>{setRejectingId(e.id);setRejectReasonInput("");}} style={{color:"#DC2626",borderColor:"#FECACA"}}>Reject</GBtn>}
+            {!isSophia&&e.status==="completed"&&<PBtn onClick={()=>markPrinted(e.id)}>Mark Printed</PBtn>}
+            {!isSophia&&needsUploadFromKnockOff&&<PBtn onClick={()=>{setFulfillingId(e.id);setFulfillFile(null);}}>{e.status==="rejected"?"Re-upload":"Upload File"}</PBtn>}
+          </div>}
       </div>
     </div>;
   };
@@ -166,6 +237,25 @@ export default function DailyPaymentTab({email}){
             <div style={{display:"flex",gap:8}}>
               <PBtn onClick={addEntry} disabled={!file||!payeeName.trim()||!description.trim()||uploading}>{uploading?"Uploading…":"Upload"}</PBtn>
               <GBtn onClick={()=>{setShowUpload(false);setFile(null);setPayeeName("");setDescription("");}} disabled={uploading}>Cancel</GBtn>
+            </div>
+          </div>}
+      </div>}
+
+      {isSophia&&<div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
+        {!showRequest
+          ?<PBtn onClick={()=>setShowRequest(true)}>+ Request File</PBtn>
+          :<div style={{display:"flex",flexDirection:"column",gap:8,maxWidth:420}}>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:C.textMid,display:"block",marginBottom:3,textTransform:"uppercase"}}>Payee Name</label>
+              <input value={requestPayee} onChange={e=>setRequestPayee(e.target.value)} placeholder="Who is this payment for…" style={{width:"100%",padding:"8px 10px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,boxSizing:"border-box"}}/>
+            </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:C.textMid,display:"block",marginBottom:3,textTransform:"uppercase"}}>What file do you need</label>
+              <input value={requestDescription} onChange={e=>setRequestDescription(e.target.value)} placeholder="Describe what Knock-off should upload…" style={{width:"100%",padding:"8px 10px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,boxSizing:"border-box"}}/>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <PBtn onClick={requestFile} disabled={!requestPayee.trim()||!requestDescription.trim()}>Send Request</PBtn>
+              <GBtn onClick={()=>{setShowRequest(false);setRequestPayee("");setRequestDescription("");}}>Cancel</GBtn>
             </div>
           </div>}
       </div>}
