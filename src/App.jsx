@@ -1801,7 +1801,8 @@ export function DailyEntry({records,setRecords,srList,branchMeta,month,year,days
 
   const save=async()=>{
     setSaving(true);
-    const nr={...records};
+    const latest=(await loadData(recordsKey))||records;
+    const nr={...latest};
     if(!nr[dateKey])nr[dateKey]={};
     visibleSRs.forEach(sr=>{
       if(!nr[dateKey][sr.id])nr[dateKey][sr.id]={walkin:0,aeon:0,repair:0};
@@ -2321,7 +2322,8 @@ export default function App(){
   },[selMonth,selYear]);
 
   const handleEdit=async(dateKey,srId,field,value)=>{
-    const nr={...records};
+    const latest=(await loadData(recordsKey))||records;
+    const nr={...latest};
     if(!nr[dateKey])nr[dateKey]={};
     if(!nr[dateKey][srId])nr[dateKey][srId]={walkin:0,aeon:0,unalloc:0,repair:0};
     nr[dateKey][srId][field]=value;
