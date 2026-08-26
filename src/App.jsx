@@ -3070,7 +3070,7 @@ export default function App(){
 
       {/* REPAIR */}
       {tab==="repair"&&<RepairTab month={month} year={year} endDay={selEndDay} refreshKey={repairRefresh}/>}
-      {tab==="rto"&&<RTOTab branchMeta={branchMeta}/>}
+      {tab==="rto"&&<RTOTab branchMeta={branchMeta} email={currentEmail}/>}
       {tab==="orders"&&<OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} email={currentEmail}/>}
       {tab==="dailySales"&&<DailySalesTab branchMeta={branchMeta} isAdmin={true} canSubmit={true} canVerify={true} email={currentEmail}/>}
       {tab==="jclApplications"&&<JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={currentEmail}/>}

@@ -163,7 +163,7 @@ function CustomerForm({initial,branchMeta,onSave,onCancel}){
   );
 }
 
-function PaymentSchedule({customer,onUpdate}){
+function PaymentSchedule({customer,onUpdate,isSophia}){
   const schedule=genSchedule(customer);
   const payments=customer.payments||{};
   const totalReceived=schedule.filter(s=>payments[s.key]?.paid).reduce((sum,s)=>sum+(payments[s.key]?.amount||s.amount),0);
@@ -173,6 +173,8 @@ function PaymentSchedule({customer,onUpdate}){
   const pl=-cost+totalReceived;
   const summaryRef=useRef(null);
   const [scheduleOpen,setScheduleOpen]=useState(false);
+  const [remarkingKey,setRemarkingKey]=useState(null);
+  const [remarkInput,setRemarkInput]=useState("");
 
   const downloadPhoto=async()=>{
     const el=summaryRef.current;if(!el)return;
@@ -275,9 +277,10 @@ function PaymentSchedule({customer,onUpdate}){
           {schedule.map((s,i)=>{
             const paid=payments[s.key]?.paid;
             const paidDate=payments[s.key]?.date||"";
+            const remark=payments[s.key]?.remark;
             return(
               <div key={s.key} style={{background:paid?"#F0FDF4":C.surface,borderRadius:8,padding:"10px 12px",border:`1px solid ${paid?"#BBF7D0":C.border}`}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:paid?6:0}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:(paid||remarkingKey===s.key)?6:0}}>
                   <div>
                     <span style={{fontWeight:700,fontSize:12,color:C.text}}>{i+1}. {s.label}</span>
                     <span style={{marginLeft:8,fontSize:11,color:C.textLight}}>{fRM(s.amount)}</span>
@@ -290,15 +293,35 @@ function PaymentSchedule({customer,onUpdate}){
                       {payments[s.key]?.invOpened?"INV Done":"INV"}
                     </button>
                     <button onClick={()=>{
-                      const newPaid=!paid;
-                      const newDate=newPaid?(paidDate||new Date().toISOString().split("T")[0]):"";
-                      onUpdate(s.key,{...payments[s.key],paid:newPaid,amount:s.amount,date:newDate});
+                      if(paid){
+                        // Unmarking needs no remark prompt — just revert.
+                        onUpdate(s.key,{...payments[s.key],paid:false,amount:s.amount,date:""});
+                        return;
+                      }
+                      if(isSophia){
+                        // Sophia gets a chance to add a remark before
+                        // confirming — matches the same inline-entry
+                        // pattern used elsewhere (e.g. Daily Payment's
+                        // Ref No.) rather than a native prompt() popup.
+                        setRemarkingKey(s.key);setRemarkInput("");
+                      }else{
+                        onUpdate(s.key,{...payments[s.key],paid:true,amount:s.amount,date:new Date().toISOString().split("T")[0]});
+                      }
                     }} style={{padding:"3px 10px",fontSize:10,fontWeight:700,border:"none",borderRadius:6,background:paid?"#DC2626":"#15803D",color:"#fff",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>
                       {paid?"Unmark":"Mark Paid"}
                     </button>
                   </div>
                 </div>
-                {paid&&<input type="date" value={paidDate} onChange={e=>onUpdate(s.key,{paid:true,amount:s.amount,date:e.target.value})} style={{...inp,fontSize:11,padding:"5px 8px",border:"1px solid #BBF7D0"}}/>}
+                {remarkingKey===s.key
+                  ?<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                    <input autoFocus value={remarkInput} onChange={e=>setRemarkInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){onUpdate(s.key,{...payments[s.key],paid:true,amount:s.amount,date:new Date().toISOString().split("T")[0],remark:remarkInput.trim()});setRemarkingKey(null);}}} placeholder="Remark (optional)…" style={{...inp,fontSize:11,padding:"5px 8px",flex:1,minWidth:120}}/>
+                    <PBtn onClick={()=>{onUpdate(s.key,{...payments[s.key],paid:true,amount:s.amount,date:new Date().toISOString().split("T")[0],remark:remarkInput.trim()});setRemarkingKey(null);}} style={{padding:"5px 10px",fontSize:10}}>Confirm</PBtn>
+                    <GBtn onClick={()=>setRemarkingKey(null)} style={{padding:"5px 10px",fontSize:10}}>Cancel</GBtn>
+                  </div>
+                  :<>
+                    {paid&&<input type="date" value={paidDate} onChange={e=>onUpdate(s.key,{...payments[s.key],paid:true,amount:s.amount,date:e.target.value})} style={{...inp,fontSize:11,padding:"5px 8px",border:"1px solid #BBF7D0"}}/>}
+                    {remark&&<div style={{fontSize:10.5,color:C.textLight,marginTop:paid?5:0,fontStyle:"italic"}}>Remark: {remark}</div>}
+                  </>}
               </div>
             );
           })}
@@ -309,10 +332,13 @@ function PaymentSchedule({customer,onUpdate}){
 }
 
 
-export default function RTOTab({branchMeta}){
+const SOPHIA_EMAIL="sophiawsc9395@gmail.com";
+
+export default function RTOTab({branchMeta,email}){
+  const isSophia=(email||"").toLowerCase()===SOPHIA_EMAIL;
   const [customers,setCustomers]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [view,setView]=useState("list"); // "list" | "summary"
+  const [view,setView]=useState("list"); // "list" | "summary" | "todo"
   const [editCustomer,setEditCustomer]=useState(null);
   const [selectedId,setSelectedId]=useState(null);
   const [filterBranch,setFilterBranch]=useState("ALL");
@@ -338,7 +364,7 @@ export default function RTOTab({branchMeta}){
   },[selectedId,paymentsCache]);
 
   useEffect(()=>{
-    if(view==="summary"&&!summaryCustomers&&!summaryLoading){
+    if((view==="summary"||view==="todo")&&!summaryCustomers&&!summaryLoading){
       setSummaryLoading(true);
       getPaymentsForCustomers(customers.map(c=>c.id)).then(byId=>{
         setSummaryCustomers(customers.map(c=>({...c,payments:byId[c.id]||{}})));
@@ -401,10 +427,43 @@ export default function RTOTab({branchMeta}){
         </div>
         <div style={{display:"flex",gap:8}}>
           <GBtn onClick={()=>setView(view==="list"?"summary":"list")} style={view==="summary"?{background:C.navy,color:"#fff",border:`1.5px solid ${C.navy}`}:{}}>{view==="list"?"View Portfolio Summary":"Back to Customer List"}</GBtn>
+          {isSophia&&<GBtn onClick={()=>setView(view==="todo"?"list":"todo")} style={view==="todo"?{background:"#B45309",color:"#fff",border:"1.5px solid #B45309"}:{}}>{view==="todo"?"Back to Customer List":"View To-Do List"}</GBtn>}
         </div>
       </div>
 
       {view==="summary"&&(summaryCustomers?<RTOSummary customers={summaryCustomers} branchMeta={branchMeta}/>:<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading portfolio summary…</div>)}
+
+      {view==="todo"&&isSophia&&(()=>{
+        if(!summaryCustomers)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
+        // Flatten every customer's schedule into individual to-do items —
+        // paid, but the invoice hasn't been opened yet.
+        const items=[];
+        summaryCustomers.forEach(c=>{
+          genSchedule(c).forEach(s=>{
+            const p=c.payments?.[s.key];
+            if(p?.paid&&!p?.invOpened)items.push({customer:c,schedKey:s.key,label:s.label,amount:p.amount||s.amount,paidDate:p.date,remark:p.remark});
+          });
+        });
+        items.sort((a,b)=>(a.paidDate||"").localeCompare(b.paidDate||""));
+        return<div>
+          <div style={{fontSize:12,color:C.textLight,marginBottom:12}}>Payment received, invoice not yet opened — {items.length} item{items.length===1?"":"s"}.</div>
+          {items.length===0
+            ?<div style={{...card,textAlign:"center",padding:"40px 20px",color:C.textLight,fontSize:13}}>Nothing outstanding — every paid month has its invoice opened.</div>
+            :<div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {items.map(it=><div key={it.customer.id+it.schedKey} style={{...card,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <div style={{minWidth:0}}>
+                  <div style={{fontWeight:700,fontSize:13,color:C.text}}>{it.customer.name} <span style={{fontWeight:400,color:C.textLight}}>· {it.customer.memberId} · {it.customer.branch}</span></div>
+                  <div style={{fontSize:11,color:C.textMid,marginTop:2}}>{it.label} · {fRM(it.amount)} · Paid {fDate(it.paidDate)}</div>
+                  {it.remark&&<div style={{fontSize:11,color:C.textLight,marginTop:2,fontStyle:"italic"}}>Remark: {it.remark}</div>}
+                </div>
+                <PBtn onClick={()=>{
+                  const existing=summaryCustomers.find(c=>c.id===it.customer.id)?.payments?.[it.schedKey]||{};
+                  updatePayment(it.customer.id,it.schedKey,{...existing,invOpened:true});
+                }}>{Ic.checkCircle} Mark Invoiced</PBtn>
+              </div>)}
+            </div>}
+        </div>;
+      })()}
 
       {view==="list"&&<div className="rto-grid">
         {/* Left: customer list */}
@@ -460,7 +519,7 @@ export default function RTOTab({branchMeta}){
 
         {/* Right: detail */}
         <div>
-          {selected&&<PaymentSchedule customer={selected} onUpdate={(key,data)=>updatePayment(selected.id,key,data)}/>}
+          {selected&&<PaymentSchedule customer={selected} isSophia={isSophia} onUpdate={(key,data)=>updatePayment(selected.id,key,data)}/>}
           {!selected&&selectedId&&<div style={{...card,textAlign:"center",padding:"60px 20px",color:C.textLight,fontSize:13}}>Loading payment schedule…</div>}
           {!selected&&!selectedId&&<div style={{...card,textAlign:"center",padding:"60px 20px",color:C.textLight,fontSize:13}}>Select a customer to view their payment schedule and summary.</div>}
         </div>
