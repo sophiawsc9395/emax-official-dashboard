@@ -2905,6 +2905,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       </div>;
     })()}
 
+    {/* Payment Breakdown — Sophia only, own separate search box entirely
         independent of the main order search above. Placed at the very
         bottom of the page since it's a distinct, specialized lookup tool
         rather than part of the normal order-browsing flow. Only shows

@@ -12,6 +12,7 @@ import StockTransferTab from "../../StockTransferTab.jsx";
 import {SRBMModal,TargetModal,DailyEntry} from "../../App.jsx";
 import { mergeOrderPermissions } from "../../auth/orderRoles.js";
 import { RTOSummaryInner } from "../../RTOSummary.jsx";
+import ExpectedProfitTable from "../../ExpectedProfitTable.jsx";
 
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -1167,6 +1168,15 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
           <KpiCard label="On Target" value={`${BRANCH_ORDER.filter(b=>{const t=targets?.bm?.[b]||0;return t>0&&(branchTotals[b]?.total||0)>=t;}).length}/${BRANCH_ORDER.filter(b=>(targets?.bm?.[b]||0)>0).length}`} accent="#F5A623" sub="Branches with target set"/>
         </div>
         <BranchPerfTable branchTotals={branchTotals} targets={targets} branchMeta={bMeta} month={month} year={year} startDay={selStartDay} endDay={Math.min(selEndDay,lastDataDay||daysInMonth(month,year))} maxDay={lastDataDay||daysInMonth(month,year)} onChangeStartDay={setSelStartDay} onChangeEndDay={setSelEndDay}/>
+        {!isHR&&!isKnockOff&&<>
+          <h2 style={{fontSize:14,fontWeight:800,color:"#0A1628",margin:"24px 0 12px"}}>Expected Profit (Pending Billing)</h2>
+          <ExpectedProfitTable branchMeta={bMeta} onOrderClick={id=>{
+            const url=new URL(window.location.href);
+            url.searchParams.set("orderId",id);
+            window.history.replaceState({},"",url);
+            setTab("orders");
+          }}/>
+        </>}
       </div>}
 
       {/* RANKINGS */}

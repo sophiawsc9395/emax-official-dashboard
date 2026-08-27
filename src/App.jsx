@@ -2,9 +2,9 @@
 // EMAX NETWORK SDN BHD — Sales Performance Dashboard
 // Enterprise Analytics Platform
 // ============================================================
-import { useState, useEffect, useMemo, useRef, Fragment } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, saveData, supabase } from "./storage/index.js";
-import { listOrders } from "./storage/ordersApi.js";
+import ExpectedProfitTable from "./ExpectedProfitTable.jsx";
 import RTOTab from "./RTOTab.jsx";
 import OrderTab from "./OrderTab.jsx";
 import DailySalesTab from "./DailySalesTab.jsx";
@@ -2763,43 +2763,6 @@ export default function App(){
     return{name:s.canon,status:s.status,branch:s.branch,sub:null,wi:rankSRTotals[s.id]?.wi||0,ae:rankSRTotals[s.id]?.ae||0,profit,target,bonus,bonusEarned:branchHit&&profit>=target&&bonus>0,branchPct,role:"sr",points:calcRewardPoints(p,branchPct)};
   }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target));
 
-  // Expected Profit table (Overview page, bottom section) — every order
-  // still before Billing Request (steps 1-5: New Order Request through
-  // Arrived Branch), across all branches, that has both a selling price
-  // and an Ordered Price on file. Fetched once, lazily, only when the
-  // Overview tab is actually open — this data isn't needed anywhere else.
-  const [expectedProfitOrders,setExpectedProfitOrders]=useState(null);
-  useEffect(()=>{
-    if(tab==="overview"&&expectedProfitOrders===null){
-      listOrders().then(setExpectedProfitOrders);
-    }
-  },[tab,expectedProfitOrders]);
-  const STEP_LABELS={1:"New Order Request",2:"Ordered",3:"Arrived HQ",4:"Dispatched to Branch",5:"Arrived Branch"};
-  const expectedProfitList=useMemo(()=>{
-    if(!expectedProfitOrders)return[];
-    return expectedProfitOrders.filter(o=>{
-      if(o.cancelled||!(o.step>=1&&o.step<=5))return false;
-      const sellPrice=o.orderType==="cash"?o.retailPrice:o.financePrice;
-      return parseFloat(sellPrice)>0&&parseFloat(o.actualPrice)>0;
-    }).map(o=>{
-      const sellPrice=parseFloat(o.orderType==="cash"?o.retailPrice:o.financePrice)||0;
-      return{...o,expectedProfit:sellPrice-(parseFloat(o.actualPrice)||0)};
-    }).sort((a,b)=>b.id-a.id);
-  }, [expectedProfitOrders]);
-  const [expandedProfitBranches,setExpandedProfitBranches]=useState(()=>new Set());
-  const toggleProfitBranch=(b)=>setExpandedProfitBranches(prev=>{
-    const next=new Set(prev);
-    next.has(b)?next.delete(b):next.add(b);
-    return next;
-  });
-  const expectedProfitByBranch=useMemo(()=>{
-    const groups={};
-    expectedProfitList.forEach(o=>{(groups[o.branch]||=[]).push(o);});
-    const branches=Object.keys(groups).sort((a,b)=>
-      groups[b].reduce((s,o)=>s+o.expectedProfit,0)-groups[a].reduce((s,o)=>s+o.expectedProfit,0)
-    );
-    return{groups,branches};
-  },[expectedProfitList]);
   const goToOrder=(id)=>{
     const url=new URL(window.location.href);
     url.searchParams.set("orderId",id);
@@ -2974,67 +2937,8 @@ export default function App(){
         </div>
         <BranchPerfTable branchTotals={branchTotals} targets={targets} branchMeta={branchMeta} printRef={summaryRef} month={month} year={year} startDay={selStartDay} endDay={Math.min(selEndDay,lastDataDay||daysInMonth(month,year))} onChangeStartDay={setSelStartDay} onChangeEndDay={setSelEndDay} maxDay={lastDataDay||daysInMonth(month,year)}/>
 
-        <h2 style={{fontSize:14,fontWeight:800,color:"#0A1628",margin:"24px 0 12px"}}>Expected Profit — Not Yet Billed</h2>
-        <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"1px solid #E4EAF2",boxShadow:"0 2px 8px rgba(10,22,40,.06)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 20px",borderBottom:"1px solid #E4EAF2"}}>
-            <div>
-              <h3 style={{fontWeight:800,fontSize:14,color:"#0A1628",margin:0}}>Expected Profit by Branch</h3>
-              <div style={{fontSize:11,color:"#5A6472",marginTop:2}}>{expectedProfitList.length} order{expectedProfitList.length===1?"":"s"} not yet billed, across {expectedProfitByBranch.branches.length} branch{expectedProfitByBranch.branches.length===1?"":"es"}</div>
-            </div>
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:10,color:"#5A6472"}}>Total Expected Profit</div>
-              <div style={{fontWeight:700,fontSize:14,color:"#0A1628"}}>{(()=>{const t=expectedProfitList.reduce((s,o)=>s+o.expectedProfit,0);return t>=0?"+"+fRM(t):fRM(Math.abs(t));})()}</div>
-            </div>
-          </div>
-          {expectedProfitOrders===null
-            ?<div style={{padding:40,textAlign:"center",color:"#8A96A8",fontSize:13}}>Loading…</div>
-            :<div style={{overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",minWidth:640}}>
-                <thead><tr>
-                  <th style={TH({textAlign:"left"})}>Branch</th>
-                  <th style={TH()}>Orders</th>
-                  <th style={TH()}>Expected Profit</th>
-                </tr></thead>
-                <tbody>
-                  {expectedProfitByBranch.branches.length===0
-                    ?<tr><td colSpan={3} style={{padding:"40px 10px",textAlign:"center",color:"#8A96A8",fontSize:13}}>Nothing outstanding — every order before Billing Request has Actual Purchase Price on file, or none are in progress right now.</td></tr>
-                    :expectedProfitByBranch.branches.map(b=>{
-                      const branchOrders=expectedProfitByBranch.groups[b];
-                      const branchTotal=branchOrders.reduce((s,o)=>s+o.expectedProfit,0);
-                      const open=expandedProfitBranches.has(b);
-                      return<Fragment key={b}>
-                        <tr className="shine-row" style={{background:"#fff",cursor:"pointer"}} onClick={()=>toggleProfitBranch(b)}>
-                          <td style={{...TD({textAlign:"left"})}}>
-                            <div style={{display:"flex",alignItems:"center",gap:8}}>
-                              <span style={{display:"inline-block",transition:"transform .15s",transform:open?"rotate(90deg)":"rotate(0deg)",color:"#8A96A8",fontSize:10}}>▶</span>
-                              <div>
-                                <div style={{fontWeight:700,color:"#0A1628",fontSize:12,textTransform:"uppercase"}}>{branchMeta[b]?.name||b}</div>
-                                <div style={{fontSize:10,color:"#5A6472",marginTop:1}}>{branchMeta[b]?.manager}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td style={{...TD(),textAlign:"right"}}><span style={{color:"#4A5568",fontSize:12}}>{branchOrders.length}</span></td>
-                          <td style={{...TD(),textAlign:"right"}}><span style={{color:"#4A5568",fontSize:12,fontWeight:700}}>{branchTotal>=0?"+"+fRM(branchTotal):fRM(Math.abs(branchTotal))}</span></td>
-                        </tr>
-                        {open&&branchOrders.map(o=><tr key={o.id} className="shine-row" style={{background:"#FAFBFD",cursor:"pointer"}} onClick={e=>{e.stopPropagation();goToOrder(o.id);}}>
-                          <td style={{...TD({textAlign:"left"})}}>
-                            <div style={{paddingLeft:18,fontSize:12,color:"#0A1628"}}>{o.phoneModel||"—"}</div>
-                            <div style={{paddingLeft:18,fontSize:10,color:"#8A96A8",marginTop:1}}>{STEP_LABELS[o.step]}</div>
-                          </td>
-                          <td style={TD()}></td>
-                          <td style={{...TD(),textAlign:"right"}}><span style={{color:"#4A5568",fontSize:12,fontWeight:600}}>{o.expectedProfit>=0?"+"+fRM(o.expectedProfit):fRM(Math.abs(o.expectedProfit))}</span></td>
-                        </tr>)}
-                      </Fragment>;
-                    })}
-                </tbody>
-                {expectedProfitByBranch.branches.length>0&&<tfoot><tr style={{background:"#0A1628",fontSize:11}}>
-                  <td style={{padding:"9px 10px",fontWeight:600,color:"rgba(255,255,255,.6)",whiteSpace:"nowrap"}}>Total</td>
-                  <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><span style={{color:"rgba(255,255,255,.6)"}}>{expectedProfitList.length}</span></td>
-                  <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><span style={{color:"rgba(255,255,255,.6)"}}>{(()=>{const t=expectedProfitList.reduce((s,o)=>s+o.expectedProfit,0);return t>=0?"+"+fRM(t):fRM(Math.abs(t));})()}</span></td>
-                </tr></tfoot>}
-              </table>
-            </div>}
-        </div>
+        <h2 style={{fontSize:14,fontWeight:800,color:"#0A1628",margin:"24px 0 12px"}}>Expected Profit (Pending Billing)</h2>
+        <ExpectedProfitTable branchMeta={branchMeta} onOrderClick={goToOrder}/>
       </div>}
 
       {/* RANKINGS */}
