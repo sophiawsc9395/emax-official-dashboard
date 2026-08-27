@@ -1702,11 +1702,14 @@ function getOrderAlerts(orders,userBranch=null){
     const days=daysSince(o.orderDate);
     if(days>=7)alerts.push({type:"overdue_order",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Ordered ${days} days ago — not yet arrived at HQ`});
   });
-  // Actual Purchase Price Missing — any order that's reached Ordered (step
-  // 2) or later should have had this filled in at that point (normally via
-  // the Purchase Order page's "Ordered" action). Flags anything that
-  // somehow got past that step without it, so Purchasing can fill it in.
-  myOrders.filter(o=>o.step>=2&&!o.actualPrice).forEach(o=>{
+  // Actual Purchase Price Missing — orders between Ordered (step 2) and
+  // Arrived Branch (step 5), still before Billing Request, that should
+  // have had this filled in already (normally via the Purchase Order
+  // page's "Ordered" action). Same step range as the Expected Profit
+  // table, since that's exactly what this data feeds. Doesn't fire once
+  // an order reaches Billing (step 6+) or beyond - that's no longer
+  // Purchasing's concern at that point.
+  myOrders.filter(o=>o.step>=2&&o.step<=5&&!o.actualPrice).forEach(o=>{
     alerts.push({type:"missing_actual_price",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:"Actual Purchase Price not filled in"});
   });
   // Merchant Rejected — fires from the day the admin clicked Reject by
