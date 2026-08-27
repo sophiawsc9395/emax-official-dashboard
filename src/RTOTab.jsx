@@ -37,6 +37,16 @@ function genSchedule(customer){
   return schedule;
 }
 
+// Effective amount actually received for one schedule entry: the full
+// amount if that month is marked paid, otherwise whatever's been recorded
+// via partial payments so far (0 if none). Used everywhere "amount
+// received" is totaled, so partial payments count immediately rather than
+// being invisible until a month is fully settled.
+function amountReceivedFor(s,payData){
+  if(payData?.paid)return payData?.amount||s.amount;
+  return(payData?.partialPayments||[]).reduce((sum,p)=>sum+(parseFloat(p.amount)||0),0);
+}
+
 /* ── Shared design tokens — matching the Order Tracking page ───────────── */
 const C={navy:"#0A1628",navyMid:"#0F2040",navyLight:"#162B52",blue:"#1B3F72",blueBright:"#2C5AA0",yellow:"#FFD500",white:"#fff",surface:"#F7F9FC",border:"#E4EAF2",text:"#0A1628",textMid:"#4A5568",textLight:"#8A96A8"};
 const card={background:C.white,border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04)",overflow:"hidden"};
@@ -166,7 +176,7 @@ function CustomerForm({initial,branchMeta,onSave,onCancel}){
 function PaymentSchedule({customer,onUpdate,isSophia}){
   const schedule=genSchedule(customer);
   const payments=customer.payments||{};
-  const totalReceived=schedule.filter(s=>payments[s.key]?.paid).reduce((sum,s)=>sum+(payments[s.key]?.amount||s.amount),0);
+  const totalReceived=schedule.reduce((sum,s)=>sum+amountReceivedFor(s,payments[s.key]),0);
   const totalContract=(parseInt(customer.tenure)||0)*(parseFloat(customer.monthlyInstallment)||0);
   const outstanding=totalContract-totalReceived;
   const cost=parseFloat(customer.cost)||0;
@@ -175,6 +185,9 @@ function PaymentSchedule({customer,onUpdate,isSophia}){
   const [scheduleOpen,setScheduleOpen]=useState(false);
   const [remarkingKey,setRemarkingKey]=useState(null);
   const [remarkInput,setRemarkInput]=useState("");
+  const [partialKey,setPartialKey]=useState(null);
+  const [partialAmountInput,setPartialAmountInput]=useState("");
+  const [partialRemarkInput,setPartialRemarkInput]=useState("");
 
   const downloadPhoto=async()=>{
     const el=summaryRef.current;if(!el)return;
@@ -278,9 +291,12 @@ function PaymentSchedule({customer,onUpdate,isSophia}){
             const paid=payments[s.key]?.paid;
             const paidDate=payments[s.key]?.date||"";
             const remark=payments[s.key]?.remark;
+            const partials=payments[s.key]?.partialPayments||[];
+            const partialTotal=partials.reduce((sum,p)=>sum+(parseFloat(p.amount)||0),0);
+            const isPartial=!paid&&partials.length>0;
             return(
-              <div key={s.key} style={{background:paid?"#F0FDF4":C.surface,borderRadius:8,padding:"10px 12px",border:`1px solid ${paid?"#BBF7D0":C.border}`}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:(paid||remarkingKey===s.key)?6:0}}>
+              <div key={s.key} style={{background:paid?"#F0FDF4":isPartial?"#FFFBEB":C.surface,borderRadius:8,padding:"10px 12px",border:`1px solid ${paid?"#BBF7D0":isPartial?"#FDE68A":C.border}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:(paid||isPartial||remarkingKey===s.key||partialKey===s.key)?6:0}}>
                   <div>
                     <span style={{fontWeight:700,fontSize:12,color:C.text}}>{i+1}. {s.label}</span>
                     <span style={{marginLeft:8,fontSize:11,color:C.textLight}}>{fRM(s.amount)}</span>
@@ -292,6 +308,9 @@ function PaymentSchedule({customer,onUpdate,isSophia}){
                     }} style={{padding:"3px 8px",fontSize:10,fontWeight:700,border:`1px solid ${payments[s.key]?.invOpened?"#93C5FD":C.border}`,borderRadius:6,background:payments[s.key]?.invOpened?"#EEF1F7":C.surface,color:payments[s.key]?.invOpened?C.blue:C.textLight,cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>
                       {payments[s.key]?.invOpened?"INV Done":"INV"}
                     </button>
+                    {!paid&&isSophia&&<button onClick={()=>{setPartialKey(s.key);setPartialAmountInput("");setPartialRemarkInput("");}} style={{padding:"3px 8px",fontSize:10,fontWeight:700,border:"1px solid #FDE68A",borderRadius:6,background:"#FFFBEB",color:"#B45309",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>
+                      Partial
+                    </button>}
                     <button onClick={()=>{
                       if(paid){
                         // Unmarking needs no remark prompt — just revert.
@@ -318,9 +337,33 @@ function PaymentSchedule({customer,onUpdate,isSophia}){
                     <PBtn onClick={()=>{onUpdate(s.key,{...payments[s.key],paid:true,amount:s.amount,date:new Date().toISOString().split("T")[0],remark:remarkInput.trim()});setRemarkingKey(null);}} style={{padding:"5px 10px",fontSize:10}}>Confirm</PBtn>
                     <GBtn onClick={()=>setRemarkingKey(null)} style={{padding:"5px 10px",fontSize:10}}>Cancel</GBtn>
                   </div>
+                  :partialKey===s.key
+                  ?<div style={{display:"flex",flexDirection:"column",gap:6}}>
+                    <div style={{fontSize:10,color:C.textLight}}>{fRM(partialTotal)} of {fRM(s.amount)} collected so far — outstanding {fRM(Math.max(0,s.amount-partialTotal))}</div>
+                    <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                      <input autoFocus type="number" value={partialAmountInput} onChange={e=>setPartialAmountInput(e.target.value)} placeholder="Amount received (RM)…" style={{...inp,fontSize:11,padding:"5px 8px",width:130}}/>
+                      <input value={partialRemarkInput} onChange={e=>setPartialRemarkInput(e.target.value)} placeholder="Remark (optional)…" style={{...inp,fontSize:11,padding:"5px 8px",flex:1,minWidth:100}}/>
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
+                      <PBtn onClick={()=>{
+                        const amt=parseFloat(partialAmountInput)||0;
+                        if(amt<=0)return;
+                        const newPartials=[...partials,{amount:amt,date:new Date().toISOString().split("T")[0],remark:partialRemarkInput.trim()}];
+                        const newTotal=newPartials.reduce((sum,p)=>sum+(parseFloat(p.amount)||0),0);
+                        const nowFullyPaid=newTotal>=s.amount;
+                        onUpdate(s.key,{...payments[s.key],partialPayments:newPartials,amount:nowFullyPaid?s.amount:payments[s.key]?.amount,paid:nowFullyPaid?true:payments[s.key]?.paid,date:nowFullyPaid?new Date().toISOString().split("T")[0]:payments[s.key]?.date});
+                        setPartialKey(null);
+                      }} disabled={!(parseFloat(partialAmountInput)>0)} style={{padding:"5px 10px",fontSize:10}}>Record Payment</PBtn>
+                      <GBtn onClick={()=>setPartialKey(null)} style={{padding:"5px 10px",fontSize:10}}>Cancel</GBtn>
+                    </div>
+                  </div>
                   :<>
                     {paid&&<input type="date" value={paidDate} onChange={e=>onUpdate(s.key,{...payments[s.key],paid:true,amount:s.amount,date:e.target.value})} style={{...inp,fontSize:11,padding:"5px 8px",border:"1px solid #BBF7D0"}}/>}
                     {remark&&<div style={{fontSize:10.5,color:C.textLight,marginTop:paid?5:0,fontStyle:"italic"}}>Remark: {remark}</div>}
+                    {isPartial&&<div style={{marginTop:2}}>
+                      <div style={{fontSize:11,fontWeight:700,color:"#B45309"}}>{fRM(partialTotal)} of {fRM(s.amount)} collected — {fRM(Math.max(0,s.amount-partialTotal))} outstanding</div>
+                      {partials.map((p,pi)=><div key={pi} style={{fontSize:10,color:C.textLight,marginTop:2}}>{fDate(p.date)} · {fRM(p.amount)}{p.remark?` · ${p.remark}`:""}</div>)}
+                    </div>}
                   </>}
               </div>
             );
@@ -400,7 +443,7 @@ export default function RTOTab({branchMeta,email}){
     const newPayments={...(paymentsCache[customerId]||{}),[schedKey]:payData};
     const schedule=genSchedule(customer);
     const paidCount=schedule.filter(s=>newPayments[s.key]?.paid).length;
-    const totalReceived=schedule.filter(s=>newPayments[s.key]?.paid).reduce((sum,s)=>sum+(newPayments[s.key]?.amount||s.amount),0);
+    const totalReceived=schedule.reduce((sum,s)=>sum+amountReceivedFor(s,newPayments[s.key]),0);
     const result=await apiUpdatePayment(customerId,schedKey,payData,{paidCount,totalReceived});
     if(!result.ok){alert("Save failed — please try again.");return;}
     setPaymentsCache(p=>({...p,[customerId]:newPayments}));

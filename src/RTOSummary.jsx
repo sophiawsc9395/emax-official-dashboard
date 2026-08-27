@@ -18,6 +18,14 @@ function genSchedule(customer){
   return schedule;
 }
 
+// Effective amount actually received for one schedule entry: the full
+// amount if that month is marked paid, otherwise whatever's been recorded
+// via partial payments so far (0 if none). Mirrors RTOTab.jsx's helper.
+function amountReceivedFor(s,payData){
+  if(payData?.paid)return payData?.amount||s.amount;
+  return(payData?.partialPayments||[]).reduce((sum,p)=>sum+(parseFloat(p.amount)||0),0);
+}
+
 /* ── Shared design tokens — identical to the admin dashboard's RTO/Order
    pages, so the Boss viewer's Portfolio Summary renders the same as the
    dashboard's own "View Portfolio Summary". ───────────────────────────── */
@@ -65,7 +73,7 @@ export function RTOSummaryInner({customers,branchMeta}){
     const schedule=genSchedule(c);
     const payments=c.payments||{};
     const totalContract=(parseInt(c.tenure)||0)*(parseFloat(c.monthlyInstallment)||0);
-    const totalReceived=schedule.filter(s=>payments[s.key]?.paid).reduce((sum,s)=>sum+(payments[s.key]?.amount||s.amount),0);
+    const totalReceived=schedule.reduce((sum,s)=>sum+amountReceivedFor(s,payments[s.key]),0);
     const outstanding=totalContract-totalReceived;
     const cost=parseFloat(c.cost)||0;
     const pl=-cost+totalReceived;
@@ -90,13 +98,16 @@ export function RTOSummaryInner({customers,branchMeta}){
     // Next month's expected collection — each customer's scheduled
     // installment for next month specifically, summed across everyone who
     // actually has one due then (i.e. still within their tenure at that
-    // point) AND hasn't already paid it early. A customer who's already
-    // settled next month's installment ahead of schedule shouldn't still
-    // count toward what's expected to come in.
+    // point) AND hasn't already paid it in full early. Any partial payment
+    // already received toward next month is subtracted, so this reflects
+    // what's genuinely still outstanding, not the full scheduled amount.
     nextMonthEC:analytics.reduce((s,c)=>{
       const sched=c.schedule.find(x=>x.key===nextMonthKey);
       if(!sched)return s;
-      return c.payments?.[nextMonthKey]?.paid?s:s+sched.amount;
+      const pay=c.payments?.[nextMonthKey];
+      if(pay?.paid)return s;
+      const already=amountReceivedFor(sched,pay);
+      return s+Math.max(0,sched.amount-already);
     },0),
   };
 

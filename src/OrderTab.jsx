@@ -454,8 +454,8 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
       {(()=>{const up=calcUpfront(order);const monthly=(order.monthlyInstallment!=null&&order.monthlyInstallment!=="")?parseFloat(order.monthlyInstallment)||0:parseFloat(order.billingData?.monthlyInstallment)||0;return<>
         {[["Agreement Fee",up.a],["Stamping Fee",up.s],["Deposit",up.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 1 (Subtotal)</span><span>{fRM(up.total)}</span></div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 2 (First Monthly Installment)</span><span>{fRM(monthly)}</span></div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0 0",borderTop:`2px solid ${C.navy}`,marginTop:4,color:C.navy,fontWeight:800}}><span>Total Upfront Payment Upon Collection</span><span>{fRM(up.total+monthly)}</span></div>
+        {order.merchant==="Aeon"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 2 (First Monthly Installment)</span><span>{fRM(monthly)}</span></div>}
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0 0",borderTop:`2px solid ${C.navy}`,marginTop:4,color:C.navy,fontWeight:800}}><span>Total Upfront Payment Upon Collection</span><span>{fRM(up.total+(order.merchant==="Aeon"?monthly:0))}</span></div>
       </>;})()}
     </div>}
     {hist.issueItems?.length>0&&<div style={{marginBottom:2,color:C.textMid,fontSize:10}}>Issues: {hist.issueItems.join(" · ")}</div>}
@@ -1196,7 +1196,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
             <div><L>Payment Method</L><SEL value={payMethod} onChange={e=>setPayMethod(e.target.value)}>{PAYMENT_METHODS.map(m=><option key={m} value={m}>{m}</option>)}</SEL></div>
             {!isCash&&<div style={{gridColumn:"1/-1"}}><L req>Payment Proof Amount (RM)</L><I type="number" value={paymentProofAmount} onChange={e=>setPaymentProofAmount(e.target.value)} placeholder="Actual amount per payment slip…"/></div>}
             {isCash?<div style={{gridColumn:"1/-1"}}><L>Total Due (auto: Retail − Deposit)</L><div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600}}>{fRM(calcCashDue(order))}</div></div>:<div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:4,whiteSpace:"nowrap"}}>Upfront 1 (Agreement + Stamping + Deposit)</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.surface,color:C.textLight,fontSize:13,fontWeight:600}}><span>Amount</span><span>{fRM(upfront.total)}</span></div></div>}
-            <div style={{gridColumn:"1/-1"}}>{isCash?<><L req>Balance Payment Amount (RM)</L><I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)}/></>:<><div style={{fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:4,whiteSpace:"nowrap"}}>Upfront 2 (First Monthly Installment)</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.surface,color:C.textMid,fontSize:13,fontWeight:600,cursor:"not-allowed"}}><span>Amount</span><span>{fRM(upfrontMonthly)}</span></div></>}</div>
+            <div style={{gridColumn:"1/-1"}}>{isCash?<><L req>Balance Payment Amount (RM)</L><I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)}/></>:order.merchant==="Aeon"?<><div style={{fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:4,whiteSpace:"nowrap"}}>Upfront 2 (First Monthly Installment)</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.surface,color:C.textMid,fontSize:13,fontWeight:600,cursor:"not-allowed"}}><span>Amount</span><span>{fRM(upfrontMonthly)}</span></div></>:null}</div>
             {!isCash&&<div style={{gridColumn:"1/-1"}}><L>Total Upfront Payment (RM)</L><div style={{...inp,background:C.navy,color:"#fff",fontWeight:800}}>{fRM(upfront.total+(parseFloat(upfrontMonthly)||0))}</div></div>}
             {!isCash&&(()=>{
               const expectedTotal=upfront.total+(parseFloat(upfrontMonthly)||0);
@@ -1224,8 +1224,8 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
           <div style={{display:"flex",justifyContent:"space-between",fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",padding:"3px 0",borderBottom:`1px solid ${C.border}`}}><span>Description</span><span>Amount</span></div>
           {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
           <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Upfront 1 (Subtotal — Agreement + Stamping + Deposit)</span><span>{fRM(upfront.total)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Upfront 2 (First Monthly Installment)</span><span>{fRM(order.billingData?.monthlyInstallment||order.monthlyInstallment)}</span></div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",borderTop:`2px solid ${C.navy}`,marginTop:6,fontWeight:800,color:C.navy}}><span>Total Upfront Payment Upon Collection</span><span>{fRM(upfront.total+(parseFloat(order.billingData?.monthlyInstallment||order.monthlyInstallment)||0))}</span></div>
+          {order.merchant==="Aeon"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Upfront 2 (First Monthly Installment)</span><span>{fRM(order.billingData?.monthlyInstallment||order.monthlyInstallment)}</span></div>}
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",borderTop:`2px solid ${C.navy}`,marginTop:6,fontWeight:800,color:C.navy}}><span>Total Upfront Payment Upon Collection</span><span>{fRM(upfront.total+(order.merchant==="Aeon"?(parseFloat(order.billingData?.monthlyInstallment||order.monthlyInstallment)||0):0))}</span></div>
         </div>}
         {nextDef.needsTransferNumbers&&branchOk&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
           <div><L req>Consignment Note Number</L><I value={consignmentNo} onChange={e=>setConsignmentNo(e.target.value)} placeholder="Consignment note no…" style={!consignmentNo.trim()?{borderColor:"#FECACA"}:{}}/></div>
@@ -1535,7 +1535,7 @@ function OrderForm({order,orders=[],branchMeta,onSave,onCancel,isAdmin,userBranc
   const branchLabel=b=>`${b} — ${branchMeta[b]?.name||b}`;
   const isCash=f.orderType==="cash",isReady=f.stockStatus==="ready";
   const branchSRs=(srList||[]).filter(s=>s.branch===(userBranch||f.branch));
-  const REQUIRED=["phoneModel","customerName","salesAgentId","customerIC","customerEmail","customerHP","customerAddress","customerPostCode","customerCity",...(!order?["pickUpBranch"]:[]),...(isCash?["retailPrice","deposit","depositPaymentDate","depositPaymentMethod"]:["merchant","agreementNumber","aeonApprovalDate","financePrice","stampingFee","agreementFee","deposit","monthlyInstallment"])];
+  const REQUIRED=["phoneModel","customerName","salesAgentId","customerIC","customerEmail","customerHP","customerAddress","customerPostCode","customerCity",...(!order?["pickUpBranch"]:[]),...(isCash?["retailPrice","deposit","depositPaymentDate","depositPaymentMethod"]:["merchant","agreementNumber","aeonApprovalDate","financePrice","stampingFee","agreementFee","deposit",...(f.merchant==="Aeon"?["monthlyInstallment"]:[])])];
   const missing=REQUIRED.filter(k=>!f[k]?.toString().trim());
   const missingSlip=isCash&&!slipFile&&!f.depositSlip;
   // Duplicate Agreement No. / Case ID No. check — cancelled orders are
@@ -1648,7 +1648,7 @@ function OrderForm({order,orders=[],branchMeta,onSave,onCancel,isAdmin,userBranc
       {row("stampingFee","Stamping Fee (RM)","number",true)}
       {row("agreementFee","Agreement Fee (RM)","number",true)}
       {row("deposit","Deposit (RM)","number",true)}
-      {row("monthlyInstallment","Monthly Installment (RM)","number",true)}
+      {f.merchant==="Aeon"&&row("monthlyInstallment","Monthly Installment (RM)","number",true)}
     </FormCard>}
     {isCash&&<FormCard title="Cash Order Details">
       {row("retailPrice","Retail Price (RM)","number",true)}
@@ -2380,7 +2380,16 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
 
   const hydrateOrder=useCallback(async id=>{
     const [header,hist]=await Promise.all([getOrder(id),getOrderHistory(id)]);
-    const signed=await signOrderFiles({...(header||{}),history:hist});
+    if(!header){
+      // Never cache/return a fabricated empty order on failure - that
+      // object could later be used as the base for an edit and saved
+      // back, silently wiping out every real field on this order. Fail
+      // loudly instead, and leave any existing (still-valid) cache entry
+      // alone rather than clobbering it with nothing.
+      alert("Couldn't load this order's full details — please check your connection and try again. (Nothing was changed.)");
+      throw new Error(`hydrateOrder: getOrder(${id}) returned no data`);
+    }
+    const signed=await signOrderFiles({...header,history:hist});
     setDetailCache(p=>({...p,[id]:signed}));
     return signed;
   },[]);
@@ -2388,8 +2397,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   // Full timeline + signed file links are fetched once per order, on demand,
   // only when its Detail page is opened — never as part of the list/board load.
   useEffect(()=>{
-    if(view==="detail"&&selected&&!detailCache[selected.id])hydrateOrder(selected.id);
-  },[view,selected,detailCache,hydrateOrder]);
+    if(view==="detail"&&selected)hydrateOrder(selected.id).catch(()=>{});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[view,selected?.id]);
 
   // Shared link support — "?orderId=..." in the URL (from the Copy Link
   // button on an order's detail page) opens straight to that order, for
@@ -2428,14 +2438,14 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         scheduleRefresh();
         const changedOrderId=payload.new?.id||payload.old?.id;
         if(changedOrderId&&selectedRef.current&&String(changedOrderId)===String(selectedRef.current.id)){
-          hydrateOrder(changedOrderId);
+          hydrateOrder(changedOrderId).catch(()=>{});
         }
       })
       .on("postgres_changes",{event:"*",schema:"public",table:"order_history"},payload=>{
         scheduleRefresh();
         const changedOrderId=payload.new?.order_id||payload.old?.order_id;
         if(changedOrderId&&selectedRef.current&&String(changedOrderId)===String(selectedRef.current.id)){
-          hydrateOrder(changedOrderId);
+          hydrateOrder(changedOrderId).catch(()=>{});
         }
       })
       .subscribe();
@@ -2453,7 +2463,15 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       alert("Save failed — your changes were NOT saved. This usually happens when an uploaded file is too large. Please try a smaller file (compress the photo or PDF) and try again.");
       return false;
     }
-    const signed=await hydrateOrder(o.id);
+    let signed;
+    try{
+      signed=await hydrateOrder(o.id);
+    }catch(e){
+      // The save itself already succeeded above - only the refresh
+      // failed. Fall back to what the caller already had (it reflects
+      // the just-saved changes) rather than leaving the UI stuck.
+      signed=o;
+    }
     const{history:_h,...headerOnly}=signed;
     setOrders(p=>p.some(x=>x.id===headerOnly.id)?p.map(x=>x.id===headerOnly.id?headerOnly:x):[headerOnly,...p]);
     nav("detail",signed);
