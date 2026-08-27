@@ -383,9 +383,9 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
     if(!orderRow){alert("Could not find the underlying order — it may have been deleted.");setOrderedFor(null);await refresh();return;}
     const history=await getOrderHistory(entry.orderId);
     const proof=await uploadOrderFile(entry.orderId,proofFile,proofFile.name);
-    const h={step:2,date:nowDate(),time:nowTime(),note:"Ordered",orderDate,supplierName,poNumber,purchaserName,files:{purchaseProof:proof}};
+    const h={step:2,date:nowDate(),time:nowTime(),note:"Ordered",orderDate,supplierName,poNumber,purchaserName,actualPrice:parseFloat(actualPrice)||0,files:{purchaseProof:proof}};
     const oldOrder={...orderRow,history};
-    const newOrder={...orderRow,step:Math.max(orderRow.step,2),orderDate,supplierName,poNumber,purchaserName,history:[...history,h]};
+    const newOrder={...orderRow,step:Math.max(orderRow.step,2),orderDate,supplierName,poNumber,purchaserName,actualPrice:parseFloat(actualPrice)||0,history:[...history,h]};
     const result=await reconcile([oldOrder],[newOrder]);
     if(!result.ok){alert("Failed to update the order — please try again.");setOrderedFor(null);return;}
     await patchSupplementary(entry.orderId,{ordered:true,orderedAt:new Date().toISOString(),orderDate,supplierName,actualPrice:parseFloat(actualPrice)||0,poNumber,purchaserName});
