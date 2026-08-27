@@ -60,7 +60,7 @@ export default function ExpectedProfitTable({branchMeta,onOrderClick}){
       }
       .ept-card{border-bottom:1px solid #E4EAF2;}
       .ept-card:last-child{border-bottom:none;}
-      .ept-branch-head{display:flex;justifyContent:space-between;align-items:flex-start;gap:10px;padding:14px 16px;cursor:pointer;}
+      .ept-branch-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:14px 16px;cursor:pointer;}
       .ept-branch-head:active{background:#F7F9FC;}
       .ept-order-card{padding:12px 16px 12px 30px;background:#FAFBFD;border-top:1px solid #E4EAF2;}
       .ept-stat-label{font-size:9px;color:#8A96A8;text-transform:uppercase;letter-spacing:0.04em;font-weight:700;}
