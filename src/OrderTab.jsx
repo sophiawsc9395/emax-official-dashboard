@@ -317,6 +317,30 @@ function PhoneModelField({order,onUpdate}){
   </div>;
 }
 
+function ActualPriceField({order,onUpdate}){
+  const [editing,setEditing]=useState(false);
+  const [val,setVal]=useState(order.actualPrice||"");
+  const [saving,setSaving]=useState(false);
+  const save=async()=>{
+    if(!(parseFloat(val)>0))return;
+    setSaving(true);
+    await onUpdate({...order,actualPrice:parseFloat(val)});
+    setSaving(false);
+    setEditing(false);
+  };
+  if(!editing){
+    return<div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+      <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.actualPrice?fRM(order.actualPrice):"—"}</div>
+      <button onClick={()=>{setVal(order.actualPrice||"");setEditing(true);}} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",padding:0}}>{order.actualPrice?"Edit":"Fill In"}</button>
+    </div>;
+  }
+  return<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+    <input type="number" value={val} onChange={e=>setVal(e.target.value)} placeholder="0.00" style={{width:110,padding:"5px 8px",border:`1.5px solid ${!(parseFloat(val)>0)?"#FECACA":C.border}`,borderRadius:7,fontSize:12,fontFamily:"Inter,sans-serif",outline:"none"}}/>
+    <button onClick={save} disabled={saving||!(parseFloat(val)>0)} style={{fontSize:11,fontWeight:700,color:"#fff",background:C.blue,border:"none",borderRadius:7,padding:"5px 10px",cursor:saving?"wait":"pointer",fontFamily:"Inter,sans-serif"}}>{saving?"Saving…":"Save"}</button>
+    <button onClick={()=>setEditing(false)} style={{fontSize:11,color:C.textLight,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Cancel</button>
+  </div>;
+}
+
 function TrackingNumberEditor({order,onUpdate,canEdit}){
   const [editing,setEditing]=useState(false);
   const [val,setVal]=useState(order.trackingNumber||"");
@@ -1459,10 +1483,14 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Device Name</div>
           {canEditPhoneModelAtOrdered&&order.step===2?<PhoneModelField order={order} onUpdate={onUpdate}/>:<div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.phoneModel||"—"}{everEditedFields.has("phoneModel")&&<FieldEditedTag field="phoneModel"/>}<FieldLog field="phoneModel"/><CopyBtn value={order.phoneModel}/></div>}
         </div>
-        {[["Customer Name",order.customerName,"customerName"],order.customerIC&&["Customer IC",order.customerIC,"customerIC"],order.customerHP&&["Customer HP",order.customerHP,"customerHP"],!isCash&&["Merchant",order.merchant,"merchant"],!isCash&&["Agreement No. / Case ID No.",order.agreementNumber,"agreementNumber"],!isCash&&["Merchant Approval Date",fDate(order.aeonApprovalDate),"aeonApprovalDate"],!isCash&&["Finance Price",fRM(order.financePrice),"financePrice"],!isCash&&order.tenure&&["CCM Tenure",`${order.tenure} Months`,"tenure"],!isCash&&["Agreement Fee",fRM(order.agreementFee),"agreementFee"],!isCash&&["Stamping Fee",fRM(order.stampingFee),"stampingFee"],["Deposit",fRM(order.deposit),"deposit"],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment),"monthlyInstallment"],isCash&&["Retail Price",fRM(order.retailPrice),"retailPrice"],isAdmin&&order.actualPrice&&["Actual Purchase Price",fRM(order.actualPrice),"actualPrice"],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate),"depositPaymentDate"],order.invoiceNo&&["Invoice No.",order.invoiceNo,"invoiceNo"],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch,"pickUpBranch"],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v,k])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+        {[["Customer Name",order.customerName,"customerName"],order.customerIC&&["Customer IC",order.customerIC,"customerIC"],order.customerHP&&["Customer HP",order.customerHP,"customerHP"],!isCash&&["Merchant",order.merchant,"merchant"],!isCash&&["Agreement No. / Case ID No.",order.agreementNumber,"agreementNumber"],!isCash&&["Merchant Approval Date",fDate(order.aeonApprovalDate),"aeonApprovalDate"],!isCash&&["Finance Price",fRM(order.financePrice),"financePrice"],!isCash&&order.tenure&&["CCM Tenure",`${order.tenure} Months`,"tenure"],!isCash&&["Agreement Fee",fRM(order.agreementFee),"agreementFee"],!isCash&&["Stamping Fee",fRM(order.stampingFee),"stampingFee"],["Deposit",fRM(order.deposit),"deposit"],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment),"monthlyInstallment"],isCash&&["Retail Price",fRM(order.retailPrice),"retailPrice"],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate),"depositPaymentDate"],order.invoiceNo&&["Invoice No.",order.invoiceNo,"invoiceNo"],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch,"pickUpBranch"],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v,k])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
           <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}{k&&everEditedFields.has(k)&&<FieldEditedTag field={k}/>}{k&&<FieldLog field={k}/>}<CopyBtn value={v}/></div>
         </div>)}
+        {isAdmin&&<div style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+          <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Actual Purchase Price</div>
+          <ActualPriceField order={order} onUpdate={onUpdate}/>
+        </div>}
         {order.customerEmail&&<div className="oi-full" style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Customer Email</div>
           <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.customerEmail}{everEditedFields.has("customerEmail")&&<FieldEditedTag field="customerEmail"/>}<FieldLog field="customerEmail"/><CopyBtn value={order.customerEmail}/></div>
@@ -2268,6 +2296,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [paymentSearch,setPaymentSearch]=useState("");
   useEffect(()=>{const t=setTimeout(()=>setPaymentSearch(paymentSearchInput),200);return()=>clearTimeout(t);},[paymentSearchInput]);
   const [showArchive,setShowArchive]=useState(false);
+  const [priceFillId,setPriceFillId]=useState(null);
+  const [priceFillInput,setPriceFillInput]=useState("");
   const [showBulkDispatch,setShowBulkDispatch]=useState(false);
   const [showBulkAgreementReceived,setShowBulkAgreementReceived]=useState(false);
   const [showBulkKnockOffInstallment,setShowBulkKnockOffInstallment]=useState(false);
@@ -2841,7 +2871,40 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       </div>;
     })()}
 
-    {/* Payment Breakdown — Sophia only, own separate search box entirely
+    {/* Actual Purchase Price To-Do — Sophia only. Every order between
+        Ordered and Arrived Branch (not yet billed) that's still missing
+        Actual Purchase Price, with an inline way to fill it in right from
+        the list rather than opening each order individually. Same step
+        range as the alert and the Expected Profit table. */}
+    {isSophia&&(()=>{
+      const needsPrice=orders.filter(o=>!o.cancelled&&o.step>=2&&o.step<=5&&!o.actualPrice).sort((a,b)=>b.id-a.id);
+      if(!needsPrice.length)return null;
+      return<div style={{...card,marginBottom:16}}>
+        <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>
+          Actual Purchase Price To-Do ({needsPrice.length})
+        </div>
+        <div style={{padding:"10px 14px"}}>
+          {needsPrice.map(o=><div key={o.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",borderRadius:8,background:C.surface,border:`1px solid ${C.border}`,marginBottom:7,flexWrap:"wrap"}}>
+            <div style={{flex:1,minWidth:160}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.text}}>{o.phoneModel||"—"}</div>
+              <div style={{fontSize:10,color:C.textLight}}>PO: {o.poNumber||"—"} · {o.branch}</div>
+            </div>
+            {priceFillId===o.id
+              ?<div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <input autoFocus type="number" value={priceFillInput} onChange={e=>setPriceFillInput(e.target.value)} placeholder="0.00" style={{width:100,padding:"5px 8px",border:`1.5px solid ${!(parseFloat(priceFillInput)>0)?"#FECACA":C.border}`,borderRadius:7,fontSize:12,fontFamily:"Inter,sans-serif",outline:"none"}}/>
+                <PBtn onClick={async()=>{
+                  if(!(parseFloat(priceFillInput)>0))return;
+                  const ok=await bulkSave([{...o,actualPrice:parseFloat(priceFillInput)}]);
+                  if(ok){setPriceFillId(null);setPriceFillInput("");}
+                }} style={{padding:"5px 10px",fontSize:10}}>Save</PBtn>
+                <GBtn onClick={()=>setPriceFillId(null)} style={{padding:"5px 10px",fontSize:10}}>Cancel</GBtn>
+              </div>
+              :<GBtn onClick={()=>{setPriceFillId(o.id);setPriceFillInput("");}} style={{padding:"5px 12px",fontSize:11}}>Fill In</GBtn>}
+          </div>)}
+        </div>
+      </div>;
+    })()}
+
         independent of the main order search above. Placed at the very
         bottom of the page since it's a distinct, specialized lookup tool
         rather than part of the normal order-browsing flow. Only shows
