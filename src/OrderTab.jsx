@@ -961,6 +961,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
   const [consignmentNo,setConsignmentNo]=useState("");
   const [stockTransferNo,setStockTransferNo]=useState("");
   const [purchaserName,setPurchaserName]=useState("");
+  const [actualPrice,setActualPrice]=useState("");
   const [claimSentDate,setClaimSentDate]=useState(nowDate());
   const [claimConsignmentNo,setClaimConsignmentNo]=useState("");
   const [knockOffDate,setKnockOffDate]=useState(nowDate());
@@ -1079,11 +1080,11 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
       setSaving(false);
       return;
     }
-    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:nextDef.needsClaimInfo?claimConsignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,claimSentDate:nextDef.needsClaimInfo?claimSentDate:undefined,knockOffDate:nextDef.needsKnockOff?knockOffDate:undefined,knockOffAmount:nextDef.needsKnockOff&&knockOffAmount?knockOffAmount:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,paymentProofAmount:!isCash?paymentProofAmount:undefined,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+(parseFloat(upfrontMonthly)||0),paymentMethod:payMethod,...(isShortPaymentPending(order)?{secondPaymentDate,secondPayMethod,secondPaymentAmount}:{})}:{})};
+    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,actualPrice:nextDef.needsOrderDate&&actualPrice?actualPrice:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:nextDef.needsClaimInfo?claimConsignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,claimSentDate:nextDef.needsClaimInfo?claimSentDate:undefined,knockOffDate:nextDef.needsKnockOff?knockOffDate:undefined,knockOffAmount:nextDef.needsKnockOff&&knockOffAmount?knockOffAmount:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,paymentProofAmount:!isCash?paymentProofAmount:undefined,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+(parseFloat(upfrontMonthly)||0),paymentMethod:payMethod,...(isShortPaymentPending(order)?{secondPaymentDate,secondPayMethod,secondPaymentAmount}:{})}:{})};
     const updated={...order,step:nextDef.step,history:[...(order.history||[]),h],stepDates:{...(order.stepDates||{}),[nextDef.step]:{date:nowDate(),time:nowTime()}}};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
     if(isCash&&nextDef.step===14){updated.step=14;}
-    if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;if(poNumber)updated.poNumber=poNumber;if(purchaserName)updated.purchaserName=purchaserName;}
+    if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;if(poNumber)updated.poNumber=poNumber;if(purchaserName)updated.purchaserName=purchaserName;if(actualPrice)updated.actualPrice=actualPrice;}
     if(nextDef.needsTransferNumbers){updated.consignmentNo=consignmentNo;updated.stockTransferNo=stockTransferNo;}
     if(nextDef.needsClaimInfo){updated.claimSentDate=claimSentDate;updated.consignmentNo=claimConsignmentNo;}
     if(nextDef.needsKnockOff){updated.knockOffDate=knockOffDate;if(knockOffAmount)updated.knockOffAmount=knockOffAmount;}
@@ -1169,6 +1170,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
           <div><L req>Supplier Name</L><I value={supplierName} onChange={e=>setSupplierName(e.target.value)} placeholder="Supplier name…" style={!supplierName.trim()?{borderColor:"#FECACA"}:{}}/></div>
           <div><L req>PO Number</L><I value={poNumber} onChange={e=>setPoNumber(e.target.value)} placeholder="PO number…" style={!poNumber.trim()?{borderColor:"#FECACA"}:{}}/></div>
           {isAdmin&&<div><L req>Purchaser Name</L><I value={purchaserName} onChange={e=>setPurchaserName(e.target.value)} placeholder="Purchaser name…" style={!purchaserName.trim()?{borderColor:"#FECACA"}:{}}/></div>}
+          {isAdmin&&<div><L>Actual Purchase Price (RM)</L><I type="number" value={actualPrice} onChange={e=>setActualPrice(e.target.value)} placeholder="0.00"/></div>}
           <div style={{gridColumn:"1/-1"}}>
             <L req>Purchase Proof</L>
             <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,purchaseProof:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>
@@ -1457,7 +1459,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Device Name</div>
           {canEditPhoneModelAtOrdered&&order.step===2?<PhoneModelField order={order} onUpdate={onUpdate}/>:<div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.phoneModel||"—"}{everEditedFields.has("phoneModel")&&<FieldEditedTag field="phoneModel"/>}<FieldLog field="phoneModel"/><CopyBtn value={order.phoneModel}/></div>}
         </div>
-        {[["Customer Name",order.customerName,"customerName"],order.customerIC&&["Customer IC",order.customerIC,"customerIC"],order.customerHP&&["Customer HP",order.customerHP,"customerHP"],!isCash&&["Merchant",order.merchant,"merchant"],!isCash&&["Agreement No. / Case ID No.",order.agreementNumber,"agreementNumber"],!isCash&&["Merchant Approval Date",fDate(order.aeonApprovalDate),"aeonApprovalDate"],!isCash&&["Finance Price",fRM(order.financePrice),"financePrice"],!isCash&&order.tenure&&["CCM Tenure",`${order.tenure} Months`,"tenure"],!isCash&&["Agreement Fee",fRM(order.agreementFee),"agreementFee"],!isCash&&["Stamping Fee",fRM(order.stampingFee),"stampingFee"],["Deposit",fRM(order.deposit),"deposit"],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment),"monthlyInstallment"],isCash&&["Retail Price",fRM(order.retailPrice),"retailPrice"],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate),"depositPaymentDate"],order.invoiceNo&&["Invoice No.",order.invoiceNo,"invoiceNo"],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch,"pickUpBranch"],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v,k])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+        {[["Customer Name",order.customerName,"customerName"],order.customerIC&&["Customer IC",order.customerIC,"customerIC"],order.customerHP&&["Customer HP",order.customerHP,"customerHP"],!isCash&&["Merchant",order.merchant,"merchant"],!isCash&&["Agreement No. / Case ID No.",order.agreementNumber,"agreementNumber"],!isCash&&["Merchant Approval Date",fDate(order.aeonApprovalDate),"aeonApprovalDate"],!isCash&&["Finance Price",fRM(order.financePrice),"financePrice"],!isCash&&order.tenure&&["CCM Tenure",`${order.tenure} Months`,"tenure"],!isCash&&["Agreement Fee",fRM(order.agreementFee),"agreementFee"],!isCash&&["Stamping Fee",fRM(order.stampingFee),"stampingFee"],["Deposit",fRM(order.deposit),"deposit"],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment),"monthlyInstallment"],isCash&&["Retail Price",fRM(order.retailPrice),"retailPrice"],isAdmin&&order.actualPrice&&["Actual Purchase Price",fRM(order.actualPrice),"actualPrice"],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate),"depositPaymentDate"],order.invoiceNo&&["Invoice No.",order.invoiceNo,"invoiceNo"],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch,"pickUpBranch"],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v,k])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
           <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}{k&&everEditedFields.has(k)&&<FieldEditedTag field={k}/>}{k&&<FieldLog field={k}/>}<CopyBtn value={v}/></div>
         </div>)}
@@ -1700,6 +1702,13 @@ function getOrderAlerts(orders,userBranch=null){
     const days=daysSince(o.orderDate);
     if(days>=7)alerts.push({type:"overdue_order",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Ordered ${days} days ago — not yet arrived at HQ`});
   });
+  // Actual Purchase Price Missing — any order that's reached Ordered (step
+  // 2) or later should have had this filled in at that point (normally via
+  // the Purchase Order page's "Ordered" action). Flags anything that
+  // somehow got past that step without it, so Purchasing can fill it in.
+  myOrders.filter(o=>o.step>=2&&!o.actualPrice).forEach(o=>{
+    alerts.push({type:"missing_actual_price",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:"Actual Purchase Price not filled in"});
+  });
   // Merchant Rejected — fires from the day the admin clicked Reject by
   // Merchant, until it's resubmitted (admin has acted) or the claim is
   // actually released (knockOffDate set).
@@ -1749,7 +1758,7 @@ function getOrderAlerts(orders,userBranch=null){
   });
   return alerts;
 }
-function AlertBanner({alerts,isAdmin,isSophia,onClickOrder}){
+function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,onClickOrder}){
   const isMobile=useIsMobile();
   if(!alerts.length)return null;
   const expired=alerts.filter(a=>a.type==="approval_expired");
@@ -1760,6 +1769,11 @@ function AlertBanner({alerts,isAdmin,isSophia,onClickOrder}){
   const merchantRejected=alerts.filter(a=>a.type==="merchant_rejected");
   const agreementReceivedOverdue=alerts.filter(a=>a.type==="agreement_received_overdue");
   const billingRequestOverdue=alerts.filter(a=>a.type==="billing_request_overdue");
+  // Purchase-price gap alert is only relevant to whoever holds the
+  // Purchase role (or a true super admin) - other roles shouldn't see
+  // purchase-price nagging that isn't their responsibility to act on.
+  const canSeePurchaseAlert=isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all"||orderPermissions.adminSteps.includes(2));
+  const missingActualPrice=canSeePurchaseAlert?alerts.filter(a=>a.type==="missing_actual_price"):[];
   // Approval Warning starts collapsed on the admin order page (there's
   // usually a lot of them, and admin has plenty else to look at) but
   // starts expanded on a branch's own view (a short, directly relevant
@@ -1791,6 +1805,7 @@ function AlertBanner({alerts,isAdmin,isSophia,onClickOrder}){
     <Block items={cashBalanceOverdue} color="#7C3AED" title="Cash Balance Payment Slip Overdue"/>
     <Block items={merchantRejected} color="#DC2626" title="Merchant Rejected"/>
     <Block items={billingRequestOverdue} color="#B91C1C" title="Billing Request Overdue"/>
+    <Block items={missingActualPrice} color="#B45309" title="Actual Purchase Price Missing"/>
     <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={agreementExpanded} onToggle={()=>setAgreementExpanded(p=>!p)}/>
     <Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={warningExpanded} onToggle={()=>setWarningExpanded(p=>!p)}/>
   </div>;
@@ -2581,7 +2596,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     </div>
 
     {/* Alerts */}
-    <AlertBanner alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
+    <AlertBanner alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} orderPermissions={orderPermissions} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
 
     {(()=>{
       const outOfStockUnacked=cancelledOrders.filter(o=>o.outOfStock&&!(o.outOfStockAckAdmin&&o.outOfStockAckBranch));
