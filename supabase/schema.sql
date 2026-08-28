@@ -205,6 +205,13 @@ alter table public.rto_payments add column if not exists paid boolean not null d
 alter table public.rto_payments add column if not exists amount numeric;
 alter table public.rto_payments add column if not exists pay_date text;
 alter table public.rto_payments add column if not exists inv_opened boolean not null default false;
+-- Remark left when marking a month paid, and the running list of partial
+-- payments recorded toward a not-yet-fully-paid month (each entry:
+-- {amount, date, remark}). Added after the base table already existed —
+-- without these, the app was sending this data on every save with nowhere
+-- for it to actually land, so it silently vanished on refresh.
+alter table public.rto_payments add column if not exists remark text;
+alter table public.rto_payments add column if not exists partial_payments jsonb not null default '[]'::jsonb;
 alter table public.rto_payments add column if not exists updated_at timestamptz not null default now();
 
 do $$

@@ -71,7 +71,7 @@ function customerToRow(customer) {
 }
 
 function rowToPayment(row) {
-  return { paid: row.paid, amount: row.amount != null ? parseFloat(row.amount) : undefined, date: row.pay_date || "", invOpened: row.inv_opened };
+  return { paid: row.paid, amount: row.amount != null ? parseFloat(row.amount) : undefined, date: row.pay_date || "", invOpened: row.inv_opened, remark: row.remark || undefined, partialPayments: row.partial_payments || [] };
 }
 
 /* ── Reads ─────────────────────────────────────────────────────────────── */
@@ -134,6 +134,8 @@ export async function updatePayment(customerId, schedKey, payData, aggregates) {
     amount: payData.amount != null ? parseFloat(payData.amount) : null,
     pay_date: payData.date || null,
     inv_opened: !!payData.invOpened,
+    remark: payData.remark || null,
+    partial_payments: payData.partialPayments || [],
   };
   const { error: payErr } = await supabase.from(PAYMENTS_TABLE).upsert(paymentRow, { onConflict: "customer_id,sched_key" });
   if (payErr) { console.error("updatePayment (payment row) error:", payErr); return { ok: false, error: payErr }; }
