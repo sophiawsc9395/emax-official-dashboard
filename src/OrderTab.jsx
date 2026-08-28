@@ -1122,7 +1122,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
   };
   const ok=()=>{
     if(!branchOk)return false;
-    if(nextDef.needsOrderDate&&isAdmin&&(!orderDate||!supplierName.trim()||!poNumber.trim()||!purchaserName.trim()||!files.purchaseProof))return false;
+    if(nextDef.needsOrderDate&&isAdmin&&(!orderDate||!supplierName.trim()||!poNumber.trim()||!purchaserName.trim()||!(parseFloat(actualPrice)>0)||!files.purchaseProof))return false;
     if(nextDef.needsInvoiceNo&&isAdmin&&!invoiceNo.trim())return false;
     if(nextDef.needsTransferNumbers&&branchOk&&(!consignmentNo.trim()||!stockTransferNo.trim()))return false;
     if(nextDef.needsClaimInfo&&isAdmin&&(!claimSentDate||!claimConsignmentNo.trim()))return false;
@@ -1194,7 +1194,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
           <div><L req>Supplier Name</L><I value={supplierName} onChange={e=>setSupplierName(e.target.value)} placeholder="Supplier name…" style={!supplierName.trim()?{borderColor:"#FECACA"}:{}}/></div>
           <div><L req>PO Number</L><I value={poNumber} onChange={e=>setPoNumber(e.target.value)} placeholder="PO number…" style={!poNumber.trim()?{borderColor:"#FECACA"}:{}}/></div>
           {isAdmin&&<div><L req>Purchaser Name</L><I value={purchaserName} onChange={e=>setPurchaserName(e.target.value)} placeholder="Purchaser name…" style={!purchaserName.trim()?{borderColor:"#FECACA"}:{}}/></div>}
-          {isAdmin&&<div><L>Actual Purchase Price (RM)</L><I type="number" value={actualPrice} onChange={e=>setActualPrice(e.target.value)} placeholder="0.00"/></div>}
+          {isAdmin&&<div><L req>Actual Purchase Price (RM)</L><I type="number" value={actualPrice} onChange={e=>setActualPrice(e.target.value)} placeholder="0.00" style={!(parseFloat(actualPrice)>0)?{borderColor:"#FECACA"}:{}}/></div>}
           <div style={{gridColumn:"1/-1"}}>
             <L req>Purchase Proof</L>
             <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFiles(p=>({...p,purchaseProof:e.target.files[0]||null}))} style={{fontSize:11,width:"100%"}}/>

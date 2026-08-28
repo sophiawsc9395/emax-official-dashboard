@@ -146,6 +146,14 @@ async function buildLiveList(){
     const ord=orderById.get(key);
     const hasNoInteraction=!rec.ordered&&!Object.keys(rec.prices||{}).length&&!rec.remark?.trim();
     if(ord&&ord.step>1&&hasNoInteraction){pruned=true;continue;}
+    // Even a genuinely-ordered record (real prices, real interaction)
+    // shouldn't stick around forever - once its order has progressed past
+    // Ordered (step 2) to Arrived HQ or beyond, the purchase itself is
+    // long since resolved and confirmed. Without this, a real purchase
+    // marked Ordered weeks ago would keep reappearing as "Ordered" in
+    // every fresh session's snapshot indefinitely, long after the order
+    // moved on to claim submission, billing, or completion.
+    if(ord&&ord.step>2){pruned=true;continue;}
     prunedSupp[key]=rec;
   }
   if(pruned)await saveData(SUPP_KEY,prunedSupp);

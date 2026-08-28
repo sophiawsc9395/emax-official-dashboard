@@ -174,6 +174,8 @@ function CustomerForm({initial,branchMeta,onSave,onCancel}){
 }
 
 function PaymentSchedule({customer,onUpdate,isSophia}){
+  const now=new Date();
+  const currentKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
   const schedule=genSchedule(customer);
   const payments=customer.payments||{};
   const totalReceived=schedule.reduce((sum,s)=>sum+amountReceivedFor(s,payments[s.key]),0);
@@ -258,11 +260,18 @@ function PaymentSchedule({customer,onUpdate,isSophia}){
             <tbody>{schedule.map((s,i)=>{
               const paid=payments[s.key]?.paid;
               const paidDate=payments[s.key]?.date||"";
+              const received=amountReceivedFor(s,payments[s.key]);
+              const outstanding=Math.max(0,s.amount-received);
+              const isPartial=!paid&&received>0;
+              const isOverdue=!paid&&s.key<currentKey;
               return(
-                <tr key={s.key} style={{borderBottom:`1px solid ${C.border}`,background:paid?"#F0FDF4":i%2===0?C.white:C.surface}}>
+                <tr key={s.key} style={{borderBottom:`1px solid ${C.border}`,background:paid?"#F0FDF4":isOverdue?"#FEF2F2":i%2===0?C.white:C.surface}}>
                   <td style={{padding:"7px 10px",color:C.textLight,fontSize:11}}>{i+1}</td>
                   <td style={{padding:"7px 10px",fontWeight:600,color:C.text}}>{s.label}</td>
-                  <td style={{padding:"7px 10px",textAlign:"right",color:C.text}}>{fRM(s.amount)}</td>
+                  <td style={{padding:"7px 10px",textAlign:"right",color:C.text}}>
+                    {fRM(paid?s.amount:outstanding)}
+                    {isPartial&&<div style={{fontSize:9,color:C.textLight,marginTop:1}}>of {fRM(s.amount)}</div>}
+                  </td>
                   <td style={{padding:"7px 10px",textAlign:"center"}}>
                     {payments[s.key]?.invOpened
                       ?<span style={{background:"#EEF1F7",color:C.blue,padding:"2px 8px",borderRadius:4,fontSize:10,fontWeight:700}}>INV</span>
@@ -271,6 +280,10 @@ function PaymentSchedule({customer,onUpdate,isSophia}){
                   <td style={{padding:"7px 10px",textAlign:"center"}}>
                     {paid
                       ?<span style={{background:"#DCFCE7",color:"#15803D",padding:"2px 10px",borderRadius:4,fontSize:10,fontWeight:700}}>Paid</span>
+                      :isOverdue
+                      ?<span style={{background:"#FEE2E2",color:"#DC2626",padding:"2px 10px",borderRadius:4,fontSize:10,fontWeight:700}}>Overdue</span>
+                      :isPartial
+                      ?<span style={{background:"#FEF3C7",color:"#B45309",padding:"2px 10px",borderRadius:4,fontSize:10,fontWeight:700}}>Partial</span>
                       :<span style={{background:"#FEF9C3",color:"#854D0E",padding:"2px 10px",borderRadius:4,fontSize:10,fontWeight:700}}>Pending</span>}
                   </td>
                   <td style={{padding:"7px 10px",color:paid?"#15803D":C.textLight,fontSize:11,whiteSpace:"nowrap"}}>{paid?fDate(paidDate):"—"}</td>
