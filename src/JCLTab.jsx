@@ -42,6 +42,7 @@ const Ic={
   checkCircle:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
   x:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
   copy:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
+  check:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
 };
 const STEP_ICONS={1:Ic.fileText,2:Ic.share2,3:Ic.alertCircle,4:Ic.checkCircle,5:Ic.x};
 const SHORT_LABELS={1:"New App",2:"Submitted",3:"Follow-Up",4:"Approved",5:"Rejected"};
@@ -757,7 +758,7 @@ function ActionBox({icon,title,desc,children}){
     <div style={{padding:"14px 16px"}}>{children}</div>
   </div>;
 }
-function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDelete,onEdit,onCreateOrder,fileUrls}){
+function ApplicationDetail({app,branchMeta,isAdmin,canEditDelete,canDelete,onBack,onSaved,onDelete,onEdit,onCreateOrder,fileUrls}){
   const copyField=(v)=>{if(!v)return;navigator.clipboard?.writeText(String(v)).catch(()=>{});};
   const [copiedField,setCopiedField]=useState(null);
   const [mergingIcPdf,setMergingIcPdf]=useState(false);
@@ -789,7 +790,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <StepBadge app={app} step={app.step}/>
-        {isAdmin&&<GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>}
+        {(isAdmin||canEditDelete)&&<GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>}
         {canDelete&&<DBtnLocal onClick={onDelete}>{Ic.trash} Delete</DBtnLocal>}
       </div>
     </div>
@@ -945,6 +946,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
 
 export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=null}){
   const [apps,setApps]=useState([]);
+  const [rejectedSel,setRejectedSel]=useState(()=>new Set());
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("list"); // list | form | detail
   const [selectedId,setSelectedId]=useState(null);
@@ -1082,6 +1084,15 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
         followUpResponseFiles:[],followUpRespondedDate:null,
         approvedDate:null,approvedRemark:null,rejectedDate:null,rejectedRemark:null,
         linkedOrderId:null,
+        // Snapshot (not a live lookup) of the originating JCL application's
+        // full history, so the Chailease detail page can show one
+        // continuous timeline spanning both applications - JCL New
+        // Application through JCL Rejected, then straight into this
+        // Chailease application's own steps. Snapshotting rather than
+        // referencing keeps this working even if the original JCL
+        // application is later edited or deleted.
+        sourceJclId:updated.id,
+        jclHistory:updated.history||[],
         history:[{step:1,date:nowDate(),time:nowTime(),note:`New Application auto-created after rejection by JCL`}],
       };
       const chaileaseResult=await saveData(CHAILEASE_KEY,[...chaileaseApps,newApp]);
@@ -1101,6 +1112,22 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
       return;
     }
     setView("list");setSelectedId(null);
+  };
+
+  const deleteRejectedBulk=async(ids)=>{
+    if(!ids.length)return;
+    if(!window.confirm(`Permanently delete ${ids.length} rejected application(s)? This cannot be undone.`))return;
+    const idSet=new Set(ids);
+    const latest=(await loadData(JCL_KEY))||apps;
+    const next=latest.filter(a=>!idSet.has(a.id));
+    setApps(next);
+    const result=await saveData(JCL_KEY,next);
+    if(!result.ok){
+      setApps(latest);
+      alert("This didn't delete — please check your connection and try again.");
+      return;
+    }
+    setRejectedSel(prev=>{const n=new Set(prev);ids.forEach(id=>n.delete(id));return n;});
   };
 
   // Approval auto-creates a CCM order on the Order page, on behalf of the
@@ -1186,9 +1213,10 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
     onSaved={async(app)=>{const ok=await save(app);if(ok!==false){formDirtyRef.current=false;setView("detail");setSelectedId(app.id);setEditingApp(null);}}}
     onCancel={()=>{setView(editingApp?"detail":"list");setEditingApp(null);}}/>;
 
-  const isSuperAdmin=(email||"").toLowerCase()==="sophiawsc9395@gmail.com";
+  const canEditDelete=["sophiawsc9395@gmail.com","boontheng2004@gmail.com"].includes((email||"").toLowerCase());
+  const canBulkDelete=["sophiawsc9395@gmail.com","boontheng2004@gmail.com","emaxjcl@gmail.com"].includes((email||"").toLowerCase());
 
-  if(view==="detail"&&selectedApp)return<ApplicationDetail app={selectedApp} branchMeta={branchMeta} isAdmin={isAdmin} canDelete={isSuperAdmin} fileUrls={fileUrls}
+  if(view==="detail"&&selectedApp)return<ApplicationDetail app={selectedApp} branchMeta={branchMeta} isAdmin={isAdmin} canEditDelete={canEditDelete} canDelete={canEditDelete} fileUrls={fileUrls}
     onBack={()=>{setView("list");setSelectedId(null);}}
     onSaved={save}
     onDelete={()=>deleteApp(selectedApp.id)}
@@ -1214,6 +1242,60 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
         <span style={{fontSize:11,color:"#DC2626",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>Submitted {daysSince(a.submittedAt)} day{daysSince(a.submittedAt)>1?"s":""} ago</span>
       </div>)}
     </div>}
+
+    {canBulkDelete&&(()=>{
+      const rejectedApps=apps.filter(a=>a.step===5);
+      if(!rejectedApps.length)return null;
+      const MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
+      const groups={};
+      rejectedApps.forEach(a=>{
+        const key=(a.rejectedDate||"").slice(0,7)||"unknown";
+        if(!groups[key])groups[key]={key,apps:[]};
+        groups[key].apps.push(a);
+      });
+      const months=Object.values(groups).sort((a,b)=>{
+        if(a.key==="unknown")return 1;
+        if(b.key==="unknown")return-1;
+        return b.key.localeCompare(a.key);
+      });
+      const monthLabel=(key)=>{
+        if(key==="unknown")return"Date Unknown";
+        const[y,m]=key.split("-");
+        return`${MONTH_NAMES[parseInt(m,10)-1]} ${y}`;
+      };
+      const selectedApps=rejectedApps.filter(a=>rejectedSel.has(a.id));
+      return<div style={{...card,marginBottom:14}}>
+        <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>
+          Rejected Applications by Month ({rejectedApps.length})
+        </div>
+        <div style={{padding:"10px 14px"}}>
+          {months.map(mo=>{
+            const allSelected=mo.apps.length>0&&mo.apps.every(a=>rejectedSel.has(a.id));
+            return<div key={mo.key} style={{marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 2px",borderBottom:`1px solid ${C.border}`,marginBottom:6}}>
+                <span style={{fontSize:11,fontWeight:700,color:C.navy}}>{monthLabel(mo.key)} <span style={{fontWeight:400,color:C.textLight}}>({mo.apps.length})</span></span>
+                <button onClick={()=>setRejectedSel(prev=>{
+                  const n=new Set(prev);
+                  if(allSelected)mo.apps.forEach(a=>n.delete(a.id));
+                  else mo.apps.forEach(a=>n.add(a.id));
+                  return n;
+                })} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{allSelected?"Deselect Month":"Select Month"}</button>
+              </div>
+              {mo.apps.map(a=><div key={a.id} onClick={()=>setRejectedSel(prev=>{const n=new Set(prev);n.has(a.id)?n.delete(a.id):n.add(a.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",borderRadius:8,background:rejectedSel.has(a.id)?"#FEF2F2":C.surface,border:`1px solid ${rejectedSel.has(a.id)?"#FECACA":C.border}`,marginBottom:7,cursor:"pointer"}}>
+                <div style={{width:18,height:18,borderRadius:4,background:rejectedSel.has(a.id)?"#DC2626":"#fff",border:`2px solid ${rejectedSel.has(a.id)?"#DC2626":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{rejectedSel.has(a.id)&&Ic.check}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.customerName} <span style={{fontWeight:400,color:C.textLight}}>· {branchMeta[a.branch]?.name||a.branch}</span></div>
+                  <div style={{fontSize:10,color:C.textLight}}>{a.phoneModel} · Rejected {fDate(a.rejectedDate)}</div>
+                </div>
+              </div>)}
+            </div>;
+          })}
+        </div>
+        <div style={{padding:"10px 14px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end"}}>
+          <DBtnLocal onClick={()=>deleteRejectedBulk([...rejectedSel])} disabled={!selectedApps.length}>{Ic.trash} Delete Selected {selectedApps.length>0?`(${selectedApps.length})`:""}</DBtnLocal>
+        </div>
+      </div>;
+    })()}
 
     {needsBranchAction.length>0&&<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>

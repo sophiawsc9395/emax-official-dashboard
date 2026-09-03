@@ -112,6 +112,21 @@ export function RTOSummaryInner({customers,branchMeta}){
   };
 
   const overdueCustomers=analytics.filter(c=>c.overdue.length>0).sort((a,b)=>b.overdue.length-a.overdue.length);
+  // Total overdue outstanding grouped by month, across every overdue
+  // customer - a different cut of the same Overdue table above (that one
+  // groups by customer, this groups by which month is owed).
+  const overdueByMonth=(()=>{
+    const groups={};
+    overdueCustomers.forEach(c=>{
+      c.overdue.forEach(s=>{
+        const outstanding=s.amount-amountReceivedFor(s,c.payments?.[s.key]);
+        if(!groups[s.key])groups[s.key]={key:s.key,label:s.label,total:0,customerCount:0};
+        groups[s.key].total+=outstanding;
+        groups[s.key].customerCount+=1;
+      });
+    });
+    return Object.values(groups).sort((a,b)=>a.key.localeCompare(b.key));
+  })();
 
   const downloadPhoto=async()=>{
     const el=summaryRef.current;if(!el)return;
@@ -195,6 +210,30 @@ export function RTOSummaryInner({customers,branchMeta}){
               <td colSpan={4} style={{padding:"9px 14px",fontWeight:700,fontSize:12,color:C.navy}}>TOTAL — {overdueCustomers.length} customer{overdueCustomers.length>1?"s":""}</td>
               <td style={{padding:"9px 14px",fontWeight:700,fontSize:12,color:C.navy,whiteSpace:"nowrap"}}>{fRM(overdueCustomers.reduce((s,c)=>s+c.overdue.reduce((s2,sl)=>s2+(sl.amount-amountReceivedFor(sl,c.payments?.[sl.key])),0),0))}</td>
               <td colSpan={2}/>
+            </tr>
+            </tbody>
+          </table></div>
+
+          <div style={{padding:"12px 16px",background:C.white,borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:9}}>
+            <div style={{width:3,height:16,background:"#DC2626",borderRadius:2}}/>
+            <span style={{fontSize:13,fontWeight:700,color:C.navy}}>Total Overdue by Month</span>
+          </div>
+          <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead><tr style={{background:C.navy}}>
+              {["Month","Customers Affected","Total Overdue"].map(h=>(
+                <th key={h} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>{overdueByMonth.map((m,i)=>(
+              <tr key={m.key} style={{borderBottom:`1px solid ${C.border}`,background:i%2===0?C.white:C.surface}}>
+                <td style={{padding:"9px 14px",fontWeight:700,color:C.text,fontSize:12}}>{m.label}</td>
+                <td style={{padding:"9px 14px",fontSize:11,color:C.textMid}}>{m.customerCount}</td>
+                <td style={{padding:"9px 14px",fontWeight:700,color:"#DC2626",fontSize:12,whiteSpace:"nowrap"}}>{fRM(m.total)}</td>
+              </tr>
+            ))}
+            <tr style={{borderTop:`2px solid ${C.border}`,background:C.surface}}>
+              <td colSpan={2} style={{padding:"9px 14px",fontWeight:700,fontSize:12,color:C.navy}}>TOTAL — {overdueByMonth.length} month{overdueByMonth.length>1?"s":""}</td>
+              <td style={{padding:"9px 14px",fontWeight:700,fontSize:12,color:C.navy,whiteSpace:"nowrap"}}>{fRM(overdueByMonth.reduce((s,m)=>s+m.total,0))}</td>
             </tr>
             </tbody>
           </table></div>

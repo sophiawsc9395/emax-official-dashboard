@@ -431,7 +431,7 @@ export default function RTOTab({branchMeta,email}){
 
   const saveCustomer=async(c)=>{
     const result=await apiSaveCustomer(c);
-    if(!result.ok){alert("Save failed — please try again.");return;}
+    if(!result.ok){alert(`Save failed — please try again.${result.error?.message?`\n\n(${result.error.message})`:""}`);return;}
     setCustomers(p=>p.some(x=>x.id===c.id)?p.map(x=>x.id===c.id?{...x,...c}:x):[...p,{...c,paidCount:0,totalReceived:0}]);
     setSummaryCustomers(null); // stale — refetch next time the summary is opened
     setView("list");setEditCustomer(null);
@@ -458,7 +458,7 @@ export default function RTOTab({branchMeta,email}){
     const paidCount=schedule.filter(s=>newPayments[s.key]?.paid).length;
     const totalReceived=schedule.reduce((sum,s)=>sum+amountReceivedFor(s,newPayments[s.key]),0);
     const result=await apiUpdatePayment(customerId,schedKey,payData,{paidCount,totalReceived});
-    if(!result.ok){alert("Save failed — please try again.");return;}
+    if(!result.ok){alert(`Save failed — please try again.${result.error?.message?`\n\n(${result.error.message})`:""}`);return;}
     setPaymentsCache(p=>({...p,[customerId]:newPayments}));
     setCustomers(p=>p.map(c=>c.id===customerId?{...c,paidCount,totalReceived}:c));
     setSummaryCustomers(null);

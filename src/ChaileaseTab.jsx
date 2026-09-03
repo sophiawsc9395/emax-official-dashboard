@@ -41,6 +41,8 @@ const Ic={
   checkCircle:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
   x:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
   copy:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
+  check:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+  download:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
 };
 const STEP_ICONS={1:Ic.fileText,2:Ic.share2,3:Ic.alertCircle,4:Ic.checkCircle,5:Ic.x};
 const SHORT_LABELS={1:"New App",2:"Submitted",3:"Follow-Up",4:"Approved",5:"Rejected"};
@@ -258,20 +260,16 @@ async function downloadIcPdf(frontUrl,frontName,backUrl,backName,customerName){
   return{ok:true,skipped};
 }
 
-// Bundles the IC Front + Back (merged into one PDF, reusing the exact
-// same logic as the standalone IC download above), Latest Salary Slip,
-// EPF Statement, and Latest Bank Statement into a single downloadable
-// .zip — the other three documents are kept in whatever format they were
-// actually uploaded in (no conversion needed, they're not being merged
-// with anything). Zip file is named after the customer's full name.
-async function downloadAllDocuments(app,fileUrls){
-  const[JSZip,icResult]=await Promise.all([
-    loadJsZip(),
-    buildIcPdfDoc(fileUrls[`${app.id}_icFrontFile`],app.icFrontFile?.name,fileUrls[`${app.id}_icBackFile`],app.icBackFile?.name),
-  ]);
-  const zip=new JSZip();
+// Adds one customer's documents (IC Front+Back merged into one PDF, plus
+// Salary Slip/EPF Statement/Bank Statement in their original formats) into
+// a given zip folder, without generating or downloading anything itself -
+// the caller controls when/how the overall zip gets finalized. Shared by
+// both the single-customer download below and the multi-customer rejected-
+// applications report zip.
+async function addCustomerDocsToZip(app,fileUrls,folder){
+  const icResult=await buildIcPdfDoc(fileUrls[`${app.id}_icFrontFile`],app.icFrontFile?.name,fileUrls[`${app.id}_icBackFile`],app.icBackFile?.name);
   const skipped=icResult.skipped.map(s=>`IC: ${s}`);
-  if(icResult.addedAny)zip.file("IC Front and Back.pdf",icResult.doc.output("blob"));
+  if(icResult.addedAny)folder.file("IC Front and Back.pdf",icResult.doc.output("blob"));
   else skipped.push("IC PDF (neither photo could be loaded)");
 
   const otherDocs=[
@@ -288,11 +286,24 @@ async function downloadAllDocuments(app,fileUrls){
       if(!res.ok)throw new Error("fetch failed");
       const blob=await res.blob();
       const ext=(fileMeta.name.match(/\.[a-zA-Z0-9]+$/)||[".pdf"])[0];
-      zip.file(`${label}${ext}`,blob);
+      folder.file(`${label}${ext}`,blob);
     }catch(e){
       skipped.push(`${label} (couldn't load)`);
     }
   }
+  return{skipped};
+}
+
+// Bundles the IC Front + Back (merged into one PDF, reusing the exact
+// same logic as the standalone IC download above), Latest Salary Slip,
+// EPF Statement, and Latest Bank Statement into a single downloadable
+// .zip — the other three documents are kept in whatever format they were
+// actually uploaded in (no conversion needed, they're not being merged
+// with anything). Zip file is named after the customer's full name.
+async function downloadAllDocuments(app,fileUrls){
+  const JSZip=await loadJsZip();
+  const zip=new JSZip();
+  const{skipped}=await addCustomerDocsToZip(app,fileUrls,zip);
 
   const zipBlob=await zip.generateAsync({type:"blob"});
   const url=URL.createObjectURL(zipBlob);
@@ -306,30 +317,134 @@ async function downloadAllDocuments(app,fileUrls){
   return{ok:true,skipped};
 }
 
+// Plain-text report covering every field the rejected-applications bulk
+// download needs to preserve: personal details, contact & address, bank
+// details, employment & income, and both emergency contacts.
+function buildCustomerReportText(app){
+  const line=(label,val)=>`${label}: ${val||"—"}`;
+  return[
+    `CHAILEASE APPLICATION REPORT — ${app.customerName||"—"}`,
+    `Generated: ${nowDate()} ${nowTime()}`,
+    "",
+    "── PERSONAL DETAILS ──────────────────────",
+    line("Full Name",app.customerName),
+    line("IC Number",app.customerIC),
+    line("Race",app.race),
+    line("Gender",app.gender),
+    line("Residency Status",app.residencyStatus),
+    line("Marital Status",app.maritalStatus),
+    line("Housing Status",app.housingStatus),
+    "",
+    "── CONTACT & ADDRESS ─────────────────────",
+    line("Phone",app.customerHP),
+    line("Email",app.customerEmail),
+    line("Address",app.address),
+    line("Postcode",app.postcode),
+    line("City",app.city),
+    line("Length of Stay",app.lengthOfStay),
+    line("Best Time to Contact",app.bestTimeContact),
+    "",
+    "── BANK DETAILS ──────────────────────────",
+    line("Bank Name",app.bankName),
+    line("Account Type",app.bankAccountType),
+    line("Account Holder Name",app.bankAccountHolderName),
+    line("Account Number",app.bankAccountNumber),
+    "",
+    "── EMPLOYMENT & INCOME ───────────────────",
+    line("Occupation",app.occupation),
+    line("Department",app.workDepartment),
+    line("Company Name",app.companyName),
+    line("Nature of Business",app.companyNatureOfBusiness),
+    line("Employment Type",app.employmentType),
+    line("Work Location",app.workLocation),
+    line("Years of Service",app.yearsOfService),
+    line("Months of Service",app.monthsOfService),
+    line("Salary Date",app.salaryDate),
+    line("Net Salary",app.netSalary),
+    line("Office Address",app.officeAddress),
+    line("Office Postcode",app.officePostcode),
+    line("Office Tel",app.officeTel),
+    "",
+    "── EMERGENCY CONTACT #1 ──────────────────",
+    line("Name",app.ec1Name),
+    line("Relationship",app.ec1Relationship),
+    line("Stays With Applicant",app.ec1StayWith),
+    line("Address",app.ec1Address),
+    line("Contact Number",app.ec1ContactNumber),
+    line("Best Time to Contact",app.ec1BestTime),
+    "",
+    "── EMERGENCY CONTACT #2 ──────────────────",
+    line("Name",app.ec2Name),
+    line("Relationship",app.ec2Relationship),
+    line("Stays With Applicant",app.ec2StayWith),
+    line("Address",app.ec2Address),
+    line("Contact Number",app.ec2ContactNumber),
+    line("Best Time to Contact",app.ec2BestTime),
+    "",
+    "── APPLICATION INFO ──────────────────────",
+    line("Branch",app.branch),
+    line("Device",app.phoneModel),
+    line("Finance Price",app.financePrice?`RM ${app.financePrice}`:""),
+    line("Tenure",app.tenure?`${app.tenure} months`:""),
+    line("Rejected Date",app.rejectedDate),
+    line("Rejection Remark",app.rejectedRemark),
+  ].join("\n");
+}
+
+// One shared zip containing every selected rejected application's full
+// report and documents, each in their own subfolder named after the
+// customer. Returns which applications succeeded so the caller knows
+// which ones are now safe to enable for deletion.
+async function downloadRejectedApplicationsZip(apps,fileUrls){
+  const JSZip=await loadJsZip();
+  const zip=new JSZip();
+  const succeeded=[];
+  for(const app of apps){
+    const safeName=`${(app.customerName||"customer").replace(/[^a-zA-Z0-9]+/g,"_")}_${app.id}`;
+    const folder=zip.folder(safeName);
+    folder.file("Report.txt",buildCustomerReportText(app));
+    await addCustomerDocsToZip(app,fileUrls,folder);
+    succeeded.push(app.id);
+  }
+  const zipBlob=await zip.generateAsync({type:"blob"});
+  const url=URL.createObjectURL(zipBlob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=`Rejected_Applications_${nowDate()}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  return{ok:true,succeeded};
+}
+
 /* ── Timeline ──────────────────────────────────────────────────────────── */
-function Timeline({app}){
-  const cur=app.step;
-  const hist=app.history||[];
-  // A step only counts as genuinely completed if there's an actual history
-  // entry recording it happened — not just because its step number is
-  // lower than the current one. This workflow branches (step 2 "Submitted
-  // to Chailease" can jump straight to step 5 "Rejected", skipping 3
-  // "Follow-Up Required" and 4 "Approved" entirely). Steps that were
-  // definitively skipped (already in the past, with no history evidence
-  // they ever happened) are left out of the timeline entirely, rather than
-  // shown grayed-out — otherwise a rejected application still looks like
-  // it passed through Follow-Up and Approval first. Steps still ahead in
-  // an in-progress application stay visible as pending, since their
-  // outcome genuinely hasn't been decided yet.
-  const visibleSteps=STEPS.filter(s=>{
-    const skippedInPast=cur>s.step&&!hist.some(h=>h.step===s.step);
+// Local copy of JCL's step labels/colors, purely for display in the
+// combined timeline below — not imported from JCLTab.jsx to avoid a
+// circular dependency (JCLTab.jsx already imports CHAILEASE_KEY from here).
+const JCL_STEPS=[
+  {step:1,label:"New Application",color:"#1D4ED8",bg:"#EFF6FF"},
+  {step:2,label:"Submitted to JCL",color:"#7C3AED",bg:"#F5F0FF"},
+  {step:3,label:"Follow-Up Required",color:"#B45309",bg:"#FFFBEB"},
+  {step:4,label:"Approved by JCL",color:"#15803D",bg:"#F0FDF4"},
+  {step:5,label:"Rejected by JCL",color:"#DC2626",bg:"#FEF2F2"},
+];
+
+// One segment of the timeline — the same rendering logic used for both
+// JCL's steps and Chailease's own steps, so a combined timeline is just
+// two segments stacked with no visual seam. `isFinalSegment` controls
+// whether the very last connector line is drawn (only the true final step
+// across the whole combined timeline should have no trailing line).
+function TimelineSegment({steps,hist,curStep,isFinalSegment}){
+  const visibleSteps=steps.filter(s=>{
+    const skippedInPast=curStep>s.step&&!hist.some(h=>h.step===s.step);
     return!skippedInPast;
   });
-  return<div>{visibleSteps.map((s,i)=>{
-    const done=cur>s.step&&hist.some(h=>h.step===s.step);
-    const active=cur===s.step;
+  return<>{visibleSteps.map((s,i)=>{
+    const done=curStep>s.step&&hist.some(h=>h.step===s.step);
+    const active=curStep===s.step;
     const histEntries=hist.filter(h=>h.step===s.step);
-    const isLast=i===visibleSteps.length-1;
+    const isLast=isFinalSegment&&i===visibleSteps.length-1;
     return<div key={s.step} style={{display:"flex",position:"relative"}}>
       {!isLast&&<div style={{position:"absolute",left:11,top:24,width:1,height:"calc(100% + 2px)",background:done?C.navy+"30":C.border,zIndex:0}}/>}
       <div style={{flexShrink:0,width:22,height:22,borderRadius:"50%",background:done?C.navy:active?C.blueBright:C.surface,border:`2px solid ${done?C.navy:active?C.blueBright:C.border}`,display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,marginRight:10,marginTop:1,color:"#fff"}}>
@@ -346,7 +461,35 @@ function Timeline({app}){
         </div>)}
       </div>
     </div>;
-  })}</div>;
+  })}</>;
+}
+
+function Timeline({app}){
+  const hist=app.history||[];
+  const hasJclOrigin=app.sourceJclId&&app.jclHistory?.length>0;
+  if(!hasJclOrigin){
+    // A step only counts as genuinely completed if there's an actual history
+    // entry recording it happened — not just because its step number is
+    // lower than the current one. This workflow branches (step 2 "Submitted
+    // to Chailease" can jump straight to step 5 "Rejected", skipping 3
+    // "Follow-Up Required" and 4 "Approved" entirely). Steps that were
+    // definitively skipped are left out of the timeline entirely, rather
+    // than shown grayed-out — otherwise a rejected application still looks
+    // like it passed through Follow-Up and Approval first. Steps still
+    // ahead in an in-progress application stay visible as pending, since
+    // their outcome genuinely hasn't been decided yet.
+    return<div><TimelineSegment steps={STEPS} hist={hist} curStep={app.step} isFinalSegment={true}/></div>;
+  }
+  // Auto-created after a JCL rejection — one continuous timeline spanning
+  // both applications: JCL's steps (from the snapshotted jclHistory, since
+  // that application always ended at Rejected, step 5) flowing directly
+  // into this Chailease application's own steps, with no visual break.
+  return<div>
+    <div style={{fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6,marginTop:2}}>JCL Application</div>
+    <TimelineSegment steps={JCL_STEPS} hist={app.jclHistory} curStep={5} isFinalSegment={false}/>
+    <div style={{fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6,marginTop:4}}>Chailease Application</div>
+    <TimelineSegment steps={STEPS} hist={hist} curStep={app.step} isFinalSegment={true}/>
+  </div>;
 }
 
 function FormCard({title,children}){
@@ -756,7 +899,7 @@ function ActionBox({icon,title,desc,children}){
     <div style={{padding:"14px 16px"}}>{children}</div>
   </div>;
 }
-function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDelete,onEdit,onCreateOrder,fileUrls}){
+function ApplicationDetail({app,branchMeta,isAdmin,canEditDelete,canDelete,onBack,onSaved,onDelete,onEdit,onCreateOrder,fileUrls}){
   const copyField=(v)=>{if(!v)return;navigator.clipboard?.writeText(String(v)).catch(()=>{});};
   const [copiedField,setCopiedField]=useState(null);
   const [mergingIcPdf,setMergingIcPdf]=useState(false);
@@ -788,7 +931,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canDelete,onBack,onSaved,onDe
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <StepBadge app={app} step={app.step}/>
-        {isAdmin&&<GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>}
+        {(isAdmin||canEditDelete)&&<GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>}
         {canDelete&&<DBtnLocal onClick={onDelete}>{Ic.trash} Delete</DBtnLocal>}
       </div>
     </div>
@@ -1004,6 +1147,9 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
   const [stepFilter,setStepFilter]=useState("all");
   const [search,setSearch]=useState("");
   const [fileUrls,setFileUrls]=useState({});
+  const [rejectedSel,setRejectedSel]=useState(()=>new Set());
+  const [rejectedDownloaded,setRejectedDownloaded]=useState(()=>new Set());
+  const [downloadingRejectedZip,setDownloadingRejectedZip]=useState(false);
 
   useEffect(()=>{loadData(CHAILEASE_KEY).then(d=>{setApps(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>setLoading(false));},[]);
 
@@ -1071,6 +1217,23 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
       return;
     }
     setView("list");setSelectedId(null);
+  };
+
+  const deleteRejectedBulk=async(ids)=>{
+    if(!ids.length)return;
+    if(!window.confirm(`Permanently delete ${ids.length} rejected application(s)? This cannot be undone.`))return;
+    const idSet=new Set(ids);
+    const latest=(await loadData(CHAILEASE_KEY))||apps;
+    const next=latest.filter(a=>!idSet.has(a.id));
+    setApps(next);
+    const result=await saveData(CHAILEASE_KEY,next);
+    if(!result.ok){
+      setApps(latest);
+      alert("This didn't delete — please check your connection and try again.");
+      return;
+    }
+    setRejectedSel(prev=>{const n=new Set(prev);ids.forEach(id=>n.delete(id));return n;});
+    setRejectedDownloaded(prev=>{const n=new Set(prev);ids.forEach(id=>n.delete(id));return n;});
   };
 
   // Approval auto-creates a CCM order on the Order page, on behalf of the
@@ -1156,9 +1319,10 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
     onSaved={async(app)=>{const ok=await save(app);if(ok!==false){formDirtyRef.current=false;setView("detail");setSelectedId(app.id);setEditingApp(null);}}}
     onCancel={()=>{setView(editingApp?"detail":"list");setEditingApp(null);}}/>;
 
-  const isSuperAdmin=(email||"").toLowerCase()==="sophiawsc9395@gmail.com";
+  const canEditDelete=["sophiawsc9395@gmail.com","boontheng2004@gmail.com"].includes((email||"").toLowerCase());
+  const canBulkDownloadDelete=["sophiawsc9395@gmail.com","boontheng2004@gmail.com","emaxjcl@gmail.com"].includes((email||"").toLowerCase());
 
-  if(view==="detail"&&selectedApp)return<ApplicationDetail app={selectedApp} branchMeta={branchMeta} isAdmin={isAdmin} canDelete={isSuperAdmin} fileUrls={fileUrls}
+  if(view==="detail"&&selectedApp)return<ApplicationDetail app={selectedApp} branchMeta={branchMeta} isAdmin={isAdmin} canEditDelete={canEditDelete} canDelete={canEditDelete} fileUrls={fileUrls}
     onBack={()=>{setView("list");setSelectedId(null);}}
     onSaved={save}
     onDelete={()=>deleteApp(selectedApp.id)}
@@ -1184,6 +1348,77 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
         <span style={{fontSize:11,color:"#DC2626",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>Submitted {daysSince(a.submittedAt)} day{daysSince(a.submittedAt)>1?"s":""} ago</span>
       </div>)}
     </div>}
+
+    {canBulkDownloadDelete&&(()=>{
+      const rejectedApps=apps.filter(a=>a.step===5);
+      if(!rejectedApps.length)return null;
+      const allSelected=rejectedApps.length>0&&rejectedApps.every(a=>rejectedSel.has(a.id));
+      const selectedApps=rejectedApps.filter(a=>rejectedSel.has(a.id));
+      const canDelete=selectedApps.length>0&&selectedApps.every(a=>rejectedDownloaded.has(a.id));
+      const MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
+      const groups={};
+      rejectedApps.forEach(a=>{
+        const key=(a.rejectedDate||"").slice(0,7)||"unknown";
+        if(!groups[key])groups[key]={key,apps:[]};
+        groups[key].apps.push(a);
+      });
+      const months=Object.values(groups).sort((a,b)=>{
+        if(a.key==="unknown")return 1;
+        if(b.key==="unknown")return-1;
+        return b.key.localeCompare(a.key);
+      });
+      const monthLabel=(key)=>{
+        if(key==="unknown")return"Date Unknown";
+        const[y,m]=key.split("-");
+        return`${MONTH_NAMES[parseInt(m,10)-1]} ${y}`;
+      };
+      return<div style={{...card,marginBottom:14}}>
+        <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span>Rejected Applications by Month ({rejectedApps.length})</span>
+          <button onClick={()=>setRejectedSel(allSelected?new Set():new Set(rejectedApps.map(a=>a.id)))} style={{fontSize:10,color:"#fff",background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.3)",borderRadius:6,padding:"3px 9px",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{allSelected?"Deselect All":"Select All"}</button>
+        </div>
+        <div style={{padding:"10px 14px",fontSize:11,color:C.textLight,borderBottom:`1px solid ${C.border}`}}>Download each customer's full report and documents as a zip before deleting — deletion is permanent, and only enabled for applications already downloaded this session.</div>
+        <div style={{padding:"10px 14px"}}>
+          {months.map(mo=>{
+            const monthAllSelected=mo.apps.length>0&&mo.apps.every(a=>rejectedSel.has(a.id));
+            return<div key={mo.key} style={{marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 2px",borderBottom:`1px solid ${C.border}`,marginBottom:6}}>
+                <span style={{fontSize:11,fontWeight:700,color:C.navy}}>{monthLabel(mo.key)} <span style={{fontWeight:400,color:C.textLight}}>({mo.apps.length})</span></span>
+                <button onClick={()=>setRejectedSel(prev=>{
+                  const n=new Set(prev);
+                  if(monthAllSelected)mo.apps.forEach(a=>n.delete(a.id));
+                  else mo.apps.forEach(a=>n.add(a.id));
+                  return n;
+                })} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{monthAllSelected?"Deselect Month":"Select Month"}</button>
+              </div>
+              {mo.apps.map(a=><div key={a.id} onClick={()=>setRejectedSel(prev=>{const n=new Set(prev);n.has(a.id)?n.delete(a.id):n.add(a.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",borderRadius:8,background:rejectedSel.has(a.id)?"#FEF2F2":C.surface,border:`1px solid ${rejectedSel.has(a.id)?"#FECACA":C.border}`,marginBottom:7,cursor:"pointer"}}>
+                <div style={{width:18,height:18,borderRadius:4,background:rejectedSel.has(a.id)?"#DC2626":"#fff",border:`2px solid ${rejectedSel.has(a.id)?"#DC2626":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{rejectedSel.has(a.id)&&Ic.check}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.customerName} <span style={{fontWeight:400,color:C.textLight}}>· {branchMeta[a.branch]?.name||a.branch}</span></div>
+                  <div style={{fontSize:10,color:C.textLight}}>{a.phoneModel} · Rejected {fDate(a.rejectedDate)}</div>
+                </div>
+                {rejectedDownloaded.has(a.id)&&<span style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:20,padding:"2px 9px",flexShrink:0}}>Downloaded</span>}
+              </div>)}
+            </div>;
+          })}
+        </div>
+        <div style={{padding:"10px 14px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end",gap:8}}>
+          <GBtn onClick={async()=>{
+            if(!selectedApps.length||downloadingRejectedZip)return;
+            setDownloadingRejectedZip(true);
+            try{
+              const{succeeded}=await downloadRejectedApplicationsZip(selectedApps,fileUrls);
+              setRejectedDownloaded(prev=>{const n=new Set(prev);succeeded.forEach(id=>n.add(id));return n;});
+            }catch(e){
+              alert("Something went wrong generating the zip — please try again.");
+            }finally{
+              setDownloadingRejectedZip(false);
+            }
+          }} disabled={!selectedApps.length||downloadingRejectedZip}>{Ic.download} {downloadingRejectedZip?"Generating Zip…":`Download Report ZIP ${selectedApps.length>0?`(${selectedApps.length})`:""}`}</GBtn>
+          <DBtnLocal onClick={()=>deleteRejectedBulk([...rejectedSel])} disabled={!canDelete}>{Ic.trash} Delete Selected {selectedApps.length>0?`(${selectedApps.length})`:""}</DBtnLocal>
+        </div>
+      </div>;
+    })()}
 
     {needsBranchAction.length>0&&<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>

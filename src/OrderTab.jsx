@@ -2376,6 +2376,40 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const refreshList=useCallback(()=>listOrders(userBranch).then(d=>{setOrders(d);setLoading(false);}),[userBranch]);
   useEffect(()=>{refreshList();},[refreshList]);
 
+  // Auto-cleanup: duplicate Agreement No./Case ID No. across active (non-cancelled)
+  // orders. Only runs for Sophia on the full, unscoped order list — a
+  // branch-scoped view could only ever see half of a cross-branch
+  // duplicate pair, which would make this unsafe to run there. Keeps
+  // whichever order was created first (lower/older id, since ids are
+  // Date.now()-based) and silently deletes the rest — fully automatic,
+  // no confirmation, by explicit request.
+  useEffect(()=>{
+    if(!isSophia||userBranch||!orders.length)return;
+    const groups={};
+    orders.forEach(o=>{
+      if(o.cancelled||o.orderType==="cash")return;
+      const key=(o.agreementNumber||"").toString().trim().toLowerCase();
+      if(!key)return;
+      (groups[key]||=[]).push(o);
+    });
+    const toDelete=[];
+    Object.values(groups).forEach(group=>{
+      if(group.length<2)return;
+      const sorted=[...group].sort((a,b)=>Number(a.id)-Number(b.id));
+      toDelete.push(...sorted.slice(1).map(o=>o.id));
+    });
+    if(toDelete.length){
+      apiDeleteOrders(toDelete).then(result=>{
+        if(result?.ok){
+          console.log(`Auto-deleted ${toDelete.length} duplicate-agreement-number order(s):`,toDelete);
+          refreshList();
+        }else{
+          console.error("Duplicate agreement number auto-cleanup failed:",result?.error);
+        }
+      });
+    }
+  },[orders,isSophia,userBranch,refreshList]);
+
   const nav=useCallback((v,sel=null)=>{setView(v);setSelected(sel);sessionStorage.setItem("orderView",v);sessionStorage.setItem("orderSelected",sel?JSON.stringify(sel):"null");window.history.pushState({orderView:v,orderSelected:sel},"");},[]);
   const openOrder=useCallback(o=>nav("detail",o),[nav]);
 

@@ -267,37 +267,6 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   const[viewSession,setViewSession]=useState(()=>getOpenSession(new Date()).session);
   const[orderedFor,setOrderedFor]=useState(null);
   const[expandedLog,setExpandedLog]=useState({});
-  const[backfilling,setBackfilling]=useState(false);
-  const[backfillResult,setBackfillResult]=useState(null);
-
-  // One-time catch-up for orders that were marked Ordered before the fix
-  // that started saving Actual Purchase Price directly onto the order —
-  // before that, it only ever landed in this page's own supplementary
-  // store. Cross-references that store against each order's real current
-  // data and fills in whatever's still missing, without touching history.
-  const backfillActualPrices=async()=>{
-    setBackfilling(true);setBackfillResult(null);
-    try{
-      const supp=(await loadData(SUPP_KEY))||{};
-      const candidateIds=Object.keys(supp).filter(id=>supp[id]?.ordered&&parseFloat(supp[id]?.actualPrice)>0);
-      if(!candidateIds.length){setBackfillResult({updated:0,total:0});return;}
-      const orders=await Promise.all(candidateIds.map(id=>getOrder(id)));
-      const oldList=[],newList=[];
-      candidateIds.forEach((id,i)=>{
-        const order=orders[i];
-        if(!order||order.actualPrice)return; // deleted, or already has it
-        oldList.push(order);
-        newList.push({...order,actualPrice:parseFloat(supp[id].actualPrice)});
-      });
-      if(!newList.length){setBackfillResult({updated:0,total:candidateIds.length});return;}
-      const result=await reconcile(oldList,newList);
-      if(!result.ok){alert("Backfill failed — please try again.");return;}
-      setBackfillResult({updated:newList.length,total:candidateIds.length});
-      await refresh();
-    }finally{
-      setBackfilling(false);
-    }
-  };
 
   const refresh=async()=>{
     const fresh=await buildLiveList();
@@ -542,13 +511,6 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
 
   return<div>
-    {isAdmin&&<div style={{...card,padding:"12px 14px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-      <div style={{fontSize:11,color:C.textMid}}>One-time catch-up: fills in Actual Purchase Price for orders that were marked Ordered before this page started saving it directly onto the order.</div>
-      <GBtn onClick={backfillActualPrices} disabled={backfilling}>{backfilling?"Backfilling…":"Backfill Actual Purchase Price"}</GBtn>
-    </div>}
-    {backfillResult&&<div style={{...card,borderLeft:"3px solid #15803D",padding:"12px 14px",marginBottom:14}}>
-      <div style={{fontSize:12,color:C.textMid}}>{backfillResult.total===0?"No orders needed backfilling — nothing found in the supplementary record.":backfillResult.updated===0?`Checked ${backfillResult.total} order(s) — all already had Actual Purchase Price on file.`:`Filled in Actual Purchase Price for ${backfillResult.updated} of ${backfillResult.total} order(s) checked.`}</div>
-    </div>}
     {!isViewingCurrentSession&&<div style={{...card,borderLeft:"3px solid #8A96A8",padding:"12px 14px",marginBottom:14}}>
       <div style={{fontSize:12,color:C.textMid}}>{sessionKey(viewDate,viewSession)>sessionKey(openSession.date,openSession.session)
         ?`This session isn't open yet — Session ${openSession.session} (${fDate(openSession.date)}) is still being worked through and takes priority until its own deadline passes.`
