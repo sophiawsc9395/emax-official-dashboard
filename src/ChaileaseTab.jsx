@@ -1148,6 +1148,7 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
   const [search,setSearch]=useState("");
   const [fileUrls,setFileUrls]=useState({});
   const [rejectedSel,setRejectedSel]=useState(()=>new Set());
+  const [rejectedSectionOpen,setRejectedSectionOpen]=useState(false);
   const [rejectedDownloaded,setRejectedDownloaded]=useState(()=>new Set());
   const [downloadingRejectedZip,setDownloadingRejectedZip]=useState(false);
 
@@ -1349,77 +1350,6 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
       </div>)}
     </div>}
 
-    {canBulkDownloadDelete&&(()=>{
-      const rejectedApps=apps.filter(a=>a.step===5);
-      if(!rejectedApps.length)return null;
-      const allSelected=rejectedApps.length>0&&rejectedApps.every(a=>rejectedSel.has(a.id));
-      const selectedApps=rejectedApps.filter(a=>rejectedSel.has(a.id));
-      const canDelete=selectedApps.length>0&&selectedApps.every(a=>rejectedDownloaded.has(a.id));
-      const MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
-      const groups={};
-      rejectedApps.forEach(a=>{
-        const key=(a.rejectedDate||"").slice(0,7)||"unknown";
-        if(!groups[key])groups[key]={key,apps:[]};
-        groups[key].apps.push(a);
-      });
-      const months=Object.values(groups).sort((a,b)=>{
-        if(a.key==="unknown")return 1;
-        if(b.key==="unknown")return-1;
-        return b.key.localeCompare(a.key);
-      });
-      const monthLabel=(key)=>{
-        if(key==="unknown")return"Date Unknown";
-        const[y,m]=key.split("-");
-        return`${MONTH_NAMES[parseInt(m,10)-1]} ${y}`;
-      };
-      return<div style={{...card,marginBottom:14}}>
-        <div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span>Rejected Applications by Month ({rejectedApps.length})</span>
-          <button onClick={()=>setRejectedSel(allSelected?new Set():new Set(rejectedApps.map(a=>a.id)))} style={{fontSize:10,color:"#fff",background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.3)",borderRadius:6,padding:"3px 9px",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{allSelected?"Deselect All":"Select All"}</button>
-        </div>
-        <div style={{padding:"10px 14px",fontSize:11,color:C.textLight,borderBottom:`1px solid ${C.border}`}}>Download each customer's full report and documents as a zip before deleting — deletion is permanent, and only enabled for applications already downloaded this session.</div>
-        <div style={{padding:"10px 14px"}}>
-          {months.map(mo=>{
-            const monthAllSelected=mo.apps.length>0&&mo.apps.every(a=>rejectedSel.has(a.id));
-            return<div key={mo.key} style={{marginBottom:12}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 2px",borderBottom:`1px solid ${C.border}`,marginBottom:6}}>
-                <span style={{fontSize:11,fontWeight:700,color:C.navy}}>{monthLabel(mo.key)} <span style={{fontWeight:400,color:C.textLight}}>({mo.apps.length})</span></span>
-                <button onClick={()=>setRejectedSel(prev=>{
-                  const n=new Set(prev);
-                  if(monthAllSelected)mo.apps.forEach(a=>n.delete(a.id));
-                  else mo.apps.forEach(a=>n.add(a.id));
-                  return n;
-                })} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{monthAllSelected?"Deselect Month":"Select Month"}</button>
-              </div>
-              {mo.apps.map(a=><div key={a.id} onClick={()=>setRejectedSel(prev=>{const n=new Set(prev);n.has(a.id)?n.delete(a.id):n.add(a.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",borderRadius:8,background:rejectedSel.has(a.id)?"#FEF2F2":C.surface,border:`1px solid ${rejectedSel.has(a.id)?"#FECACA":C.border}`,marginBottom:7,cursor:"pointer"}}>
-                <div style={{width:18,height:18,borderRadius:4,background:rejectedSel.has(a.id)?"#DC2626":"#fff",border:`2px solid ${rejectedSel.has(a.id)?"#DC2626":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{rejectedSel.has(a.id)&&Ic.check}</div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.customerName} <span style={{fontWeight:400,color:C.textLight}}>· {branchMeta[a.branch]?.name||a.branch}</span></div>
-                  <div style={{fontSize:10,color:C.textLight}}>{a.phoneModel} · Rejected {fDate(a.rejectedDate)}</div>
-                </div>
-                {rejectedDownloaded.has(a.id)&&<span style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:20,padding:"2px 9px",flexShrink:0}}>Downloaded</span>}
-              </div>)}
-            </div>;
-          })}
-        </div>
-        <div style={{padding:"10px 14px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end",gap:8}}>
-          <GBtn onClick={async()=>{
-            if(!selectedApps.length||downloadingRejectedZip)return;
-            setDownloadingRejectedZip(true);
-            try{
-              const{succeeded}=await downloadRejectedApplicationsZip(selectedApps,fileUrls);
-              setRejectedDownloaded(prev=>{const n=new Set(prev);succeeded.forEach(id=>n.add(id));return n;});
-            }catch(e){
-              alert("Something went wrong generating the zip — please try again.");
-            }finally{
-              setDownloadingRejectedZip(false);
-            }
-          }} disabled={!selectedApps.length||downloadingRejectedZip}>{Ic.download} {downloadingRejectedZip?"Generating Zip…":`Download Report ZIP ${selectedApps.length>0?`(${selectedApps.length})`:""}`}</GBtn>
-          <DBtnLocal onClick={()=>deleteRejectedBulk([...rejectedSel])} disabled={!canDelete}>{Ic.trash} Delete Selected {selectedApps.length>0?`(${selectedApps.length})`:""}</DBtnLocal>
-        </div>
-      </div>;
-    })()}
-
     {needsBranchAction.length>0&&<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:14}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
         <span style={{color:"#B45309",flexShrink:0}}>{Ic.alertCircle}</span>
@@ -1489,5 +1419,81 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
           </div>
         </div>)}</div>}
     </div>
+
+    {canBulkDownloadDelete&&(()=>{
+      const rejectedApps=apps.filter(a=>a.step===5);
+      if(!rejectedApps.length)return null;
+      const allSelected=rejectedApps.length>0&&rejectedApps.every(a=>rejectedSel.has(a.id));
+      const selectedApps=rejectedApps.filter(a=>rejectedSel.has(a.id));
+      const canDelete=selectedApps.length>0&&selectedApps.every(a=>rejectedDownloaded.has(a.id));
+      const MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
+      const groups={};
+      rejectedApps.forEach(a=>{
+        const key=(a.rejectedDate||"").slice(0,7)||"unknown";
+        if(!groups[key])groups[key]={key,apps:[]};
+        groups[key].apps.push(a);
+      });
+      const months=Object.values(groups).sort((a,b)=>{
+        if(a.key==="unknown")return 1;
+        if(b.key==="unknown")return-1;
+        return b.key.localeCompare(a.key);
+      });
+      const monthLabel=(key)=>{
+        if(key==="unknown")return"Date Unknown";
+        const[y,m]=key.split("-");
+        return`${MONTH_NAMES[parseInt(m,10)-1]} ${y}`;
+      };
+      return<div style={{...card,marginTop:14}}>
+        <div onClick={()=>setRejectedSectionOpen(o=>!o)} style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}}>
+          <span>Rejected Applications by Month ({rejectedApps.length})</span>
+          <span style={{display:"inline-block",transition:"transform .15s",transform:rejectedSectionOpen?"rotate(90deg)":"rotate(0deg)",fontSize:11}}>▶</span>
+        </div>
+        {rejectedSectionOpen&&<>
+          <div style={{padding:"10px 14px",fontSize:11,color:C.textLight,borderBottom:`1px solid ${C.border}`}}>Download each customer's full report and documents as a zip before deleting — deletion is permanent, and only enabled for applications already downloaded this session.</div>
+          <div style={{padding:"10px 14px",display:"flex",justifyContent:"flex-end"}}>
+            <button onClick={()=>setRejectedSel(allSelected?new Set():new Set(rejectedApps.map(a=>a.id)))} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{allSelected?"Deselect All":"Select All"}</button>
+          </div>
+          <div style={{padding:"0 14px 10px"}}>
+            {months.map(mo=>{
+              const monthAllSelected=mo.apps.length>0&&mo.apps.every(a=>rejectedSel.has(a.id));
+              return<div key={mo.key} style={{marginBottom:12}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 2px",borderBottom:`1px solid ${C.border}`,marginBottom:6}}>
+                  <span style={{fontSize:11,fontWeight:700,color:C.navy}}>{monthLabel(mo.key)} <span style={{fontWeight:400,color:C.textLight}}>({mo.apps.length})</span></span>
+                  <button onClick={()=>setRejectedSel(prev=>{
+                    const n=new Set(prev);
+                    if(monthAllSelected)mo.apps.forEach(a=>n.delete(a.id));
+                    else mo.apps.forEach(a=>n.add(a.id));
+                    return n;
+                  })} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{monthAllSelected?"Deselect Month":"Select Month"}</button>
+                </div>
+                {mo.apps.map(a=><div key={a.id} onClick={()=>setRejectedSel(prev=>{const n=new Set(prev);n.has(a.id)?n.delete(a.id):n.add(a.id);return n;})} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",borderRadius:8,background:rejectedSel.has(a.id)?"#FEF2F2":C.surface,border:`1px solid ${rejectedSel.has(a.id)?"#FECACA":C.border}`,marginBottom:7,cursor:"pointer"}}>
+                  <div style={{width:18,height:18,borderRadius:4,background:rejectedSel.has(a.id)?"#DC2626":"#fff",border:`2px solid ${rejectedSel.has(a.id)?"#DC2626":"#CBD5E1"}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:"#fff"}}>{rejectedSel.has(a.id)&&Ic.check}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.customerName} <span style={{fontWeight:400,color:C.textLight}}>· {branchMeta[a.branch]?.name||a.branch}</span></div>
+                    <div style={{fontSize:10,color:C.textLight}}>{a.phoneModel} · Rejected {fDate(a.rejectedDate)}</div>
+                  </div>
+                  {rejectedDownloaded.has(a.id)&&<span style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:20,padding:"2px 9px",flexShrink:0}}>Downloaded</span>}
+                </div>)}
+              </div>;
+            })}
+          </div>
+          <div style={{padding:"10px 14px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end",gap:8}}>
+            <GBtn onClick={async()=>{
+              if(!selectedApps.length||downloadingRejectedZip)return;
+              setDownloadingRejectedZip(true);
+              try{
+                const{succeeded}=await downloadRejectedApplicationsZip(selectedApps,fileUrls);
+                setRejectedDownloaded(prev=>{const n=new Set(prev);succeeded.forEach(id=>n.add(id));return n;});
+              }catch(e){
+                alert("Something went wrong generating the zip — please try again.");
+              }finally{
+                setDownloadingRejectedZip(false);
+              }
+            }} disabled={!selectedApps.length||downloadingRejectedZip}>{Ic.download} {downloadingRejectedZip?"Generating Zip…":`Download Report ZIP ${selectedApps.length>0?`(${selectedApps.length})`:""}`}</GBtn>
+            <DBtnLocal onClick={()=>deleteRejectedBulk([...rejectedSel])} disabled={!canDelete}>{Ic.trash} Delete Selected {selectedApps.length>0?`(${selectedApps.length})`:""}</DBtnLocal>
+          </div>
+        </>}
+      </div>;
+    })()}
   </div>;
 }
