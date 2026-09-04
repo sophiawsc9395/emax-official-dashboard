@@ -2383,28 +2383,46 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   // whichever order was created first (lower/older id, since ids are
   // Date.now()-based) and silently deletes the rest — fully automatic,
   // no confirmation, by explicit request.
+  //
+  // Also covers cash order duplicates: same device name, same customer,
+  // and the same deposit slip upload — identified by the slip's file
+  // name, since uploaded images get recompressed/re-encoded on the way
+  // in (so exact byte size can't be relied on to match), but the
+  // original file name is preserved through that process.
   useEffect(()=>{
     if(!isSophia||userBranch||!orders.length)return;
-    const groups={};
+    const agreementGroups={};
+    const cashGroups={};
     orders.forEach(o=>{
-      if(o.cancelled||o.orderType==="cash")return;
-      const key=(o.agreementNumber||"").toString().trim().toLowerCase();
-      if(!key)return;
-      (groups[key]||=[]).push(o);
+      if(o.cancelled)return;
+      if(o.orderType==="cash"){
+        const slipName=(o.depositSlip?.name||"").toString().trim().toLowerCase();
+        const device=(o.phoneModel||"").toString().trim().toLowerCase();
+        const customer=(o.customerName||"").toString().trim().toLowerCase();
+        if(!slipName||!device||!customer)return;
+        const key=`${device}|${customer}|${slipName}`;
+        (cashGroups[key]||=[]).push(o);
+      }else{
+        const key=(o.agreementNumber||"").toString().trim().toLowerCase();
+        if(!key)return;
+        (agreementGroups[key]||=[]).push(o);
+      }
     });
     const toDelete=[];
-    Object.values(groups).forEach(group=>{
-      if(group.length<2)return;
-      const sorted=[...group].sort((a,b)=>Number(a.id)-Number(b.id));
-      toDelete.push(...sorted.slice(1).map(o=>o.id));
+    [agreementGroups,cashGroups].forEach(groups=>{
+      Object.values(groups).forEach(group=>{
+        if(group.length<2)return;
+        const sorted=[...group].sort((a,b)=>Number(a.id)-Number(b.id));
+        toDelete.push(...sorted.slice(1).map(o=>o.id));
+      });
     });
     if(toDelete.length){
       apiDeleteOrders(toDelete).then(result=>{
         if(result?.ok){
-          console.log(`Auto-deleted ${toDelete.length} duplicate-agreement-number order(s):`,toDelete);
+          console.log(`Auto-deleted ${toDelete.length} duplicate order(s) (agreement number or cash deposit match):`,toDelete);
           refreshList();
         }else{
-          console.error("Duplicate agreement number auto-cleanup failed:",result?.error);
+          console.error("Duplicate order auto-cleanup failed:",result?.error);
         }
       });
     }

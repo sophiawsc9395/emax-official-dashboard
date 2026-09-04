@@ -1154,6 +1154,38 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
 
   useEffect(()=>{loadData(CHAILEASE_KEY).then(d=>{setApps(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>setLoading(false));},[]);
 
+  // Backfill: applications auto-created from a JCL rejection before the
+  // combined-timeline feature existed have no sourceJclId/jclHistory at
+  // all — those fields simply didn't exist yet when they were created.
+  // Old records are only identifiable by their auto-creation history
+  // note, so this matches each one back to its originating JCL
+  // application by IC number and fills in what's missing. Purely
+  // additive — never touches anything else on the record.
+  useEffect(()=>{
+    if(!isAdmin||!apps.length)return;
+    const candidates=apps.filter(a=>
+      !a.sourceJclId&&
+      a.history?.[0]?.note?.includes("auto-created after rejection by JCL")&&
+      a.customerIC
+    );
+    if(!candidates.length)return;
+    (async()=>{
+      const jclApps=await loadData("emax_v5_jcl_applications");
+      if(!Array.isArray(jclApps)||!jclApps.length)return;
+      const updates=[];
+      candidates.forEach(a=>{
+        const match=jclApps.find(j=>j.step===5&&j.customerIC&&j.customerIC===a.customerIC);
+        if(match)updates.push({id:a.id,sourceJclId:match.id,jclHistory:match.history||[]});
+      });
+      if(!updates.length)return;
+      const latest=(await loadData(CHAILEASE_KEY))||apps;
+      const updateMap=new Map(updates.map(u=>[u.id,u]));
+      const next=latest.map(a=>updateMap.has(a.id)?{...a,...updateMap.get(a.id)}:a);
+      setApps(next);
+      await saveData(CHAILEASE_KEY,next);
+    })();
+  },[apps,isAdmin]);
+
   // Keeps the displayed list current without needing a manual refresh —
   // complements the re-fetch-before-save fix in save()/deleteApp() below,
   // which is what actually prevents data loss; this just keeps what's
