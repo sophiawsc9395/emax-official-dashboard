@@ -2815,10 +2815,8 @@ export default function App(){
       {id:"daily",label:"Daily Entry"},
     ]},
     {id:"rto",label:"Rent to Own"},
-    {group:"purchasing",label:"Purchasing",children:[
-      {id:"orders",label:"Order Tracking"},
-      {id:"purchaseOrder",label:"Purchase Order"},
-    ]},
+    {id:"orders",label:"Order Tracking"},
+    {id:"purchaseOrder",label:"Purchase Order"},
     {id:"dailySales",label:"Daily Sales Report"},
     {group:"ccmApplication",label:"CCM Application",children:[
       {id:"jclApplications",label:"JCL Application"},
