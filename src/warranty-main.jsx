@@ -1,30 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
-import OrderTab from './OrderTab.jsx'
-import DailySalesTab from './DailySalesTab.jsx'
-import PurchaseOrderTab from './PurchaseOrderTab.jsx'
-import StockTransferTab from './StockTransferTab.jsx'
 import WarrantyTab from './WarrantyTab.jsx'
 import StockWriteOffTab from './StockWriteOffTab.jsx'
 import AuthGate from './auth/AuthGate.jsx'
-import { mergeOrderPermissions, ORDER_USER_ROLES, getDailySalesAccess } from './auth/orderRoles.js'
 import { supabase, loadData } from './storage/index.js'
 
-// Knock-off role is deliberately excluded here — she has her own dedicated
-// login (knockoff.html) that already includes Order Tracking merged in, so
-// allowing her here too would just be a second, redundant way in. Her role
-// definition stays in orderRoles.js untouched, since knockoff.html's
-// permission lookup still depends on it. emaxjcl@gmail.com now has her own
-// dedicated page (ccm.html) for JCL/Chailease Application instead — she was
-// never in ORDER_USER_ROLES to begin with (only reached this page before
-// via a separate JCL_ONLY_EMAILS allowlist, now removed).
-const ALLOWED = Object.keys(ORDER_USER_ROLES).filter(e => e !== "emaxknockoff@gmail.com")
+// Dedicated page for emaxwarranty@gmail.com — she couldn't reliably reach
+// Warranty/Stock Write-off through boss.html (a shared, multi-role page
+// with several gates layered on top of each other), so this page exists
+// solely for her, with both pages grouped under one menu, matching the
+// same look as ccm.html (emaxjcl@gmail.com's own dedicated page).
+const ALLOWED = ["emaxwarranty@gmail.com", "sophiawsc9395@gmail.com"]
 
 const SR_KEY = "emax_v5_sr_list", BM_KEY = "emax_v5_branch_meta"
 
-// This is the exact CSS OrderTab.jsx's classNames (.card, .detail-grid,
-// .order-info-grid, .fade-in, etc.) depend on — without it the detail page
-// loses its two-column layout, spacing, and responsive breakpoints entirely.
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -43,26 +32,8 @@ const CSS = `
   .modal-overlay{position:fixed;inset:0;background:rgba(10,22,40,.65);backdrop-filter:blur(4px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
   tfoot td{white-space:nowrap!important;}
   thead th{white-space:nowrap!important;}
-  .order-info-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:20px;}
-  .order-info-grid .oi-full{grid-column:1/-1;}
-  .order-info-grid .oi-value{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  @media (max-width:640px){
-    .order-info-grid{grid-template-columns:1fr;}
-    .order-info-grid .oi-value{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word;}
-  }
-  .detail-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
-  .detail-topbar-back{order:1;}
-  .detail-topbar-title{order:3;flex-basis:100%;}
-  .detail-topbar-actions{order:2;}
-  .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;}
-  .pb-row{display:flex;align-items:flex-start;gap:0;margin-bottom:12px;}
-  .pb-label{font-size:9px;}
   @media (max-width:640px){
     .detail-grid{grid-template-columns:1fr;}
-  }
-  @media (max-width:480px){
-    .pb-label{display:none;}
-    .pb-circle{width:18px!important;height:18px!important;}
   }
 `;
 
@@ -80,27 +51,30 @@ const DEFAULT_BRANCH_META = {
   SDK:{name:"EC SDK",manager:"",mStatus:""},
 }
 
-function OrderOnlyApp(){
+const SIDEBAR_STRUCTURE = [
+  {id:"warranty",label:"Warranty"},
+  {id:"stockWriteOff",label:"Stock Write-off"},
+]
+
+function WarrantyApp(){
   const [email, setEmail] = useState(null)
   const [branchMeta, setBranchMeta] = useState(DEFAULT_BRANCH_META)
-  const [srList, setSrList] = useState([])
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTab, setPageTabRaw] = useState(() => {
     const h = window.location.hash.replace('#', '')
-    return ['orders', 'dailySales', 'purchaseOrder', 'stockTransfer', 'warranty', 'stockWriteOff'].includes(h) ? h : 'orders'
+    return ['warranty', 'stockWriteOff'].includes(h) ? h : 'warranty'
   })
   const setPageTab = (t) => { setPageTabRaw(t); window.location.hash = t }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setEmail(data.session?.user?.email || null))
-    Promise.all([loadData(BM_KEY), loadData(SR_KEY)]).then(([bm, sr]) => {
+    Promise.all([loadData(BM_KEY), loadData(SR_KEY)]).then(([bm]) => {
       if (bm && Object.keys(bm).length) {
         const merged = { ...DEFAULT_BRANCH_META, ...bm }
         Object.keys(merged).forEach(b => { merged[b] = { ...merged[b], name: b==="SDK"?DEFAULT_BRANCH_META[b]?.name:(merged[b]?.name || DEFAULT_BRANCH_META[b]?.name) } })
         setBranchMeta(merged)
       }
-      if (Array.isArray(sr)) setSrList(sr)
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [])
@@ -114,24 +88,6 @@ function OrderOnlyApp(){
     </div>
   }
 
-  const orderPermissions = mergeOrderPermissions(email)
-  const isSuperAdminForPO = !orderPermissions || orderPermissions.adminSteps === "all"
-  const isPurchaseRole = orderPermissions && orderPermissions.adminSteps !== "all" && orderPermissions.adminSteps.includes(2)
-  const canSeePurchaseOrder = isSuperAdminForPO || isPurchaseRole
-  const isStockRole = orderPermissions && orderPermissions.adminSteps !== "all" && orderPermissions.adminSteps.includes(4)
-  const canSeeStockTransfer = isSuperAdminForPO || isStockRole
-  // Purchase and Stock roles never had step 7 (Billed) in their adminSteps,
-  // which is what getDailySalesAccess actually checks for canSubmit — so
-  // they were already functionally locked out of doing anything here, just
-  // seeing an empty tab. This hides the tab itself for them, keeping it
-  // for whoever genuinely has capability (Billing, Manager, Sophia).
-  const canSeeDailySales = isSuperAdminForPO || (orderPermissions && orderPermissions.adminSteps !== "all" && orderPermissions.adminSteps.includes(7))
-  // Warranty and Stock Write-off both have a step that specifically
-  // requires emaxstock@gmail.com to upload a Stock Transfer File — so she
-  // needs to reach both pages from here, same as her existing Stock
-  // Transfer access. Also open to whoever is a super-admin on this page.
-  const canSeeWarrantyStockOff = isSuperAdminForPO || email === "emaxstock@gmail.com"
-
   return (
     <div style={{ minHeight:"100vh", background:"#F7F9FC", fontFamily:"Inter,-apple-system,sans-serif" }}>
       <style>{CSS}</style>
@@ -142,6 +98,7 @@ function OrderOnlyApp(){
             <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
               <div>
                 <div style={{ fontWeight:900, fontSize:12, color:"#fff", letterSpacing:"0.06em", lineHeight:1 }}>EMAX NETWORK</div>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,.3)", letterSpacing:"0.14em", textTransform:"uppercase", marginTop:1 }}>Warranty</div>
               </div>
             </div>
             <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap", rowGap:6 }}>
@@ -157,20 +114,8 @@ function OrderOnlyApp(){
       <div style={{ display:"flex", maxWidth:1400, margin:"0 auto" }}>
         {/* MAIN CONTENT */}
         <div style={{ flex:1, minWidth:0, padding:"20px", maxWidth:1180 }}>
-          <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-            {[["orders","Order Tracking"],...(canSeeDailySales?[["dailySales","Daily Sales Report"]]:[]),...(canSeePurchaseOrder?[["purchaseOrder","Purchase Order"]]:[]),...(canSeeStockTransfer?[["stockTransfer","Stock Transfer"]]:[]),...(canSeeWarrantyStockOff?[["warranty","Warranty"],["stockWriteOff","Stock Write-off"]]:[])].map(([id,label])=>(
-              <button key={id} onClick={()=>setPageTab(id)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${pageTab===id?"#0A1628":"#E4EAF2"}`,background:pageTab===id?"#0A1628":"#fff",color:pageTab===id?"#fff":"#4A5568",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{label}</button>
-            ))}
-          </div>
-          {pageTab==="orders" && <OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} isReadOnly={false} orderPermissions={orderPermissions} email={email} />}
-          {canSeeDailySales && pageTab==="dailySales" && (()=>{
-            const {isSuperAdminOrder,canSubmit,canVerify} = getDailySalesAccess(true, orderPermissions, false)
-            return <DailySalesTab branchMeta={branchMeta} isAdmin={isSuperAdminOrder} canSubmit={canSubmit} canVerify={canVerify} email={email} />
-          })()}
-          {canSeePurchaseOrder && pageTab==="purchaseOrder" && <PurchaseOrderTab branchMeta={branchMeta} isAdmin={true} />}
-          {canSeeStockTransfer && pageTab==="stockTransfer" && <StockTransferTab canCreate={true} branchMeta={branchMeta} email={email} />}
-          {canSeeWarrantyStockOff && pageTab==="warranty" && <WarrantyTab branchMeta={branchMeta} isAdmin={true} email={email} />}
-          {canSeeWarrantyStockOff && pageTab==="stockWriteOff" && <StockWriteOffTab branchMeta={branchMeta} isAdmin={true} email={email} />}
+          {pageTab==="warranty" && <WarrantyTab branchMeta={branchMeta} isAdmin={true} userBranch={null} email={email} />}
+          {pageTab==="stockWriteOff" && <StockWriteOffTab branchMeta={branchMeta} isAdmin={true} userBranch={null} email={email} />}
         </div>
 
         {/* SIDEBAR — right side, collapsible, same treatment as the main dashboard's */}
@@ -180,8 +125,18 @@ function OrderOnlyApp(){
           minHeight:"calc(100vh - 49px)", position:"sticky", top:49, alignSelf:"flex-start",
         }}>
           <div style={{ width:220, padding:"16px 10px", visibility:sidebarOpen?"visible":"hidden" }}>
+            {SIDEBAR_STRUCTURE.map(item=>(
+              <button key={item.id} onClick={()=>{setPageTab(item.id);setSidebarOpen(false);}} style={{
+                display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+                border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                background:pageTab===item.id?"rgba(255,255,255,.1)":"transparent",color:pageTab===item.id?"#fff":"rgba(255,255,255,.45)",
+                transition:"background .15s",
+              }}>
+                {item.label}
+              </button>
+            ))}
+            <div style={{ width:"100%", height:1, background:"rgba(255,255,255,.08)", margin:"10px 0" }}/>
             <div style={{ padding:"9px 12px", marginBottom:3, fontSize:11, color:"rgba(255,255,255,.35)", wordBreak:"break-all" }}>{email}</div>
-            <div style={{ width:"100%", height:1, background:"rgba(255,255,255,.08)", margin:"6px 0 10px" }}/>
             <button onClick={()=>supabase.auth.signOut()} style={{
               display:"flex", alignItems:"center", gap:8, width:"100%", textAlign:"left", padding:"9px 12px",
               border:"none", cursor:"pointer", fontFamily:"Inter,sans-serif", fontWeight:600, fontSize:12, borderRadius:8,
@@ -200,7 +155,7 @@ function OrderOnlyApp(){
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <AuthGate allowedEmails={ALLOWED}>
-      <OrderOnlyApp />
+      <WarrantyApp />
     </AuthGate>
   </React.StrictMode>
 )

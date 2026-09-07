@@ -37,6 +37,31 @@ const statusMeta={
   printed:{label:"Printed",bg:"#F0FDF4",fg:"#15803D",border:"#BBF7D0"},
 };
 
+// Icons per status, matching Order Tracking's own icon set.
+const Ic={
+  fileText:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>,
+  clock:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  alertCircle:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+  checkCircle:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  printer:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>,
+};
+const STATUS_ICONS={requested:Ic.fileText,pending:Ic.clock,rejected:Ic.alertCircle,completed:Ic.checkCircle,printed:Ic.printer};
+
+// KPI card, matching Order Tracking's own clickable step-count cards -
+// colored top border, icon swatch tinted from that status's color,
+// uppercase label, large bold count. Doubles as a filter: clicking
+// toggles filtering the list down to that status.
+function StatusCard({status,count,active,onClick}){
+  const m=statusMeta[status];
+  return<div onClick={onClick} style={{...card,border:`1px solid ${active?m.fg:C.border}`,borderTop:`3px solid ${m.fg}`,padding:"12px 14px 11px",display:"flex",flexDirection:"column",gap:9,cursor:"pointer",boxShadow:active?`0 0 0 1.5px ${m.fg}, 0 6px 16px rgba(10,22,40,.08)`:card.boxShadow,transition:"all .12s"}}>
+    <div style={{width:30,height:30,borderRadius:8,background:m.bg,color:m.fg,display:"flex",alignItems:"center",justifyContent:"center"}}>{STATUS_ICONS[status]}</div>
+    <div>
+      <div style={{fontSize:9.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:3}}>{m.label}</div>
+      <div style={{fontSize:21,fontWeight:800,color:count?C.navy:"#C3CCDA",lineHeight:1}}>{count}</div>
+    </div>
+  </div>;
+}
+
 function SecHdr({children}){
   return<div style={{padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>{children}</div>;
 }
@@ -65,6 +90,7 @@ export default function DailyPaymentTab({email}){
   const [fulfillingId,setFulfillingId]=useState(null);
   const [fulfillFile,setFulfillFile]=useState(null);
   const [fulfilling,setFulfilling]=useState(false);
+  const [filterStatus,setFilterStatus]=useState("all");
 
   const isSophia=(email||"").toLowerCase()===SOPHIA_EMAIL;
 
@@ -75,6 +101,7 @@ export default function DailyPaymentTab({email}){
     setRejectingId(null);setRejectReasonInput("");
     setShowRequest(false);setRequestPayee("");setRequestDescription("");
     setFulfillingId(null);setFulfillFile(null);
+    setFilterStatus("all");
     (async()=>{
       const list=(await loadData(keyFor(company)))||[];
       setEntries(list);
@@ -209,11 +236,24 @@ export default function DailyPaymentTab({email}){
     </div>;
   };
 
-  const activeEntries=entries.filter(e=>e.status!=="printed");
-  const historyEntries=entries.filter(e=>e.status==="printed");
+  const allActiveByStatus=entries.filter(e=>e.status!=="printed");
+  const printedEntries=entries.filter(e=>e.status==="printed");
+  const statusCounts=Object.keys(statusMeta).reduce((acc,s)=>({...acc,[s]:s==="printed"?printedEntries.length:allActiveByStatus.filter(e=>e.status===s).length}),{});
+  // "Printed" entries live in a separate list (historyEntries) by
+  // design, not within the active list at all - filtering the active
+  // list for "printed" would always come back empty even though the
+  // count shows correctly, so that specific case pulls from
+  // printedEntries instead.
+  const activeEntries=filterStatus==="all"?allActiveByStatus:filterStatus==="printed"?printedEntries:allActiveByStatus.filter(e=>e.status===filterStatus);
+  const historyEntries=printedEntries;
 
   return<div>
     {tabBar}
+
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:14}}>
+      {Object.keys(statusMeta).map(s=><StatusCard key={s} status={s} count={statusCounts[s]} active={filterStatus===s} onClick={()=>setFilterStatus(filterStatus===s?"all":s)}/>)}
+    </div>
+
     <div style={{...card}}>
       <SecHdr>Daily Payment — {COMPANIES.find(c=>c.key===company)?.label}</SecHdr>
 

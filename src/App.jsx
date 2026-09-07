@@ -15,6 +15,8 @@ import DailyPaymentTab, {COMPANIES as DAILY_PAYMENT_COMPANIES, keyFor as dailyPa
 import StockProfitTab from "./StockProfitTab.jsx";
 import StockTransferTab from "./StockTransferTab.jsx";
 import DailyReportPanel from "./DailyReportPanel.jsx";
+import WarrantyTab from "./WarrantyTab.jsx";
+import StockWriteOffTab from "./StockWriteOffTab.jsx";
 
 const T = {
   navy:"#0A1628", navyMid:"#0F2040", navyLight:"#162B52",
@@ -2817,6 +2819,8 @@ export default function App(){
     {id:"rto",label:"Rent to Own"},
     {id:"orders",label:"Order Tracking"},
     {id:"purchaseOrder",label:"Purchase Order"},
+    {id:"warranty",label:"Warranty"},
+    {id:"stockWriteOff",label:"Stock Write-off"},
     {id:"dailySales",label:"Daily Sales Report"},
     {group:"ccmApplication",label:"CCM Application",children:[
       {id:"jclApplications",label:"JCL Application"},
@@ -3085,6 +3089,8 @@ export default function App(){
       {tab==="jclApplications"&&<JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={currentEmail}/>}
       {tab==="chaileaseApplications"&&<ChaileaseTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={currentEmail}/>}
       {tab==="purchaseOrder"&&<PurchaseOrderTab branchMeta={branchMeta} isAdmin={true}/>}
+      {tab==="warranty"&&<WarrantyTab branchMeta={branchMeta} isAdmin={true} email={currentEmail}/>}
+      {tab==="stockWriteOff"&&<StockWriteOffTab branchMeta={branchMeta} isAdmin={true} email={currentEmail}/>}
       {tab==="dailyPayment"&&<DailyPaymentTab email={currentEmail}/>}
       {tab==="stockProfit"&&<StockProfitTab email={currentEmail}/>}
       {tab==="stockTransfer"&&<StockTransferTab canCreate={true} branchMeta={branchMeta} email={currentEmail}/>}

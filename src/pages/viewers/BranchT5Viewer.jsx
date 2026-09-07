@@ -6,6 +6,8 @@ import { loadData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
 import JCLTab from "../../JCLTab.jsx";
+import WarrantyTab from "../../WarrantyTab.jsx";
+import StockWriteOffTab from "../../StockWriteOffTab.jsx";
 import ChaileaseTab from "../../ChaileaseTab.jsx";
 import StockProfitTab from "../../StockProfitTab.jsx";
 import StockTransferTab from "../../StockTransferTab.jsx";
@@ -383,7 +385,7 @@ export default function App(){
   const [allSRList,setAllSRList]=useState(DEFAULT_SR); // all branches, for company-wide ranking
   const [bMeta,setBMeta]=useState(DEFAULT_BRANCH_META);
   const [loading,setLoading]=useState(true);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications","chaileaseApplications","stockProfit","stockTransfer"].includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications","chaileaseApplications","stockProfit","stockTransfer","warranty","stockWriteOff"].includes(h)?h:"overview";});
   const SIDEBAR_STRUCTURE=[
     {id:"overview",label:"Performance"},
     {group:"ranking",label:"Ranking",children:[
@@ -394,6 +396,8 @@ export default function App(){
     {id:"dailySales",label:"Daily Sales Report"},
     {group:"ccmApplication",label:"CCM Application",children:[
       {id:"jclApplications",label:"JCL Application"},
+      {id:"warranty",label:"Warranty"},
+      {id:"stockWriteOff",label:"Stock Write-off"},
       {id:"chaileaseApplications",label:"Chailease Application"},
     ]},
     {id:"stockProfit",label:"Stock Profit Checker"},
@@ -633,6 +637,8 @@ export default function App(){
       {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
       {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} canSubmit={false} canVerify={false}/></div>}
       {tab==="jclApplications"&&<div className="fade-in"><JCLTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
+      {tab==="warranty"&&<div className="fade-in"><WarrantyTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID}/></div>}
+      {tab==="stockWriteOff"&&<div className="fade-in"><StockWriteOffTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID}/></div>}
       {tab==="chaileaseApplications"&&<div className="fade-in"><ChaileaseTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
       {tab==="stockProfit"&&<div className="fade-in"><StockProfitTab/></div>}
       {tab==="stockTransfer"&&<div className="fade-in"><StockTransferTab canCreate={false} userBranch={BRANCH_ID} branchMeta={bMeta}/></div>}

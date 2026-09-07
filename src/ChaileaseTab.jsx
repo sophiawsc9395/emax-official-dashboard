@@ -739,11 +739,7 @@ function AdminActions({app,onSaved,onCreateOrder}){
   const [deposit,setDeposit]=useState(app.deposit||"");
   const [approveTenure,setApproveTenure]=useState(app.tenure||"12");
   const [monthlyInstallment,setMonthlyInstallment]=useState(app.monthlyInstallment||"");
-  const [chaileaseApplicationForm,setJclApplicationForm]=useState(null);
-  const [chaileaseNotice1,setJclNotice1]=useState(null);
   const [chaileaseAgreementChaileaseCopy,setJclAgreementChaileaseCopy]=useState(null);
-  const [chaileaseAgreementCustomerCopy,setJclAgreementCustomerCopy]=useState(null);
-  const [chaileaseCreditAckForm,setJclCreditAckForm]=useState(null);
   const [showReject,setShowReject]=useState(false);
   const [rejectedRemark,setRejectedRemark]=useState("");
   const [saving,setSaving]=useState(false);
@@ -768,18 +764,12 @@ function AdminActions({app,onSaved,onCreateOrder}){
       history:[...(app.history||[]),{step:1,date:nowDate(),time:nowTime(),note:`Amendment requested: ${amendmentRemark}`}]});
     setSaving(false);setShowAmendment(false);setAmendmentRemark("");
   };
-  const approveMissing=!agreementNumber.trim()||!merchantApprovalDate||!approveFinancePrice.toString().trim()||!agreementFee.toString().trim()||!stampingFee.toString().trim()||!deposit.toString().trim()||!approveTenure||!monthlyInstallment.toString().trim()||!chaileaseApplicationForm||!chaileaseNotice1||!chaileaseAgreementChaileaseCopy||!chaileaseAgreementCustomerCopy||!chaileaseCreditAckForm;
+  const approveMissing=!agreementNumber.trim()||!merchantApprovalDate||!approveFinancePrice.toString().trim()||!agreementFee.toString().trim()||!stampingFee.toString().trim()||!deposit.toString().trim()||!approveTenure||!monthlyInstallment.toString().trim()||!chaileaseAgreementChaileaseCopy;
   const approve=async()=>{
     if(approveMissing){alert("Please fill in every field and upload every document before approving — these are needed to create the order.");return;}
     setSaving(true);
-    const[applicationForm,notice1,agreementChaileaseCopy,agreementCustomerCopy,creditAckForm]=await Promise.all([
-      readAppFile(chaileaseApplicationForm,`${app.id}_applicationForm`),
-      readAppFile(chaileaseNotice1,`${app.id}_notice1`),
-      readAppFile(chaileaseAgreementChaileaseCopy,`${app.id}_agreementChaileaseCopy`),
-      readAppFile(chaileaseAgreementCustomerCopy,`${app.id}_agreementCustomerCopy`),
-      readAppFile(chaileaseCreditAckForm,`${app.id}_creditAckForm`),
-    ]);
-    const chaileaseDocuments={applicationForm,notice1,agreementChaileaseCopy,agreementCustomerCopy,creditAckForm};
+    const agreementChaileaseCopy=await readAppFile(chaileaseAgreementChaileaseCopy,`${app.id}_agreementChaileaseCopy`);
+    const chaileaseDocuments={agreementChaileaseCopy};
     const updated={...app,step:4,approvedDate:nowDate(),approvedRemark,
       agreementNumber,merchantApprovalDate,financePrice:parseFloat(approveFinancePrice)||0,
       agreementFee:parseFloat(agreementFee)||0,stampingFee:parseFloat(stampingFee)||0,deposit:parseFloat(deposit)||0,
@@ -862,11 +852,7 @@ function AdminActions({app,onSaved,onCreateOrder}){
       </div>
       <div style={{fontSize:11,fontWeight:700,color:C.blueBright,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Documents (required to create the order)</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
-        <div><L req>Application Form</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setJclApplicationForm(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{chaileaseApplicationForm&&<div style={{fontSize:10,color:"#15803D",marginTop:2}}>{chaileaseApplicationForm.name}</div>}</div>
-        <div><L req>Notice 1</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setJclNotice1(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{chaileaseNotice1&&<div style={{fontSize:10,color:"#15803D",marginTop:2}}>{chaileaseNotice1.name}</div>}</div>
-        <div><L req>Agreement Form (Chailease Copy)</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setJclAgreementChaileaseCopy(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{chaileaseAgreementChaileaseCopy&&<div style={{fontSize:10,color:"#15803D",marginTop:2}}>{chaileaseAgreementChaileaseCopy.name}</div>}</div>
-        <div><L req>Agreement Form (Customer Copy)</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setJclAgreementCustomerCopy(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{chaileaseAgreementCustomerCopy&&<div style={{fontSize:10,color:"#15803D",marginTop:2}}>{chaileaseAgreementCustomerCopy.name}</div>}</div>
-        <div style={{gridColumn:"1/-1"}}><L req>Credit Sales Acknowledge Form</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setJclCreditAckForm(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{chaileaseCreditAckForm&&<div style={{fontSize:10,color:"#15803D",marginTop:2}}>{chaileaseCreditAckForm.name}</div>}</div>
+        <div style={{gridColumn:"1/-1"}}><L req>Chailease Agreement</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setJclAgreementChaileaseCopy(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{chaileaseAgreementChaileaseCopy&&<div style={{fontSize:10,color:"#15803D",marginTop:2}}>{chaileaseAgreementChaileaseCopy.name}</div>}</div>
       </div>
       <L>Remark (optional)</L>
       <I value={approvedRemark} onChange={e=>setApprovedRemark(e.target.value)} style={{marginBottom:8}}/>
@@ -1413,11 +1399,11 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
       {STEPS.map(s=>{
         const active=stepFilter===s.step;
         const count=stepCounts[s.step]||0;
-        return<div key={s.step} onClick={()=>setStepFilter(active?"all":s.step)} style={{...card,border:`1px solid ${active?s.color:C.border}`,padding:"12px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",boxShadow:active?`0 0 0 1.5px ${s.color}, 0 6px 16px rgba(10,22,40,.08)`:card.boxShadow}}>
-          <div style={{width:38,height:38,borderRadius:10,background:s.bg,color:s.color,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{STEP_ICONS[s.step]}</div>
-          <div style={{minWidth:0}}>
-            <div style={{fontSize:9.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{s.label}</div>
-            <div style={{fontSize:20,fontWeight:800,color:count?C.text:"#C3CCDA",lineHeight:1}}>{count}</div>
+        return<div key={s.step} onClick={()=>setStepFilter(active?"all":s.step)} style={{...card,border:`1px solid ${active?s.color:C.border}`,borderTop:`3px solid ${s.color}`,padding:"12px 14px 11px",display:"flex",flexDirection:"column",gap:9,cursor:"pointer",boxShadow:active?`0 0 0 1.5px ${s.color}, 0 6px 16px rgba(10,22,40,.08)`:card.boxShadow,transition:"all .12s"}}>
+          <div style={{width:30,height:30,borderRadius:8,background:s.bg,color:s.color,display:"flex",alignItems:"center",justifyContent:"center"}}>{STEP_ICONS[s.step]}</div>
+          <div>
+            <div style={{fontSize:9.5,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:3}}>{s.label}</div>
+            <div style={{fontSize:21,fontWeight:800,color:count?C.navy:"#C3CCDA",lineHeight:1}}>{count}</div>
           </div>
         </div>;
       })}
