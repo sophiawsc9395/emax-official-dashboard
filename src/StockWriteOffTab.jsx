@@ -27,6 +27,7 @@ const stepDef=n=>STEPS.find(s=>s.step===n)||STEPS[0];
 
 const Ic={
   chevL:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>,
+  chevR:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>,
   trash:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
   plus:<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
   fileText:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>,
@@ -202,14 +203,12 @@ function AdminStepActionsInner({app,email,onAdvance}){
   const [transferFile,setTransferFile]=useState(null);
   const [transferNo,setTransferNo]=useState("");
   const [saving,setSaving]=useState(false);
-  const isStockRole=(email||"").toLowerCase()===STOCK_EMAIL;
+  const canUploadStockTransfer=["sophiawsc9395@gmail.com","boontheng2004@gmail.com",STOCK_EMAIL].includes((email||"").toLowerCase());
 
   if(app.step===1)return<div>
     <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Upload the Stock Transfer File before this can be marked received at HQ.</div>
-    {!isStockRole&&<div style={{fontSize:11,color:"#B45309",marginBottom:8}}>Only {STOCK_EMAIL} can upload this file.</div>}
     <L req>Stock Transfer File</L>
-    <input type="file" disabled={!isStockRole} onChange={e=>setTransferFile(e.target.files[0]||null)} style={{fontSize:12}}/>
-    <div style={{fontSize:10,color:C.textLight,marginTop:3}}>Upload restricted to <strong>{STOCK_EMAIL}</strong></div>
+    <input type="file" disabled={!canUploadStockTransfer} onChange={e=>setTransferFile(e.target.files[0]||null)} style={{fontSize:12}}/>
     {transferFile&&<div style={{fontSize:10,color:"#15803D",marginTop:6,fontWeight:600}}>{transferFile.name}</div>}
     <div style={{marginTop:12}}><PBtn disabled={!transferFile||saving} onClick={async()=>{
       setSaving(true);
@@ -275,7 +274,7 @@ function WriteOffDetail({app,branchMeta,isAdmin,canEditDelete,email,fileUrls,onB
         <div style={{padding:"14px 16px"}}><Timeline app={app}/></div>
       </div>
       <div style={card}>
-        <SecHdr>Action Panel</SecHdr>
+        <SecHdr icon={Ic.chevR}>{app.step<3?`Next: ${stepDef(app.step+1).label}`:"Status"}</SecHdr>
         <div style={{padding:16}}>
           {isAdmin&&app.step<3
             ?<AdminStepActionsInner app={app} email={email} onAdvance={onAdvance}/>
