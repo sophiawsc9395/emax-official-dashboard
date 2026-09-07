@@ -62,6 +62,11 @@ function StepBadge({step}){
   return<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{s.label}</span>;
 }
 
+// Navy gradient section header, matching Order Tracking's SecHdr exactly.
+function SecHdr({icon,children}){
+  return<div style={{display:"flex",alignItems:"center",gap:7,padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>{icon&&<span style={{color:"rgba(255,255,255,.85)"}}>{icon}</span>}{children}</div>;
+}
+
 function readAppFile(f,syntheticId){
   return new Promise((res,rej)=>{
     if(!f.type||!f.type.startsWith("image/")){uploadOrderFile(syntheticId,f,f.name).then(res).catch(rej);return;}
@@ -207,7 +212,10 @@ function RequestForm({branchMeta,userBranch,editingApp,onSaved,onCancel}){
   </div>;
 }
 
-function AdminStepActions({app,email,onAdvance}){
+// No outer card/SecHdr here — this renders straight inside the Action
+// Panel's own card+SecHdr wrapper in RequestDetail, avoiding a
+// card-within-a-card.
+function AdminStepActionsInner({app,email,onAdvance}){
   const [transferFile,setTransferFile]=useState(null);
   const [serviceForm,setServiceForm]=useState(null);
   const [consignmentNote,setConsignmentNote]=useState("");
@@ -216,9 +224,8 @@ function AdminStepActions({app,email,onAdvance}){
   const isStockRole=(email||"").toLowerCase()===STOCK_EMAIL;
   const restrictedNote=<div style={{fontSize:10,color:C.textLight,marginTop:3}}>Upload restricted to <strong>{STOCK_EMAIL}</strong></div>;
 
-  if(app.step===1)return<div style={{...card,padding:16,marginTop:16}}>
-    <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:700}}>Admin Action</div>
-    <div style={{fontSize:12,color:C.textMid,margin:"4px 0 10px"}}>Upload the Stock Transfer File before this can move to Received by HQ.</div>
+  if(app.step===1)return<div>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Upload the Stock Transfer File before this can move to Received by HQ.</div>
     {!isStockRole&&<div style={{fontSize:11,color:"#B45309",marginBottom:8}}>Only {STOCK_EMAIL} can upload this file.</div>}
     <L req>Stock Transfer File</L>
     <input type="file" disabled={!isStockRole} onChange={e=>setTransferFile(e.target.files[0]||null)} style={{fontSize:12}}/>
@@ -232,9 +239,8 @@ function AdminStepActions({app,email,onAdvance}){
     }}>{Ic.box} {saving?"Saving…":"Mark Received by HQ"}</PBtn></div>
   </div>;
 
-  if(app.step===2)return<div style={{...card,padding:16,marginTop:16}}>
-    <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:700}}>Admin Action</div>
-    <div style={{fontSize:12,color:C.textMid,margin:"4px 0 10px"}}>Upload the Service Form before this can move to Transfer to Service Center.</div>
+  if(app.step===2)return<div>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Upload the Service Form before this can move to Transfer to Service Center.</div>
     <L req>Service Form</L>
     <input type="file" onChange={e=>setServiceForm(e.target.files[0]||null)} style={{fontSize:12}}/>
     {serviceForm&&<div style={{fontSize:10,color:"#15803D",marginTop:6,fontWeight:600}}>{serviceForm.name}</div>}
@@ -246,9 +252,8 @@ function AdminStepActions({app,email,onAdvance}){
     }}>{Ic.truck} {saving?"Saving…":"Transfer to Service Center"}</PBtn></div>
   </div>;
 
-  if(app.step===3)return<div style={{...card,padding:16,marginTop:16}}>
-    <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:700}}>Admin Action</div>
-    <div style={{fontSize:12,color:C.textMid,margin:"4px 0 10px"}}>Write the Consignment Note and upload the Stock Transfer File before this can move to Return to Branch.</div>
+  if(app.step===3)return<div>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Write the Consignment Note and upload the Stock Transfer File before this can move to Return to Branch.</div>
     <L req>Consignment Note</L>
     <TX value={consignmentNote} onChange={e=>setConsignmentNote(e.target.value)} rows={3} style={{marginBottom:10}} placeholder="e.g. CN-88213, 1 unit, condition notes…"/>
     {!isStockRole&&<div style={{fontSize:11,color:"#B45309",marginBottom:8}}>Only {STOCK_EMAIL} can upload this file.</div>}
@@ -264,9 +269,8 @@ function AdminStepActions({app,email,onAdvance}){
     }}>{Ic.rotate} {saving?"Saving…":"Return to Branch"}</PBtn></div>
   </div>;
 
-  if(app.step===4)return<div style={{...card,padding:16,marginTop:16}}>
-    <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:700}}>Admin Action</div>
-    <div style={{fontSize:12,color:C.textMid,margin:"4px 0 10px"}}>Confirm this warranty case is fully closed.</div>
+  if(app.step===4)return<div>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Confirm this warranty case is fully closed.</div>
     <PBtn disabled={saving} onClick={async()=>{
       setSaving(true);
       await onAdvance({...app,step:5,history:[...app.history,{step:5,date:nowDate(),time:nowTime(),note:"Returned to customer — case closed."}]});
@@ -291,28 +295,45 @@ function RequestDetail({app,branchMeta,isAdmin,canEditDelete,email,fileUrls,onBa
       </div>
     </div>
     <ProgressBar step={app.step}/>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-      <div>
-        <div style={{...card,padding:20}}>
-          <h2 style={{fontSize:16,fontWeight:800,color:C.navy,margin:"0 0 16px"}}>{app.deviceName}</h2>
-          {[["Branch",branchMeta[app.branch]?.name||app.branch],["Customer Name",app.customerName],["Customer Phone",app.customerPhone],["Request Date",fDate(app.requestDate)],["IMEI Number",app.imei],["Date Sent Back to HQ",fDate(app.sendDate)]].map(([l,v])=><div key={l} style={{padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
-            <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:700}}>{l}</div>
-            <div style={{fontSize:13,color:C.text,fontWeight:600,marginTop:2}}>{v||"—"}</div>
-          </div>)}
-          <div style={{padding:"10px 0 0",display:"flex",gap:8,flexWrap:"wrap"}}>
-            {app.invoiceFile&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"invoiceFile",fileUrls))}>{Ic.fileText} Invoice</GBtn>}
-            {app.proofFile&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"proofFile",fileUrls))}>{Ic.fileText} Defect Proof</GBtn>}
-            {app.stockTransferFile1&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"stockTransferFile1",fileUrls))}>{Ic.fileText} Stock Transfer File (Received)</GBtn>}
-            {app.serviceForm&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"serviceForm",fileUrls))}>{Ic.fileText} Service Form</GBtn>}
-            {app.stockTransferFile2&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"stockTransferFile2",fileUrls))}>{Ic.fileText} Stock Transfer File (Return)</GBtn>}
-          </div>
-          {app.consignmentNote&&<div style={{marginTop:10,padding:10,background:C.surface,borderRadius:8,fontSize:12,color:C.textMid}}><strong style={{color:C.text}}>Consignment Note:</strong> {app.consignmentNote}</div>}
+
+    {/* Warranty info summary - full width, above the timeline/action grid,
+        matching Order Tracking's own "Order Information" card exactly. */}
+    <div style={{...card,marginBottom:14}}>
+      <SecHdr icon={Ic.fileText}>Warranty Information</SecHdr>
+      <div style={{padding:"6px 16px 10px"}}>
+        <div style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+          <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Device Name</div>
+          <div style={{fontSize:13,color:C.text,fontWeight:600}}>{app.deviceName}</div>
         </div>
-        {isAdmin&&app.step<5&&<AdminStepActions app={app} email={email} onAdvance={onAdvance}/>}
+        {[["Branch",branchMeta[app.branch]?.name||app.branch],["Customer Name",app.customerName],["Customer Phone",app.customerPhone],["Request Date",fDate(app.requestDate)],["IMEI Number",app.imei],["Date Sent Back to HQ",fDate(app.sendDate)]].map(([l,v])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+          <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
+          <div style={{fontSize:13,color:C.text,fontWeight:600}}>{v||"—"}</div>
+        </div>)}
+        <div style={{padding:"10px 0 0",display:"flex",gap:8,flexWrap:"wrap"}}>
+          {app.invoiceFile&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"invoiceFile",fileUrls))}>{Ic.fileText} Invoice</GBtn>}
+          {app.proofFile&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"proofFile",fileUrls))}>{Ic.fileText} Defect Proof</GBtn>}
+          {app.stockTransferFile1&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"stockTransferFile1",fileUrls))}>{Ic.fileText} Stock Transfer File (Received)</GBtn>}
+          {app.serviceForm&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"serviceForm",fileUrls))}>{Ic.fileText} Service Form</GBtn>}
+          {app.stockTransferFile2&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"stockTransferFile2",fileUrls))}>{Ic.fileText} Stock Transfer File (Return)</GBtn>}
+        </div>
+        {app.consignmentNote&&<div style={{marginTop:10,padding:10,background:C.surface,borderRadius:8,fontSize:12,color:C.textMid}}><strong style={{color:C.text}}>Consignment Note:</strong> {app.consignmentNote}</div>}
       </div>
-      <div style={{...card,padding:20}}>
-        <h3 style={{fontSize:13,fontWeight:800,color:C.navy,margin:"0 0 14px"}}>Tracking Timeline</h3>
-        <Timeline app={app}/>
+    </div>
+
+    {/* Two-col: timeline | action - matching Order Tracking's exact
+        layout, same navy SecHdr on both sides. */}
+    <div className="detail-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,alignItems:"start"}}>
+      <div style={card}>
+        <SecHdr icon={Ic.fileText}>Tracking Timeline</SecHdr>
+        <div style={{padding:"14px 16px"}}><Timeline app={app}/></div>
+      </div>
+      <div style={card}>
+        <SecHdr>Action Panel</SecHdr>
+        <div style={{padding:16}}>
+          {isAdmin&&app.step<5
+            ?<AdminStepActionsInner app={app} email={email} onAdvance={onAdvance}/>
+            :<div style={{fontSize:12,color:C.textLight,fontStyle:"italic",textAlign:"center",padding:"12px 0"}}>{app.step>=5?"Completed — no further action available.":"View only — actions disabled for this viewer."}</div>}
+        </div>
       </div>
     </div>
   </div>;

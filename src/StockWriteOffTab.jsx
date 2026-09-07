@@ -55,6 +55,11 @@ function StepBadge({step}){
   return<span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>{s.label}</span>;
 }
 
+// Navy gradient section header, matching Order Tracking's SecHdr exactly.
+function SecHdr({icon,children}){
+  return<div style={{display:"flex",alignItems:"center",gap:7,padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,fontSize:11,fontWeight:700,color:"#fff",textTransform:"uppercase",letterSpacing:"0.07em"}}>{icon&&<span style={{color:"rgba(255,255,255,.85)"}}>{icon}</span>}{children}</div>;
+}
+
 function readAppFile(f,syntheticId){
   return new Promise((res,rej)=>{
     if(!f.type||!f.type.startsWith("image/")){uploadOrderFile(syntheticId,f,f.name).then(res).catch(rej);return;}
@@ -190,15 +195,17 @@ function WriteOffForm({branchMeta,userBranch,editingApp,onSaved,onCancel}){
   </div>;
 }
 
-function AdminStepActions({app,email,onAdvance}){
+// No outer card/SecHdr here — this renders straight inside the Action
+// Panel's own card+SecHdr wrapper in WriteOffDetail, avoiding a
+// card-within-a-card.
+function AdminStepActionsInner({app,email,onAdvance}){
   const [transferFile,setTransferFile]=useState(null);
   const [transferNo,setTransferNo]=useState("");
   const [saving,setSaving]=useState(false);
   const isStockRole=(email||"").toLowerCase()===STOCK_EMAIL;
 
-  if(app.step===1)return<div style={{...card,padding:16,marginTop:16}}>
-    <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:700}}>Admin Action</div>
-    <div style={{fontSize:12,color:C.textMid,margin:"4px 0 10px"}}>Upload the Stock Transfer File before this can be marked received at HQ.</div>
+  if(app.step===1)return<div>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Upload the Stock Transfer File before this can be marked received at HQ.</div>
     {!isStockRole&&<div style={{fontSize:11,color:"#B45309",marginBottom:8}}>Only {STOCK_EMAIL} can upload this file.</div>}
     <L req>Stock Transfer File</L>
     <input type="file" disabled={!isStockRole} onChange={e=>setTransferFile(e.target.files[0]||null)} style={{fontSize:12}}/>
@@ -212,9 +219,8 @@ function AdminStepActions({app,email,onAdvance}){
     }}>{Ic.box} {saving?"Saving…":"Mark Received"}</PBtn></div>
   </div>;
 
-  if(app.step===2)return<div style={{...card,padding:16,marginTop:16}}>
-    <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:700}}>Admin Action</div>
-    <div style={{fontSize:12,color:C.textMid,margin:"4px 0 10px"}}>Enter the Stock Transfer Number to move this to suspense.</div>
+  if(app.step===2)return<div>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Enter the Stock Transfer Number to move this to suspense.</div>
     <L req>Stock Transfer Number</L>
     <div style={{display:"flex",gap:8}}>
       <I value={transferNo} onChange={e=>setTransferNo(e.target.value)} placeholder="e.g. ST-4471" style={{flex:1}}/>
@@ -243,25 +249,38 @@ function WriteOffDetail({app,branchMeta,isAdmin,canEditDelete,email,fileUrls,onB
       </div>
     </div>
     <ProgressBar step={app.step}/>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-      <div>
-        <div style={{...card,padding:20}}>
-          <h2 style={{fontSize:16,fontWeight:800,color:C.navy,margin:"0 0 16px"}}>{branchMeta[app.branch]?.name||app.branch}</h2>
-          {[["Branch",branchMeta[app.branch]?.name||app.branch],["Date Sent Back to HQ",fDate(app.sendDate)],["Stock Transfer No.",app.stockTransferNo||"—"]].map(([l,v])=><div key={l} style={{padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
-            <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:700}}>{l}</div>
-            <div style={{fontSize:13,color:C.text,fontWeight:600,marginTop:2}}>{v}</div>
-          </div>)}
-          <div style={{padding:"10px 0 0",display:"flex",gap:8,flexWrap:"wrap"}}>
-            {app.consignmentFile&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"consignmentFile",fileUrls))}>{Ic.fileText} Consignment Note</GBtn>}
-            {app.returnListFile&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"returnListFile",fileUrls))}>{Ic.fileText} Stock Return List</GBtn>}
-            {app.stockTransferFile&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"stockTransferFile",fileUrls))}>{Ic.fileText} Stock Transfer File</GBtn>}
-          </div>
+
+    {/* Write-off info summary - full width, above the timeline/action
+        grid, matching Order Tracking's own "Order Information" card. */}
+    <div style={{...card,marginBottom:14}}>
+      <SecHdr icon={Ic.fileText}>Write-off Information</SecHdr>
+      <div style={{padding:"6px 16px 10px"}}>
+        {[["Branch",branchMeta[app.branch]?.name||app.branch],["Date Sent Back to HQ",fDate(app.sendDate)],["Stock Transfer No.",app.stockTransferNo||"—"]].map(([l,v])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+          <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
+          <div style={{fontSize:13,color:C.text,fontWeight:600}}>{v}</div>
+        </div>)}
+        <div style={{padding:"10px 0 0",display:"flex",gap:8,flexWrap:"wrap"}}>
+          {app.consignmentFile&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"consignmentFile",fileUrls))}>{Ic.fileText} Consignment Note</GBtn>}
+          {app.returnListFile&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"returnListFile",fileUrls))}>{Ic.fileText} Stock Return List</GBtn>}
+          {app.stockTransferFile&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"stockTransferFile",fileUrls))}>{Ic.fileText} Stock Transfer File</GBtn>}
         </div>
-        {isAdmin&&app.step<3&&<AdminStepActions app={app} email={email} onAdvance={onAdvance}/>}
       </div>
-      <div style={{...card,padding:20}}>
-        <h3 style={{fontSize:13,fontWeight:800,color:C.navy,margin:"0 0 14px"}}>Tracking Timeline</h3>
-        <Timeline app={app}/>
+    </div>
+
+    {/* Two-col: timeline | action - matching Order Tracking's exact
+        layout, same navy SecHdr on both sides. */}
+    <div className="detail-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,alignItems:"start"}}>
+      <div style={card}>
+        <SecHdr icon={Ic.fileText}>Tracking Timeline</SecHdr>
+        <div style={{padding:"14px 16px"}}><Timeline app={app}/></div>
+      </div>
+      <div style={card}>
+        <SecHdr>Action Panel</SecHdr>
+        <div style={{padding:16}}>
+          {isAdmin&&app.step<3
+            ?<AdminStepActionsInner app={app} email={email} onAdvance={onAdvance}/>
+            :<div style={{fontSize:12,color:C.textLight,fontStyle:"italic",textAlign:"center",padding:"12px 0"}}>{app.step>=3?"Completed — no further action available.":"View only — actions disabled for this viewer."}</div>}
+        </div>
       </div>
     </div>
   </div>;
