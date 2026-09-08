@@ -12,6 +12,7 @@ export default defineConfig({
         hr: 'hr.html',
         knockoff: 'knockoff.html',
         ccm: 'ccm.html',
+        warranty: 'warranty.html',
         order: 'order.html',
         km:    'branch-KM.html',
         t1:    'branch-T1.html',
