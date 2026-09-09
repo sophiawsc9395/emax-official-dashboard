@@ -35,7 +35,21 @@ import {useState,useEffect,useMemo,useRef} from "react";
 import {loadData,saveData,supabase} from "./storage/index.js";
 import {listStockRequestOrders,getOrder,getOrderHistory,reconcile,uploadOrderFile} from "./storage/ordersApi.js";
 
+// A device name is only treated as real once every whitespace character
+// AND every common invisible/zero-width Unicode character (zero-width
+// space/joiner/non-joiner, BOM, non-breaking space, Mongolian vowel
+// separator, word joiner and friends) is stripped away, and at least 2
+// visible characters remain. A plain "contains at least one alphanumeric
+// character" check isn't enough here - a single stray mark like "." or
+// "`" can end up padded with a string of invisible characters that make
+// the raw value look longer than it visually is, and that one real
+// character would wrongly pass a presence-only check.
 const SUPP_KEY="emax_v5_purchase_order_supp"; // supplementary data only, keyed by orderId
+function isRealDeviceName(name){
+  if(!name)return false;
+  const stripped=String(name).replace(/[\s\u200B-\u200F\uFEFF\u00A0\u2060-\u2064\u180E]/g,"");
+  return stripped.length>=2;
+}
 
 const SUPPLIERS=[
   {key:"shopee",label:"Shopee"},{key:"lazada",label:"Lazada"},{key:"tiktok",label:"TikTok"},
@@ -460,7 +474,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         return`
         <div style="padding:10px 20px;${i<orderedRows.length-1?`border-bottom:1px solid ${C.border};`:""}">
           <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:3px;">
-            <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(/[a-zA-Z0-9]/.test(o.deviceName||"")?o.deviceName:"(No device name set)")}</div>
+            <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(isRealDeviceName(o.deviceName)?o.deviceName:"(No device name set)")}</div>
             <div style="text-align:right;white-space:nowrap;">
               <div style="font-size:15px;font-weight:800;color:#15803D;">${fRM(o.actualPrice)}</div>
               <div style="font-size:8.5px;color:${C.textLight};text-transform:uppercase;letter-spacing:.04em;">Purchase Price</div>
@@ -480,7 +494,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
         return`
         <div style="padding:10px 20px;background:#FFFBEB;${i<pendingRows.length-1?"border-bottom:1px solid #FDE68A;":""}">
           <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:3px;">
-            <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(/[a-zA-Z0-9]/.test(p.deviceName||"")?p.deviceName:"(No device name set)")}${isOverdue?`<span style="font-size:8.5px;font-weight:700;color:#B45309;background:#FEF3C7;border-radius:10px;padding:1px 7px;margin-left:6px;">Overdue — since ${fDate(p.sessionDate)} Session ${p.session}</span>`:""}</div>
+            <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(isRealDeviceName(p.deviceName)?p.deviceName:"(No device name set)")}${isOverdue?`<span style="font-size:8.5px;font-weight:700;color:#B45309;background:#FEF3C7;border-radius:10px;padding:1px 7px;margin-left:6px;">Overdue — since ${fDate(p.sessionDate)} Session ${p.session}</span>`:""}</div>
             <div style="text-align:right;white-space:nowrap;">
               <div style="font-size:15px;font-weight:800;color:#B45309;">${fRM(getDisplayPrice(p))}</div>
               <div style="font-size:8.5px;color:${C.textLight};text-transform:uppercase;letter-spacing:.04em;">${p.orderType==="cash"?"Retail Price":"Finance Price"}</div>
@@ -551,7 +565,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
               return(
               <tr key={e.id} style={{borderTop:`1px solid ${C.border}`,background:e.ordered?"#F0FDF4":isCarried?"#FFFBEB":(i%2===0?"#fff":C.surface)}}>
                 <td style={{padding:"8px 10px",fontWeight:700,color:C.text}}>
-                  <div style={{whiteSpace:"nowrap"}}>{/[a-zA-Z0-9]/.test(e.deviceName||"")?e.deviceName:"(No device name set)"}</div>
+                  <div style={{whiteSpace:"nowrap"}}>{isRealDeviceName(e.deviceName)?e.deviceName:"(No device name set)"}</div>
                   {isCarried&&<div style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#FEF3C7",display:"inline-block",borderRadius:10,padding:"1px 7px",marginTop:3,whiteSpace:"nowrap"}}>Overdue — since {fDate(e.sessionDate)} Session {e.session}</div>}
                   {e.editLog?.length>0&&<>
                     <button onClick={()=>setExpandedLog(p=>({...p,[e.id]:!p[e.id]}))} style={{display:"block",marginTop:3,fontSize:9,fontWeight:700,color:C.blueBright,background:"none",border:"none",cursor:"pointer",padding:0}}>
