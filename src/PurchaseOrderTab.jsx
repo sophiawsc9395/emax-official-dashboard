@@ -493,9 +493,9 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
           :`<span style="font-size:10.5px;color:${C.textLight};font-style:italic;">No quotes yet</span>`;
         return`
         <div style="padding:10px 20px;background:#FFFBEB;${i<pendingRows.length-1?"border-bottom:1px solid #FDE68A;":""}">
-          <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:3px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:3px;">
             <div style="font-size:12.5px;font-weight:700;color:${C.text};">${escapeHtml(isRealDeviceName(p.deviceName)?p.deviceName:"(No device name set)")}</div>
-            ${isOverdue?`<div style="display:inline-block;font-size:8.5px;font-weight:700;color:#B45309;background:#FEF3C7;border-radius:10px;padding:1px 7px;margin-top:3px;white-space:nowrap;">Overdue — since ${fDate(p.sessionDate)} Session ${p.session}</div>`:""}
+            ${isOverdue?`<div style="display:inline-block;flex-shrink:0;font-size:8.5px;font-weight:700;color:#B45309;background:#FEF3C7;border-radius:10px;padding:1px 7px;margin-top:3px;white-space:nowrap;line-height:1.4;">Overdue — since ${fDate(p.sessionDate)} Session ${p.session}</div>`:""}
             <div style="text-align:right;white-space:nowrap;">
               <div style="font-size:15px;font-weight:800;color:#B45309;">${fRM(getDisplayPrice(p))}</div>
               <div style="font-size:8.5px;color:${C.textLight};text-transform:uppercase;letter-spacing:.04em;">${p.orderType==="cash"?"Retail Price":"Finance Price"}</div>
