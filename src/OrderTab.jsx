@@ -2377,9 +2377,12 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   useEffect(()=>{refreshList();},[refreshList]);
 
   // Auto-cleanup: duplicate Agreement No./Case ID No. across active (non-cancelled)
-  // orders. Only runs for Sophia on the full, unscoped order list — a
-  // branch-scoped view could only ever see half of a cross-branch
-  // duplicate pair, which would make this unsafe to run there. Keeps
+  // orders. Only runs on the full, unscoped order list — a branch-scoped
+  // view could only ever see half of a cross-branch duplicate pair,
+  // which would make this unsafe to run there. Runs for anyone viewing
+  // that full list, not just one specific person — the earlier
+  // restriction to Sophia only was an unrelated, unnecessary limit that
+  // meant this silently never ran at all for anyone else. Keeps
   // whichever order was created first (lower/older id, since ids are
   // Date.now()-based) and silently deletes the rest — fully automatic,
   // no confirmation, by explicit request.
@@ -2390,7 +2393,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   // in (so exact byte size can't be relied on to match), but the
   // original file name is preserved through that process.
   useEffect(()=>{
-    if(!isSophia||userBranch||!orders.length)return;
+    if(userBranch||!orders.length)return;
     const agreementGroups={};
     const cashGroups={};
     orders.forEach(o=>{
@@ -2426,7 +2429,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         }
       });
     }
-  },[orders,isSophia,userBranch,refreshList]);
+  },[orders,userBranch,refreshList]);
 
   const nav=useCallback((v,sel=null)=>{setView(v);setSelected(sel);sessionStorage.setItem("orderView",v);sessionStorage.setItem("orderSelected",sel?JSON.stringify(sel):"null");window.history.pushState({orderView:v,orderSelected:sel},"");},[]);
   const openOrder=useCallback(o=>nav("detail",o),[nav]);
