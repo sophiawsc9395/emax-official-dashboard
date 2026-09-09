@@ -2492,7 +2492,25 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       alert("Couldn't load this order's full details — please check your connection and try again. (Nothing was changed.)");
       throw new Error(`hydrateOrder: getOrder(${id}) returned no data`);
     }
-    const signed=await signOrderFiles({...header,history:hist});
+    // Repair: history is append-only and records every real step
+    // transition as it happens, so it's the more reliable source of
+    // truth. If some history entry shows the order genuinely reached a
+    // later step than order.step itself currently claims, step got stuck
+    // or reverted somewhere - correct it to match reality and save that
+    // correction back permanently, rather than just displaying it
+    // differently this one time.
+    const highestHistStep=Math.max(0,...(hist||[]).map(h=>h.step||0));
+    let repairedHeader=header;
+    if(highestHistStep>header.step){
+      console.warn(`Order ${id}: step was stuck at ${header.step} but history shows progress to step ${highestHistStep} - repairing.`);
+      repairedHeader={...header,step:highestHistStep};
+      const result=await reconcile([header],[repairedHeader]);
+      if(!result.ok){
+        console.error(`Order ${id}: step repair failed to save`,result.error);
+        repairedHeader=header; // fall back to displaying the unrepaired value rather than showing a fix that didn't actually save
+      }
+    }
+    const signed=await signOrderFiles({...repairedHeader,history:hist});
     setDetailCache(p=>({...p,[id]:signed}));
     return signed;
   },[]);
