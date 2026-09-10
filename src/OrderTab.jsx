@@ -2499,7 +2499,19 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     // or reverted somewhere - correct it to match reality and save that
     // correction back permanently, rather than just displaying it
     // differently this one time.
-    const highestHistStep=Math.max(0,...(hist||[]).map(h=>h.step||0));
+    //
+    // Entries like "Supplier Cancelled Order" are a deliberate backward
+    // jump: they're logged with step = the step it happened AT (so it
+    // still shows up in that step's section of the timeline) plus a
+    // reversedTo field carrying the real destination step. Taking a
+    // plain max() over every entry ever recorded would see that old,
+    // higher step number and "repair" the order straight back to where
+    // it was just reversed FROM. So: find the most recent reversal (if
+    // any), treat its reversedTo as the floor, and only look at entries
+    // logged after it when checking for genuine forward progress since.
+    let baselineStep=0,sinceIdx=0;
+    (hist||[]).forEach((h,idx)=>{if(h.reversedTo!=null){baselineStep=h.reversedTo;sinceIdx=idx+1;}});
+    const highestHistStep=Math.max(baselineStep,...(hist||[]).slice(sinceIdx).map(h=>h.step||0));
     let repairedHeader=header;
     if(highestHistStep>header.step){
       console.warn(`Order ${id}: step was stuck at ${header.step} but history shows progress to step ${highestHistStep} - repairing.`);
