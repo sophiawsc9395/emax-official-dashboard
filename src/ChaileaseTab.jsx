@@ -16,7 +16,7 @@
  */
 import {useState,useEffect,useMemo,useRef} from "react";
 import {loadData,saveData,supabase} from "./storage/index.js";
-import {uploadOrderFile,signFileUrl,reconcile} from "./storage/ordersApi.js";
+import {uploadOrderFile,signFileUrl,reconcile,getOrder} from "./storage/ordersApi.js";
 
 export const CHAILEASE_KEY="emax_v5_chailease_applications";
 
@@ -1239,6 +1239,36 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
     setView("list");setSelectedId(null);
   };
 
+  // One-time fix for applications approved back when the Chailease flat
+  // agreement fee was RM100 — updates the application record AND, if one
+  // was auto-created, its linked order over on the Order page. Only ever
+  // touches step 4 (Approved) apps still sitting at the OLD fee, so
+  // running it twice (or on a mixed batch) is harmless — anything
+  // already at RM108 is simply skipped.
+  const bulkFixAgreementFee=async(feeApps)=>{
+    if(!feeApps.length)return;
+    if(!window.confirm(`Update ${feeApps.length} previously approved Chailease application(s) — and their linked orders — from RM100 to RM108 agreement fee?`))return;
+    const latest=(await loadData(CHAILEASE_KEY))||apps;
+    const idSet=new Set(feeApps.map(a=>a.id));
+    const next=latest.map(a=>idSet.has(a.id)?{...a,agreementFee:108}:a);
+    setApps(next);
+    const result=await saveData(CHAILEASE_KEY,next);
+    if(!result.ok){
+      setApps(latest);
+      alert("This didn't save — please check your connection and try again.");
+      return;
+    }
+    const orderIds=feeApps.map(a=>a.linkedOrderId).filter(Boolean);
+    const orderResults=await Promise.all(orderIds.map(async id=>{
+      const order=await getOrder(id);
+      if(!order)return true; // order no longer exists — nothing to fix there
+      return(await reconcile([order],[{...order,agreementFee:108}])).ok;
+    }));
+    if(orderResults.some(ok=>!ok)){
+      alert("Applications were updated, but one or more linked orders failed to update — please check the Order page for any that are still showing RM100.");
+    }
+  };
+
   const deleteRejectedBulk=async(ids)=>{
     if(!ids.length)return;
     if(!window.confirm(`Permanently delete ${ids.length} rejected application(s)? This cannot be undone.`))return;
@@ -1330,6 +1360,10 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
   // (step moves to 2), so it only ever nags about the ones still sitting.
   const overdueSubmissions=useMemo(()=>isAdmin?apps.filter(a=>a.step===1&&daysSince(a.submittedAt)>=1):[],[apps,isAdmin]);
 
+  // See bulkFixAgreementFee above — apps approved before the flat fee
+  // changed from RM100 to RM108.
+  const needsFeeFix=useMemo(()=>apps.filter(a=>a.step===4&&a.agreementFee===100),[apps]);
+
   const selectedApp=useMemo(()=>apps.find(a=>a.id===selectedId)||null,[apps,selectedId]);
 
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
@@ -1394,6 +1428,11 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
         </div>
         <span style={{fontSize:11,color:"#B91C1C",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{a.amendmentRemark}</span>
       </div>)}
+    </div>}
+
+    {canEditDelete&&needsFeeFix.length>0&&<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <div style={{fontSize:12,color:C.textMid}}><strong style={{color:C.navy}}>{needsFeeFix.length}</strong> approved application{needsFeeFix.length>1?"s are":" is"} still on the old RM100 agreement fee — update to RM108?</div>
+      <GBtn onClick={()=>bulkFixAgreementFee(needsFeeFix)} style={{fontSize:11,padding:"6px 12px"}}>Update to RM108</GBtn>
     </div>}
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:14}}>
