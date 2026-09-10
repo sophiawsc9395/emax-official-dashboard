@@ -815,7 +815,7 @@ function AdminActions({app,onSaved,onCreateOrder}){
       const oldOrder=await getOrder(app.deviceAmendment.orderId);
       if(oldOrder&&!oldOrder.cancelled){
         await reconcile([oldOrder],[{...oldOrder,supersededByOrderId:orderId,pendingDeviceAmendment:null,deviceAmendmentAck:{},
-          history:[...(oldOrder.history||[]),{step:oldOrder.step,date:nowDate(),time:nowTime(),note:`Superseded by device amendment — new order created for ${app.phoneModel}. Awaiting acknowledgment from Boon Theng, Stock, and Purchase before this order is cancelled.`}]}]);
+          history:[...(oldOrder.history||[]),{step:oldOrder.step,date:nowDate(),time:nowTime(),note:`Superseded by device amendment — new order created for ${app.phoneModel}. Awaiting acknowledgment from Boss EC, Stock Executive, and Purchasing Executive before this order is cancelled.`}]}]);
       }
     }
     setSaving(false);setShowApprove(false);

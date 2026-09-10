@@ -150,9 +150,9 @@ const CHAILEASE_APPS_KEY="emax_v5_chailease_applications";
 // referencing EMAX_PURCHASE_EMAIL, which isn't declared until further down
 // this file.
 const ACK_PARTIES=[
-  {key:"boontheng",label:"Boon Theng",email:"boontheng2004@gmail.com"},
-  {key:"stock",label:"Stock",email:"emaxstock@gmail.com"},
-  {key:"purchase",label:"Purchase",email:"emaxpurchase@gmail.com"},
+  {key:"boontheng",label:"Boss EC",email:"boontheng2004@gmail.com"},
+  {key:"stock",label:"Stock Executive",email:"emaxstock@gmail.com"},
+  {key:"purchase",label:"Purchasing Executive",email:"emaxpurchase@gmail.com"},
 ];
 // Sees the "Actual Purchase Price To-Do" alert alongside Sophia — the
 // purchasing team's own inbox, not a Sophia-only view.
@@ -1940,7 +1940,7 @@ function getOrderAlerts(orders,userBranch=null){
   // point the order auto-cancels and naturally drops out of myOrders.
   myOrders.filter(o=>o.supersededByOrderId).forEach(o=>{
     const ack=o.deviceAmendmentAck||{};
-    const waitingOn=["boontheng","stock","purchase"].filter(k=>!ack[k]);
+    const waitingOn=ACK_PARTIES.filter(p=>!ack[p.key]).map(p=>p.label);
     alerts.push({type:"device_amendment_superseded",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:`Superseded by a device amendment — waiting on ${waitingOn.join(", ")} to acknowledge before this order cancels`});
   });
   return alerts;
