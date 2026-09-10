@@ -540,7 +540,8 @@ function BillingForm({order,onSubmit,onCancel}){
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
   const isCashOrder=order.orderType==="cash";
   const REQUIRED=["billingDate","customerFullName","customerIC","customerHP","customerEmail","customerAddress","customerPostCode","customerCity","itemCode","imeiSerial",...(isCashOrder?[]:["cashPriceOnListing","monthlyInstallment"])];
-  const FILE_FIELDS=isCashOrder?[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false]]:[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false],["resultListFile","Result Listing File",true],["agreementFile","Agreement File",true]];
+  const isChailease=order.merchant==="Chailease";
+  const FILE_FIELDS=isCashOrder?[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false]]:[["deviceSerialImg","Device Serial No. Image",true],["freeGiftSerialImg","Free Gift Serial No. Image",false],...(isChailease?[]:[["resultListFile","Result Listing File",true]]),["agreementFile","Agreement File",true]];
   const missingFiles=FILE_FIELDS.filter(([k,,req])=>req&&!fls[k]&&!f[k]).map(([k])=>k);
   const missing=[...REQUIRED.filter(k=>!f[k]?.toString().trim()),...missingFiles];
   const submit=async()=>{
@@ -2529,6 +2530,15 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       if(!result.ok){
         console.error(`Order ${id}: step repair failed to save`,result.error);
         repairedHeader=header; // fall back to displaying the unrepaired value rather than showing a fix that didn't actually save
+      }else{
+        // The list/board view's `orders` state (and the KPI counts derived
+        // from it) is separate from detailCache and isn't otherwise touched
+        // by this repair — it only catches up once a Realtime event for
+        // this write round-trips and refreshList() re-runs, which is too
+        // slow/unreliable to depend on for something the person is looking
+        // at right now. Patch it here directly so the KPI card the person
+        // is staring at updates in the same beat as the detail page does.
+        setOrders(p=>p.map(x=>x.id===id?{...x,step:correctStep}:x));
       }
     }
     const signed=await signOrderFiles({...repairedHeader,history:hist});
