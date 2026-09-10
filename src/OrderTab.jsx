@@ -1801,14 +1801,20 @@ function getOrderAlerts(orders,userBranch=null){
 function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder}){
   const isMobile=useIsMobile();
   if(!alerts.length)return null;
+  const isEmaxPurchase=(email||"").toLowerCase()===EMAX_PURCHASE_EMAIL;
   const expired=alerts.filter(a=>a.type==="approval_expired");
   const urgent=alerts.filter(a=>a.type==="approval_urgent"||a.type==="overdue_order");
-  const warning=alerts.filter(a=>a.type==="approval_warning");
-  const collectionOverdue=alerts.filter(a=>a.type==="collection_proof_overdue");
-  const cashBalanceOverdue=alerts.filter(a=>a.type==="cash_balance_payment_overdue");
-  const merchantRejected=alerts.filter(a=>a.type==="merchant_rejected");
-  const agreementReceivedOverdue=alerts.filter(a=>a.type==="agreement_received_overdue");
-  const billingRequestOverdue=alerts.filter(a=>a.type==="billing_request_overdue");
+  // Collection Proof Overdue, Billing Request Overdue, Agreement Received
+  // by HQ, Merchant Rejected, and Cash Balance Payment Slip Overdue are
+  // all past Purchase's own step range (1-3) and not theirs to act on —
+  // emaxpurchase@gmail.com sees none of these, same as Approval Warning
+  // below.
+  const warning=isEmaxPurchase?[]:alerts.filter(a=>a.type==="approval_warning");
+  const collectionOverdue=isEmaxPurchase?[]:alerts.filter(a=>a.type==="collection_proof_overdue");
+  const cashBalanceOverdue=isEmaxPurchase?[]:alerts.filter(a=>a.type==="cash_balance_payment_overdue");
+  const merchantRejected=isEmaxPurchase?[]:alerts.filter(a=>a.type==="merchant_rejected");
+  const agreementReceivedOverdue=isEmaxPurchase?[]:alerts.filter(a=>a.type==="agreement_received_overdue");
+  const billingRequestOverdue=isEmaxPurchase?[]:alerts.filter(a=>a.type==="billing_request_overdue");
   // Purchase-price gap alert is only relevant to whoever holds the
   // Purchase role (or a true super admin) - other roles shouldn't see
   // purchase-price nagging that isn't their responsibility to act on.
