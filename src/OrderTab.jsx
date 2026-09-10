@@ -136,6 +136,9 @@ function maxStep(order){
 
 const fRM=(n=0)=>"RM "+((parseFloat(n)||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2}));
 const SOPHIA_EMAIL="sophiawsc9395@gmail.com";
+// Sees the "Actual Purchase Price To-Do" alert alongside Sophia — the
+// purchasing team's own inbox, not a Sophia-only view.
+const EMAX_PURCHASE_EMAIL="emaxpurchase@gmail.com";
 const fDate=s=>{if(!s)return"—";const[y,m,d]=s.split("-");return`${d}/${m}/${y}`;};
 const nowDate=()=>new Date().toISOString().split("T")[0];
 const nowTime=()=>{const d=new Date();return`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;};
@@ -1795,7 +1798,7 @@ function getOrderAlerts(orders,userBranch=null){
   });
   return alerts;
 }
-function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,onClickOrder}){
+function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder}){
   const isMobile=useIsMobile();
   if(!alerts.length)return null;
   const expired=alerts.filter(a=>a.type==="approval_expired");
@@ -1809,7 +1812,10 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,onClickOrder}){
   // Purchase-price gap alert is only relevant to whoever holds the
   // Purchase role (or a true super admin) - other roles shouldn't see
   // purchase-price nagging that isn't their responsibility to act on.
-  const canSeePurchaseAlert=isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all"||orderPermissions.adminSteps.includes(2));
+  // emaxpurchase@gmail.com always sees it too, regardless of what
+  // adminSteps their account is otherwise configured with — this is
+  // literally the purchasing team's own inbox.
+  const canSeePurchaseAlert=(email||"").toLowerCase()===EMAX_PURCHASE_EMAIL||(isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all"||orderPermissions.adminSteps.includes(2)));
   const missingActualPrice=canSeePurchaseAlert?alerts.filter(a=>a.type==="missing_actual_price"):[];
   // Approval Warning starts collapsed on the admin order page (there's
   // usually a lot of them, and admin has plenty else to look at) but
@@ -2270,6 +2276,10 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
 export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList=[],isReadOnly=false,orderPermissions=null,email=null}){
   const isMobile=useIsMobile();
   const isSophia=(email||"").toLowerCase()===SOPHIA_EMAIL;
+  // Scoped to just the Actual Purchase Price To-Do banner below — everything
+  // else gated on isSophia (reports, payment search, archive, etc.) stays
+  // Sophia-only.
+  const canSeePriceTodo=isSophia||(email||"").toLowerCase()===EMAX_PURCHASE_EMAIL;
   // orderPermissions (when set) narrows a full isAdmin=true session down to
   // specific steps/reports for the restricted Order-page-only roles (billing,
   // knock-off, purchase, stock). null = legacy unrestricted behavior.
@@ -2626,6 +2636,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     }
     const{history:_h,...headerOnly}=signed;
     setOrders(p=>p.some(x=>x.id===headerOnly.id)?p.map(x=>x.id===headerOnly.id?headerOnly:x):[headerOnly,...p]);
+    // Belt-and-braces: the line above already patches this one order into
+    // `orders` (which the KPI/phase cards are counted from) using what was
+    // just confirmed saved, so this should be redundant. But it's cheap,
+    // and it means the KPI cards can never drift from what's actually in
+    // the database for longer than one round-trip, regardless of whatever
+    // subtle mismatch might otherwise leave a step stuck on the wrong card.
+    refreshList();
     nav("detail",signed);
     return true;
   };
@@ -2733,7 +2750,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     </div>
 
     {/* Alerts */}
-    <AlertBanner alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} orderPermissions={orderPermissions} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
+    <AlertBanner alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} orderPermissions={orderPermissions} email={email} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
 
     {(()=>{
       const outOfStockUnacked=cancelledOrders.filter(o=>o.outOfStock&&!(o.outOfStockAckAdmin&&o.outOfStockAckBranch));
@@ -2975,12 +2992,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       </div>;
     })()}
 
-    {/* Actual Purchase Price To-Do — Sophia only. Every order between
-        Ordered and Arrived Branch (not yet billed) that's still missing
-        Actual Purchase Price, with an inline way to fill it in right from
-        the list rather than opening each order individually. Same step
-        range as the alert and the Expected Profit table. */}
-    {isSophia&&(()=>{
+    {/* Actual Purchase Price To-Do — Sophia and the purchasing team
+        (emaxpurchase@gmail.com). Every order between Ordered and Arrived
+        Branch (not yet billed) that's still missing Actual Purchase
+        Price, with an inline way to fill it in right from the list
+        rather than opening each order individually. Same step range as
+        the alert and the Expected Profit table. */}
+    {canSeePriceTodo&&(()=>{
       const needsPrice=orders.filter(o=>!o.cancelled&&o.step>=2&&o.step<=5&&!o.actualPrice).sort((a,b)=>b.id-a.id);
       if(!needsPrice.length)return null;
       return<div style={{...card,marginBottom:16}}>

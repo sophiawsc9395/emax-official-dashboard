@@ -736,7 +736,7 @@ function AdminActions({app,onSaved,onCreateOrder}){
   const [approveFinancePrice,setApproveFinancePrice]=useState(app.financePrice||"");
   // Chailease terms are fixed, not admin-entered: agreement fee is always
   // RM100 flat, and Chailease never charges a stamping fee.
-  const CHAILEASE_AGREEMENT_FEE=100;
+  const CHAILEASE_AGREEMENT_FEE=108;
   const CHAILEASE_STAMPING_FEE=0;
   const [deposit,setDeposit]=useState(app.deposit||"");
   const [approveTenure,setApproveTenure]=useState(app.tenure||"12");
