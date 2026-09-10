@@ -734,8 +734,10 @@ function AdminActions({app,onSaved,onCreateOrder}){
   const [agreementNumber,setAgreementNumber]=useState(app.agreementNumber||"");
   const [merchantApprovalDate,setMerchantApprovalDate]=useState(app.merchantApprovalDate||nowDate());
   const [approveFinancePrice,setApproveFinancePrice]=useState(app.financePrice||"");
-  const [agreementFee,setAgreementFee]=useState(app.agreementFee||"");
-  const [stampingFee,setStampingFee]=useState(app.stampingFee||"");
+  // Chailease terms are fixed, not admin-entered: agreement fee is always
+  // RM100 flat, and Chailease never charges a stamping fee.
+  const CHAILEASE_AGREEMENT_FEE=100;
+  const CHAILEASE_STAMPING_FEE=0;
   const [deposit,setDeposit]=useState(app.deposit||"");
   const [approveTenure,setApproveTenure]=useState(app.tenure||"12");
   const [monthlyInstallment,setMonthlyInstallment]=useState(app.monthlyInstallment||"");
@@ -764,7 +766,7 @@ function AdminActions({app,onSaved,onCreateOrder}){
       history:[...(app.history||[]),{step:1,date:nowDate(),time:nowTime(),note:`Amendment requested: ${amendmentRemark}`}]});
     setSaving(false);setShowAmendment(false);setAmendmentRemark("");
   };
-  const approveMissing=!agreementNumber.trim()||!merchantApprovalDate||!approveFinancePrice.toString().trim()||!agreementFee.toString().trim()||!stampingFee.toString().trim()||!deposit.toString().trim()||!approveTenure||!monthlyInstallment.toString().trim()||!chaileaseAgreementChaileaseCopy;
+  const approveMissing=!agreementNumber.trim()||!merchantApprovalDate||!approveFinancePrice.toString().trim()||!deposit.toString().trim()||!approveTenure||!monthlyInstallment.toString().trim()||!chaileaseAgreementChaileaseCopy;
   const approve=async()=>{
     if(approveMissing){alert("Please fill in every field and upload every document before approving — these are needed to create the order.");return;}
     setSaving(true);
@@ -772,7 +774,7 @@ function AdminActions({app,onSaved,onCreateOrder}){
     const chaileaseDocuments={agreementChaileaseCopy};
     const updated={...app,step:4,approvedDate:nowDate(),approvedRemark,
       agreementNumber,merchantApprovalDate,financePrice:parseFloat(approveFinancePrice)||0,
-      agreementFee:parseFloat(agreementFee)||0,stampingFee:parseFloat(stampingFee)||0,deposit:parseFloat(deposit)||0,
+      agreementFee:CHAILEASE_AGREEMENT_FEE,stampingFee:CHAILEASE_STAMPING_FEE,deposit:parseFloat(deposit)||0,
       tenure:approveTenure,monthlyInstallment:parseFloat(monthlyInstallment)||0,chaileaseDocuments,
       history:[...(app.history||[]),{step:4,date:nowDate(),time:nowTime(),note:`Approved by Chailease${approvedRemark?": "+approvedRemark:""}`}]};
     const orderId=await onCreateOrder(updated);
@@ -845,11 +847,10 @@ function AdminActions({app,onSaved,onCreateOrder}){
         <div><L req>Merchant Approval Date</L><I type="date" value={merchantApprovalDate} onChange={e=>setMerchantApprovalDate(e.target.value)}/></div>
         <div><L req>Finance Price (RM)</L><I type="number" step="0.01" value={approveFinancePrice} onChange={e=>setApproveFinancePrice(e.target.value)}/></div>
         <div><L req>CCM Tenure</L><SEL value={approveTenure} onChange={e=>setApproveTenure(e.target.value)}><option value="12">12 Months</option><option value="24">24 Months</option><option value="36">36 Months</option></SEL></div>
-        <div><L req>Agreement Fee (RM)</L><I type="number" step="0.01" value={agreementFee} onChange={e=>setAgreementFee(e.target.value)}/></div>
-        <div><L req>Stamping Fee (RM)</L><I type="number" step="0.01" value={stampingFee} onChange={e=>setStampingFee(e.target.value)}/></div>
         <div><L req>Deposit (RM)</L><I type="number" step="0.01" value={deposit} onChange={e=>setDeposit(e.target.value)}/></div>
         <div><L req>Monthly Installment (RM)</L><I type="number" step="0.01" value={monthlyInstallment} onChange={e=>setMonthlyInstallment(e.target.value)}/></div>
       </div>
+      <div style={{fontSize:11,color:C.textMid,background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:6,padding:"6px 10px",marginBottom:8}}>Chailease terms are fixed: <strong>Agreement Fee RM{CHAILEASE_AGREEMENT_FEE.toFixed(2)}</strong>, <strong>no stamping fee</strong>.</div>
       <div style={{fontSize:11,fontWeight:700,color:C.blueBright,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Documents (required to create the order)</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
         <div style={{gridColumn:"1/-1"}}><L req>Chailease Agreement</L><input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setJclAgreementChaileaseCopy(e.target.files[0]||null)} style={{fontSize:11,width:"100%"}}/>{chaileaseAgreementChaileaseCopy&&<div style={{fontSize:10,color:"#15803D",marginTop:2}}>{chaileaseAgreementChaileaseCopy.name}</div>}</div>

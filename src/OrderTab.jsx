@@ -89,7 +89,12 @@ const STEPS=[
 const AEON_CHECKLIST_ITEMS=["Aeon Application Form (3 pages)","Invoice","Result List","Notice 1 — Application (2 pages × 2 sets)","Notice 2 — Approval (8 pages)","Agreement (16 pages)","IC Copy","AutoDebit Form (Personal Account)","Bank Proof (Personal Account)"];
 const JCL_CHECKLIST_ITEMS=["JCL Application Form (2 pages)","JCL Summary Form (2 pages)","Notice II (14 pages)","Notice II (20 pages)","Credit Acknowledgement Form","IMEI Photo","eMandate Photo","JCLick Photo","Phone Collection (2 photos)"];
 const checklistItemsFor=merchant=>merchant==="JCL"?JCL_CHECKLIST_ITEMS:AEON_CHECKLIST_ITEMS;
-const FILE_LABELS=STEPS.reduce((m,s)=>{(s.needsFiles||[]).forEach(f=>{m[f.key]=f.label;});return m;},{});
+// Chailease-only extra upload required at Customer Collection (step 8) —
+// kept out of the static STEPS entry for step 8 since that list applies to
+// every merchant; merged in only for Chailease orders via needsFilesFor().
+const CHAILEASE_EXTRA_FILES=[{key:"jomAuroEMandate",label:"Jom Auto (E-Mandate) Screenshot"}];
+const needsFilesFor=(order,stepDef)=>stepDef?.step===8&&order?.merchant==="Chailease"?[...(stepDef.needsFiles||[]),...CHAILEASE_EXTRA_FILES]:stepDef?.needsFiles;
+const FILE_LABELS={...STEPS.reduce((m,s)=>{(s.needsFiles||[]).forEach(f=>{m[f.key]=f.label;});return m;},{}),...Object.fromEntries(CHAILEASE_EXTRA_FILES.map(f=>[f.key,f.label]))};
 
 // Returns steps visible in timeline for a given order
 function getVisibleSteps(order){
@@ -476,7 +481,7 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
     {s.step===8&&order.orderType!=="cash"&&!hist.shortPaymentProofUpload&&<div style={{marginTop:6,background:C.white,borderRadius:7,padding:"8px 10px",border:`1px solid ${C.border}`}}>
       <div style={{fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Upfront Payment Breakdown</div>
       {(()=>{const up=calcUpfront(order);const monthly=(order.monthlyInstallment!=null&&order.monthlyInstallment!=="")?parseFloat(order.monthlyInstallment)||0:parseFloat(order.billingData?.monthlyInstallment)||0;return<>
-        {[["Agreement Fee",up.a],["Stamping Fee",up.s],["Deposit",up.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
+        {[["Agreement Fee",up.a],...(order.merchant==="Chailease"?[]:[["Stamping Fee",up.s]]),["Deposit",up.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 1 (Subtotal)</span><span>{fRM(up.total)}</span></div>
         {order.merchant==="Aeon"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:11,padding:"3px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:700}}><span>Upfront 2 (First Monthly Installment)</span><span>{fRM(monthly)}</span></div>}
         <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0 0",borderTop:`2px solid ${C.navy}`,marginTop:4,color:C.navy,fontWeight:800}}><span>Total Upfront Payment Upon Collection</span><span>{fRM(up.total+(order.merchant==="Aeon"?monthly:0))}</span></div>
@@ -566,7 +571,7 @@ function BillingForm({order,onSubmit,onCancel}){
         {sec("Item Details")}{row("itemCode","Item Code","text",true)}{row("imeiSerial","IMEI / Serial No.","text",true)}{row("freeGiftItemCode","Free Gift Item Code")}{row("freeGiftItemName","Free Gift Item Name")}{row("freeGiftSerialNo","Free Gift Serial No.")}
         {order.orderType!=="cash"&&lockedRow("cashPriceOnListing","Cash Price on Result Listing (RM) — from Finance Price","number")}
         {order.orderType!=="cash"&&lockedRow("monthlyInstallment","Monthly Installment (RM)","number")}
-        {sec("Charges (from order — locked)")}{!isCashOrder&&lockedRow("agreementFee","Agreement Fee (RM)","number")}{!isCashOrder&&lockedRow("stampingFee","Stamping Fee (RM)","number")}{lockedRow("deposit","Deposit (RM)","number")}{!isCashOrder&&<div/>}
+        {sec("Charges (from order — locked)")}{!isCashOrder&&lockedRow("agreementFee","Agreement Fee (RM)","number")}{!isCashOrder&&order.merchant!=="Chailease"&&lockedRow("stampingFee","Stamping Fee (RM)","number")}{lockedRow("deposit","Deposit (RM)","number")}{!isCashOrder&&<div/>}
         {sec("File Uploads")}
         {FILE_FIELDS.map(([k,l,req])=>{
           const isMissing=req&&!fls[k]&&!f[k];
@@ -1143,7 +1148,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
         if(Math.abs((proof1+proof2)-expectedTotal)>0.01)return false;
       }
     }
-    if(nextDef.needsFiles){const priorFiles=new Set((order.history||[]).filter(h=>h.step===nextDef.step).flatMap(h=>Object.keys(h.files||{})));const req=(nextDef.needsFiles||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof")&&!priorFiles.has(f.key));if(branchOk&&req.some(f=>f.multiple?!(files[f.key]?.length):!files[f.key]))return false;}
+    if(nextDef.needsFiles){const priorFiles=new Set((order.history||[]).filter(h=>h.step===nextDef.step).flatMap(h=>Object.keys(h.files||{})));const req=(needsFilesFor(order,nextDef)||[]).filter(f=>!f.optional&&!(isCash&&f.key==="collectionProof")&&!priorFiles.has(f.key));if(branchOk&&req.some(f=>f.multiple?!(files[f.key]?.length):!files[f.key]))return false;}
     return true;
   };
 
@@ -1248,8 +1253,8 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
         {nextDef.step===8&&!isCash&&<div style={{background:C.surface,borderRadius:9,padding:"12px 14px",border:`1px solid ${C.border}`,marginBottom:12}}>
           <div style={{...lbl,marginBottom:8}}>Upfront Payment Breakdown</div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",padding:"3px 0",borderBottom:`1px solid ${C.border}`}}><span>Description</span><span>Amount</span></div>
-          {[["Agreement Fee",upfront.a],["Stamping Fee",upfront.s],["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Upfront 1 (Subtotal — Agreement + Stamping + Deposit)</span><span>{fRM(upfront.total)}</span></div>
+          {[["Agreement Fee",upfront.a],...(order.merchant==="Chailease"?[]:[["Stamping Fee",upfront.s]]),["Deposit",upfront.d]].map(([l,v])=><div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.textMid}}><span>{l}</span><span style={{fontWeight:600}}>{fRM(v)}</span></div>)}
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Upfront 1 (Subtotal — Agreement{order.merchant==="Chailease"?"":" + Stamping"} + Deposit)</span><span>{fRM(upfront.total)}</span></div>
           {order.merchant==="Aeon"&&<div style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderBottom:`1px solid ${C.border}`,color:C.navy,fontWeight:800}}><span>Upfront 2 (First Monthly Installment)</span><span>{fRM(order.billingData?.monthlyInstallment||order.monthlyInstallment)}</span></div>}
           <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"8px 0 0",borderTop:`2px solid ${C.navy}`,marginTop:6,fontWeight:800,color:C.navy}}><span>Total Upfront Payment Upon Collection</span><span>{fRM(upfront.total+(order.merchant==="Aeon"?(parseFloat(order.billingData?.monthlyInstallment||order.monthlyInstallment)||0):0))}</span></div>
         </div>}
@@ -1265,7 +1270,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
           <div><L req>Knock-off Date</L><I type="date" value={knockOffDate} onChange={e=>setKnockOffDate(e.target.value)}/></div>
           <div><L>Knock-off Amount (RM)</L><I type="number" value={knockOffAmount} onChange={e=>setKnockOffAmount(e.target.value)}/></div>
         </div>}
-        {nextDef.needsFiles&&branchOk&&nextDef.needsFiles.filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional,multiple})=>{
+        {nextDef.needsFiles&&branchOk&&needsFilesFor(order,nextDef).filter(f=>!(isCash&&f.key==="collectionProof")).map(({key,label,optional,multiple})=>{
           const alreadyOnFile=!optional&&(order.history||[]).some(h=>h.step===nextDef.step&&h.files&&h.files[key]);
           return<div key={key} style={{marginBottom:12}}>
           <L req={!optional&&!alreadyOnFile}>{label}{optional?" (optional)":alreadyOnFile?" (already on file — re-upload only if there's a new one)":""}{multiple?" (multiple allowed)":""}</L>
@@ -1483,7 +1488,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>Device Name</div>
           {canEditPhoneModelAtOrdered&&order.step===2?<PhoneModelField order={order} onUpdate={onUpdate}/>:<div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.phoneModel||"—"}{everEditedFields.has("phoneModel")&&<FieldEditedTag field="phoneModel"/>}<FieldLog field="phoneModel"/><CopyBtn value={order.phoneModel}/></div>}
         </div>
-        {[["Customer Name",order.customerName,"customerName"],order.customerIC&&["Customer IC",order.customerIC,"customerIC"],order.customerHP&&["Customer HP",order.customerHP,"customerHP"],!isCash&&["Merchant",order.merchant,"merchant"],!isCash&&["Agreement No. / Case ID No.",order.agreementNumber,"agreementNumber"],!isCash&&["Merchant Approval Date",fDate(order.aeonApprovalDate),"aeonApprovalDate"],!isCash&&["Finance Price",fRM(order.financePrice),"financePrice"],!isCash&&order.tenure&&["CCM Tenure",`${order.tenure} Months`,"tenure"],!isCash&&["Agreement Fee",fRM(order.agreementFee),"agreementFee"],!isCash&&["Stamping Fee",fRM(order.stampingFee),"stampingFee"],["Deposit",fRM(order.deposit),"deposit"],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment),"monthlyInstallment"],isCash&&["Retail Price",fRM(order.retailPrice),"retailPrice"],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate),"depositPaymentDate"],order.invoiceNo&&["Invoice No.",order.invoiceNo,"invoiceNo"],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch,"pickUpBranch"],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v,k])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
+        {[["Customer Name",order.customerName,"customerName"],order.customerIC&&["Customer IC",order.customerIC,"customerIC"],order.customerHP&&["Customer HP",order.customerHP,"customerHP"],!isCash&&["Merchant",order.merchant,"merchant"],!isCash&&["Agreement No. / Case ID No.",order.agreementNumber,"agreementNumber"],!isCash&&["Merchant Approval Date",fDate(order.aeonApprovalDate),"aeonApprovalDate"],!isCash&&["Finance Price",fRM(order.financePrice),"financePrice"],!isCash&&order.tenure&&["CCM Tenure",`${order.tenure} Months`,"tenure"],!isCash&&["Agreement Fee",fRM(order.agreementFee),"agreementFee"],!isCash&&order.merchant!=="Chailease"&&["Stamping Fee",fRM(order.stampingFee),"stampingFee"],["Deposit",fRM(order.deposit),"deposit"],!isCash&&order.monthlyInstallment&&["Monthly Installment",fRM(order.monthlyInstallment),"monthlyInstallment"],isCash&&["Retail Price",fRM(order.retailPrice),"retailPrice"],order.depositPaymentDate&&["Deposit Date",fDate(order.depositPaymentDate),"depositPaymentDate"],order.invoiceNo&&["Invoice No.",order.invoiceNo,"invoiceNo"],order.pickUpBranch&&["Pick Up Branch",order.pickUpBranch,"pickUpBranch"],order.claimSentDate&&["Claim Sent",fDate(order.claimSentDate)],order.knockOffDate&&["Knock-off",fDate(order.knockOffDate)],order.knockOffAmount&&["Knock-off Amount",fRM(order.knockOffAmount)]].filter(Boolean).map(([l,v,k])=><div key={l} style={{padding:"7px 0",borderBottom:`1px solid ${C.border}`,minWidth:0}}>
           <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:2}}>{l}</div>
           <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{v||"—"}{k&&everEditedFields.has(k)&&<FieldEditedTag field={k}/>}{k&&<FieldLog field={k}/>}<CopyBtn value={v}/></div>
         </div>)}
@@ -2494,9 +2499,9 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     }
     // Repair: history is append-only and records every real step
     // transition as it happens, so it's the more reliable source of
-    // truth. If some history entry shows the order genuinely reached a
-    // later step than order.step itself currently claims, step got stuck
-    // or reverted somewhere - correct it to match reality and save that
+    // truth. If it disagrees with order.step in EITHER direction —
+    // stuck too low (progress happened but the header write was lost)
+    // or stuck too high (see below) — correct it and save that
     // correction back permanently, rather than just displaying it
     // differently this one time.
     //
@@ -2509,13 +2514,17 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     // it was just reversed FROM. So: find the most recent reversal (if
     // any), treat its reversedTo as the floor, and only look at entries
     // logged after it when checking for genuine forward progress since.
+    // Comparing with !== (not just >) also means this same check heals
+    // an order that a past version of this repair already miscorrected
+    // back to a too-high step — the very next time it's opened, this
+    // brings it back down to where the reversal actually left it.
     let baselineStep=0,sinceIdx=0;
     (hist||[]).forEach((h,idx)=>{if(h.reversedTo!=null){baselineStep=h.reversedTo;sinceIdx=idx+1;}});
-    const highestHistStep=Math.max(baselineStep,...(hist||[]).slice(sinceIdx).map(h=>h.step||0));
+    const correctStep=Math.max(baselineStep,...(hist||[]).slice(sinceIdx).map(h=>h.step||0));
     let repairedHeader=header;
-    if(highestHistStep>header.step){
-      console.warn(`Order ${id}: step was stuck at ${header.step} but history shows progress to step ${highestHistStep} - repairing.`);
-      repairedHeader={...header,step:highestHistStep};
+    if(correctStep!==header.step){
+      console.warn(`Order ${id}: step was ${header.step} but history shows it should be ${correctStep} - repairing.`);
+      repairedHeader={...header,step:correctStep};
       const result=await reconcile([header],[repairedHeader]);
       if(!result.ok){
         console.error(`Order ${id}: step repair failed to save`,result.error);
