@@ -1,6 +1,6 @@
 import {useState,useEffect,useRef,useMemo,useCallback,memo,Fragment} from "react";
 import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles,updateHistoryRow,deleteHistoryRow} from "./storage/ordersApi.js";
-import {supabase} from "./storage/index.js";
+import {supabase,loadData,saveData} from "./storage/index.js";
 import {resolveEditorRole} from "./auth/orderRoles.js";
 import * as XLSX from "xlsx";
 
@@ -136,6 +136,24 @@ function maxStep(order){
 
 const fRM=(n=0)=>"RM "+((parseFloat(n)||0).toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2}));
 const SOPHIA_EMAIL="sophiawsc9395@gmail.com";
+// JCL/Chailease Application storage keys — same simple key-value blob
+// pattern as JCLTab.jsx/ChaileaseTab.jsx (which each export their own copy
+// of this same literal, rather than importing it, to avoid pulling a whole
+// unrelated page's component code in just for a string). Used by the
+// "Amend Device" flow below to write a device-amendment request directly
+// into the linked application.
+const JCL_APPS_KEY="emax_v5_jcl_applications";
+const CHAILEASE_APPS_KEY="emax_v5_chailease_applications";
+// The three people who must each acknowledge an old, superseded order
+// (see AcknowledgeSupersededBox) before it auto-cancels. Email spelled out
+// directly here (matching emaxpurchase@gmail.com below) rather than
+// referencing EMAX_PURCHASE_EMAIL, which isn't declared until further down
+// this file.
+const ACK_PARTIES=[
+  {key:"boontheng",label:"Boon Theng",email:"boontheng2004@gmail.com"},
+  {key:"stock",label:"Stock",email:"emaxstock@gmail.com"},
+  {key:"purchase",label:"Purchase",email:"emaxpurchase@gmail.com"},
+];
 // Sees the "Actual Purchase Price To-Do" alert alongside Sophia — the
 // purchasing team's own inbox, not a Sophia-only view.
 const EMAX_PURCHASE_EMAIL="emaxpurchase@gmail.com";
@@ -296,11 +314,127 @@ function StepBadge({order,step}){
   if(order?.cancelled)return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:"#FEF2F2",color:"#B91C1C",border:"1px solid #FECACA",whiteSpace:"nowrap"}}>Cancelled</span>;
   if(order&&isPendingBranchAction(order))return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:"#FEF2F2",color:"#B91C1C",border:"1px solid #FECACA",whiteSpace:"nowrap"}}>Pending Branch Action</span>;
   if(order&&isShortPaymentPending(order))return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:"#FEF2F2",color:"#B91C1C",border:"1px solid #FECACA",whiteSpace:"nowrap"}}>Balance Payment Needed</span>;
+  if(order?.pendingDeviceAmendment)return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:"#FFFBEB",color:"#B45309",border:"1px solid #FDE68A",whiteSpace:"nowrap"}}>Device Amendment Pending</span>;
   if(!ph)return null;
   return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:C.surface,color:C.navy,border:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{s.label}</span>;
 }
 
 /* ── Timeline ─────────────────────────────────────────────────────────── */
+// Lets a branch (or admin) swap the device on a JCL/Chailease order before
+// it reaches Billing — customer decided they want a different phone. This
+// updates the order's own Device Name/Finance Price immediately, AND sends
+// a device-amendment request into the linked JCL/Chailease application
+// (step 6, "Device Amendment Pending" — see JCLTab.jsx/ChaileaseTab.jsx),
+// so CCM/admin can resubmit it and the merchant re-approves the new
+// device/price through the normal Submitted → Follow-Up → Approved/
+// Rejected cycle. Requires the order to have been auto-created from an
+// approved application (order.linkedAppId) — there's no application to
+// amend against otherwise.
+function AmendDeviceBox({order,onUpdate,isAdmin,userBranch}){
+  const [open,setOpen]=useState(false);
+  const [newDeviceName,setNewDeviceName]=useState("");
+  const [newFinancePrice,setNewFinancePrice]=useState("");
+  const [saving,setSaving]=useState(false);
+  const canAmend=(order.merchant==="JCL"||order.merchant==="Chailease")&&order.step<6&&!order.cancelled&&(isAdmin||(!!userBranch&&order.branch===userBranch));
+  if(!canAmend||!order.linkedAppId)return null;
+  // Already has one in flight — show status instead of letting a second
+  // request stack on top of it.
+  if(order.pendingDeviceAmendment)return<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:16}}>
+    <div style={{fontSize:11,fontWeight:700,color:"#B45309",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Device Amendment Pending</div>
+    <div style={{fontSize:12,color:C.textMid}}>{order.pendingDeviceAmendment.previousDeviceName||"—"} → {order.pendingDeviceAmendment.newDeviceName} (RM{(order.pendingDeviceAmendment.previousFinancePrice||0).toFixed(2)} → RM{(order.pendingDeviceAmendment.newFinancePrice||0).toFixed(2)}) — waiting on {order.merchant} to approve, reject, or follow up on the {order.merchant} Application page.</div>
+  </div>;
+  const submit=async()=>{
+    if(!newDeviceName.trim()||!newFinancePrice.toString().trim()){alert("Please fill in the new device name and finance price.");return;}
+    setSaving(true);
+    const appsKey=order.merchant==="JCL"?JCL_APPS_KEY:CHAILEASE_APPS_KEY;
+    const latestApps=(await loadData(appsKey))||[];
+    const originalApp=latestApps.find(a=>a.id===order.linkedAppId);
+    if(!originalApp){
+      setSaving(false);
+      alert("Couldn't find the linked application — it may have been deleted. Please contact an admin.");
+      return;
+    }
+    const oldDeviceName=originalApp.phoneModel,oldFinancePrice=originalApp.financePrice||0;
+    const parsedPrice=parseFloat(newFinancePrice)||0;
+    const newAppId=Date.now().toString();
+    const deviceAmendment={requestedDate:nowDate(),requestedTime:nowTime(),requestedBranch:order.branch,previousDeviceName:oldDeviceName,previousFinancePrice:oldFinancePrice,newDeviceName:newDeviceName.trim(),newFinancePrice:parsedPrice,orderId:order.id};
+    // Clone the original application rather than mutating it in place — the
+    // original stays exactly as it was approved (its own history, still
+    // pointing at its own now-superseded order), and the amendment lives as
+    // its own application record linked back via parentAppId, so both stay
+    // visible and browsable side by side rather than one overwriting the
+    // other. Approval-specific fields are cleared since this clone needs
+    // its own fresh approval from JCL/Chailease.
+    const amendedApp={...originalApp,id:newAppId,step:6,phoneModel:newDeviceName.trim(),financePrice:parsedPrice,
+      parentAppId:originalApp.id,isDeviceAmendment:true,deviceAmendment,linkedOrderId:null,
+      approvedDate:null,approvedRemark:null,rejectedDate:null,rejectedRemark:null,
+      followUpRemark:null,followUpRequestedDate:null,followUpRespondedDate:null,
+      history:[{step:6,date:nowDate(),time:nowTime(),note:`Device amendment requested by ${order.branch}, from application ${originalApp.agreementNumber||originalApp.id}: ${oldDeviceName||"—"} → ${newDeviceName.trim()}, RM${oldFinancePrice.toFixed(2)} → RM${parsedPrice.toFixed(2)}`}]};
+    const updatedOriginal={...originalApp,childAmendmentAppId:newAppId};
+    const result=await saveData(appsKey,[...latestApps.map(a=>a.id===originalApp.id?updatedOriginal:a),amendedApp]);
+    if(!result.ok){
+      setSaving(false);
+      alert("This didn't save — please check your connection and try again.");
+      return;
+    }
+    // The order itself is NOT updated — a brand new order gets created once
+    // the amended application is approved (see approve() in
+    // JCLTab.jsx/ChaileaseTab.jsx); this one only records that a request is
+    // in flight, so the order page can show it as a badge.
+    await onUpdate({...order,pendingDeviceAmendment:{previousDeviceName:order.phoneModel,previousFinancePrice:order.financePrice||0,newDeviceName:newDeviceName.trim(),newFinancePrice:parsedPrice,requestedDate:nowDate(),amendedAppId:newAppId},
+      history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Device amendment requested: ${order.phoneModel||"—"} → ${newDeviceName.trim()}, RM${oldFinancePrice.toFixed(2)} → RM${parsedPrice.toFixed(2)}. New application created and sent to ${order.merchant} for approval.`}]});
+    setSaving(false);setOpen(false);setNewDeviceName("");setNewFinancePrice("");
+  };
+  return<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:16}}>
+    {!open?<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+      <div style={{fontSize:12,color:C.textMid}}>Customer wants a different device before billing?</div>
+      <GBtn onClick={()=>{setNewDeviceName(order.phoneModel||"");setNewFinancePrice(order.financePrice||"");setOpen(true);}} style={{fontSize:11,padding:"6px 12px",color:"#B45309",borderColor:"#FDE68A"}}>Amend Device</GBtn>
+    </div>:<div>
+      <div style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Amend Device</div>
+      <div style={{fontSize:11,color:C.textLight,marginBottom:10}}>Sends the linked {order.merchant} application back for approval with the new device and price. The order itself only updates once {order.merchant} approves it.</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+        <div><L req>New Device Name</L><I value={newDeviceName} onChange={e=>setNewDeviceName(e.target.value)}/></div>
+        <div><L req>New Finance Price (RM)</L><I type="number" step="0.01" value={newFinancePrice} onChange={e=>setNewFinancePrice(e.target.value)}/></div>
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <GBtn onClick={()=>setOpen(false)} style={{flex:1,justifyContent:"center"}}>Cancel</GBtn>
+        <PBtn onClick={submit} disabled={saving} style={{flex:1,justifyContent:"center"}}>{saving?"Saving…":"Submit Amendment"}</PBtn>
+      </div>
+    </div>}
+  </div>;
+}
+// Shows on the OLD order once it's been superseded by a device-amendment
+// order (see approve() in JCLTab.jsx/ChaileaseTab.jsx, which sets
+// supersededByOrderId). Boon Theng, Stock, and Purchase each get an
+// Acknowledge button only on their own account; once all three have
+// acknowledged, the order is automatically marked cancelled.
+function AcknowledgeSupersededBox({order,onUpdate,email}){
+  const [saving,setSaving]=useState(false);
+  if(!order.supersededByOrderId||order.cancelled)return null;
+  const ack=order.deviceAmendmentAck||{};
+  const myEmail=(email||"").toLowerCase();
+  const acknowledge=async(key,label)=>{
+    setSaving(true);
+    const nextAck={...ack,[key]:nowDate()};
+    const allDone=ACK_PARTIES.every(p=>nextAck[p.key]);
+    await onUpdate({...order,deviceAmendmentAck:nextAck,...(allDone?{cancelled:true}:{}),
+      history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`${label} acknowledged device amendment`+(allDone?" — all parties acknowledged, order cancelled.":"")}]});
+    setSaving(false);
+  };
+  return<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:16}}>
+    <div style={{fontSize:11,fontWeight:700,color:"#B45309",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Device Amendment — Old Order</div>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Superseded by a new order for the amended device. Cancels automatically once all three below have acknowledged.</div>
+    <div style={{display:"flex",flexDirection:"column",gap:7}}>
+      {ACK_PARTIES.map(p=>{
+        const done=ack[p.key];
+        return<div key={p.key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,fontSize:12}}>
+          <span style={{display:"flex",alignItems:"center",gap:5,color:done?"#15803D":C.textMid,fontWeight:600}}>{done&&<span style={{color:"#15803D"}}>{Ic.check}</span>}{p.label}{done?` — acknowledged ${fDate(done)}`:""}</span>
+          {!done&&myEmail===p.email&&<PBtn onClick={()=>acknowledge(p.key,p.label)} disabled={saving} style={{fontSize:11,padding:"4px 10px"}}>Acknowledge</PBtn>}
+        </div>;
+      })}
+    </div>
+  </div>;
+}
 function PhoneModelField({order,onUpdate}){
   const [editing,setEditing]=useState(false);
   const [val,setVal]=useState(order.phoneModel||"");
@@ -1531,6 +1665,9 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
       <GBtn onClick={()=>{if(window.confirm("Undo this knock-off? The order will move back to Claim Released instead of staying Completed."))onUpdate({...order,firstInstallmentKnockOffDate:null,step:13,history:[...(order.history||[]),{step:13,date:nowDate(),time:nowTime(),note:"Moved back to Claim Released (First Monthly Installment knock-off undone)"}]});}} style={{fontSize:11,padding:"6px 12px",color:"#DC2626",borderColor:"#FECACA"}}>Undo</GBtn>
     </div>}
 
+    <AmendDeviceBox order={order} onUpdate={onUpdate} isAdmin={isAdmin} userBranch={userBranch}/>
+    <AcknowledgeSupersededBox order={order} onUpdate={onUpdate} email={email}/>
+
     {/* Two-col: timeline | action */}
     <div className="detail-grid">
       <div style={card}>
@@ -1796,6 +1933,16 @@ function getOrderAlerts(orders,userBranch=null){
     const days=daysSince(billingDate);
     if(days>2)alerts.push({type:"cash_balance_payment_overdue",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Billed ${days} days ago — balance payment slip not yet uploaded (2-day limit passed)`});
   });
+  // Device Amendment — Old Order Needs Acknowledgment. Fires for an order
+  // that's been superseded by a device-amendment order (see approve() in
+  // JCLTab.jsx/ChaileaseTab.jsx) until Boon Theng, Stock, and Purchase have
+  // all clicked Acknowledge (see AcknowledgeSupersededBox below) — at which
+  // point the order auto-cancels and naturally drops out of myOrders.
+  myOrders.filter(o=>o.supersededByOrderId).forEach(o=>{
+    const ack=o.deviceAmendmentAck||{};
+    const waitingOn=["boontheng","stock","purchase"].filter(k=>!ack[k]);
+    alerts.push({type:"device_amendment_superseded",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:`Superseded by a device amendment — waiting on ${waitingOn.join(", ")} to acknowledge before this order cancels`});
+  });
   return alerts;
 }
 function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder}){
@@ -1829,6 +1976,12 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // literally the purchasing team's own inbox.
   const canSeePurchaseAlert=(email||"").toLowerCase()===EMAX_PURCHASE_EMAIL||(isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all"||orderPermissions.adminSteps.includes(2)));
   const missingActualPrice=canSeePurchaseAlert?alerts.filter(a=>a.type==="missing_actual_price"):[];
+  // Device amendment "old order needs acknowledgment" is for whoever needs
+  // to actually acknowledge it — admin, Stock role (adminSteps includes 4),
+  // or Purchase role (adminSteps includes 1) — same three parties as the
+  // acknowledge buttons themselves (Boon Theng holds admin via superAdmin).
+  const canSeeSupersededAlert=isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all"||orderPermissions.adminSteps.includes(1)||orderPermissions.adminSteps.includes(4));
+  const supersededAlerts=canSeeSupersededAlert?alerts.filter(a=>a.type==="device_amendment_superseded"):[];
   // Approval Warning starts collapsed on the admin order page (there's
   // usually a lot of them, and admin has plenty else to look at) but
   // starts expanded on a branch's own view (a short, directly relevant
@@ -1861,6 +2014,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
     <Block items={merchantRejected} color="#DC2626" title="Merchant Rejected"/>
     <Block items={billingRequestOverdue} color="#B91C1C" title="Billing Request Overdue"/>
     <Block items={missingActualPrice} color="#B45309" title="Actual Purchase Price Missing"/>
+    <Block items={supersededAlerts} color="#B45309" title="Device Amendment — Old Order Needs Acknowledgment"/>
     <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={agreementExpanded} onToggle={()=>setAgreementExpanded(p=>!p)}/>
     <Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={warningExpanded} onToggle={()=>setWarningExpanded(p=>!p)}/>
   </div>;

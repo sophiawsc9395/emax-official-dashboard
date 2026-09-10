@@ -26,6 +26,7 @@ const STEPS=[
   {step:3,label:"Follow-Up Required",color:"#B45309",bg:"#FFFBEB"},
   {step:4,label:"Approved by Chailease",color:"#15803D",bg:"#F0FDF4"},
   {step:5,label:"Rejected by Chailease",color:"#DC2626",bg:"#FEF2F2"},
+  {step:6,label:"Device Amendment Pending",color:"#B45309",bg:"#FFFBEB"},
 ];
 const stepDef=n=>STEPS.find(s=>s.step===n)||STEPS[0];
 
@@ -44,13 +45,19 @@ const Ic={
   check:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
   download:<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
 };
-const STEP_ICONS={1:Ic.fileText,2:Ic.share2,3:Ic.alertCircle,4:Ic.checkCircle,5:Ic.x};
+const STEP_ICONS={1:Ic.fileText,2:Ic.share2,3:Ic.alertCircle,4:Ic.checkCircle,5:Ic.x,6:Ic.edit};
 const SHORT_LABELS={1:"New App",2:"Submitted",3:"Follow-Up",4:"Approved",5:"Rejected"};
 
 function ProgressBar({step,history=[]}){
-  const pct=Math.round(((Math.min(step,5)-1)/4)*100);
+  // Step 6 (Device Amendment Pending) is an exceptional branch, not part
+  // of the normal 1-5 sequence — only show it in the linear progress bar
+  // for an application that's actually been through it, so every other
+  // application's progress bar isn't cluttered with an irrelevant bubble.
+  const pctStep=step===6?4:step;
+  const pct=Math.round(((Math.min(pctStep,5)-1)/4)*100);
   const cur=stepDef(step);
   const visibleSteps=STEPS.filter(s=>{
+    if(s.step===6)return step===6||history.some(h=>h.step===6);
     const skippedInPast=step>s.step&&!history.some(h=>h.step===s.step);
     return!skippedInPast;
   });
@@ -75,7 +82,7 @@ function ProgressBar({step,history=[]}){
       <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${C.blue},${C.blueBright})`,borderRadius:2,transition:"width .5s cubic-bezier(.4,0,.2,1)"}}/>
     </div>
     <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:10,color:C.textLight}}>
-      <span>Step {step} of 5{cur?` — ${cur.label}`:""}</span><span style={{fontWeight:700,color:C.blue}}>{pct}%</span>
+      <span>{step===6?cur.label:`Step ${step} of 5${cur?` — ${cur.label}`:""}`}</span><span style={{fontWeight:700,color:C.blue}}>{pct}%</span>
     </div>
   </div>;
 }
@@ -752,6 +759,19 @@ function AdminActions({app,onSaved,onCreateOrder}){
       history:[...(app.history||[]),{step:2,date:nowDate(),time:nowTime(),note:"Submitted to Chailease"}]});
     setSaving(false);
   };
+  // Applies the branch's requested device/price change (see AmendDeviceBox
+  // in OrderTab.jsx, which set step to 6 and populated deviceAmendment) and
+  // sends the application back through the normal Submitted → Follow-Up →
+  // Approved/Rejected cycle, same as submitToChailease above.
+  const resubmitAfterAmendment=async()=>{
+    if(!app.deviceAmendment)return;
+    setSaving(true);
+    const{previousDeviceName,previousFinancePrice,newDeviceName,newFinancePrice}=app.deviceAmendment;
+    await onSaved({...app,step:2,phoneModel:newDeviceName,financePrice:newFinancePrice,submittedToChaileaseDate:nowDate(),
+      deviceAmendment:{...app.deviceAmendment,resubmittedDate:nowDate()},
+      history:[...(app.history||[]),{step:2,date:nowDate(),time:nowTime(),note:`Resubmitted to Chailease after device amendment: ${previousDeviceName||"—"} → ${newDeviceName}, RM${(previousFinancePrice||0).toFixed(2)} → RM${newFinancePrice.toFixed(2)}`}]});
+    setSaving(false);
+  };
   const requestFollowUp=async()=>{
     if(!followUpRemark.trim()){alert("Remark required.");return;}
     setSaving(true);
@@ -779,15 +799,44 @@ function AdminActions({app,onSaved,onCreateOrder}){
       history:[...(app.history||[]),{step:4,date:nowDate(),time:nowTime(),note:`Approved by Chailease${approvedRemark?": "+approvedRemark:""}`}]};
     const orderId=await onCreateOrder(updated);
     await onSaved({...updated,linkedOrderId:orderId});
+    if(app.isDeviceAmendment&&app.deviceAmendment?.orderId){
+      // This application is a device-amendment clone (see AmendDeviceBox in
+      // OrderTab.jsx) — the order it points back to (deviceAmendment.orderId)
+      // is the OLD, now-superseded order. Flag it for the 3-way
+      // acknowledgment + auto-cancel flow instead of touching it directly —
+      // Boon Theng, Stock, and Purchase each need to sign off (see
+      // AcknowledgeSupersededBox in OrderTab.jsx) before it actually
+      // cancels, since stock/logistics already in motion for the old device
+      // may need to be unwound first.
+      const oldOrder=await getOrder(app.deviceAmendment.orderId);
+      if(oldOrder&&!oldOrder.cancelled){
+        await reconcile([oldOrder],[{...oldOrder,supersededByOrderId:orderId,pendingDeviceAmendment:null,deviceAmendmentAck:{},
+          history:[...(oldOrder.history||[]),{step:oldOrder.step,date:nowDate(),time:nowTime(),note:`Superseded by device amendment — new order created for ${app.phoneModel}. Awaiting acknowledgment from Boon Theng, Stock, and Purchase before this order is cancelled.`}]}]);
+      }
+    }
     setSaving(false);setShowApprove(false);
   };
   const reject=async()=>{
     if(!rejectedRemark.trim()){alert("Reason required.");return;}
     setSaving(true);
+    // Clear the OLD order's pending-amendment badge if this rejection is
+    // for a device amendment request — the order itself was never touched
+    // by the request, so there's nothing else to roll back.
+    if(app.isDeviceAmendment&&app.deviceAmendment?.orderId){
+      const order=await getOrder(app.deviceAmendment.orderId);
+      if(order&&order.pendingDeviceAmendment){
+        await reconcile([order],[{...order,pendingDeviceAmendment:null,
+          history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Device amendment rejected by Chailease: ${rejectedRemark}. Order unchanged.`}]}]);
+      }
+    }
     await onSaved({...app,step:5,rejectedDate:nowDate(),rejectedRemark,
       history:[...(app.history||[]),{step:5,date:nowDate(),time:nowTime(),note:`Rejected by Chailease: ${rejectedRemark}`}]});
     setSaving(false);setShowReject(false);
   };
+
+  if(app.step===6)return<ActionBox title="Device Amendment Pending" desc={`Branch requested: ${app.deviceAmendment?.previousDeviceName||"—"} → ${app.deviceAmendment?.newDeviceName} (RM${(app.deviceAmendment?.previousFinancePrice||0).toFixed(2)} → RM${(app.deviceAmendment?.newFinancePrice||0).toFixed(2)})`}>
+    <PBtn onClick={resubmitAfterAmendment} disabled={saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Resubmit to Chailease"}</PBtn>
+  </ActionBox>;
 
   if(app.step===4)return<ActionBox title="Approved by Chailease">
     <div style={{fontSize:12,color:"#15803D",fontWeight:600}}>Approved {fDate(app.approvedDate)}{app.linkedOrderId?" — order created on Order page":""}{app.approvedRemark?` — ${app.approvedRemark}`:""}</div>
@@ -886,7 +935,7 @@ function ActionBox({icon,title,desc,children}){
     <div style={{padding:"14px 16px"}}>{children}</div>
   </div>;
 }
-function ApplicationDetail({app,branchMeta,isAdmin,canEditDelete,canDelete,onBack,onSaved,onDelete,onEdit,onCreateOrder,fileUrls}){
+function ApplicationDetail({app,branchMeta,isAdmin,canEditDelete,canDelete,onBack,onGoToApp,onSaved,onDelete,onEdit,onCreateOrder,fileUrls}){
   const copyField=(v)=>{if(!v)return;navigator.clipboard?.writeText(String(v)).catch(()=>{});};
   const [copiedField,setCopiedField]=useState(null);
   const [mergingIcPdf,setMergingIcPdf]=useState(false);
@@ -915,6 +964,8 @@ function ApplicationDetail({app,branchMeta,isAdmin,canEditDelete,canDelete,onBac
       <div style={{display:"flex",gap:6}}>
         <GBtn onClick={onBack}>{Ic.chevL} Back</GBtn>
         <GBtn onClick={copyLink}>{linkCopied?<>{Ic.checkCircle} Copied!</>:<>{Ic.share} Copy Link</>}</GBtn>
+        {app.parentAppId&&<GBtn onClick={()=>onGoToApp(app.parentAppId)} style={{color:"#B45309",borderColor:"#FDE68A"}}>Original Application</GBtn>}
+        {app.childAmendmentAppId&&<GBtn onClick={()=>onGoToApp(app.childAmendmentAppId)} style={{color:"#B45309",borderColor:"#FDE68A"}}>New Application</GBtn>}
       </div>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <StepBadge app={app} step={app.step}/>
@@ -1293,7 +1344,7 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
   const createOrderFromApp=async(app)=>{
     const id=Date.now().toString();
     const order={
-      id,step:1,orderType:"ccm",stockStatus:"stock_request",branch:app.branch,merchant:"Chailease",
+      id,step:1,orderType:"ccm",stockStatus:"stock_request",branch:app.branch,merchant:"Chailease",linkedAppId:app.id,
       phoneModel:app.phoneModel,customerName:app.customerName,customerIC:app.customerIC,
       customerHP:app.customerHP,customerEmail:app.customerEmail,customerAddress:app.address,
       customerPostCode:app.postcode,customerCity:app.city,
@@ -1378,6 +1429,7 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
 
   if(view==="detail"&&selectedApp)return<ApplicationDetail app={selectedApp} branchMeta={branchMeta} isAdmin={isAdmin} canEditDelete={canEditDelete} canDelete={canEditDelete} fileUrls={fileUrls}
     onBack={()=>{setView("list");setSelectedId(null);}}
+    onGoToApp={id=>{setView("detail");setSelectedId(id);}}
     onSaved={save}
     onDelete={()=>deleteApp(selectedApp.id)}
     onEdit={()=>{setEditingApp(selectedApp);setView("form");}}
