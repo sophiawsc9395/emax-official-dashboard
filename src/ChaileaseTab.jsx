@@ -443,7 +443,11 @@ const JCL_STEPS=[
 // whether the very last connector line is drawn (only the true final step
 // across the whole combined timeline should have no trailing line).
 function TimelineSegment({steps,hist,curStep,isFinalSegment}){
+  // Same exception as ProgressBar's visibleSteps — step 6 (Device
+  // Amendment Pending) only belongs in an application's timeline if it
+  // actually happened to this application.
   const visibleSteps=steps.filter(s=>{
+    if(s.step===6)return curStep===6||hist.some(h=>h.step===6);
     const skippedInPast=curStep>s.step&&!hist.some(h=>h.step===s.step);
     return!skippedInPast;
   });
@@ -1381,6 +1385,13 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
 
   const scoped=useMemo(()=>{
     let list=apps;
+    // An application that's been amended is superseded by its own
+    // amendment (see childAmendmentAppId, set when AmendDeviceBox in
+    // OrderTab.jsx clones it) — hide the old one from the list and KPI
+    // counts so each amendment pair shows as a single application, not
+    // two. Both remain reachable from the detail page's Original
+    // Application/New Application buttons.
+    list=list.filter(a=>!a.childAmendmentAppId);
     if(userBranch)list=list.filter(a=>a.branch===userBranch);
     else if(branchFilter!=="all")list=list.filter(a=>a.branch===branchFilter);
     if(agentFilter!=="all")list=list.filter(a=>(a.salesAgentName||a.salesAgentId||"—")===agentFilter);

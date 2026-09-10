@@ -331,6 +331,7 @@ function Timeline({app}){
   // in-progress application stay visible as pending, since their outcome
   // genuinely hasn't been decided yet.
   const visibleSteps=STEPS.filter(s=>{
+    if(s.step===6)return cur===6||hist.some(h=>h.step===6);
     const skippedInPast=cur>s.step&&!hist.some(h=>h.step===s.step);
     return!skippedInPast;
   });
@@ -1226,6 +1227,13 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
 
   const scoped=useMemo(()=>{
     let list=apps;
+    // An application that's been amended is superseded by its own
+    // amendment (see childAmendmentAppId, set when AmendDeviceBox in
+    // OrderTab.jsx clones it) — hide the old one from the list and KPI
+    // counts so each amendment pair shows as a single application, not
+    // two. Both remain reachable from the detail page's Original
+    // Application/New Application buttons.
+    list=list.filter(a=>!a.childAmendmentAppId);
     if(userBranch)list=list.filter(a=>a.branch===userBranch);
     else if(branchFilter!=="all")list=list.filter(a=>a.branch===branchFilter);
     if(agentFilter!=="all")list=list.filter(a=>(a.salesAgentName||a.salesAgentId||"—")===agentFilter);

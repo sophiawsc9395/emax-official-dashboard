@@ -396,10 +396,10 @@ export default function App(){
     {id:"dailySales",label:"Daily Sales Report"},
     {group:"ccmApplication",label:"CCM Application",children:[
       {id:"jclApplications",label:"JCL Application"},
-      {id:"warranty",label:"Warranty"},
-      {id:"stockWriteOff",label:"Stock Write-off"},
       {id:"chaileaseApplications",label:"Chailease Application"},
     ]},
+    {id:"warranty",label:"Warranty"},
+    {id:"stockWriteOff",label:"Stock Write-off"},
     {id:"stockProfit",label:"Stock Profit Checker"},
     {id:"stockTransfer",label:"Stock Transfer"},
   ];

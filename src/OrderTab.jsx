@@ -2314,8 +2314,8 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
   const rowFields=o=>{
     const s=getStep(o.step),mxS=maxStep(o);
     const alert=alertsByOrderId[o.id];
-    const flagLabel=o.cancelled?"Cancelled":isPendingBranchAction(o)?"Pending Branch Action":isShortPaymentPending(o)?"Balance Payment Needed":o.step===14?"Completed":null;
-    const flagColor=o.cancelled||isPendingBranchAction(o)||isShortPaymentPending(o)?"#DC2626":"#15803D";
+    const flagLabel=o.cancelled?"Cancelled":isPendingBranchAction(o)?"Pending Branch Action":isShortPaymentPending(o)?"Balance Payment Needed":o.pendingDeviceAmendment?"Device Amendment Pending":o.step===14?"Completed":null;
+    const flagColor=o.cancelled||isPendingBranchAction(o)||isShortPaymentPending(o)?"#DC2626":o.pendingDeviceAmendment?"#B45309":"#15803D";
     const ph=getPhase(o.step);
     const progressLabel=o.step===14?"Completed":ph?.label||"—";
     const progressColor=o.step===14?"#15803D":ph?.color||C.blue;
