@@ -292,7 +292,11 @@ export async function reconcile(oldList, newList) {
   const newIds = new Set((newList || []).map(o => String(o.id)));
   const toDelete = (oldList || []).filter(o => !newIds.has(String(o.id))).map(o => String(o.id));
 
-  const orderRows = [];
+  // Existing orders vs. brand-new ones are written in different orders below
+  // (see the comment above the writes), so they're kept in separate arrays
+  // here rather than one combined orderRows list.
+  const newOrderRows = [];
+  const existingOrderRows = [];
   const historyRows = [];
 
   for (const order of newList || []) {
@@ -305,7 +309,8 @@ export async function reconcile(oldList, newList) {
     for (const entry of entriesToInsert) {
       denorm = { ...denorm, ...applyHistoryEntry({ ...order, ...denorm }, entry) };
     }
-    orderRows.push(orderToRow({ ...order, ...denorm }));
+    const row = orderToRow({ ...order, ...denorm });
+    (old ? existingOrderRows : newOrderRows).push(row);
 
     for (const entry of entriesToInsert) {
       const { step, date, time, ...data } = entry;
@@ -318,12 +323,30 @@ export async function reconcile(oldList, newList) {
       const { error } = await supabase.from(ORDERS_TABLE).delete().in("id", toDelete);
       if (error) throw error;
     }
-    if (orderRows.length) {
-      const { error } = await supabase.from(ORDERS_TABLE).upsert(orderRows, { onConflict: "id" });
+    // Brand-new orders must be written first — order_history has a foreign
+    // key on order_id, so a new order's history rows can't be inserted
+    // until its header row exists.
+    if (newOrderRows.length) {
+      const { error } = await supabase.from(ORDERS_TABLE).upsert(newOrderRows, { onConflict: "id" });
       if (error) throw error;
     }
+    // For orders that already exist, history is written BEFORE the header
+    // update. These are two separate writes, not one transaction, and the
+    // live-updates subscription reacts to the `orders` table changing by
+    // immediately re-fetching that order's header + history. If the header
+    // commits first, that re-fetch can land in the gap before the history
+    // row has committed — seeing a header that's already moved (e.g. reset
+    // back to Step 1 by "Supplier Cancelled Order") without yet seeing the
+    // history row that explains why, and "self-heal" logic elsewhere then
+    // pushes the header straight back to where it was. Committing history
+    // first means anyone reacting to the header change always sees the
+    // history that justifies it.
     if (historyRows.length) {
       const { error } = await supabase.from(HISTORY_TABLE).insert(historyRows);
+      if (error) throw error;
+    }
+    if (existingOrderRows.length) {
+      const { error } = await supabase.from(ORDERS_TABLE).upsert(existingOrderRows, { onConflict: "id" });
       if (error) throw error;
     }
     return { ok: true };
