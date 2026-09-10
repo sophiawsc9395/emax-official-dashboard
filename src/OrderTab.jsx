@@ -1802,8 +1802,14 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   const isMobile=useIsMobile();
   if(!alerts.length)return null;
   const isEmaxPurchase=(email||"").toLowerCase()===EMAX_PURCHASE_EMAIL;
-  const expired=alerts.filter(a=>a.type==="approval_expired");
-  const urgent=alerts.filter(a=>a.type==="approval_urgent"||a.type==="overdue_order");
+  const expired=isEmaxPurchase?[]:alerts.filter(a=>a.type==="approval_expired");
+  // Urgent Attention normally combines two different alert types:
+  // approval_urgent (a merchant-approval deadline closing in) and
+  // overdue_order (Ordered X days ago, not yet Arrived HQ — squarely
+  // Purchase's own responsibility). emaxpurchase@gmail.com keeps
+  // overdue_order but not approval_urgent, same reasoning as the other
+  // approval-related alerts excluded below.
+  const urgent=alerts.filter(a=>a.type==="overdue_order"||(a.type==="approval_urgent"&&!isEmaxPurchase));
   // Collection Proof Overdue, Billing Request Overdue, Agreement Received
   // by HQ, Merchant Rejected, and Cash Balance Payment Slip Overdue are
   // all past Purchase's own step range (1-3) and not theirs to act on —
