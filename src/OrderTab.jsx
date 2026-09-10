@@ -2708,11 +2708,24 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   // has at least one step visible to this role.
   const groupedPhases=useMemo(()=>PHASES.map(ph=>({...ph,steps:STEPS.filter(s=>s.phase===ph.id&&s.step!==14&&canSeeStepCard(s.step))})).filter(g=>g.steps.length>0),[orderPermissions,userBranch,isAdmin]);
   const completedCount=orders.filter(o=>o.step===14&&visibleToBranch(o,userBranch)).length;
+  // Alerts are sourced from every branch-visible order, NOT narrowed by
+  // canSeeStep/visibleSteps the way activeOrders (the main list/KPI cards)
+  // is. A role's visibleSteps is about which orders that role browses day
+  // to day — e.g. Purchase only lists Stock Order steps 1-3. But an alert
+  // like "Actual Purchase Price Missing" is deliberately defined to keep
+  // firing through step 5 (Arrived Branch), specifically so Purchase still
+  // gets nagged about something they were supposed to fill in even after
+  // the order has moved on past their normal step range. Restricting the
+  // alert source to activeOrders would silently drop exactly those cases.
+  // Each alert TYPE still has its own visibility gate at render time
+  // (canSeePurchaseAlert, canSeeMerchantRejected, etc.) — that's the right
+  // layer for permission checks on alerts, not this upstream step filter.
+  const alertableOrders=useMemo(()=>orders.filter(o=>o.step!==14&&!o.cancelled&&visibleToBranch(o,userBranch)),[orders,userBranch]);
   const alerts=useMemo(()=>{
-    const all=getOrderAlerts(activeOrders,userBranch);
+    const all=getOrderAlerts(alertableOrders,userBranch);
     const canSeeMerchantRejected=isSuperAdminOrder||canAdminStep(7);
     return canSeeMerchantRejected?all:all.filter(a=>a.type!=="merchant_rejected");
-  },[activeOrders,userBranch,isSuperAdminOrder,orderPermissions]);
+  },[alertableOrders,userBranch,isSuperAdminOrder,orderPermissions]);
   const alertsByOrderId=useMemo(()=>{const m={};alerts.forEach(a=>{if(!m[a.orderId])m[a.orderId]=a;});return m;},[alerts]);
 
   if(loading)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading orders…</div>;
@@ -2750,7 +2763,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     </div>
 
     {/* Alerts */}
-    <AlertBanner alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} orderPermissions={orderPermissions} email={email} onClickOrder={id=>{const o=activeOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
+    <AlertBanner alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} orderPermissions={orderPermissions} email={email} onClickOrder={id=>{const o=alertableOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
 
     {(()=>{
       const outOfStockUnacked=cancelledOrders.filter(o=>o.outOfStock&&!(o.outOfStockAckAdmin&&o.outOfStockAckBranch));
