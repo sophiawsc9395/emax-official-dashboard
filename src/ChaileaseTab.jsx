@@ -442,7 +442,7 @@ const JCL_STEPS=[
 // two segments stacked with no visual seam. `isFinalSegment` controls
 // whether the very last connector line is drawn (only the true final step
 // across the whole combined timeline should have no trailing line).
-function TimelineSegment({steps,hist,curStep,isFinalSegment}){
+function TimelineSegment({steps,hist,curStep,isFinalSegment,stepDocs}){
   // Same exception as ProgressBar's visibleSteps — step 6 (Device
   // Amendment Pending) only belongs in an application's timeline if it
   // actually happened to this application.
@@ -455,6 +455,7 @@ function TimelineSegment({steps,hist,curStep,isFinalSegment}){
     const done=curStep>s.step&&hist.some(h=>h.step===s.step);
     const active=curStep===s.step;
     const histEntries=hist.filter(h=>h.step===s.step);
+    const docs=(stepDocs?.[s.step]||[]).filter(d=>d.doc);
     const isLast=isFinalSegment&&i===visibleSteps.length-1;
     return<div key={s.step} style={{display:"flex",position:"relative"}}>
       {!isLast&&<div style={{position:"absolute",left:11,top:24,width:1,height:"calc(100% + 2px)",background:done?C.navy+"30":C.border,zIndex:0}}/>}
@@ -470,14 +471,22 @@ function TimelineSegment({steps,hist,curStep,isFinalSegment}){
           <div style={{marginBottom:3,fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em"}}>{fDate(h.date)} {h.time||""}</div>
           {h.note&&<div>{h.note}</div>}
         </div>)}
+        {docs.length>0&&<div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>
+          {docs.map(d=>d.url?<a key={d.label} href={d.url} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600}}>📎 {d.label}: {d.doc.name}</a>:<span key={d.label} style={{fontSize:11,color:C.textLight}}>📎 {d.label}: loading…</span>)}
+        </div>}
       </div>
     </div>;
   })}</>;
 }
 
-function Timeline({app}){
+function Timeline({app,fileUrls}){
   const hist=app.history||[];
   const hasJclOrigin=app.sourceJclId&&app.jclHistory?.length>0;
+  // Admin-uploaded agreement copy (uploaded at approval time — see approve()
+  // — and stored under chaileaseDocuments, not as a per-step history
+  // attachment) shown as a link under the Approved step, alongside its
+  // note, instead of being invisible anywhere in the timeline.
+  const stepDocs={4:[{label:"Chailease Agreement Copy",doc:app.chaileaseDocuments?.agreementChaileaseCopy,url:fileUrls?.[`${app.id}_agreementChaileaseCopy`]}]};
   if(!hasJclOrigin){
     // A step only counts as genuinely completed if there's an actual history
     // entry recording it happened — not just because its step number is
@@ -489,7 +498,7 @@ function Timeline({app}){
     // like it passed through Follow-Up and Approval first. Steps still
     // ahead in an in-progress application stay visible as pending, since
     // their outcome genuinely hasn't been decided yet.
-    return<div><TimelineSegment steps={STEPS} hist={hist} curStep={app.step} isFinalSegment={true}/></div>;
+    return<div><TimelineSegment steps={STEPS} hist={hist} curStep={app.step} isFinalSegment={true} stepDocs={stepDocs}/></div>;
   }
   // Auto-created after a JCL rejection — one continuous timeline spanning
   // both applications: JCL's steps (from the snapshotted jclHistory, since
@@ -499,7 +508,7 @@ function Timeline({app}){
     <div style={{fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6,marginTop:2}}>JCL Application</div>
     <TimelineSegment steps={JCL_STEPS} hist={app.jclHistory} curStep={5} isFinalSegment={false}/>
     <div style={{fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6,marginTop:4}}>Chailease Application</div>
-    <TimelineSegment steps={STEPS} hist={hist} curStep={app.step} isFinalSegment={true}/>
+    <TimelineSegment steps={STEPS} hist={hist} curStep={app.step} isFinalSegment={true} stepDocs={stepDocs}/>
   </div>;
 }
 
@@ -1110,7 +1119,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canEditDelete,canDelete,onBac
     <div className="detail-grid">
       <div style={card}>
         <DetailSecHdr icon={Ic.fileText}>Tracking Timeline</DetailSecHdr>
-        <div style={{padding:"14px 16px"}}><Timeline app={app}/></div>
+        <div style={{padding:"14px 16px"}}><Timeline app={app} fileUrls={fileUrls}/></div>
       </div>
       <div>
         {isAdmin&&<AdminActions app={app} onSaved={onSaved} onCreateOrder={onCreateOrder}/>}
@@ -1372,6 +1381,16 @@ export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],em
           if(url)setFileUrls(p=>({...p,[fkey]:url}));
         }
       });
+      // Admin-uploaded agreement copy (uploaded at approval time, stored
+      // under chaileaseDocuments rather than as a top-level DOC_FIELDS key)
+      // — resolving it here is what lets the Tracking Timeline show a link
+      // to it under the Approved step; it wasn't being resolved at all
+      // before, so the file existed but had no visible link anywhere.
+      const agreementDoc=a.chaileaseDocuments?.agreementChaileaseCopy;
+      const agreementKey=`${a.id}_agreementChaileaseCopy`;
+      if(agreementDoc?.path&&!fileUrls[agreementKey]){
+        signFileUrl(agreementDoc.path).then(url=>{if(url)setFileUrls(p=>({...p,[agreementKey]:url}));});
+      }
       (a.followUpResponseFiles||[]).forEach(async(f,i)=>{
         const key=`${a.id}_followup${i}`;
         if(f.path&&!fileUrls[key]){

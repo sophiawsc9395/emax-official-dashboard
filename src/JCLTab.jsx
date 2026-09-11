@@ -316,9 +316,20 @@ async function downloadAllDocuments(app,fileUrls){
 }
 
 /* ── Timeline ──────────────────────────────────────────────────────────── */
-function Timeline({app}){
+function Timeline({app,fileUrls}){
   const cur=app.step;
   const hist=app.history||[];
+  // Admin-uploaded documents (uploaded at approval time — see approve() —
+  // and stored under jclDocuments, not as per-step history attachments)
+  // shown as links under the Approved step, alongside its note, instead of
+  // being invisible anywhere in the timeline.
+  const stepDocs={4:[
+    {label:"JCL Application Form",doc:app.jclDocuments?.applicationForm,url:fileUrls?.[`${app.id}_applicationForm`]},
+    {label:"Notice 1",doc:app.jclDocuments?.notice1,url:fileUrls?.[`${app.id}_notice1`]},
+    {label:"Agreement (JCL Copy)",doc:app.jclDocuments?.agreementJCLCopy,url:fileUrls?.[`${app.id}_agreementJCLCopy`]},
+    {label:"Agreement (Customer Copy)",doc:app.jclDocuments?.agreementCustomerCopy,url:fileUrls?.[`${app.id}_agreementCustomerCopy`]},
+    {label:"Credit Acknowledgement Form",doc:app.jclDocuments?.creditAckForm,url:fileUrls?.[`${app.id}_creditAckForm`]},
+  ]};
   // A step only counts as genuinely completed if there's an actual history
   // entry recording it happened — not just because its step number is
   // lower than the current one. This workflow branches (step 2 "Submitted
@@ -339,6 +350,7 @@ function Timeline({app}){
     const done=cur>s.step&&hist.some(h=>h.step===s.step);
     const active=cur===s.step;
     const histEntries=hist.filter(h=>h.step===s.step);
+    const docs=(stepDocs[s.step]||[]).filter(d=>d.doc);
     const isLast=i===visibleSteps.length-1;
     return<div key={s.step} style={{display:"flex",position:"relative"}}>
       {!isLast&&<div style={{position:"absolute",left:11,top:24,width:1,height:"calc(100% + 2px)",background:done?C.navy+"30":C.border,zIndex:0}}/>}
@@ -354,6 +366,9 @@ function Timeline({app}){
           <div style={{marginBottom:3,fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em"}}>{fDate(h.date)} {h.time||""}</div>
           {h.note&&<div>{h.note}</div>}
         </div>)}
+        {docs.length>0&&<div style={{marginTop:4,display:"flex",flexDirection:"column",gap:3}}>
+          {docs.map(d=>d.url?<a key={d.label} href={d.url} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600}}>📎 {d.label}: {d.doc.name}</a>:<span key={d.label} style={{fontSize:11,color:C.textLight}}>📎 {d.label}: loading…</span>)}
+        </div>}
       </div>
     </div>;
   })}</div>;
@@ -979,7 +994,7 @@ function ApplicationDetail({app,branchMeta,isAdmin,canEditDelete,canDelete,onBac
     <div className="detail-grid">
       <div style={card}>
         <DetailSecHdr icon={Ic.fileText}>Tracking Timeline</DetailSecHdr>
-        <div style={{padding:"14px 16px"}}><Timeline app={app}/></div>
+        <div style={{padding:"14px 16px"}}><Timeline app={app} fileUrls={fileUrls}/></div>
       </div>
       <div>
         {isAdmin&&<AdminActions app={app} onSaved={onSaved} onCreateOrder={onCreateOrder}/>}
@@ -1220,6 +1235,16 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
           const url=await signFileUrl(f.path);
           if(url)setFileUrls(p=>({...p,[key]:url}));
         }
+      });
+      // Admin-uploaded documents (uploaded at approval time, stored under
+      // jclDocuments rather than as top-level DOC_FIELDS keys) — resolving
+      // them here is what lets the Tracking Timeline show links to them
+      // under the Approved step; they weren't being resolved at all
+      // before, so the files existed but had no visible link anywhere.
+      ["applicationForm","notice1","agreementJCLCopy","agreementCustomerCopy","creditAckForm"].forEach(key=>{
+        const doc=a.jclDocuments?.[key];
+        const fkey=`${a.id}_${key}`;
+        if(doc?.path&&!fileUrls[fkey])signFileUrl(doc.path).then(url=>{if(url)setFileUrls(p=>({...p,[fkey]:url}));});
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
