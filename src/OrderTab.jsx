@@ -2345,9 +2345,9 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
         <div style={{minWidth:MIN_W}}>
           <div style={{display:"flex",alignItems:"center",padding:PAD,height:36,background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
             <div style={{width:8,flexShrink:0}}/>
-            <div style={{flex:2.6,minWidth:0,marginLeft:10}}>Order</div>
+            <div style={{flex:1.7,minWidth:0,marginLeft:10}}>Order</div>
             <div style={{width:150,flexShrink:0,marginLeft:14}}>Invoice No</div>
-            <div style={{flex:1.4,minWidth:220,marginLeft:14}}>Status</div>
+            <div style={{flex:2.3,minWidth:220,marginLeft:14}}>Status</div>
             <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto"}}>Updated</div>
           </div>
           {orders.map((o,idx)=>{
@@ -2356,7 +2356,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
             return<div key={o.id} onClick={()=>onOpen(o)}
               style={{display:"flex",alignItems:"center",padding:`10px 14px`,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer"}}>
               <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?alertDotColor(alert.type):"transparent"}}/>
-              <div style={{flex:2.6,minWidth:0,marginLeft:10}}>
+              <div style={{flex:1.7,minWidth:0,marginLeft:10}}>
                 <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
                 <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
               </div>
@@ -2364,7 +2364,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
                 <MerchantBadge order={o}/>
                 <div style={{fontSize:11,fontWeight:700,color:C.textMid,marginTop:2}}>{o.invoiceNo||"—"}</div>
               </div>
-              <div style={{flex:1.4,minWidth:220,marginLeft:14,alignSelf:"stretch",display:"flex",alignItems:"center"}}>
+              <div style={{flex:2.3,minWidth:220,marginLeft:14,alignSelf:"stretch",display:"flex",alignItems:"center"}}>
                 <div style={{display:"flex",flexWrap:"wrap",gap:4,rowGap:5}}>
                   {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
                   {hasDifferentPickup&&<span style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#B4530918",border:"1px solid #B4530940",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Pickup · {o.pickUpBranch}</span>}
@@ -2400,9 +2400,9 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
     <div onScroll={e=>setScrollTop(e.currentTarget.scrollTop)} style={{height:VIEWPORT_H,overflow:"auto"}}>
       <div style={{position:"sticky",top:0,zIndex:2,height:HEADER_H,boxSizing:"border-box",display:"flex",alignItems:"center",padding:PAD,background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
         <div style={{width:8,flexShrink:0}}/>
-        <div style={{flex:2.6,minWidth:0,marginLeft:10}}>Order</div>
+        <div style={{flex:1.7,minWidth:0,marginLeft:10}}>Order</div>
         <div style={{width:150,flexShrink:0,marginLeft:14}}>Invoice No</div>
-        <div style={{flex:1.4,minWidth:220,marginLeft:14}}>Status</div>
+        <div style={{flex:2.3,minWidth:220,marginLeft:14}}>Status</div>
         <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto"}}>Updated</div>
       </div>
       <div style={{height:total*ROW_H,position:"relative"}}>
@@ -2415,7 +2415,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
             onMouseEnter={e=>{e.currentTarget.style.background="#EEF3FB";}}
             onMouseLeave={e=>{e.currentTarget.style.background=rowBg;}}>
             <div title={alert?.msg||""} style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:alert?alertDotColor(alert.type):"transparent"}}/>
-            <div style={{flex:2.6,minWidth:0,marginLeft:10}}>
+            <div style={{flex:1.7,minWidth:0,marginLeft:10}}>
               <div style={{fontWeight:700,fontSize:12,color:C.text,...single}}>{o.phoneModel}</div>
               <div style={{fontSize:10,color:C.textLight,...single}}>{o.customerName} · {o.branch} · {o.salesAgentName||o.salesAgentId||"—"}</div>
             </div>
@@ -2423,7 +2423,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
               <MerchantBadge order={o}/>
               <div style={{fontSize:11,fontWeight:700,color:C.textMid,marginTop:2,...single}}>{o.invoiceNo||"—"}</div>
             </div>
-            <div style={{flex:1.4,minWidth:220,marginLeft:14,overflow:"hidden"}}>
+            <div style={{flex:2.3,minWidth:220,marginLeft:14,overflow:"hidden"}}>
               <div style={{display:"flex",flexWrap:"nowrap",gap:4}}>
                 {flagLabel&&<span style={{fontSize:9,fontWeight:700,color:flagColor,background:flagColor+"18",border:`1px solid ${flagColor}40`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{flagLabel}</span>}
                 {hasDifferentPickup&&<span style={{fontSize:9,fontWeight:700,color:"#B45309",background:"#B4530918",border:"1px solid #B4530940",padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>Pickup · {o.pickUpBranch}</span>}
