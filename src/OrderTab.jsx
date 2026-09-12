@@ -1901,7 +1901,7 @@ function getOrderAlerts(orders,userBranch=null){
     const days=daysSince(o.stepDates["11"].date);
     if(days>5)alerts.push({type:"agreement_received_overdue",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Agreement Received by HQ ${days} days ago — not yet sent to merchant or returned to branch`});
   });
-  myOrders.filter(o=>o.aeonApprovalDate&&o.step>=1&&o.step<=13).forEach(o=>{
+  myOrders.filter(o=>o.aeonApprovalDate&&o.step>=1&&o.step<12).forEach(o=>{
     const days=daysSince(o.aeonApprovalDate);
     if(days>=91)alerts.push({type:"approval_expired",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval EXPIRED — ${days} days ago`});
     else if(days>=61)alerts.push({type:"approval_urgent",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval ${days} days ago — URGENT`});
