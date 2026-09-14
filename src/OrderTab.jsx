@@ -2475,6 +2475,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const [filterPhase,setFilterPhase]=useState("all");
   const [filterBranch,setFilterBranch]=useState("ALL");
   const [filterAgent,setFilterAgent]=useState("ALL");
+  const [filterMerchant,setFilterMerchant]=useState("ALL");
   const [searchInput,setSearchInput]=useState("");
   const [search,setSearch]=useState("");
   useEffect(()=>{const t=setTimeout(()=>setSearch(searchInput),200);return()=>clearTimeout(t);},[searchInput]);
@@ -2851,7 +2852,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const viewingCompleted=filterPhase==="completed";
   const viewingCancelled=filterPhase==="cancelled";
   const viewingMerchantRejected=filterPhase==="merchantRejected";
-  const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||(viewingMerchantRejected?(o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate):(filterPhase==="all"||o.step===filterPhase)))&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toString().toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,viewingMerchantRejected,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,search]);
+  const matchesMerchant=(o,m)=>m==="ALL"||(m==="Cash"?o.orderType==="cash":o.merchant===m);
+  const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||(viewingMerchantRejected?(o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate):(filterPhase==="all"||o.step===filterPhase)))&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&matchesMerchant(o,filterMerchant)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toString().toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,viewingMerchantRejected,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,filterMerchant,search]);
   // Separate from the main order list above on purpose — the regular list
   // stays predictable for everyone (only matches customer/model/agreement/
   // invoice, same as always), while this handles the Sophia-only payment-
@@ -3048,7 +3050,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
       <I placeholder={isSophia?"Search customer, model, agreement, invoice, amount, date, remark…":"Search customer, model, agreement, invoice…"} value={searchInput} onChange={e=>setSearchInput(e.target.value)} style={{flex:2,minWidth:160}}/>
       {isAdmin&&<SEL value={filterBranch} onChange={e=>setFilterBranch(e.target.value)} style={{flex:1,minWidth:120}}><option value="ALL">All Branches</option>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b}</option>)}</SEL>}
-      {agentOptions.length>0&&<SEL value={filterAgent} onChange={e=>setFilterAgent(e.target.value)} style={{flex:1,minWidth:140}}><option value="ALL">All Agents</option>{agentOptions.map(a=><option key={a} value={a}>{a}</option>)}</SEL>}
+      {!!userBranch&&agentOptions.length>0&&<SEL value={filterAgent} onChange={e=>setFilterAgent(e.target.value)} style={{flex:1,minWidth:140}}><option value="ALL">All Agents</option>{agentOptions.map(a=><option key={a} value={a}>{a}</option>)}</SEL>}
+      <SEL value={filterMerchant} onChange={e=>setFilterMerchant(e.target.value)} style={{flex:1,minWidth:120}}><option value="ALL">All Merchants</option><option value="Aeon">Aeon</option><option value="JCL">JCL</option><option value="Chailease">Chailease</option><option value="Cash">Cash</option></SEL>
     </div>
 
     {/* Order list — compact rows in a fixed-height virtualized viewport.
@@ -3056,7 +3059,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         ever mounted, so scroll performance doesn't degrade as the order
         count grows into the hundreds. */}
     {filtered.length===0
-      ?<div style={{...card,padding:"44px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>{search||filterPhase!=="all"||filterBranch!=="ALL"||filterAgent!=="ALL"?"No orders match your filter.":"No orders yet. Click New Order to get started."}</div>
+      ?<div style={{...card,padding:"44px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>{search||filterPhase!=="all"||filterBranch!=="ALL"||filterAgent!=="ALL"||filterMerchant!=="ALL"?"No orders match your filter.":"No orders yet. Click New Order to get started."}</div>
       :<OrderListVirtualized orders={filtered} alertsByOrderId={alertsByOrderId} onOpen={openOrder} userBranch={userBranch}/>
     }
 
