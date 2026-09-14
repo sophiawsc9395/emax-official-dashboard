@@ -100,6 +100,7 @@ const FILE_LABELS={...STEPS.reduce((m,s)=>{(s.needsFiles||[]).forEach(f=>{m[f.ke
 function getVisibleSteps(order){
   const isCash=order.orderType==="cash";
   const isReady=order.stockStatus==="ready";
+  const isChailease=order.merchant==="Chailease";
   if(isCash){
     // Cash: 1, (2,3 if not ready), 4,5,6,7,8,9 then done
     const base=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9];
@@ -107,8 +108,11 @@ function getVisibleSteps(order){
   }
   // CCM: 1-13 (14=Completed is archived, shown separately). Ready stock
   // skips 2 (Ordered) and 3 (Arrived HQ) — there's nothing to order or wait
-  // to arrive when the phone is already sitting in stock.
-  const base=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,10,11,12,13];
+  // to arrive when the phone is already sitting in stock. Chailease skips
+  // 10 (Agreement Submission by Branch) and 11 (Agreement Received by HQ)
+  // — Chailease doesn't require the physical signed-agreement handoff
+  // through HQ that Aeon/JCL do.
+  const base=[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,...(isChailease?[]:[10,11]),12,13];
   return STEPS.filter(s=>base.includes(s.step));
 }
 
@@ -121,10 +125,11 @@ function getVisibleSteps(order){
 function nextStepNum(order){
   const isCash=order.orderType==="cash";
   const isReady=order.stockStatus==="ready";
+  const isChailease=order.merchant==="Chailease";
   const cur=order.step;
   const seq=isCash
     ?[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,14]
-    :[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,10,11,12,13];
+    :[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,...(isChailease?[]:[10,11]),12,13];
   const next=seq.find(n=>n>cur);
   return next!==undefined?next:null;
 }
@@ -533,7 +538,8 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
     }
     const isCash=order.orderType==="cash";
     const isReady=order.stockStatus==="ready";
-    const seq=isCash?[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,14]:[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,10,11,12,13];
+    const isChailease=order.merchant==="Chailease";
+    const seq=isCash?[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,14]:[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,...(isChailease?[]:[10,11]),12,13];
     let correctStep=seq[0];
     for(const s of seq)if(hist.some(h=>h.step===s))correctStep=s;
     console.log("[step self-heal] order",order.id,"step",order.step,"has NO backing entry. Steps actually in log:",hist.map(h=>h.step),". Correcting to step",correctStep);
@@ -567,7 +573,8 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
     if(deletedEntry){
       const isCash=order.orderType==="cash";
       const isReady=order.stockStatus==="ready";
-      const seq=isCash?[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,14]:[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,10,11,12,13];
+      const isChailease=order.merchant==="Chailease";
+      const seq=isCash?[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,14]:[1,...(isReady?[]:[2,3]),4,5,6,7,8,9,...(isChailease?[]:[10,11]),12,13];
       const idx=seq.indexOf(deletedEntry.step);
       const stepBeforeDeleted=idx>0?seq[idx-1]:seq[0];
       newStep=Math.min(newStep,stepBeforeDeleted);
