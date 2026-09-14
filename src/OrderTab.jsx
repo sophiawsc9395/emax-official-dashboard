@@ -2338,14 +2338,19 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
     // own perspective (an order shows up in their list either because it's
     // theirs, or only because their branch is the customer's pickup point).
     const hasDifferentPickup=!!o.pickUpBranch&&o.pickUpBranch!==o.branch;
-    return{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText,hasDifferentPickup};
+    // Same "how long has this been sitting" signal as the Expected Profit
+    // table's Step view — reachedDate is when the order's CURRENT step was
+    // entered, not when the order itself was created.
+    const reachedDate=o.stepDates?.[o.step]?.date||null;
+    const daysWaiting=reachedDate?daysSince(reachedDate):null;
+    return{s,mxS,alert,flagLabel,flagColor,progressLabel,progressColor,detailText,hasDifferentPickup,reachedDate,daysWaiting};
   };
 
   // ── Mobile: no inner vertical scrollbox — the full list renders in normal
   // page flow (page itself scrolls), wrapped in a horizontally-scrollable
   // strip so columns can be swiped into view instead of wrapping/clipping. ──
   if(isMobile){
-    const MIN_W=760;
+    const MIN_W=820;
     const PAD="0 14px";
     return<div style={{...card,padding:0,overflow:"hidden"}}>
       <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
@@ -2355,10 +2360,10 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
             <div style={{flex:1.7,minWidth:0,marginLeft:10}}>Order</div>
             <div style={{width:150,flexShrink:0,marginLeft:14}}>Invoice No</div>
             <div style={{flex:2.3,minWidth:220,marginLeft:14}}>Status</div>
-            <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto"}}>Updated</div>
+            <div style={{width:112,flexShrink:0,marginLeft:"auto",textAlign:"right"}}>Days Waiting</div>
           </div>
           {orders.map((o,idx)=>{
-            const{alert,flagLabel,flagColor,hasDifferentPickup}=rowFields(o);
+            const{alert,flagLabel,flagColor,hasDifferentPickup,reachedDate,daysWaiting}=rowFields(o);
             const rowBg=idx%2===0?C.white:C.surface;
             return<div key={o.id} onClick={()=>onOpen(o)}
               style={{display:"flex",alignItems:"center",padding:`10px 14px`,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer"}}>
@@ -2379,7 +2384,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
                   <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
                 </div>
               </div>
-              <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>
+              <div style={{width:112,flexShrink:0,marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:10,color:C.textLight}}>{reachedDate?fDate(reachedDate):"—"}</div><div style={{fontSize:11,fontWeight:700,marginTop:1,color:daysWaiting===null?C.textLight:daysWaiting>=7?"#DC2626":daysWaiting>=3?"#B45309":C.textMid}}>{daysWaiting===null?"—":`${daysWaiting} day${daysWaiting===1?"":"s"}${daysWaiting>=7?" ⚠":""}`}</div></div>
             </div>;
           })}
         </div>
@@ -2410,12 +2415,12 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
         <div style={{flex:1.7,minWidth:0,marginLeft:10}}>Order</div>
         <div style={{width:150,flexShrink:0,marginLeft:14}}>Invoice No</div>
         <div style={{flex:2.3,minWidth:220,marginLeft:14}}>Status</div>
-        <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto"}}>Updated</div>
+        <div style={{width:112,flexShrink:0,marginLeft:"auto",textAlign:"right"}}>Days Waiting</div>
       </div>
       <div style={{height:total*ROW_H,position:"relative"}}>
         {visible.map((o,i)=>{
           const idx=startIdx+i;
-          const{alert,flagLabel,flagColor,hasDifferentPickup}=rowFields(o);
+          const{alert,flagLabel,flagColor,hasDifferentPickup,reachedDate,daysWaiting}=rowFields(o);
           const rowBg=idx%2===0?C.white:C.surface;
           return<div key={o.id} onClick={()=>onOpen(o)}
             style={{position:"absolute",top:idx*ROW_H,left:0,right:0,height:ROW_H,display:"flex",alignItems:"center",padding:PAD,borderBottom:`1px solid ${C.border}`,background:rowBg,cursor:"pointer",overflow:"hidden"}}
@@ -2438,7 +2443,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
                 <span style={{fontSize:9,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap",flexShrink:0}}>{o.orderType==="cash"?"Cash Order":"CCM Order"}</span>
               </div>
             </div>
-            <div style={{width:92,flexShrink:0,textAlign:"right",marginLeft:"auto",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{o.lastHistoryDate?fDT(o.lastHistoryDate,o.lastHistoryTime):"—"}</div>
+            <div style={{width:112,flexShrink:0,marginLeft:"auto",textAlign:"right"}}><div style={{fontSize:10,color:C.textLight}}>{reachedDate?fDate(reachedDate):"—"}</div><div style={{fontSize:11,fontWeight:700,marginTop:1,color:daysWaiting===null?C.textLight:daysWaiting>=7?"#DC2626":daysWaiting>=3?"#B45309":C.textMid}}>{daysWaiting===null?"—":`${daysWaiting} day${daysWaiting===1?"":"s"}${daysWaiting>=7?" ⚠":""}`}</div></div>
           </div>;
         })}
       </div>
