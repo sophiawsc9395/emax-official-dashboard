@@ -221,7 +221,7 @@ const COMPANIES = {
     name: 'EMAX NETWORK SDN BHD',
     shortLabel: 'Emax',
     hasTime: true,
-    sections: ['bank','stock','aeon','jcl','rto','supplier','customer']
+    sections: ['bank','stock','aeon','jcl','chailease','rto','supplier','customer']
   },
   spoonfork: {
     name: 'SPOON & FORK SDN BHD',
@@ -266,7 +266,7 @@ const QTY_SECTIONS = new Set(['playground','activateGame','other']);
 
 const SECTION_TITLES = {
   bank:'Bank Balance', stock:'Stock Balance', aeon:'AEON (Unclaimed)',
-  jcl:'JCL (Unclaimed)', rto:'Rent-to-Own (RTO)', supplier:'Supplier', customer:'Customer',
+  jcl:'JCL (Unclaimed)', chailease:'Chailease (Unclaimed)', rto:'Rent-to-Own (RTO)', supplier:'Supplier', customer:'Customer',
   salesReport:'Daily Sales Report', summary:'Summary', playground:'Children Playground',
   activateGame:'Activate Game', other:'Other', rtoCare:'RTO Customers'
 };
@@ -292,6 +292,7 @@ function defaultRows(company, section){
   }
   if(section==='aeon') return [{label:'',amount:''}];
   if(section==='jcl') return [{label:'',amount:''}];
+  if(section==='chailease') return [{label:'',amount:''}];
   if(section==='supplier') return [{label:'Xianfeng',amount:''},{label:'E-Century',amount:''}];
   if(section==='customer') return [{label:'',amount:''}];
   return [];

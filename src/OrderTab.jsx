@@ -1356,6 +1356,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
   const [orderDate,setOrderDate]=useState(nowDate());
   const [supplierName,setSupplierName]=useState("");
   const [poNumber,setPoNumber]=useState("");
+  const [platformOrderId,setPlatformOrderId]=useState("");
   const [consignmentNo,setConsignmentNo]=useState("");
   const [stockTransferNo,setStockTransferNo]=useState("");
   const [purchaserName,setPurchaserName]=useState("");
@@ -1479,11 +1480,11 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
       setSaving(false);
       return;
     }
-    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,actualPrice:nextDef.needsOrderDate&&actualPrice?actualPrice:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:nextDef.needsClaimInfo?claimConsignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,claimSentDate:nextDef.needsClaimInfo?claimSentDate:undefined,knockOffDate:nextDef.needsKnockOff?knockOffDate:undefined,knockOffAmount:nextDef.needsKnockOff&&knockOffAmount?knockOffAmount:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,paymentProofAmount:!isCash?paymentProofAmount:undefined,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+(parseFloat(upfrontMonthly)||0),paymentMethod:payMethod,...(isShortPaymentPending(order)?{secondPaymentDate,secondPayMethod,secondPaymentAmount}:{})}:{})};
+    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,platformOrderId:nextDef.needsOrderDate&&platformOrderId?platformOrderId:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,actualPrice:nextDef.needsOrderDate&&actualPrice?actualPrice:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:nextDef.needsClaimInfo?claimConsignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,claimSentDate:nextDef.needsClaimInfo?claimSentDate:undefined,knockOffDate:nextDef.needsKnockOff?knockOffDate:undefined,knockOffAmount:nextDef.needsKnockOff&&knockOffAmount?knockOffAmount:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,paymentProofAmount:!isCash?paymentProofAmount:undefined,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+(parseFloat(upfrontMonthly)||0),paymentMethod:payMethod,...(isShortPaymentPending(order)?{secondPaymentDate,secondPayMethod,secondPaymentAmount}:{})}:{})};
     const updated={...order,step:nextDef.step,history:[...(order.history||[]),h],stepDates:{...(order.stepDates||{}),[nextDef.step]:{date:nowDate(),time:nowTime()}}};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
     if(isCash&&nextDef.step===14){updated.step=14;}
-    if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;if(poNumber)updated.poNumber=poNumber;if(purchaserName)updated.purchaserName=purchaserName;if(actualPrice)updated.actualPrice=actualPrice;}
+    if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;if(poNumber)updated.poNumber=poNumber;if(platformOrderId)updated.platformOrderId=platformOrderId;if(purchaserName)updated.purchaserName=purchaserName;if(actualPrice)updated.actualPrice=actualPrice;}
     if(nextDef.needsTransferNumbers){updated.consignmentNo=consignmentNo;updated.stockTransferNo=stockTransferNo;}
     if(nextDef.needsClaimInfo){updated.claimSentDate=claimSentDate;updated.consignmentNo=claimConsignmentNo;}
     if(nextDef.needsKnockOff){updated.knockOffDate=knockOffDate;if(knockOffAmount)updated.knockOffAmount=knockOffAmount;}
@@ -1497,7 +1498,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
   };
   const ok=()=>{
     if(!branchOk)return false;
-    if(nextDef.needsOrderDate&&isAdmin&&(!orderDate||!supplierName.trim()||!poNumber.trim()||!purchaserName.trim()||!(parseFloat(actualPrice)>0)||!files.purchaseProof))return false;
+    if(nextDef.needsOrderDate&&isAdmin&&(!orderDate||!supplierName.trim()||!poNumber.trim()||!platformOrderId.trim()||!purchaserName.trim()||!(parseFloat(actualPrice)>0)||!files.purchaseProof))return false;
     if(nextDef.needsInvoiceNo&&isAdmin&&!invoiceNo.trim())return false;
     if(nextDef.needsTransferNumbers&&branchOk&&(!consignmentNo.trim()||!stockTransferNo.trim()))return false;
     if(nextDef.needsClaimInfo&&isAdmin&&(!claimSentDate||!claimConsignmentNo.trim()))return false;
@@ -1568,6 +1569,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
           <div><L req>Order Date</L><I type="date" value={orderDate} onChange={e=>setOrderDate(e.target.value)}/></div>
           <div><L req>Supplier Name</L><I value={supplierName} onChange={e=>setSupplierName(e.target.value)} placeholder="Supplier name…" style={!supplierName.trim()?{borderColor:"#FECACA"}:{}}/></div>
           <div><L req>PO Number</L><I value={poNumber} onChange={e=>setPoNumber(e.target.value)} placeholder="PO number…" style={!poNumber.trim()?{borderColor:"#FECACA"}:{}}/></div>
+          <div><L req>Order ID</L><I value={platformOrderId} onChange={e=>setPlatformOrderId(e.target.value)} placeholder="Order ID…" style={!platformOrderId.trim()?{borderColor:"#FECACA"}:{}}/></div>
           {isAdmin&&<div><L req>Purchaser Name</L><I value={purchaserName} onChange={e=>setPurchaserName(e.target.value)} placeholder="Purchaser name…" style={!purchaserName.trim()?{borderColor:"#FECACA"}:{}}/></div>}
           {isAdmin&&<div><L req>Actual Purchase Price (RM)</L><I type="number" value={actualPrice} onChange={e=>setActualPrice(e.target.value)} placeholder="0.00" style={!(parseFloat(actualPrice)>0)?{borderColor:"#FECACA"}:{}}/></div>}
           <div style={{gridColumn:"1/-1"}}>
@@ -3176,10 +3178,11 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const viewingCancelled=filterPhase==="cancelled";
   const viewingMerchantRejected=filterPhase==="merchantRejected";
   const matchesMerchant=(o,m)=>m==="ALL"||(m==="Cash"?o.orderType==="cash":o.merchant===m);
-  // Purchase Price (actualPrice) is only searchable for Stock, Purchase,
-  // and Sophia — everyone else's search behaves exactly as before.
+  // Purchase Price (actualPrice) and Order ID are only searchable for
+  // Stock, Purchase, and Sophia — everyone else's search behaves exactly
+  // as before.
   const canSearchPurchasePrice=["emaxstock@gmail.com","emaxpurchase@gmail.com",SOPHIA_EMAIL].includes((email||"").toLowerCase());
-  const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||(viewingMerchantRejected?(o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate):(filterPhase==="all"||o.step===filterPhase)))&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&matchesMerchant(o,filterMerchant)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo,canSearchPurchasePrice&&o.actualPrice].some(v=>v?.toString().toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,viewingMerchantRejected,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,filterMerchant,search,canSearchPurchasePrice]);
+  const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||(viewingMerchantRejected?(o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate):(filterPhase==="all"||o.step===filterPhase)))&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&matchesMerchant(o,filterMerchant)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo,canSearchPurchasePrice&&o.actualPrice,canSearchPurchasePrice&&o.platformOrderId].some(v=>v?.toString().toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,viewingMerchantRejected,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,filterMerchant,search,canSearchPurchasePrice]);
   // Separate from the main order list above on purpose — the regular list
   // stays predictable for everyone (only matches customer/model/agreement/
   // invoice, same as always), while this handles the Sophia-only payment-
