@@ -621,6 +621,23 @@ function AdminActions({app,onSaved,onCreateOrder}){
   const [deposit,setDeposit]=useState(app.deposit||"");
   const [approveTenure,setApproveTenure]=useState(app.tenure||"12");
   const [monthlyInstallment,setMonthlyInstallment]=useState(app.monthlyInstallment||"");
+  // Whether app.linkedOrderId actually points at a real order — checked
+  // rather than trusted, since a stale/broken id (from the approve-without-
+  // order-creation bug this was built to catch) would otherwise look
+  // exactly like a healthy approval. Declared up here with the rest of
+  // this component's hooks, NOT further down near where it's used — every
+  // hook in a component has to run on every render, in the same order,
+  // regardless of which ActionBox variant this render ends up returning;
+  // putting it after an early return conditionally skips it on some
+  // renders and not others, which is what crashed the app last time.
+  const [orderVerified,setOrderVerified]=useState(null);
+  useEffect(()=>{
+    if(app.step!==4){setOrderVerified(null);return;}
+    if(!app.linkedOrderId){setOrderVerified(false);return;}
+    let live=true;
+    getOrder(app.linkedOrderId).then(o=>{if(live)setOrderVerified(!!o);}).catch(()=>{if(live)setOrderVerified(false);});
+    return()=>{live=false;};
+  },[app.step,app.linkedOrderId]);
   const [jclApplicationForm,setJclApplicationForm]=useState(null);
   const [jclNotice1,setJclNotice1]=useState(null);
   const [jclAgreementJCLCopy,setJclAgreementJCLCopy]=useState(null);
@@ -757,18 +774,8 @@ function AdminActions({app,onSaved,onCreateOrder}){
   // let approval silently succeed without ever reaching order creation for
   // a device-amendment clone specifically (fixed now, but that doesn't
   // retroactively fix applications already stuck in this state from before
-  // the fix was deployed). Don't just trust linkedOrderId being set —
-  // actually verify that order still exists, since a stale/broken id would
-  // otherwise hide this box's retry option even though there's genuinely
-  // no order to find.
-  const[orderVerified,setOrderVerified]=useState(null);
-  useEffect(()=>{
-    if(app.step!==4){setOrderVerified(null);return;}
-    if(!app.linkedOrderId){setOrderVerified(false);return;}
-    let live=true;
-    getOrder(app.linkedOrderId).then(o=>{if(live)setOrderVerified(!!o);}).catch(()=>{if(live)setOrderVerified(false);});
-    return()=>{live=false;};
-  },[app.step,app.linkedOrderId]);
+  // the fix was deployed). orderVerified (state + effect for it) is
+  // declared up near the top of this component, with the other hooks.
   const retryCreateOrder=async()=>{
     setSaving(true);
     const orderId=await onCreateOrder(app);
