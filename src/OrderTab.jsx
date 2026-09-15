@@ -2185,6 +2185,22 @@ function getOrderAlerts(orders,userBranch=null){
     const days=daysSince(o.stepDates?.[5]?.date);
     if(days!==null&&days>=7)alerts.push({type:"arrived_branch_no_billing",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Arrived at branch ${days} days ago — still no Billing Request. Customer may not have picked it up yet.`});
   });
+  // Suggest Deleting — Fully Knocked Off. A Completed (step 14) order that
+  // has nothing further owed to anyone: for JCL/Chailease, reaching
+  // Completed already means the claim itself was knocked off, nothing else
+  // to wait on. Aeon additionally needs its First Monthly Installment
+  // knocked off, and cash orders additionally need the balance payment
+  // knocked off (skipped if there was never a balance due in the first
+  // place — same "did this order actually have a balance to knock off"
+  // check the Balance Payment report itself uses). Sophia only — this is a
+  // housekeeping suggestion, not something everyone needs surfaced.
+  orders.filter(o=>o.step===14&&!o.cancelled&&visibleToBranch(o,userBranch)).forEach(o=>{
+    let eligible=false;
+    if(o.merchant==="Chailease"||o.merchant==="JCL")eligible=true;
+    else if(o.merchant==="Aeon")eligible=!!o.firstInstallmentKnockOffDate;
+    else if(o.orderType==="cash")eligible=!(parseFloat(o.lastVerification?.monthlyInstallment)>0)||!!o.cashBalanceKnockOffDate;
+    if(eligible)alerts.push({type:"suggest_delete_completed",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:"Fully knocked off — consider deleting to keep the list clean"});
+  });
   return alerts;
 }
 function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder,orders,onUpdateOrder}){
@@ -2226,6 +2242,10 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   const supersededAlerts=canSeeSupersededAlert?alerts.filter(a=>a.type==="device_amendment_superseded"):[];
   const canSeePickupReminderAlert=PICKUP_REMINDER_EMAILS.includes((email||"").toLowerCase());
   const pickupReminderAlerts=canSeePickupReminderAlert?alerts.filter(a=>a.type==="arrived_branch_no_billing"):[];
+  // Housekeeping suggestion, not something everyone needs to see — Sophia
+  // only, same as the Actual Purchase Price To-Do list and a few other
+  // Sophia-specific views elsewhere in this file.
+  const suggestDeleteAlerts=isSophia?alerts.filter(a=>a.type==="suggest_delete_completed"):[];
   // Approval Warning starts collapsed on the admin order page (there's
   // usually a lot of them, and admin has plenty else to look at) but
   // starts expanded on a branch's own view (a short, directly relevant
@@ -2275,6 +2295,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
     <Block items={missingActualPrice} color="#B45309" title="Actual Purchase Price Missing"/>
     <Block items={supersededAlerts} color="#B45309" title="Device Amendment — Old Order Needs Acknowledgment"/>
     <PickupReminderBlock items={pickupReminderAlerts} color="#1D4ED8" title="Arrived Branch, Not Yet Billed"/>
+    <Block items={suggestDeleteAlerts} color="#8A96A8" title="Suggest Deleting — Fully Knocked Off"/>
     <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={agreementExpanded} onToggle={()=>setAgreementExpanded(p=>!p)}/>
     <Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={warningExpanded} onToggle={()=>setWarningExpanded(p=>!p)}/>
   </div>;
@@ -3155,7 +3176,10 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const viewingCancelled=filterPhase==="cancelled";
   const viewingMerchantRejected=filterPhase==="merchantRejected";
   const matchesMerchant=(o,m)=>m==="ALL"||(m==="Cash"?o.orderType==="cash":o.merchant===m);
-  const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||(viewingMerchantRejected?(o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate):(filterPhase==="all"||o.step===filterPhase)))&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&matchesMerchant(o,filterMerchant)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo].some(v=>v?.toString().toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,viewingMerchantRejected,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,filterMerchant,search]);
+  // Purchase Price (actualPrice) is only searchable for Stock, Purchase,
+  // and Sophia — everyone else's search behaves exactly as before.
+  const canSearchPurchasePrice=["emaxstock@gmail.com","emaxpurchase@gmail.com",SOPHIA_EMAIL].includes((email||"").toLowerCase());
+  const filtered=useMemo(()=>(viewingCancelled?cancelledOrders:viewingCompleted?completedOrders:activeOrders).filter(o=>((viewingCompleted||viewingCancelled)||(viewingMerchantRejected?(o.step===12&&o.merchantRejected&&!o.resubmittedDate&&!o.knockOffDate):(filterPhase==="all"||o.step===filterPhase)))&&(filterBranch==="ALL"||o.branch===filterBranch)&&(filterAgent==="ALL"||(o.salesAgentName||o.salesAgentId||"—")===filterAgent)&&matchesMerchant(o,filterMerchant)&&(!search||[o.customerName,o.phoneModel,o.agreementNumber,o.invoiceNo,canSearchPurchasePrice&&o.actualPrice].some(v=>v?.toString().toLowerCase().includes(search.toLowerCase())))).sort((a,b)=>b.id-a.id),[viewingCompleted,viewingCancelled,viewingMerchantRejected,completedOrders,cancelledOrders,activeOrders,filterPhase,filterBranch,filterAgent,filterMerchant,search,canSearchPurchasePrice]);
   // Separate from the main order list above on purpose — the regular list
   // stays predictable for everyone (only matches customer/model/agreement/
   // invoice, same as always), while this handles the Sophia-only payment-
@@ -3197,7 +3221,13 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   // Each alert TYPE still has its own visibility gate at render time
   // (canSeePurchaseAlert, canSeeMerchantRejected, etc.) — that's the right
   // layer for permission checks on alerts, not this upstream step filter.
-  const alertableOrders=useMemo(()=>orders.filter(o=>o.step!==14&&!o.cancelled&&visibleToBranch(o,userBranch)),[orders,userBranch]);
+  // step!==14 isn't excluded here — getOrderAlerts's own internal
+  // myOrders variable already re-applies that same filter for every OTHER
+  // alert type, so it'd be redundant for those. It matters for this list
+  // specifically because the "Suggest Deleting — Fully Knocked Off" alert
+  // is the one alert that's actually ABOUT step-14 (Completed) orders, and
+  // excluding them here would silently prevent it from ever firing.
+  const alertableOrders=useMemo(()=>orders.filter(o=>!o.cancelled&&visibleToBranch(o,userBranch)),[orders,userBranch]);
   const alerts=useMemo(()=>{
     const all=getOrderAlerts(alertableOrders,userBranch);
     const canSeeMerchantRejected=isSuperAdminOrder||canAdminStep(7);

@@ -1185,8 +1185,16 @@ function ApplicationDetail({app,branchMeta,isAdmin,canEditDelete,canDelete,onBac
 export default function ChaileaseTab({branchMeta,isAdmin,userBranch,srList=[],email=null}){
   const [apps,setApps]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [view,setView]=useState("list"); // list | form | detail
-  const [selectedId,setSelectedId]=useState(null);
+  const [view,setView]=useState(()=>sessionStorage.getItem("chaileaseView")||"list"); // list | form | detail
+  const [selectedId,setSelectedId]=useState(()=>sessionStorage.getItem("chaileaseSelectedId")||null);
+  // Keeps the current application open across a browser refresh — without
+  // this, view/selectedId reset to the list on every reload, so refreshing
+  // while looking at one specific application bounced back to the list
+  // instead of staying put. Every existing setView/setSelectedId call
+  // elsewhere in this component still works exactly as before; this only
+  // adds persistence on top, it doesn't change how navigation happens.
+  useEffect(()=>{sessionStorage.setItem("chaileaseView",view);},[view]);
+  useEffect(()=>{sessionStorage.setItem("chaileaseSelectedId",selectedId||"");},[selectedId]);
   const [editingApp,setEditingApp]=useState(null);
   // Browser back/forward button support — additive on top of the existing
   // visible Back button, not a replacement for it. Unlike a single central

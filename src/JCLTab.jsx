@@ -1071,8 +1071,16 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
   const [rejectedSel,setRejectedSel]=useState(()=>new Set());
   const [rejectedSectionOpen,setRejectedSectionOpen]=useState(false);
   const [loading,setLoading]=useState(true);
-  const [view,setView]=useState("list"); // list | form | detail
-  const [selectedId,setSelectedId]=useState(null);
+  const [view,setView]=useState(()=>sessionStorage.getItem("jclView")||"list"); // list | form | detail
+  const [selectedId,setSelectedId]=useState(()=>sessionStorage.getItem("jclSelectedId")||null);
+  // Keeps the current application open across a browser refresh — without
+  // this, view/selectedId reset to the list on every reload, so refreshing
+  // while looking at one specific application bounced back to the list
+  // instead of staying put. Every existing setView/setSelectedId call
+  // elsewhere in this component still works exactly as before; this only
+  // adds persistence on top, it doesn't change how navigation happens.
+  useEffect(()=>{sessionStorage.setItem("jclView",view);},[view]);
+  useEffect(()=>{sessionStorage.setItem("jclSelectedId",selectedId||"");},[selectedId]);
   const [editingApp,setEditingApp]=useState(null);
   // Browser back/forward button support — additive on top of the existing
   // visible Back button, not a replacement for it. Unlike a single central
