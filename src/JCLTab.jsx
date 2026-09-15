@@ -735,8 +735,27 @@ function AdminActions({app,onSaved,onCreateOrder}){
     <PBtn onClick={resubmitAfterAmendment} disabled={saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Resubmit to JCL"}</PBtn>
   </ActionBox>;
 
+  // Safety net: an approved application should always have created its
+  // order at the same time (see approve() above) — but a past bug briefly
+  // let approval silently succeed without ever reaching order creation for
+  // a device-amendment clone specifically (fixed now, but that doesn't
+  // retroactively fix applications already stuck in this state from before
+  // the fix was deployed). Missing linkedOrderId on an approved app means
+  // exactly that happened; offer a one-click retry rather than leaving it
+  // as a dead end.
+  const retryCreateOrder=async()=>{
+    setSaving(true);
+    const orderId=await onCreateOrder(app);
+    if(orderId)await onSaved({...app,linkedOrderId:orderId});
+    else alert("Still couldn't create the order — please check your connection and try again, or contact an admin.");
+    setSaving(false);
+  };
   if(app.step===4)return<ActionBox title="Approved by JCL">
     <div style={{fontSize:12,color:"#15803D",fontWeight:600}}>Approved {fDate(app.approvedDate)}{app.linkedOrderId?" — order created on Order page":""}{app.approvedRemark?` — ${app.approvedRemark}`:""}</div>
+    {!app.linkedOrderId&&<>
+      <div style={{fontSize:11,color:"#B45309",marginTop:6}}>No order was created for this approval — this shouldn't normally happen.</div>
+      <PBtn onClick={retryCreateOrder} disabled={saving} style={{marginTop:8,width:"100%",justifyContent:"center"}}>{saving?"Creating…":"Create Order Now"}</PBtn>
+    </>}
   </ActionBox>;
   if(app.step===5)return<ActionBox title="Rejected by JCL">
     <div style={{fontSize:12,color:"#DC2626",fontWeight:600}}>Rejected {fDate(app.rejectedDate)} — {app.rejectedRemark}</div>
