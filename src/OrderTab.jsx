@@ -1427,7 +1427,8 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
         <div style={{padding:"14px 16px"}}>
           <div style={{fontSize:12,marginBottom:8}}><span style={{color:C.textLight,fontWeight:600}}>Claim Sent: </span>{fDate(order.claimSentDate)}</div>
           <div style={{fontSize:12,marginBottom:8}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Date: </span>{fDate(order.knockOffDate)}</div>
-          {order.knockOffAmount&&<div style={{fontSize:12,marginBottom:12}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Amount: </span>{fRM(order.knockOffAmount)}</div>}
+          {order.knockOffAmount&&<div style={{fontSize:12,marginBottom:order.merchant==="Aeon"?8:12}}><span style={{color:C.textLight,fontWeight:600}}>Knock-off Amount: </span>{fRM(order.knockOffAmount)}</div>}
+          {order.merchant==="Aeon"&&<div style={{fontSize:12,marginBottom:12}}><span style={{color:C.textLight,fontWeight:600}}>First Monthly Installment Knock-off Date: </span>{fDate(order.firstInstallmentKnockOffDate)}</div>}
         </div>
       </div>
     </div>;
