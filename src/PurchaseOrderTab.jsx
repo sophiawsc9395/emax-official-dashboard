@@ -217,6 +217,7 @@ async function buildLiveList(){
       orderDate:supp.orderDate||o.orderDate,
       supplierName:supp.supplierName||o.supplierName,
       poNumber:supp.poNumber||o.poNumber,
+      platformOrderId:supp.platformOrderId||o.platformOrderId,
       purchaserName:supp.purchaserName||o.purchaserName,
       orderedAt:supp.orderedAt||(orderedByStep&&!supp.ordered?new Date().toISOString():supp.orderedAt),
     };
@@ -238,10 +239,11 @@ function OrderedForm({entry,onClose,onConfirm}){
   const[supplierName,setSupplierName]=useState("");
   const[actualPrice,setActualPrice]=useState("");
   const[poNumber,setPoNumber]=useState("");
+  const[platformOrderId,setPlatformOrderId]=useState("");
   const[purchaserName,setPurchaserName]=useState("");
   const[proofFile,setProofFile]=useState(null);
   const[saving,setSaving]=useState(false);
-  const missing=!orderDate||!supplierName.trim()||!actualPrice.toString().trim()||!poNumber.trim()||!purchaserName.trim()||!proofFile;
+  const missing=!orderDate||!supplierName.trim()||!actualPrice.toString().trim()||!poNumber.trim()||!platformOrderId.trim()||!purchaserName.trim()||!proofFile;
   return<div className="modal-overlay" style={{position:"fixed",inset:0,background:"rgba(10,22,40,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}}>
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:440,maxHeight:"90vh",overflow:"auto"}}>
       <div style={{padding:"16px 20px",borderBottom:`1px solid ${C.border}`}}>
@@ -254,6 +256,7 @@ function OrderedForm({entry,onClose,onConfirm}){
           <div><L req>Supplier Name</L><I value={supplierName} onChange={e=>setSupplierName(e.target.value)} placeholder="Supplier…"/></div>
           <div><L req>Actual Purchase Price (RM)</L><I type="number" step="0.01" value={actualPrice} onChange={e=>setActualPrice(e.target.value)} placeholder="0.00"/></div>
           <div><L req>PO Number</L><I value={poNumber} onChange={e=>setPoNumber(e.target.value)} placeholder="PO number…"/></div>
+          <div><L req>Order ID</L><I value={platformOrderId} onChange={e=>setPlatformOrderId(e.target.value)} placeholder="Order ID…"/></div>
           <div><L req>Purchaser Name</L><I value={purchaserName} onChange={e=>setPurchaserName(e.target.value)} placeholder="Your name…"/></div>
         </div>
         <L req>Purchase Proof</L>
@@ -265,7 +268,7 @@ function OrderedForm({entry,onClose,onConfirm}){
         <GBtn onClick={onClose} disabled={saving}>Cancel</GBtn>
         <PBtn disabled={missing||saving} onClick={async()=>{
           setSaving(true);
-          await onConfirm({orderDate,supplierName,actualPrice,poNumber,purchaserName,proofFile});
+          await onConfirm({orderDate,supplierName,actualPrice,poNumber,platformOrderId,purchaserName,proofFile});
           setSaving(false);
         }}>{saving?"Saving…":"Confirm Ordered"}</PBtn>
       </div>
@@ -398,19 +401,19 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
     return quotes.sort((a,b)=>a.price-b.price).slice(0,3);
   };
 
-  const confirmOrdered=async({orderDate,supplierName,actualPrice,poNumber,purchaserName,proofFile})=>{
+  const confirmOrdered=async({orderDate,supplierName,actualPrice,poNumber,platformOrderId,purchaserName,proofFile})=>{
     const entry=orderedFor;
     if(!entry)return;
     const orderRow=await getOrder(entry.orderId);
     if(!orderRow){alert("Could not find the underlying order — it may have been deleted.");setOrderedFor(null);await refresh();return;}
     const history=await getOrderHistory(entry.orderId);
     const proof=await uploadOrderFile(entry.orderId,proofFile,proofFile.name);
-    const h={step:2,date:nowDate(),time:nowTime(),note:"Ordered",orderDate,supplierName,poNumber,purchaserName,actualPrice:parseFloat(actualPrice)||0,files:{purchaseProof:proof}};
+    const h={step:2,date:nowDate(),time:nowTime(),note:"Ordered",orderDate,supplierName,poNumber,platformOrderId,purchaserName,actualPrice:parseFloat(actualPrice)||0,files:{purchaseProof:proof}};
     const oldOrder={...orderRow,history};
-    const newOrder={...orderRow,step:Math.max(orderRow.step,2),orderDate,supplierName,poNumber,purchaserName,actualPrice:parseFloat(actualPrice)||0,history:[...history,h]};
+    const newOrder={...orderRow,step:Math.max(orderRow.step,2),orderDate,supplierName,poNumber,platformOrderId,purchaserName,actualPrice:parseFloat(actualPrice)||0,history:[...history,h]};
     const result=await reconcile([oldOrder],[newOrder]);
     if(!result.ok){alert("Failed to update the order — please try again.");setOrderedFor(null);return;}
-    await patchSupplementary(entry.orderId,{ordered:true,orderedAt:new Date().toISOString(),orderDate,supplierName,actualPrice:parseFloat(actualPrice)||0,poNumber,purchaserName});
+    await patchSupplementary(entry.orderId,{ordered:true,orderedAt:new Date().toISOString(),orderDate,supplierName,actualPrice:parseFloat(actualPrice)||0,poNumber,platformOrderId,purchaserName});
     setOrderedFor(null);
   };
 
