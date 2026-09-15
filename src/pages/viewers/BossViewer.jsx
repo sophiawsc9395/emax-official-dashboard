@@ -772,7 +772,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   const [selEndDay,setSelEndDay]=useState(daysInMonth(now.getMonth()+1,now.getFullYear()));
   const periodDays=days.filter(d=>d>=selStartDay&&d<=selEndDay);
   const [selBranch,setSelBranch]=useState(BRANCH_ORDER[0]);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto"]:isKnockOff?["overview","report","daily","orders","dailySales","dailyPayment"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications","chaileaseApplications","stockProfit","stockWriteOff","warranty",...(elevateOrderAccess?["purchaseOrder","stockTransfer"]:[])];return allowed.includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto","orders"]:isKnockOff?["overview","report","daily","orders","dailySales","dailyPayment"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications","chaileaseApplications","stockProfit","stockWriteOff","warranty",...(elevateOrderAccess?["purchaseOrder","stockTransfer"]:[])];return allowed.includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
 
@@ -1071,6 +1071,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {id:"report",label:"Monthly Report"},
       {id:"repair",label:"Repair & Service"},
       {id:"rto",label:"RTO Summary"},
+      {id:"orders",label:"Order Tracking"},
     ]
     :isKnockOff
     ?[
