@@ -2863,8 +2863,21 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         const key=`${device}|${customer}|${slipName}`;
         (cashGroups[key]||=[]).push(o);
       }else{
-        const key=(o.agreementNumber||"").toString().trim().toLowerCase();
-        if(!key)return;
+        // Device amendments (see AmendDeviceBox/approve() in
+        // JCLTab.jsx/ChaileaseTab.jsx) intentionally create a new order
+        // sharing the SAME Agreement No. as the old, now-superseded order —
+        // only the device and price change, the agreement itself doesn't
+        // get a new number. Grouping by agreement number alone would treat
+        // that new order as an accidental duplicate of the old one and
+        // silently delete it. Including the device name in the grouping key
+        // means two orders only count as a duplicate to clean up when
+        // they're for the SAME device too — a genuine accidental double
+        // entry — while a legitimate device amendment (different device,
+        // same agreement) is left alone.
+        const agreementNumber=(o.agreementNumber||"").toString().trim().toLowerCase();
+        const device=(o.phoneModel||"").toString().trim().toLowerCase();
+        if(!agreementNumber)return;
+        const key=`${agreementNumber}|${device}`;
         (agreementGroups[key]||=[]).push(o);
       }
     });
