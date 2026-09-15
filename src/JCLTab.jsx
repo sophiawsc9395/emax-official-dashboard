@@ -695,6 +695,23 @@ function AdminActions({app,onSaved,onCreateOrder}){
       tenure:approveTenure,monthlyInstallment:parseFloat(monthlyInstallment)||0,jclDocuments,
       history:[...(app.history||[]),{step:4,date:nowDate(),time:nowTime(),note:`Approved by JCL${approvedRemark?": "+approvedRemark:""}`}]};
     const orderId=await onCreateOrder(updated);
+    if(!orderId){
+      // Order creation failed — do NOT flag the old order as superseded in
+      // this case. Doing that unconditionally, regardless of whether
+      // orderId came back, was the actual bug: it left an old order marked
+      // "superseded" (kicking off the 3-way acknowledgment flow) pointing
+      // at a new order that was never actually created — so nothing showed
+      // up on the Order page for the amended device, while the old order
+      // sat in limbo, still technically open and workable. Just save the
+      // approval as-is (linkedOrderId stays whatever it was, likely unset)
+      // so the "Create Order Now" retry button on this same box picks it
+      // up correctly, and tell whoever's approving right now so they don't
+      // walk away thinking it worked.
+      await onSaved(updated);
+      alert("Approved, but the order could not be created — please use the \"Create Order Now\" button that will appear on this application, or try approving again.");
+      setSaving(false);setShowApprove(false);
+      return;
+    }
     await onSaved({...updated,linkedOrderId:orderId});
     if(app.isDeviceAmendment&&app.deviceAmendment?.orderId){
       // This application is a device-amendment clone (see AmendDeviceBox in
@@ -766,7 +783,6 @@ function AdminActions({app,onSaved,onCreateOrder}){
       <PBtn onClick={retryCreateOrder} disabled={saving} style={{marginTop:8,width:"100%",justifyContent:"center"}}>{saving?"Creating…":"Create Order Now"}</PBtn>
     </>}
     {orderVerified===null&&app.linkedOrderId&&<div style={{fontSize:11,color:"#8A96A8",marginTop:6}}>Checking the order still exists…</div>}
-  </ActionBox>;
   </ActionBox>;
   if(app.step===5)return<ActionBox title="Rejected by JCL">
     <div style={{fontSize:12,color:"#DC2626",fontWeight:600}}>Rejected {fDate(app.rejectedDate)} — {app.rejectedRemark}</div>
