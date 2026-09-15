@@ -1259,13 +1259,25 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
   // (stock, delivery, billing…) still applies from there.
   const createOrderFromApp=async(app)=>{
     const id=Date.now().toString();
+    // A device-amendment clone keeps the SAME agreement number as the
+    // original — the merchant amendment doesn't issue a new one, only the
+    // device/price change. Something (a database constraint, or an
+    // app-level duplicate check) has been blocking or removing the new
+    // order whenever its agreement number exactly matches the old order's,
+    // regardless of the device being different. Rather than depend on
+    // finding and changing whatever that restriction actually is, the new
+    // order's OWN stored agreement number gets a distinguishing suffix
+    // here specifically for amendments — still clearly the same agreement
+    // to anyone reading it, just not byte-for-byte identical, so nothing
+    // can mistake it for a plain duplicate of the old order.
+    const agreementNumber=app.isDeviceAmendment&&app.agreementNumber?`${app.agreementNumber}-AMD${id.slice(-4)}`:app.agreementNumber;
     const order={
       id,step:1,orderType:"ccm",stockStatus:"stock_request",branch:app.branch,merchant:"JCL",linkedAppId:app.id,
       phoneModel:app.phoneModel,customerName:app.customerName,customerIC:app.customerIC,
       customerHP:app.customerHP,customerEmail:app.customerEmail,customerAddress:app.address,
       customerPostCode:app.postcode,customerCity:app.city,
       financePrice:app.financePrice,salesAgentId:app.salesAgentId,salesAgentName:app.salesAgentName,
-      agreementNumber:app.agreementNumber,aeonApprovalDate:app.merchantApprovalDate,
+      agreementNumber,aeonApprovalDate:app.merchantApprovalDate,
       agreementFee:app.agreementFee,stampingFee:app.stampingFee,deposit:app.deposit,
       monthlyInstallment:app.monthlyInstallment,tenure:app.tenure,jclDocuments:app.jclDocuments,
       history:[{step:1,date:nowDate(),time:nowTime(),note:`Submitted — auto-created from approved JCL Application (${app.id})`}],
