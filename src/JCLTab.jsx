@@ -663,16 +663,30 @@ function AdminActions({app,onSaved,onCreateOrder}){
       history:[...(app.history||[]),{step:1,date:nowDate(),time:nowTime(),note:`Amendment requested: ${amendmentRemark}`}]});
     setSaving(false);setShowAmendment(false);setAmendmentRemark("");
   };
-  const approveMissing=!agreementNumber.trim()||!merchantApprovalDate||!approveFinancePrice.toString().trim()||!agreementFee.toString().trim()||!stampingFee.toString().trim()||!deposit.toString().trim()||!approveTenure||!monthlyInstallment.toString().trim()||!jclApplicationForm||!jclNotice1||!jclAgreementJCLCopy||!jclAgreementCustomerCopy||!jclCreditAckForm;
+  // A device-amendment clone (see AmendDeviceBox in OrderTab.jsx) inherits
+  // jclDocuments from the original application it was cloned from — the
+  // customer's paperwork didn't change, only the device. Re-uploading is
+  // still allowed (state below wins when set), but isn't required when the
+  // clone already has a document from before; requiring every one of these
+  // five to be freshly re-picked for a device-only swap was silently
+  // blocking approval (and therefore order creation) with no clear signal
+  // why, since the button simply wouldn't do anything until every field
+  // was refilled.
+  const hasApplicationForm=jclApplicationForm||app.jclDocuments?.applicationForm;
+  const hasNotice1=jclNotice1||app.jclDocuments?.notice1;
+  const hasAgreementJCLCopy=jclAgreementJCLCopy||app.jclDocuments?.agreementJCLCopy;
+  const hasAgreementCustomerCopy=jclAgreementCustomerCopy||app.jclDocuments?.agreementCustomerCopy;
+  const hasCreditAckForm=jclCreditAckForm||app.jclDocuments?.creditAckForm;
+  const approveMissing=!agreementNumber.trim()||!merchantApprovalDate||!approveFinancePrice.toString().trim()||!agreementFee.toString().trim()||!stampingFee.toString().trim()||!deposit.toString().trim()||!approveTenure||!monthlyInstallment.toString().trim()||!hasApplicationForm||!hasNotice1||!hasAgreementJCLCopy||!hasAgreementCustomerCopy||!hasCreditAckForm;
   const approve=async()=>{
     if(approveMissing){alert("Please fill in every field and upload every document before approving — these are needed to create the order.");return;}
     setSaving(true);
     const[applicationForm,notice1,agreementJCLCopy,agreementCustomerCopy,creditAckForm]=await Promise.all([
-      readAppFile(jclApplicationForm,`${app.id}_applicationForm`),
-      readAppFile(jclNotice1,`${app.id}_notice1`),
-      readAppFile(jclAgreementJCLCopy,`${app.id}_agreementJCLCopy`),
-      readAppFile(jclAgreementCustomerCopy,`${app.id}_agreementCustomerCopy`),
-      readAppFile(jclCreditAckForm,`${app.id}_creditAckForm`),
+      jclApplicationForm?readAppFile(jclApplicationForm,`${app.id}_applicationForm`):Promise.resolve(app.jclDocuments?.applicationForm),
+      jclNotice1?readAppFile(jclNotice1,`${app.id}_notice1`):Promise.resolve(app.jclDocuments?.notice1),
+      jclAgreementJCLCopy?readAppFile(jclAgreementJCLCopy,`${app.id}_agreementJCLCopy`):Promise.resolve(app.jclDocuments?.agreementJCLCopy),
+      jclAgreementCustomerCopy?readAppFile(jclAgreementCustomerCopy,`${app.id}_agreementCustomerCopy`):Promise.resolve(app.jclDocuments?.agreementCustomerCopy),
+      jclCreditAckForm?readAppFile(jclCreditAckForm,`${app.id}_creditAckForm`):Promise.resolve(app.jclDocuments?.creditAckForm),
     ]);
     const jclDocuments={applicationForm,notice1,agreementJCLCopy,agreementCustomerCopy,creditAckForm};
     const updated={...app,step:4,approvedDate:nowDate(),approvedRemark,

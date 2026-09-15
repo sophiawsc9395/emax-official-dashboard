@@ -799,11 +799,16 @@ function AdminActions({app,onSaved,onCreateOrder}){
       history:[...(app.history||[]),{step:1,date:nowDate(),time:nowTime(),note:`Amendment requested: ${amendmentRemark}`}]});
     setSaving(false);setShowAmendment(false);setAmendmentRemark("");
   };
-  const approveMissing=!agreementNumber.trim()||!merchantApprovalDate||!approveFinancePrice.toString().trim()||!deposit.toString().trim()||!approveTenure||!monthlyInstallment.toString().trim()||!chaileaseAgreementChaileaseCopy;
+  // Same reasoning as JCLTab.jsx's approveMissing — a device-amendment
+  // clone inherits chaileaseDocuments from the original application, so
+  // the agreement copy doesn't need re-uploading for a device-only swap
+  // unless replacing it is actually wanted.
+  const hasAgreementChaileaseCopy=chaileaseAgreementChaileaseCopy||app.chaileaseDocuments?.agreementChaileaseCopy;
+  const approveMissing=!agreementNumber.trim()||!merchantApprovalDate||!approveFinancePrice.toString().trim()||!deposit.toString().trim()||!approveTenure||!monthlyInstallment.toString().trim()||!hasAgreementChaileaseCopy;
   const approve=async()=>{
     if(approveMissing){alert("Please fill in every field and upload every document before approving — these are needed to create the order.");return;}
     setSaving(true);
-    const agreementChaileaseCopy=await readAppFile(chaileaseAgreementChaileaseCopy,`${app.id}_agreementChaileaseCopy`);
+    const agreementChaileaseCopy=chaileaseAgreementChaileaseCopy?await readAppFile(chaileaseAgreementChaileaseCopy,`${app.id}_agreementChaileaseCopy`):app.chaileaseDocuments?.agreementChaileaseCopy;
     const chaileaseDocuments={agreementChaileaseCopy};
     const updated={...app,step:4,approvedDate:nowDate(),approvedRemark,
       agreementNumber,merchantApprovalDate,financePrice:parseFloat(approveFinancePrice)||0,
