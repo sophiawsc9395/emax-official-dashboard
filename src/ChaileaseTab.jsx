@@ -808,55 +808,72 @@ function AdminActions({app,onSaved,onCreateOrder}){
   const approve=async()=>{
     if(approveMissing){alert("Please fill in every field and upload every document before approving — these are needed to create the order.");return;}
     setSaving(true);
-    const agreementChaileaseCopy=chaileaseAgreementChaileaseCopy?await readAppFile(chaileaseAgreementChaileaseCopy,`${app.id}_agreementChaileaseCopy`):app.chaileaseDocuments?.agreementChaileaseCopy;
-    const chaileaseDocuments={agreementChaileaseCopy};
-    const updated={...app,step:4,approvedDate:nowDate(),approvedRemark,
-      agreementNumber,merchantApprovalDate,financePrice:parseFloat(approveFinancePrice)||0,
-      agreementFee:CHAILEASE_AGREEMENT_FEE,stampingFee:CHAILEASE_STAMPING_FEE,deposit:parseFloat(deposit)||0,
-      tenure:approveTenure,monthlyInstallment:parseFloat(monthlyInstallment)||0,chaileaseDocuments,
-      history:[...(app.history||[]),{step:4,date:nowDate(),time:nowTime(),note:`Approved by Chailease${approvedRemark?": "+approvedRemark:""}`}]};
-    // Order creation gets a few automatic attempts before giving up — the
-    // one time this actually failed in practice, it was a transient
-    // database timeout (root cause fixed since), not anything wrong with
-    // the data itself, so a short retry with a small delay is enough to
-    // ride out that kind of hiccup without needing anyone to notice and
-    // manually retry it themselves.
-    let orderId=null;
-    for(let attempt=0;attempt<3&&!orderId;attempt++){
-      if(attempt>0)await new Promise(r=>setTimeout(r,1500));
-      orderId=await onCreateOrder(updated);
-    }
-    if(!orderId){
-      // Still failed after retries — do NOT flag the old order as
-      // superseded in this case. Doing that regardless of whether orderId
-      // came back was the actual earlier bug: it left an old order marked
-      // "superseded" (kicking off the 3-way acknowledgment flow) pointing
-      // at a new order that was never actually created. Just save the
-      // approval as-is and tell whoever's approving right now, so they
-      // know to try the whole approval again rather than walking away
-      // thinking it worked.
-      await onSaved(updated);
-      alert("Approved, but the order still couldn't be created after a few tries — please try approving again, or contact an admin.");
-      setSaving(false);setShowApprove(false);
-      return;
-    }
-    await onSaved({...updated,linkedOrderId:orderId});
-    if(app.isDeviceAmendment&&app.deviceAmendment?.orderId){
-      // This application is a device-amendment clone (see AmendDeviceBox in
-      // OrderTab.jsx) — the order it points back to (deviceAmendment.orderId)
-      // is the OLD, now-superseded order. Flag it for the 3-way
-      // acknowledgment + auto-cancel flow instead of touching it directly —
-      // Boon Theng, Stock, and Purchase each need to sign off (see
-      // AcknowledgeSupersededBox in OrderTab.jsx) before it actually
-      // cancels, since stock/logistics already in motion for the old device
-      // may need to be unwound first.
-      const oldOrder=await getOrder(app.deviceAmendment.orderId);
-      if(oldOrder&&!oldOrder.cancelled){
-        await reconcile([oldOrder],[{...oldOrder,supersededByOrderId:orderId,pendingDeviceAmendment:null,deviceAmendmentAck:{},
-          history:[...(oldOrder.history||[]),{step:oldOrder.step,date:nowDate(),time:nowTime(),note:`Superseded by device amendment — new order created for ${app.phoneModel}. Awaiting acknowledgment from Boss EC, Stock Executive, and Purchasing Executive before this order is cancelled.`,skipStepDate:true}]}]);
+    // Everything below is wrapped so a failure anywhere in this flow — a
+    // network hiccup, a slow write, anything — always lands in the catch
+    // block below rather than leaving an uncaught error hang the page.
+    // setSaving(false) is guaranteed by the finally block no matter which
+    // path is taken.
+    try{
+      const agreementChaileaseCopy=chaileaseAgreementChaileaseCopy?await readAppFile(chaileaseAgreementChaileaseCopy,`${app.id}_agreementChaileaseCopy`):app.chaileaseDocuments?.agreementChaileaseCopy;
+      const chaileaseDocuments={agreementChaileaseCopy};
+      const updated={...app,step:4,approvedDate:nowDate(),approvedRemark,
+        agreementNumber,merchantApprovalDate,financePrice:parseFloat(approveFinancePrice)||0,
+        agreementFee:CHAILEASE_AGREEMENT_FEE,stampingFee:CHAILEASE_STAMPING_FEE,deposit:parseFloat(deposit)||0,
+        tenure:approveTenure,monthlyInstallment:parseFloat(monthlyInstallment)||0,chaileaseDocuments,
+        history:[...(app.history||[]),{step:4,date:nowDate(),time:nowTime(),note:`Approved by Chailease${approvedRemark?": "+approvedRemark:""}`}]};
+      // Order creation gets a few automatic attempts before giving up — the
+      // one time this actually failed in practice, it was a transient
+      // database timeout (root cause fixed since), not anything wrong with
+      // the data itself, so a short retry with a small delay is enough to
+      // ride out that kind of hiccup without needing anyone to notice and
+      // manually retry it themselves.
+      let orderId=null;
+      for(let attempt=0;attempt<3&&!orderId;attempt++){
+        if(attempt>0)await new Promise(r=>setTimeout(r,1500));
+        orderId=await onCreateOrder(updated);
       }
+      if(!orderId){
+        // Still failed after retries — do NOT flag the old order as
+        // superseded in this case. Doing that regardless of whether orderId
+        // came back was the actual earlier bug: it left an old order marked
+        // "superseded" (kicking off the 3-way acknowledgment flow) pointing
+        // at a new order that was never actually created. Just save the
+        // approval as-is and tell whoever's approving right now, so they
+        // know to try the whole approval again rather than walking away
+        // thinking it worked.
+        await onSaved(updated);
+        alert("Approved, but the order still couldn't be created after a few tries — please try approving again, or contact an admin.");
+        return;
+      }
+      await onSaved({...updated,linkedOrderId:orderId});
+      if(app.isDeviceAmendment&&app.deviceAmendment?.orderId){
+        // This application is a device-amendment clone (see AmendDeviceBox in
+        // OrderTab.jsx) — the order it points back to (deviceAmendment.orderId)
+        // is the OLD, now-superseded order. Flag it for the 3-way
+        // acknowledgment + auto-cancel flow instead of touching it directly —
+        // Boon Theng, Stock, and Purchase each need to sign off (see
+        // AcknowledgeSupersededBox in OrderTab.jsx) before it actually
+        // cancels, since stock/logistics already in motion for the old device
+        // may need to be unwound first.
+        //
+        // Guarded by supersededByOrderId already being set — this whole
+        // approve() flow can end up running more than once for the same
+        // application (retrying after an earlier failure elsewhere in this
+        // flow), and without this check, every extra run would stack
+        // another "Superseded..." note onto the same old order instead of
+        // writing it exactly once.
+        const oldOrder=await getOrder(app.deviceAmendment.orderId);
+        if(oldOrder&&!oldOrder.cancelled&&!oldOrder.supersededByOrderId){
+          await reconcile([oldOrder],[{...oldOrder,supersededByOrderId:orderId,pendingDeviceAmendment:null,deviceAmendmentAck:{},
+            history:[...(oldOrder.history||[]),{step:oldOrder.step,date:nowDate(),time:nowTime(),note:`Superseded by device amendment — new order created for ${app.phoneModel}. Awaiting acknowledgment from Boss EC, Stock Executive, and Purchasing Executive before this order is cancelled.`,skipStepDate:true}]}]);
+        }
+      }
+    }catch(e){
+      console.error("Approve failed:",e);
+      alert("Something went wrong while approving — nothing further was changed. Please try again, and if this keeps happening, tell your admin what you were doing when it happened.");
+    }finally{
+      setSaving(false);setShowApprove(false);
     }
-    setSaving(false);setShowApprove(false);
   };
   const reject=async()=>{
     if(!rejectedRemark.trim()){alert("Reason required.");return;}
