@@ -621,6 +621,48 @@ function PickupReminderVoiceBox({order,onUpdate,email}){
     </label>:null}
   </div>;
 }
+
+// One row inside the "Arrived Branch, Not Yet Billed" alert block — same
+// info as any other alert row, plus an inline upload control (or an
+// "Uploaded" status) for the pickup reminder recording, so acting on it
+// doesn't require leaving the alert bar to open the order first. Only
+// emaxhr/Boon Theng/Sophia get the control at all; anyone else who somehow
+// sees this alert (shouldn't happen — AlertBanner already gates the whole
+// block to them) just sees the plain alert row with no upload affordance.
+function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClickOrder}){
+  const isMobile=useIsMobile();
+  const [uploading,setUploading]=useState(false);
+  const myEmail=(email||"").toLowerCase();
+  const canUpload=PICKUP_REMINDER_EMAILS.includes(myEmail);
+  const rec=order?.pickupReminderVoice;
+  const upload=async(e,file)=>{
+    e.stopPropagation();
+    if(!file||!order)return;
+    setUploading(true);
+    try{
+      const ref=await uploadOrderFile(order.id,file,file.name);
+      await onUpdateOrder({...order,pickupReminderVoice:{...ref,uploadedDate:nowDate(),uploadedTime:nowTime(),uploadedBy:email},
+        history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Pickup reminder call recording uploaded"}]});
+    }catch(err){
+      alert("Upload failed — please check your connection and try again.");
+    }
+    setUploading(false);
+  };
+  return<div onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:isMobile?"flex-start":"center",gap:isMobile?6:10,padding:"8px 4px",borderTop:`1px solid ${C.border}`,cursor:onClickOrder?"pointer":"default"}}>
+    <div style={isMobile?{minWidth:0}:{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+      <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.phoneModel}</div>
+      <div style={{fontSize:11,color:C.textLight}}>{a.customerName} · {a.branch}</div>
+    </div>
+    <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+      <span style={{fontSize:11,color,fontWeight:700,whiteSpace:"nowrap"}}>{a.msg}</span>
+      {canUpload&&(rec?<span onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#15803D15",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>{Ic.check} Uploaded</span>
+        :<label onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#fff",background:uploading?"#8A96A8":"#1D4ED8",padding:"5px 10px",borderRadius:6,whiteSpace:"nowrap",cursor:uploading?"default":"pointer"}}>
+          {uploading?"Uploading…":"Upload recording"}
+          <input type="file" accept="audio/*" style={{display:"none"}} disabled={uploading} onChange={e=>{const f=e.target.files[0];e.target.value="";upload(e,f);}}/>
+        </label>)}
+    </div>
+  </div>;
+}
 function PhoneModelField({order,onUpdate}){
   const [editing,setEditing]=useState(false);
   const [val,setVal]=useState(order.phoneModel||"");
@@ -2144,7 +2186,7 @@ function getOrderAlerts(orders,userBranch=null){
   });
   return alerts;
 }
-function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder}){
+function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder,orders,onUpdateOrder}){
   const isMobile=useIsMobile();
   if(!alerts.length)return null;
   const isEmaxPurchase=(email||"").toLowerCase()===EMAX_PURCHASE_EMAIL;
@@ -2207,6 +2249,21 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
       <span style={{fontSize:11,color,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{a.msg}</span>
     </div>)}
   </div>;
+  // Same layout as Block, but each row also gets an inline
+  // upload/uploaded-status control for the pickup reminder call recording
+  // — so emaxhr/Boon Theng/Sophia can act on it right from the alert
+  // itself, without having to open the order first. Only rendered for
+  // whichever of those three is currently logged in; PickupReminderAlertRow
+  // handles that check per row (same email list PickupReminderVoiceBox
+  // uses).
+  const PickupReminderBlock=({items,color,title})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
+      <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
+      <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>{title}</span>
+      <span style={{fontSize:10,fontWeight:700,color,background:color+"15",padding:"1px 8px",borderRadius:20}}>{items.length}</span>
+    </div>
+    {items.map((a,i)=><PickupReminderAlertRow key={a.orderId} alert={a} color={color} isFirst={i===0} order={orders?.find(o=>o.id===a.orderId)} onUpdateOrder={onUpdateOrder} email={email} onClickOrder={onClickOrder}/>)}
+  </div>;
   return<div style={{marginBottom:18}}>
     <Block items={expired} color="#DC2626" title="Approval Expired"/>
     <Block items={urgent} color="#B91C1C" title="Urgent Attention"/>
@@ -2216,7 +2273,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
     <Block items={billingRequestOverdue} color="#B91C1C" title="Billing Request Overdue"/>
     <Block items={missingActualPrice} color="#B45309" title="Actual Purchase Price Missing"/>
     <Block items={supersededAlerts} color="#B45309" title="Device Amendment — Old Order Needs Acknowledgment"/>
-    <Block items={pickupReminderAlerts} color="#1D4ED8" title="Arrived Branch, Not Yet Billed"/>
+    <PickupReminderBlock items={pickupReminderAlerts} color="#1D4ED8" title="Arrived Branch, Not Yet Billed"/>
     <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={agreementExpanded} onToggle={()=>setAgreementExpanded(p=>!p)}/>
     <Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={warningExpanded} onToggle={()=>setWarningExpanded(p=>!p)}/>
   </div>;
@@ -3030,6 +3087,27 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     nav("detail",signed);
     return true;
   };
+  // Same save path as saveOrder, minus the nav("detail",...) at the end —
+  // for the pickup-reminder alert row's inline upload, which should update
+  // in place and stay on the alert bar, not jump into the order's detail
+  // page the moment a file finishes uploading.
+  const patchOrderNoNav=async o=>{
+    const oldFull=detailCache[o.id];
+    const result=await reconcile(oldFull?[oldFull]:[],[o]);
+    if(!result.ok){
+      alert("Save failed — your changes were NOT saved. This usually happens when an uploaded file is too large. Please try a smaller file (compress the photo or PDF) and try again.");
+      return false;
+    }
+    let signed;
+    try{
+      signed=await hydrateOrder(o.id);
+    }catch(e){
+      signed=o;
+    }
+    const{history:_h2,...headerOnly}=signed;
+    setOrders(p=>p.some(x=>x.id===headerOnly.id)?p.map(x=>x.id===headerOnly.id?headerOnly:x):[headerOnly,...p]);
+    return true;
+  };
   const deleteOrder=async id=>{
     if(!confirm("Delete this order?"))return;
     const result=await apiDeleteOrder(id);
@@ -3148,7 +3226,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     </div>
 
     {/* Alerts */}
-    <AlertBanner alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} orderPermissions={orderPermissions} email={email} onClickOrder={id=>{const o=alertableOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
+    <AlertBanner alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} orderPermissions={orderPermissions} email={email} orders={alertableOrders} onUpdateOrder={patchOrderNoNav} onClickOrder={id=>{const o=alertableOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
 
     {(()=>{
       const outOfStockUnacked=cancelledOrders.filter(o=>o.outOfStock&&!(o.outOfStockAckAdmin&&o.outOfStockAckBranch));
