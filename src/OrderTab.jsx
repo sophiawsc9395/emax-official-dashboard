@@ -417,7 +417,7 @@ export function PickupTodoList({orders,branchMeta,onOrderClick,onUpdateOrder}){
   const markDone=async(o)=>{
     setSaving(o.id);
     await onUpdateOrder({...o,pickupReminderMessagedDate:nowDate(),
-      history:[...(o.history||[]),{step:o.step,date:nowDate(),time:nowTime(),note:"Pickup reminder WhatsApp message sent to customer",visibleTo:PICKUP_TODO_HISTORY_EMAILS}]});
+      history:[...(o.history||[]),{step:o.step,date:nowDate(),time:nowTime(),note:"Pickup reminder WhatsApp message sent to customer",visibleTo:PICKUP_TODO_HISTORY_EMAILS,skipStepDate:true}]});
     setSaving(null);
   };
   if(!items.length)return<div style={{...card,padding:"40px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>No pending pickup reminders — nothing at Arrived Branch is waiting to be messaged.</div>;
@@ -519,7 +519,7 @@ function AmendDeviceBox({order,onUpdate,isAdmin,userBranch}){
     // JCLTab.jsx/ChaileaseTab.jsx); this one only records that a request is
     // in flight, so the order page can show it as a badge.
     await onUpdate({...order,pendingDeviceAmendment:{previousDeviceName:order.phoneModel,previousFinancePrice:order.financePrice||0,newDeviceName:newDeviceName.trim(),newFinancePrice:parsedPrice,requestedDate:nowDate(),amendedAppId:newAppId},
-      history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Device amendment requested: ${order.phoneModel||"—"} → ${newDeviceName.trim()}, RM${oldFinancePrice.toFixed(2)} → RM${parsedPrice.toFixed(2)}. New application created and sent to ${order.merchant} for approval.`}]});
+      history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Device amendment requested: ${order.phoneModel||"—"} → ${newDeviceName.trim()}, RM${oldFinancePrice.toFixed(2)} → RM${parsedPrice.toFixed(2)}. New application created and sent to ${order.merchant} for approval.`,skipStepDate:true}]});
     setSaving(false);setOpen(false);setNewDeviceName("");setNewFinancePrice("");
   };
   return<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:16}}>
@@ -555,7 +555,7 @@ function AcknowledgeSupersededBox({order,onUpdate,email}){
     const nextAck={...ack,[key]:nowDate()};
     const allDone=ACK_PARTIES.every(p=>nextAck[p.key]);
     await onUpdate({...order,deviceAmendmentAck:nextAck,...(allDone?{cancelled:true}:{}),
-      history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`${label} acknowledged device amendment`+(allDone?" — all parties acknowledged, order cancelled.":"")}]});
+      history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`${label} acknowledged device amendment`+(allDone?" — all parties acknowledged, order cancelled.":""),skipStepDate:true}]});
     setSaving(false);
   };
   return<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:16}}>
@@ -600,7 +600,7 @@ function PickupReminderVoiceBox({order,onUpdate,email}){
     try{
       const ref=await uploadOrderFile(order.id,file,file.name);
       await onUpdate({...order,pickupReminderVoice:{...ref,uploadedDate:nowDate(),uploadedTime:nowTime(),uploadedBy:email},
-        history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Pickup reminder call recording uploaded"}]});
+        history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Pickup reminder call recording uploaded",skipStepDate:true}]});
     }catch(e){
       alert("Upload failed — please check your connection and try again.");
     }
@@ -642,7 +642,7 @@ function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClick
     try{
       const ref=await uploadOrderFile(order.id,file,file.name);
       await onUpdateOrder({...order,pickupReminderVoice:{...ref,uploadedDate:nowDate(),uploadedTime:nowTime(),uploadedBy:email},
-        history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Pickup reminder call recording uploaded"}]});
+        history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Pickup reminder call recording uploaded",skipStepDate:true}]});
     }catch(err){
       alert("Upload failed — please check your connection and try again.");
     }

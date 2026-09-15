@@ -621,23 +621,6 @@ function AdminActions({app,onSaved,onCreateOrder}){
   const [deposit,setDeposit]=useState(app.deposit||"");
   const [approveTenure,setApproveTenure]=useState(app.tenure||"12");
   const [monthlyInstallment,setMonthlyInstallment]=useState(app.monthlyInstallment||"");
-  // Whether app.linkedOrderId actually points at a real order — checked
-  // rather than trusted, since a stale/broken id (from the approve-without-
-  // order-creation bug this was built to catch) would otherwise look
-  // exactly like a healthy approval. Declared up here with the rest of
-  // this component's hooks, NOT further down near where it's used — every
-  // hook in a component has to run on every render, in the same order,
-  // regardless of which ActionBox variant this render ends up returning;
-  // putting it after an early return conditionally skips it on some
-  // renders and not others, which is what crashed the app last time.
-  const [orderVerified,setOrderVerified]=useState(null);
-  useEffect(()=>{
-    if(app.step!==4){setOrderVerified(null);return;}
-    if(!app.linkedOrderId){setOrderVerified(false);return;}
-    let live=true;
-    getOrder(app.linkedOrderId).then(o=>{if(live)setOrderVerified(!!o);}).catch(()=>{if(live)setOrderVerified(false);});
-    return()=>{live=false;};
-  },[app.step,app.linkedOrderId]);
   const [jclApplicationForm,setJclApplicationForm]=useState(null);
   const [jclNotice1,setJclNotice1]=useState(null);
   const [jclAgreementJCLCopy,setJclAgreementJCLCopy]=useState(null);
@@ -711,21 +694,28 @@ function AdminActions({app,onSaved,onCreateOrder}){
       agreementFee:parseFloat(agreementFee)||0,stampingFee:parseFloat(stampingFee)||0,deposit:parseFloat(deposit)||0,
       tenure:approveTenure,monthlyInstallment:parseFloat(monthlyInstallment)||0,jclDocuments,
       history:[...(app.history||[]),{step:4,date:nowDate(),time:nowTime(),note:`Approved by JCL${approvedRemark?": "+approvedRemark:""}`}]};
-    const orderId=await onCreateOrder(updated);
+    // Order creation gets a few automatic attempts before giving up — the
+    // one time this actually failed in practice, it was a transient
+    // database timeout (root cause fixed since), not anything wrong with
+    // the data itself, so a short retry with a small delay is enough to
+    // ride out that kind of hiccup without needing anyone to notice and
+    // manually retry it themselves.
+    let orderId=null;
+    for(let attempt=0;attempt<3&&!orderId;attempt++){
+      if(attempt>0)await new Promise(r=>setTimeout(r,1500));
+      orderId=await onCreateOrder(updated);
+    }
     if(!orderId){
-      // Order creation failed — do NOT flag the old order as superseded in
-      // this case. Doing that unconditionally, regardless of whether
-      // orderId came back, was the actual bug: it left an old order marked
+      // Still failed after retries — do NOT flag the old order as
+      // superseded in this case. Doing that regardless of whether orderId
+      // came back was the actual earlier bug: it left an old order marked
       // "superseded" (kicking off the 3-way acknowledgment flow) pointing
-      // at a new order that was never actually created — so nothing showed
-      // up on the Order page for the amended device, while the old order
-      // sat in limbo, still technically open and workable. Just save the
-      // approval as-is (linkedOrderId stays whatever it was, likely unset)
-      // so the "Create Order Now" retry button on this same box picks it
-      // up correctly, and tell whoever's approving right now so they don't
-      // walk away thinking it worked.
+      // at a new order that was never actually created. Just save the
+      // approval as-is and tell whoever's approving right now, so they
+      // know to try the whole approval again rather than walking away
+      // thinking it worked.
       await onSaved(updated);
-      alert("Approved, but the order could not be created — please use the \"Create Order Now\" button that will appear on this application, or try approving again.");
+      alert("Approved, but the order still couldn't be created after a few tries — please try approving again, or contact an admin.");
       setSaving(false);setShowApprove(false);
       return;
     }
@@ -742,7 +732,7 @@ function AdminActions({app,onSaved,onCreateOrder}){
       const oldOrder=await getOrder(app.deviceAmendment.orderId);
       if(oldOrder&&!oldOrder.cancelled){
         await reconcile([oldOrder],[{...oldOrder,supersededByOrderId:orderId,pendingDeviceAmendment:null,deviceAmendmentAck:{},
-          history:[...(oldOrder.history||[]),{step:oldOrder.step,date:nowDate(),time:nowTime(),note:`Superseded by device amendment — new order created for ${app.phoneModel}. Awaiting acknowledgment from Boss EC, Stock Executive, and Purchasing Executive before this order is cancelled.`}]}]);
+          history:[...(oldOrder.history||[]),{step:oldOrder.step,date:nowDate(),time:nowTime(),note:`Superseded by device amendment — new order created for ${app.phoneModel}. Awaiting acknowledgment from Boss EC, Stock Executive, and Purchasing Executive before this order is cancelled.`,skipStepDate:true}]}]);
       }
     }
     setSaving(false);setShowApprove(false);
@@ -757,7 +747,7 @@ function AdminActions({app,onSaved,onCreateOrder}){
       const order=await getOrder(app.deviceAmendment.orderId);
       if(order&&order.pendingDeviceAmendment){
         await reconcile([order],[{...order,pendingDeviceAmendment:null,
-          history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Device amendment rejected by JCL: ${rejectedRemark}. Order unchanged.`}]}]);
+          history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Device amendment rejected by JCL: ${rejectedRemark}. Order unchanged.`,skipStepDate:true}]}]);
       }
     }
     await onSaved({...app,step:5,rejectedDate:nowDate(),rejectedRemark,
@@ -769,27 +759,8 @@ function AdminActions({app,onSaved,onCreateOrder}){
     <PBtn onClick={resubmitAfterAmendment} disabled={saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":"Resubmit to JCL"}</PBtn>
   </ActionBox>;
 
-  // Safety net: an approved application should always have created its
-  // order at the same time (see approve() above) — but a past bug briefly
-  // let approval silently succeed without ever reaching order creation for
-  // a device-amendment clone specifically (fixed now, but that doesn't
-  // retroactively fix applications already stuck in this state from before
-  // the fix was deployed). orderVerified (state + effect for it) is
-  // declared up near the top of this component, with the other hooks.
-  const retryCreateOrder=async()=>{
-    setSaving(true);
-    const orderId=await onCreateOrder(app);
-    if(orderId){await onSaved({...app,linkedOrderId:orderId});setOrderVerified(true);}
-    else alert("Still couldn't create the order — please check your connection and try again, or contact an admin.");
-    setSaving(false);
-  };
   if(app.step===4)return<ActionBox title="Approved by JCL">
-    <div style={{fontSize:12,color:"#15803D",fontWeight:600}}>Approved {fDate(app.approvedDate)}{app.linkedOrderId?` — order ${app.linkedOrderId} on Order page`:""}{app.approvedRemark?` — ${app.approvedRemark}`:""}</div>
-    {orderVerified===false&&<>
-      <div style={{fontSize:11,color:"#B45309",marginTop:6}}>{app.linkedOrderId?`Order ${app.linkedOrderId} couldn't be found — it may have been deleted, or was never actually created.`:"No order was created for this approval — this shouldn't normally happen."}</div>
-      <PBtn onClick={retryCreateOrder} disabled={saving} style={{marginTop:8,width:"100%",justifyContent:"center"}}>{saving?"Creating…":"Create Order Now"}</PBtn>
-    </>}
-    {orderVerified===null&&app.linkedOrderId&&<div style={{fontSize:11,color:"#8A96A8",marginTop:6}}>Checking the order still exists…</div>}
+    <div style={{fontSize:12,color:"#15803D",fontWeight:600}}>Approved {fDate(app.approvedDate)}{app.linkedOrderId?" — order created on Order page":""}{app.approvedRemark?` — ${app.approvedRemark}`:""}</div>
   </ActionBox>;
   if(app.step===5)return<ActionBox title="Rejected by JCL">
     <div style={{fontSize:12,color:"#DC2626",fontWeight:600}}>Rejected {fDate(app.rejectedDate)} — {app.rejectedRemark}</div>

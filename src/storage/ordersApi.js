@@ -88,7 +88,17 @@ function applyHistoryEntry(order, entry) {
   const patch = {};
   if (entry.date) patch.lastHistoryDate = entry.date;
   if (entry.time) patch.lastHistoryTime = entry.time;
-  patch.stepDates = { ...(order.stepDates || {}), [String(entry.step)]: { date: entry.date, time: entry.time } };
+  // Entries logged at order.step without actually advancing the order
+  // there (an informational note attached to whatever step the order is
+  // already sitting at, purely so it displays in the right section of the
+  // timeline) must NOT update stepDates for that step — stepDates is what
+  // "Reached Step On" / "Days Waiting" is computed from, and overwriting it
+  // on every incidental note would make an order look like it just freshly
+  // reached a step every time something unrelated happens while it's
+  // sitting there. skipStepDate marks exactly that case.
+  if (!entry.skipStepDate) {
+    patch.stepDates = { ...(order.stepDates || {}), [String(entry.step)]: { date: entry.date, time: entry.time } };
+  }
   if (entry.step === 9) patch.lastVerification = { ...entry };
   if (entry.shortPayment || entry.collectionChecked !== undefined) {
     patch.shortPaymentPending = !!entry.shortPayment;
