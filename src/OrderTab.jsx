@@ -159,6 +159,17 @@ const ACK_PARTIES=[
   {key:"stock",label:"Stock Executive",email:"emaxstock@gmail.com"},
   {key:"purchase",label:"Purchasing Executive",email:"emaxpurchase@gmail.com"},
 ];
+// Who can upload a pickup-reminder call recording (see
+// PickupReminderVoiceBox) and who sees the "Arrived Branch, Not Yet Billed"
+// alert that points them at it. Everyone can still play a recording once
+// it's there — this list only gates uploading and the alert itself.
+const PICKUP_REMINDER_EMAILS=["emaxhr@gmail.com","boontheng2004@gmail.com","sophiawsc9395@gmail.com"];
+// Same three, plus emaxjcl@gmail.com (who owns the Pickup Reminder To-Do
+// list itself) — this is who's allowed to see the "marked as messaged"
+// history entry PickupTodoList logs. Everyone else's Tracking Timeline
+// skips over that entry entirely, same as it does for JCL/Chailease's
+// claimToPurchaser file.
+const PICKUP_TODO_HISTORY_EMAILS=[...PICKUP_REMINDER_EMAILS,"emaxjcl@gmail.com"];
 // Sees the "Actual Purchase Price To-Do" alert alongside Sophia — the
 // purchasing team's own inbox, not a Sophia-only view.
 const EMAX_PURCHASE_EMAIL="emaxpurchase@gmail.com";
@@ -324,6 +335,127 @@ function StepBadge({order,step}){
   return<span style={{display:"inline-block",padding:"2px 9px",borderRadius:4,fontSize:10,fontWeight:700,background:C.surface,color:C.navy,border:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{s.label}</span>;
 }
 
+// Turns whatever's been typed into Customer HP into +60XXXXXXXXX, whatever
+// format it started in (016-830 9395, 0168309395, 60168309395...) — this
+// codebase doesn't enforce a phone format at entry, so this has to be
+// tolerant rather than assume one shape.
+function formatMYPhone(raw){
+  const digits=String(raw||"").replace(/\D/g,"");
+  if(!digits)return"";
+  if(digits.startsWith("60"))return"+"+digits;
+  if(digits.startsWith("0"))return"+60"+digits.slice(1);
+  return"+60"+digits;
+}
+
+// The WhatsApp reminder text for PickupTodoList below. *text* is WhatsApp's
+// own bold syntax — renders bold once pasted into an actual WhatsApp chat,
+// so the headline catches the customer's attention before they read further.
+// Payment lines are each individually conditional (skip stamping fee for
+// Chailease, skip deposit entirely when it's RM0, Upfront 2 only for Aeon)
+// rather than a single fixed template, since which fees apply varies by
+// merchant and by order.
+function buildPickupWhatsAppMessage(order,branchMeta){
+  const isCash=order.orderType==="cash";
+  const pickupCode=order.pickUpBranch||order.branch;
+  const bMeta=branchMeta?.[pickupCode]||{};
+  const branchName=bMeta.name||pickupCode;
+  const address=bMeta.address||"";
+  const lines=[];
+  let total=0;
+  if(isCash){
+    const price=parseFloat(order.retailPrice)||0;
+    const deposit=parseFloat(order.deposit)||0;
+    const balance=price-deposit;
+    if(deposit>0)lines.push(`Deposit Already Paid: RM ${deposit.toFixed(2)}`);
+    lines.push(`Balance Payment: RM ${balance.toFixed(2)}`);
+    total=balance;
+  }else{
+    const a=parseFloat(order.agreementFee)||0;
+    const s=parseFloat(order.stampingFee)||0;
+    const d=parseFloat(order.deposit)||0;
+    if(a>0){lines.push(`Agreement Fee: RM ${a.toFixed(2)}`);total+=a;}
+    if(s>0){lines.push(`Stamping Fee: RM ${s.toFixed(2)}`);total+=s;}
+    if(d>0){lines.push(`Deposit: RM ${d.toFixed(2)}`);total+=d;}
+    if(order.merchant==="Aeon"){
+      const m=parseFloat(order.monthlyInstallment)||0;
+      if(m>0){lines.push(`Upfront 2 (First Monthly Installment): RM ${m.toFixed(2)}`);total+=m;}
+    }
+  }
+  const paymentBlock=lines.length?`\n\nTo complete your collection, kindly prepare the following:\n${lines.map(l=>`• ${l}`).join("\n")}\nTotal: RM ${total.toFixed(2)}`:"";
+  return`*📱 Your ${order.phoneModel||"order"} is ready for pickup.*\n\nHi ${order.customerName||"there"} 👋\n\nGood news — your ${order.phoneModel||"order"} has arrived and is ready for collection at our ${branchName} branch:\n\n📍 ${address}${paymentBlock}\n\nPlease visit us at your earliest convenience. Let us know if you have any questions — we look forward to seeing you soon!\n\nThank you,\nEMAX NETWORK HQ`;
+}
+
+function copyToClipboard(text){
+  // navigator.clipboard needs a secure context/permission that isn't
+  // always available; the hidden-textarea+execCommand fallback works
+  // everywhere, so it's used directly rather than as a fallback-only path.
+  const ta=document.createElement("textarea");
+  ta.value=text;
+  ta.style.position="fixed";ta.style.opacity="0";
+  document.body.appendChild(ta);
+  ta.select();
+  try{document.execCommand("copy");}catch(e){}
+  document.body.removeChild(ta);
+}
+
+// The Pickup Reminder To-Do list — every order sitting at Arrived Branch
+// (step 5) that hasn't been marked as messaged yet. One card per order:
+// customer phone (copyable), and the full WhatsApp reminder message
+// (copyable) ready to paste. Deliberately does NOT show pickup branch
+// address or the payment breakdown as their own fields on the card itself
+// — that information only needs to exist inside the message text that's
+// about to be sent to the customer, not duplicated as extra UI chrome.
+export function PickupTodoList({orders,branchMeta,onOrderClick,onUpdateOrder}){
+  const items=useMemo(()=>(orders||[]).filter(o=>o.step===5&&!o.cancelled&&!o.pickupReminderMessagedDate).sort((a,b)=>b.id-a.id),[orders]);
+  const [copiedId,setCopiedId]=useState(null);
+  const [saving,setSaving]=useState(null);
+  const copy=(text,id)=>{
+    copyToClipboard(text);
+    setCopiedId(id);
+    setTimeout(()=>setCopiedId(p=>p===id?null:p),1400);
+  };
+  const markDone=async(o)=>{
+    setSaving(o.id);
+    await onUpdateOrder({...o,pickupReminderMessagedDate:nowDate(),
+      history:[...(o.history||[]),{step:o.step,date:nowDate(),time:nowTime(),note:"Pickup reminder WhatsApp message sent to customer",visibleTo:PICKUP_TODO_HISTORY_EMAILS}]});
+    setSaving(null);
+  };
+  if(!items.length)return<div style={{...card,padding:"40px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>No pending pickup reminders — nothing at Arrived Branch is waiting to be messaged.</div>;
+  return<div>
+    {items.map(o=>{
+      const phone=formatMYPhone(o.customerHP);
+      const msg=buildPickupWhatsAppMessage(o,branchMeta);
+      const pickupCode=o.pickUpBranch||o.branch;
+      return<div key={o.id} style={{...card,marginBottom:14}}>
+        <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,cursor:onOrderClick?"pointer":"default"}} onClick={()=>onOrderClick?.(o)}>
+          <div style={{minWidth:0}}>
+            <div style={{fontWeight:700,fontSize:13,color:C.navy}}>{o.customerName||"—"}</div>
+            <div style={{fontSize:11,color:C.textMid,marginTop:2}}>{o.phoneModel||"—"} · Arrived {fDate(o.stepDates?.[5]?.date)}</div>
+          </div>
+          <div style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{branchMeta?.[pickupCode]?.name||pickupCode}</div>
+        </div>
+        <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+          <div style={{minWidth:0}}>
+            <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",fontWeight:700}}>Customer Phone</div>
+            <div style={{fontSize:13,color:C.navy,fontWeight:600,marginTop:2}}>{phone||"—"}</div>
+          </div>
+          {phone&&<button title="Copy phone number" onClick={()=>copy(phone,`p${o.id}`)} style={{border:`1px solid ${C.border}`,background:"#fff",color:C.navy,width:32,height:32,minWidth:32,borderRadius:7,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>{copiedId===`p${o.id}`?Ic.check:Ic.copy}</button>}
+        </div>
+        <div style={{padding:"12px 16px",background:C.surface}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",fontWeight:700}}>WhatsApp Message</div>
+            <button onClick={()=>copy(msg,`m${o.id}`)} style={{border:"none",background:C.navy,color:"#fff",fontSize:11,fontWeight:600,padding:"6px 10px",borderRadius:7,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>{Ic.copy}{copiedId===`m${o.id}`?"Copied!":"Copy Message"}</button>
+          </div>
+          <div style={{background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",fontSize:11.5,color:C.textMid,whiteSpace:"pre-wrap",lineHeight:1.6}}>{msg}</div>
+        </div>
+        <div style={{padding:"10px 16px",borderTop:`1px solid ${C.border}`,textAlign:"right"}}>
+          <button onClick={()=>markDone(o)} disabled={saving===o.id} style={{border:"none",background:"transparent",color:"#15803D",fontSize:11,fontWeight:700,cursor:saving===o.id?"default":"pointer"}}>{saving===o.id?"Saving…":"Mark as Messaged ✓"}</button>
+        </div>
+      </div>;
+    })}
+  </div>;
+}
+
 /* ── Timeline ─────────────────────────────────────────────────────────── */
 // Lets a branch (or admin) swap the device on a JCL/Chailease order before
 // it reaches Billing — customer decided they want a different phone. This
@@ -438,6 +570,55 @@ function AcknowledgeSupersededBox({order,onUpdate,email}){
         </div>;
       })}
     </div>
+  </div>;
+}
+// Lets emaxhr@gmail.com, Boon Theng, or Sophia record/upload a short note
+// of a call reminding the customer to come collect their phone from the
+// branch — for a phone that's been sitting at Arrived Branch a while with
+// no Billing Request yet (see the "Arrived Branch, Not Yet Billed" alert
+// above). Anyone can play the recording; only those three can upload or
+// replace it. Playback only, deliberately — no visible download link or
+// file name link is rendered, and the player's own download control is
+// hidden where the browser supports it. Worth being upfront that this
+// isn't a hard technical guarantee: a browser's native "Save audio as"
+// via right-click, or its dev tools, can still get at the underlying
+// file — this only removes the obvious, casual way to grab a copy.
+function PickupReminderVoiceBox({order,onUpdate,email}){
+  const [uploading,setUploading]=useState(false);
+  const myEmail=(email||"").toLowerCase();
+  // Restricted to these three specifically — not just for uploading, for
+  // seeing the box (and playing the recording) at all. Branch, and every
+  // other role, never sees this box exists.
+  const canAccess=PICKUP_REMINDER_EMAILS.includes(myEmail);
+  if(!canAccess)return null;
+  const canUpload=canAccess;
+  const rec=order.pickupReminderVoice;
+  if(!rec&&order.step!==5)return null;
+  const upload=async(file)=>{
+    if(!file)return;
+    setUploading(true);
+    try{
+      const ref=await uploadOrderFile(order.id,file,file.name);
+      await onUpdate({...order,pickupReminderVoice:{...ref,uploadedDate:nowDate(),uploadedTime:nowTime(),uploadedBy:email},
+        history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Pickup reminder call recording uploaded"}]});
+    }catch(e){
+      alert("Upload failed — please check your connection and try again.");
+    }
+    setUploading(false);
+  };
+  return<div style={{...card,borderLeft:"3px solid #1D4ED8",padding:"12px 14px",marginBottom:16}}>
+    <div style={{fontSize:11,fontWeight:700,color:"#1D4ED8",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Pickup Reminder Call</div>
+    {rec?.url?<>
+      <audio controls controlsList="nodownload noplaybackrate" onContextMenu={e=>e.preventDefault()} src={rec.url} style={{width:"100%",height:32}}/>
+      <div style={{fontSize:10,color:C.textLight,marginTop:6}}>Uploaded {fDate(rec.uploadedDate)}{rec.uploadedBy?` by ${rec.uploadedBy}`:""}</div>
+      {canUpload&&<label style={{display:"inline-block",marginTop:8,fontSize:11,color:C.blueBright,fontWeight:600,cursor:uploading?"default":"pointer"}}>
+        {uploading?"Uploading…":"Replace recording"}
+        <input type="file" accept="audio/*" style={{display:"none"}} disabled={uploading} onChange={e=>{upload(e.target.files[0]);e.target.value="";}}/>
+      </label>}
+    </>:canUpload?<label style={{display:"inline-block",fontSize:11,color:C.blueBright,fontWeight:600,cursor:uploading?"default":"pointer"}}>
+      {uploading?"Uploading…":"Upload call recording"}
+      <input type="file" accept="audio/*" style={{display:"none"}} disabled={uploading} onChange={e=>{upload(e.target.files[0]);e.target.value="";}}/>
+    </label>:null}
   </div>;
 }
 function PhoneModelField({order,onUpdate}){
@@ -643,7 +824,8 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
     const isAutoReady=isReady&&s.step===2;
     const done=cur>s.step||isAutoReady;
     const active=cur===s.step&&!isAutoReady;
-    const histEntries=(order.history||[]).map((h,idx)=>({h,idx})).filter(({h})=>h.step===s.step);
+    const myEmailTL=(email||"").toLowerCase();
+    const histEntries=(order.history||[]).map((h,idx)=>({h,idx})).filter(({h})=>h.step===s.step&&(!h.visibleTo||h.visibleTo.map(e=>e.toLowerCase()).includes(myEmailTL)));
     const ph=getPhase(s.step),showPh=ph&&ph.id!==lastPh;
     if(ph)lastPh=ph.id;
     return<div key={s.step}>
@@ -1674,6 +1856,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
 
     <AmendDeviceBox order={order} onUpdate={onUpdate} isAdmin={isAdmin} userBranch={userBranch}/>
     <AcknowledgeSupersededBox order={order} onUpdate={onUpdate} email={email}/>
+    <PickupReminderVoiceBox order={order} onUpdate={onUpdate} email={email}/>
 
     {/* Two-col: timeline | action */}
     <div className="detail-grid">
@@ -1950,6 +2133,15 @@ function getOrderAlerts(orders,userBranch=null){
     const waitingOn=ACK_PARTIES.filter(p=>!ack[p.key]).map(p=>p.label);
     alerts.push({type:"device_amendment_superseded",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:`Superseded by a device amendment — waiting on ${waitingOn.join(", ")} to acknowledge before this order cancels`});
   });
+  // Arrived Branch, Not Yet Billed — a phone that's been sitting at the
+  // branch over a week with no Billing Request submitted usually means the
+  // customer hasn't come to collect it yet. Only for emaxhr@gmail.com,
+  // Boon Theng, and Sophia — see PickupReminderVoiceBox, which is where
+  // they'd follow up with a reminder call.
+  myOrders.filter(o=>o.step===5).forEach(o=>{
+    const days=daysSince(o.stepDates?.[5]?.date);
+    if(days!==null&&days>=7)alerts.push({type:"arrived_branch_no_billing",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Arrived at branch ${days} days ago — still no Billing Request. Customer may not have picked it up yet.`});
+  });
   return alerts;
 }
 function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder}){
@@ -1989,6 +2181,8 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // acknowledge buttons themselves (Boon Theng holds admin via superAdmin).
   const canSeeSupersededAlert=isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all"||orderPermissions.adminSteps.includes(1)||orderPermissions.adminSteps.includes(4));
   const supersededAlerts=canSeeSupersededAlert?alerts.filter(a=>a.type==="device_amendment_superseded"):[];
+  const canSeePickupReminderAlert=PICKUP_REMINDER_EMAILS.includes((email||"").toLowerCase());
+  const pickupReminderAlerts=canSeePickupReminderAlert?alerts.filter(a=>a.type==="arrived_branch_no_billing"):[];
   // Approval Warning starts collapsed on the admin order page (there's
   // usually a lot of them, and admin has plenty else to look at) but
   // starts expanded on a branch's own view (a short, directly relevant
@@ -2022,6 +2216,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
     <Block items={billingRequestOverdue} color="#B91C1C" title="Billing Request Overdue"/>
     <Block items={missingActualPrice} color="#B45309" title="Actual Purchase Price Missing"/>
     <Block items={supersededAlerts} color="#B45309" title="Device Amendment — Old Order Needs Acknowledgment"/>
+    <Block items={pickupReminderAlerts} color="#1D4ED8" title="Arrived Branch, Not Yet Billed"/>
     <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={agreementExpanded} onToggle={()=>setAgreementExpanded(p=>!p)}/>
     <Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={warningExpanded} onToggle={()=>setWarningExpanded(p=>!p)}/>
   </div>;

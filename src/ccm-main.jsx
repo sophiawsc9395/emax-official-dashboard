@@ -2,16 +2,19 @@ import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import JCLTab from './JCLTab.jsx'
 import ChaileaseTab from './ChaileaseTab.jsx'
+import { PickupTodoList } from './OrderTab.jsx'
 import AuthGate from './auth/AuthGate.jsx'
 import { supabase, loadData } from './storage/index.js'
+import { listOrders, reconcile } from './storage/ordersApi.js'
 
 // Dedicated page for emaxjcl@gmail.com — she used to reach JCL Application
 // through order.html via a special-cased allowlist, but that page has since
 // been simplified back down to just Order Tracking/Daily Sales/Purchase
-// Order. This page exists solely for JCL Application and Chailease
-// Application, grouped under one "CCM Application" parent menu, matching
-// the same grouped-sidebar look used everywhere else in this app.
-const ALLOWED = ["emaxjcl@gmail.com", "sophiawsc9395@gmail.com"]
+// Order. This page exists solely for JCL Application, Chailease
+// Application, and the Pickup Reminder To-Do list, grouped under one
+// sidebar, matching the same grouped-sidebar look used everywhere else in
+// this app.
+const ALLOWED = ["emaxjcl@gmail.com", "sophiawsc9395@gmail.com", "boontheng2004@gmail.com"]
 
 const SR_KEY = "emax_v5_sr_list", BM_KEY = "emax_v5_branch_meta"
 
@@ -57,20 +60,21 @@ const CSS = `
 `;
 
 const DEFAULT_BRANCH_META = {
-  KM:{name:"EMAX Kota Marudu",manager:"SUHAINIZAM",mStatus:"Confirmed (P5 F0)"},
-  T1:{name:"EMAX Tuaran 1",manager:"REX WENMIN",mStatus:"Confirmed (P5 F0)"},
-  TW2:{name:"EMAX Tawau 2",manager:"TONY YONG",mStatus:"Confirmed (P5 F0)"},
-  TW1:{name:"EMAX Tawau 1",manager:"MAX SIEW",mStatus:"Director"},
-  LD:{name:"EMAX Lahad Datu",manager:"SHAHRUL",mStatus:"Confirmed (P3 F0)"},
-  KB:{name:"EMAX Kota Belud",manager:"MAHADI",mStatus:"Confirmed (P2 F3)"},
-  T5:{name:"EMAX CKS",manager:"SUHAIDI",mStatus:"Confirmed (P0 F2)"},
-  ITCC:{name:"EMAX ITCC",manager:"SUHAIDI",mStatus:"Confirmed (P0 F1)"},
-  TENOM:{name:"EMAX Tenom",manager:"AZIQIL",mStatus:"Probation (P1 F1)"},
-  HQ:{name:"EMAX HQ",manager:"MIKE PANG",mStatus:"Confirmed (P0 F1)"},
+  KM:{name:"EMAX Kota Marudu",manager:"SUHAINIZAM",mStatus:"Confirmed (P5 F0)",address:"1st Flr, EG Mall CL225317046, Jalan Goshen, Kota Marudu"},
+  T1:{name:"EMAX Tuaran 1",manager:"REX WENMIN",mStatus:"Confirmed (P5 F0)",address:"G Flr, Lot 10, Teo Ee Teh Shopping Complex, Tuaran"},
+  TW2:{name:"EMAX Tawau 2",manager:"TONY YONG",mStatus:"Confirmed (P5 F0)",address:"TB 313, Block 37, Fajar Complex, Tawau"},
+  TW1:{name:"EMAX Tawau 1",manager:"MAX SIEW",mStatus:"Director",address:"TB250, Bangunan Hajjah Mastura Ali, Tawau"},
+  LD:{name:"EMAX Lahad Datu",manager:"SHAHRUL",mStatus:"Confirmed (P3 F0)",address:"Lot No.8, G Flr, Linear Blok A, Harbour Town, Lahad Datu"},
+  KB:{name:"EMAX Kota Belud",manager:"MAHADI",mStatus:"Confirmed (P2 F3)",address:"No 9, Blk A, G Flr, Bangunan Centenary, Kota Belud"},
+  T5:{name:"EMAX CKS",manager:"SUHAIDI",mStatus:"Confirmed (P0 F2)",address:"Lot 23-1, Lorong Plaza CKS 2B, Plaza CKS, Tuaran"},
+  ITCC:{name:"EMAX ITCC",manager:"SUHAIDI",mStatus:"Confirmed (P0 F1)",address:"Lot G-48 & G-49, G Flr, ITCC Mall, Penampang"},
+  TENOM:{name:"EMAX Tenom",manager:"AZIQIL",mStatus:"Probation (P1 F1)",address:"Lot 26, Blk E, Jln Toh Puah Hajjah Khusnah, Tenom"},
+  HQ:{name:"EMAX HQ",manager:"MIKE PANG",mStatus:"Confirmed (P0 F1)",address:"Lot 2, HM Penampang, Kota Kinabalu"},
   SDK:{name:"EC SDK",manager:"",mStatus:""},
 }
 
 const SIDEBAR_STRUCTURE = [
+  {id:"pickupTodo",label:"Pickup Reminder To-Do"},
   {group:"ccmApplication",label:"CCM Application",children:[
     {id:"jclApplications",label:"JCL Application"},
     {id:"chaileaseApplications",label:"Chailease Application"},
@@ -81,11 +85,12 @@ function CCMApp(){
   const [email, setEmail] = useState(null)
   const [branchMeta, setBranchMeta] = useState(DEFAULT_BRANCH_META)
   const [srList, setSrList] = useState([])
+  const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTab, setPageTabRaw] = useState(() => {
     const h = window.location.hash.replace('#', '')
-    return ['jclApplications', 'chaileaseApplications'].includes(h) ? h : 'jclApplications'
+    return ['pickupTodo', 'jclApplications', 'chaileaseApplications'].includes(h) ? h : 'jclApplications'
   })
   const setPageTab = (t) => { setPageTabRaw(t); window.location.hash = t }
   const [expandedGroups, setExpandedGroups] = useState(() => {
@@ -104,13 +109,28 @@ function CCMApp(){
     Promise.all([loadData(BM_KEY), loadData(SR_KEY)]).then(([bm, sr]) => {
       if (bm && Object.keys(bm).length) {
         const merged = { ...DEFAULT_BRANCH_META, ...bm }
-        Object.keys(merged).forEach(b => { merged[b] = { ...merged[b], name: b==="SDK"?DEFAULT_BRANCH_META[b]?.name:(merged[b]?.name || DEFAULT_BRANCH_META[b]?.name) } })
+        Object.keys(merged).forEach(b => { merged[b] = { ...merged[b], name: b==="SDK"?DEFAULT_BRANCH_META[b]?.name:(merged[b]?.name || DEFAULT_BRANCH_META[b]?.name), address: merged[b]?.address || DEFAULT_BRANCH_META[b]?.address } })
         setBranchMeta(merged)
       }
       if (Array.isArray(sr)) setSrList(sr)
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [])
+
+  // Only fetched for the Pickup Reminder To-Do tab, which is the only
+  // thing on this page that needs orders at all — no point loading them
+  // just to sit unused while viewing JCL/Chailease Application.
+  useEffect(() => {
+    if (pageTab !== 'pickupTodo') return
+    listOrders().then(setOrders).catch(() => {})
+  }, [pageTab])
+
+  const saveOrderPatch = async (updated) => {
+    const original = orders.find(o => o.id === updated.id)
+    const result = await reconcile(original ? [original] : [], [updated])
+    if (result.ok) setOrders(p => p.map(o => o.id === updated.id ? updated : o))
+    return result.ok
+  }
 
   if (loading || !email) {
     return <div style={{ height:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#0A1628", fontFamily:"Inter,sans-serif" }}>
@@ -147,6 +167,7 @@ function CCMApp(){
       <div style={{ display:"flex", maxWidth:1400, margin:"0 auto" }}>
         {/* MAIN CONTENT */}
         <div style={{ flex:1, minWidth:0, padding:"20px", maxWidth:1180 }}>
+          {pageTab==="pickupTodo" && <PickupTodoList orders={orders} branchMeta={branchMeta} onUpdateOrder={saveOrderPatch} />}
           {pageTab==="jclApplications" && <JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={email} />}
           {pageTab==="chaileaseApplications" && <ChaileaseTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={email} />}
         </div>

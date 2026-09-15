@@ -67,16 +67,16 @@ const CSS = `
 `;
 
 const DEFAULT_BRANCH_META = {
-  KM:{name:"EMAX Kota Marudu",manager:"SUHAINIZAM",mStatus:"Confirmed (P5 F0)"},
-  T1:{name:"EMAX Tuaran 1",manager:"REX WENMIN",mStatus:"Confirmed (P5 F0)"},
-  TW2:{name:"EMAX Tawau 2",manager:"TONY YONG",mStatus:"Confirmed (P5 F0)"},
-  TW1:{name:"EMAX Tawau 1",manager:"MAX SIEW",mStatus:"Director"},
-  LD:{name:"EMAX Lahad Datu",manager:"SHAHRUL",mStatus:"Confirmed (P3 F0)"},
-  KB:{name:"EMAX Kota Belud",manager:"MAHADI",mStatus:"Confirmed (P2 F3)"},
-  T5:{name:"EMAX CKS",manager:"SUHAIDI",mStatus:"Confirmed (P0 F2)"},
-  ITCC:{name:"EMAX ITCC",manager:"SUHAIDI",mStatus:"Confirmed (P0 F1)"},
-  TENOM:{name:"EMAX Tenom",manager:"AZIQIL",mStatus:"Probation (P1 F1)"},
-  HQ:{name:"EMAX HQ",manager:"MIKE PANG",mStatus:"Confirmed (P0 F1)"},
+  KM:{name:"EMAX Kota Marudu",manager:"SUHAINIZAM",mStatus:"Confirmed (P5 F0)",address:"1st Flr, EG Mall CL225317046, Jalan Goshen, Kota Marudu"},
+  T1:{name:"EMAX Tuaran 1",manager:"REX WENMIN",mStatus:"Confirmed (P5 F0)",address:"G Flr, Lot 10, Teo Ee Teh Shopping Complex, Tuaran"},
+  TW2:{name:"EMAX Tawau 2",manager:"TONY YONG",mStatus:"Confirmed (P5 F0)",address:"TB 313, Block 37, Fajar Complex, Tawau"},
+  TW1:{name:"EMAX Tawau 1",manager:"MAX SIEW",mStatus:"Director",address:"TB250, Bangunan Hajjah Mastura Ali, Tawau"},
+  LD:{name:"EMAX Lahad Datu",manager:"SHAHRUL",mStatus:"Confirmed (P3 F0)",address:"Lot No.8, G Flr, Linear Blok A, Harbour Town, Lahad Datu"},
+  KB:{name:"EMAX Kota Belud",manager:"MAHADI",mStatus:"Confirmed (P2 F3)",address:"No 9, Blk A, G Flr, Bangunan Centenary, Kota Belud"},
+  T5:{name:"EMAX CKS",manager:"SUHAIDI",mStatus:"Confirmed (P0 F2)",address:"Lot 23-1, Lorong Plaza CKS 2B, Plaza CKS, Tuaran"},
+  ITCC:{name:"EMAX ITCC",manager:"SUHAIDI",mStatus:"Confirmed (P0 F1)",address:"Lot G-48 & G-49, G Flr, ITCC Mall, Penampang"},
+  TENOM:{name:"EMAX Tenom",manager:"AZIQIL",mStatus:"Probation (P1 F1)",address:"Lot 26, Blk E, Jln Toh Puah Hajjah Khusnah, Tenom"},
+  HQ:{name:"EMAX HQ",manager:"MIKE PANG",mStatus:"Confirmed (P0 F1)",address:"Lot 2, HM Penampang, Kota Kinabalu"},
   SDK:{name:"EC SDK",manager:"",mStatus:""},
 }
 
