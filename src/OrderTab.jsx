@@ -1385,6 +1385,14 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
   const [showShortPayment,setShowShortPayment]=useState(false);
   const [shortPayRemark,setShortPayRemark]=useState("");
   const upfront=calcUpfront(order);
+  // Upfront 2 (First Monthly Installment) is only something Aeon customers
+  // actually pay at Customer Collection — Chailease and JCL still record a
+  // monthlyInstallment on the order for their own paperwork, but the
+  // customer isn't paying it upfront, so it must not be added into the
+  // collection total for them. The Upfront 2 line item itself was already
+  // correctly hidden for non-Aeon merchants; this is what the total itself
+  // needs to match that.
+  const upfrontMonthlyDue=order.merchant==="Aeon"?(parseFloat(upfrontMonthly)||0):0;
 
   // Some roles can see this order's full history/status but aren't allowed
   // to act on THIS particular step (e.g. a Purchase-only user viewing an
@@ -1480,10 +1488,18 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
       setSaving(false);
       return;
     }
-    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,platformOrderId:nextDef.needsOrderDate&&platformOrderId?platformOrderId:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,actualPrice:nextDef.needsOrderDate&&actualPrice?actualPrice:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:nextDef.needsClaimInfo?claimConsignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,claimSentDate:nextDef.needsClaimInfo?claimSentDate:undefined,knockOffDate:nextDef.needsKnockOff?knockOffDate:undefined,knockOffAmount:nextDef.needsKnockOff&&knockOffAmount?knockOffAmount:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,paymentProofAmount:!isCash?paymentProofAmount:undefined,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+(parseFloat(upfrontMonthly)||0),paymentMethod:payMethod,...(isShortPaymentPending(order)?{secondPaymentDate,secondPayMethod,secondPaymentAmount}:{})}:{})};
-    const updated={...order,step:nextDef.step,history:[...(order.history||[]),h],stepDates:{...(order.stepDates||{}),[nextDef.step]:{date:nowDate(),time:nowTime()}}};
+    const h={step:nextDef.step,date:nowDate(),time:nowTime(),note:nextDef.label,remark:remark||undefined,invoiceNo:invoiceNo||undefined,orderDate:nextDef.needsOrderDate?orderDate:undefined,supplierName:nextDef.needsOrderDate&&supplierName?supplierName:undefined,poNumber:nextDef.needsOrderDate&&poNumber?poNumber:undefined,platformOrderId:nextDef.needsOrderDate&&platformOrderId?platformOrderId:undefined,purchaserName:nextDef.needsOrderDate&&purchaserName?purchaserName:undefined,actualPrice:nextDef.needsOrderDate&&actualPrice?actualPrice:undefined,consignmentNo:nextDef.needsTransferNumbers?consignmentNo:nextDef.needsClaimInfo?claimConsignmentNo:undefined,stockTransferNo:nextDef.needsTransferNumbers?stockTransferNo:undefined,claimSentDate:nextDef.needsClaimInfo?claimSentDate:undefined,knockOffDate:nextDef.needsKnockOff?knockOffDate:undefined,knockOffAmount:nextDef.needsKnockOff&&knockOffAmount?knockOffAmount:undefined,files:Object.keys(rf).length?rf:undefined,...(nextDef.needsVerification?{collectionChecked:collection,paymentChecked:payment,verificationRemark:verRemark||undefined,upfrontPaymentDate:upfrontDate,monthlyInstallment:upfrontMonthly,paymentProofAmount:!isCash?paymentProofAmount:undefined,totalDue:isCash?calcCashDue(order):upfront.total,totalUpfrontPayment:isCash?undefined:upfront.total+upfrontMonthlyDue,paymentMethod:payMethod,...(isShortPaymentPending(order)?{secondPaymentDate,secondPayMethod,secondPaymentAmount}:{})}:{})};
+    // For a cash order, verifying the balance payment (this same
+    // needsVerification form, at step 9 "Collection Verified") is the last
+    // thing anyone needs to do — there's no merchant claim to submit
+    // afterward the way CCM orders have. Confirming here jumps straight to
+    // Completed (14) in this one action instead of landing on step 9 and
+    // requiring a separate, second confirm to get to 14 — step 9 still
+    // shows as done in the timeline (the history entry above is still
+    // logged at step 9), it's just no longer where the order sits waiting.
+    const finalStep=(isCash&&nextDef.step===9)?14:nextDef.step;
+    const updated={...order,step:finalStep,history:[...(order.history||[]),h],stepDates:{...(order.stepDates||{}),[nextDef.step]:{date:nowDate(),time:nowTime()},...(finalStep!==nextDef.step?{[finalStep]:{date:nowDate(),time:nowTime()}}:{})}};
     if(nextDef.step===2&&remark)updated.adminRemark=remark;
-    if(isCash&&nextDef.step===14){updated.step=14;}
     if(nextDef.needsOrderDate){updated.orderDate=orderDate;if(supplierName)updated.supplierName=supplierName;if(poNumber)updated.poNumber=poNumber;if(platformOrderId)updated.platformOrderId=platformOrderId;if(purchaserName)updated.purchaserName=purchaserName;if(actualPrice)updated.actualPrice=actualPrice;}
     if(nextDef.needsTransferNumbers){updated.consignmentNo=consignmentNo;updated.stockTransferNo=stockTransferNo;}
     if(nextDef.needsClaimInfo){updated.claimSentDate=claimSentDate;updated.consignmentNo=claimConsignmentNo;}
@@ -1513,7 +1529,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
       // confirmed — otherwise a mismatched collection could slip through
       // unnoticed.
       if(!isCash){
-        const expectedTotal=upfront.total+(parseFloat(upfrontMonthly)||0);
+        const expectedTotal=upfront.total+upfrontMonthlyDue;
         const proof1=parseFloat(paymentProofAmount)||0;
         const proof2=isShortPaymentPending(order)?(parseFloat(secondPaymentAmount)||0):0;
         if(Math.abs((proof1+proof2)-expectedTotal)>0.01)return false;
@@ -1600,9 +1616,9 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
             {!isCash&&<div style={{gridColumn:"1/-1"}}><L req>Payment Proof Amount (RM)</L><I type="number" value={paymentProofAmount} onChange={e=>setPaymentProofAmount(e.target.value)} placeholder="Actual amount per payment slip…"/></div>}
             {isCash?<div style={{gridColumn:"1/-1"}}><L>Total Due (auto: Retail − Deposit)</L><div style={{...inp,background:C.surface,color:C.textMid,fontWeight:600}}>{fRM(calcCashDue(order))}</div></div>:<div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:4,whiteSpace:"nowrap"}}>Upfront 1 (Agreement + Stamping + Deposit)</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.surface,color:C.textLight,fontSize:13,fontWeight:600}}><span>Amount</span><span>{fRM(upfront.total)}</span></div></div>}
             <div style={{gridColumn:"1/-1"}}>{isCash?<><L req>Balance Payment Amount (RM)</L><I type="number" value={upfrontMonthly} onChange={e=>setUpfrontMonthly(e.target.value)}/></>:order.merchant==="Aeon"?<><div style={{fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",fontWeight:600,marginBottom:4,whiteSpace:"nowrap"}}>Upfront 2 (First Monthly Installment)</div><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 14px",borderRadius:10,border:`1.5px solid ${C.border}`,background:C.surface,color:C.textMid,fontSize:13,fontWeight:600,cursor:"not-allowed"}}><span>Amount</span><span>{fRM(upfrontMonthly)}</span></div></>:null}</div>
-            {!isCash&&<div style={{gridColumn:"1/-1"}}><L>Total Upfront Payment (RM)</L><div style={{...inp,background:C.navy,color:"#fff",fontWeight:800}}>{fRM(upfront.total+(parseFloat(upfrontMonthly)||0))}</div></div>}
+            {!isCash&&<div style={{gridColumn:"1/-1"}}><L>Total Upfront Payment (RM)</L><div style={{...inp,background:C.navy,color:"#fff",fontWeight:800}}>{fRM(upfront.total+upfrontMonthlyDue)}</div></div>}
             {!isCash&&(()=>{
-              const expectedTotal=upfront.total+(parseFloat(upfrontMonthly)||0);
+              const expectedTotal=upfront.total+upfrontMonthlyDue;
               const proof1=parseFloat(paymentProofAmount)||0;
               const proof2=isShortPaymentPending(order)?(parseFloat(secondPaymentAmount)||0):0;
               const totalProof=proof1+proof2;
@@ -1652,7 +1668,7 @@ function ActionPanel({order,isAdmin,onUpdate,allOrders,forceViewOnly=false,order
           </div>:files[key]&&<div style={{fontSize:10,color:"#15803D",marginTop:3,fontWeight:600}}>{files[key].name}</div>}
         </div>;})}
         {!nextDef.needsOrderDate&&!nextDef.needsVerification&&!nextDef.needsFiles&&!nextDef.needsInvoiceNo&&!nextDef.needsBillingForm&&!nextDef.needsClaimInfo&&!nextDef.needsKnockOff&&<div style={{marginBottom:12}}><L>Remark (optional)</L><I value={remark} onChange={e=>setRemark(e.target.value)} placeholder="Optional note…"/></div>}
-        {nextDef.needsVerification&&!isAdmin?<div style={{fontSize:12,color:C.textLight,fontStyle:"italic",padding:"6px 0"}}>Uploaded proof will be reviewed by admin to complete verification.</div>:<PBtn onClick={advance} disabled={!ok()||saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":`Confirm: ${nextDef.label}`} {!saving&&Ic.chevR}</PBtn>}
+        {nextDef.needsVerification&&!isAdmin?<div style={{fontSize:12,color:C.textLight,fontStyle:"italic",padding:"6px 0"}}>Uploaded proof will be reviewed by admin to complete verification.</div>:<PBtn onClick={advance} disabled={!ok()||saving} style={{width:"100%",justifyContent:"center"}}>{saving?"Saving…":`Confirm: ${isCash&&nextDef.step===9?"Collection Verified & Completed":nextDef.label}`} {!saving&&Ic.chevR}</PBtn>}
         {nextDef.needsVerification&&isAdmin&&(!showShortPayment
           ?<DBtn onClick={()=>setShowShortPayment(true)} style={{width:"100%",justifyContent:"center",marginTop:8}}>{Ic.rotate} Short Payment</DBtn>
           :<div style={{marginTop:10}}>
@@ -3490,7 +3506,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
               <AmtBadge label="Upfront 2" value={parseFloat(h?.monthlyInstallment??o.monthlyInstallment)||0} bg="#F5F0FF" fg="#7C3AED"/>
             </>} remark={h?.verificationRemark}/>;
           }}/>
-          <Checklist checklistKey="upfront2" title="Upfront 2 Knock Off (CCM Order)" items={upfront2Pending} rowRenderer={o=>{
+          <Checklist checklistKey="upfront2" title="Short/Second Payment Knock Off (CCM Order)" items={upfront2Pending} rowRenderer={o=>{
             const h=o.lastVerification;
             return<Row key={o.id} order={o} buttons={[{label:"Knock Off",done:false,onClick:()=>bulkSave([{...o,upfront2KnockOffDate:nowDate()}])}]}
               meta={[o.invoiceNo||"—",o.agreementNumber||"—",o.merchant||"—",h?.secondPaymentDate?`2nd Upfront Date: ${fDate(h.secondPaymentDate)}`:null,h?.secondPayMethod?`Method: ${h.secondPayMethod}`:null].filter(Boolean).join(" · ")}
