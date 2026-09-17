@@ -288,7 +288,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
   // Only emaxpurchase@gmail.com can request a cancellation — Boon Theng is
   // the one who has to accept it (see the "cancel_request_pending" alert
   // in OrderTab.jsx), which is what actually cancels the order.
-  const canRequestCancel=(email||"").toLowerCase()==="emaxpurchase@gmail.com";
+  const canRequestCancel=["emaxpurchase@gmail.com","sophiawsc9395@gmail.com"].includes((email||"").toLowerCase());
   const requestCancelOrder=async(entry)=>{
     let reason=prompt("Reason for cancellation request (required):");
     if(reason===null)return; // they hit Cancel on the prompt itself
@@ -629,7 +629,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
                       applies; cancelling a placed order needs a different,
                       heavier process outside this button. */}
                   {!e.ordered&&(e.pendingCancelRequest?<div style={{fontSize:9,fontWeight:700,color:"#B45309",marginTop:4,whiteSpace:"nowrap"}}>Cancellation Requested — pending Boon Theng/Sophia</div>
-                    :canRequestCancel&&<button onClick={()=>requestCancelOrder(e)} style={{display:"block",marginTop:4,fontSize:9,fontWeight:700,color:"#DC2626",background:"none",border:"none",cursor:"pointer",padding:0}}>Request Cancel Order</button>)}
+                    :canRequestCancel&&<button onClick={()=>requestCancelOrder(e)} style={{display:"block",marginTop:4,padding:"6px 12px",borderRadius:7,border:"none",background:"#DC2626",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>Request Cancel Order</button>)}
                 </td>
               </tr>
               );})}</tbody>
