@@ -167,7 +167,7 @@ function OrderOnlyApp(){
             const {isSuperAdminOrder,canSubmit,canVerify} = getDailySalesAccess(true, orderPermissions, false)
             return <DailySalesTab branchMeta={branchMeta} isAdmin={isSuperAdminOrder} canSubmit={canSubmit} canVerify={canVerify} email={email} />
           })()}
-          {canSeePurchaseOrder && pageTab==="purchaseOrder" && <PurchaseOrderTab branchMeta={branchMeta} isAdmin={true} />}
+          {canSeePurchaseOrder && pageTab==="purchaseOrder" && <PurchaseOrderTab branchMeta={branchMeta} isAdmin={true} email={email} />}
           {canSeeStockTransfer && pageTab==="stockTransfer" && <StockTransferTab canCreate={true} branchMeta={branchMeta} email={email} />}
           {canSeeWarrantyStockOff && pageTab==="warranty" && <WarrantyTab branchMeta={branchMeta} isAdmin={true} email={email} />}
           {canSeeWarrantyStockOff && pageTab==="stockWriteOff" && <StockWriteOffTab branchMeta={branchMeta} isAdmin={true} email={email} />}

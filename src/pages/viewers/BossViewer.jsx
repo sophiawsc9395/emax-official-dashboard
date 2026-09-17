@@ -1349,7 +1349,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {tab==="chaileaseApplications"&&<div className="fade-in"><ChaileaseTab branchMeta={bMeta} isAdmin={elevateOrderAccess} userBranch={null} srList={srList} email={currentEmail}/></div>}
       {tab==="stockProfit"&&<div className="fade-in"><StockProfitTab email={currentEmail}/></div>}
       {elevateOrderAccess&&tab==="stockTransfer"&&<div className="fade-in"><StockTransferTab canCreate={true} branchMeta={bMeta} email={currentEmail}/></div>}
-      {tab==="purchaseOrder"&&elevateOrderAccess&&<div className="fade-in"><PurchaseOrderTab branchMeta={bMeta} isAdmin={elevateOrderAccess}/></div>}
+      {tab==="purchaseOrder"&&elevateOrderAccess&&<div className="fade-in"><PurchaseOrderTab branchMeta={bMeta} isAdmin={elevateOrderAccess} email={currentEmail}/></div>}
       {tab==="warranty"&&<div className="fade-in"><WarrantyTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com","emaxstock@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
       {tab==="stockWriteOff"&&<div className="fade-in"><StockWriteOffTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com","emaxstock@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
       {tab==="dailyPayment"&&isKnockOff&&<div className="fade-in"><DailyPaymentTab email={currentEmail}/></div>}

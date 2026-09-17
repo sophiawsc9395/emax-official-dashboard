@@ -219,6 +219,7 @@ async function buildLiveList(){
       poNumber:supp.poNumber||o.poNumber,
       platformOrderId:supp.platformOrderId||o.platformOrderId,
       purchaserName:supp.purchaserName||o.purchaserName,
+      pendingCancelRequest:o.pendingCancelRequest,
       orderedAt:supp.orderedAt||(orderedByStep&&!supp.ordered?new Date().toISOString():supp.orderedAt),
     };
   });
@@ -276,7 +277,7 @@ function OrderedForm({entry,onClose,onConfirm}){
   </div>;
 }
 
-export default function PurchaseOrderTab({branchMeta,isAdmin}){
+export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
   const[list,setList]=useState([]);
   const[loading,setLoading]=useState(true);
   const[savingPhoto,setSavingPhoto]=useState(false);
@@ -284,6 +285,27 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
   const[viewSession,setViewSession]=useState(()=>getOpenSession(new Date()).session);
   const[orderedFor,setOrderedFor]=useState(null);
   const[expandedLog,setExpandedLog]=useState({});
+  // Only emaxpurchase@gmail.com can request a cancellation — Boon Theng is
+  // the one who has to accept it (see the "cancel_request_pending" alert
+  // in OrderTab.jsx), which is what actually cancels the order.
+  const canRequestCancel=(email||"").toLowerCase()==="emaxpurchase@gmail.com";
+  const requestCancelOrder=async(entry)=>{
+    let reason=prompt("Reason for cancellation request (required):");
+    if(reason===null)return; // they hit Cancel on the prompt itself
+    reason=reason.trim();
+    while(!reason){
+      reason=prompt("A reason is required to request cancellation:");
+      if(reason===null)return;
+      reason=reason.trim();
+    }
+    const order=await getOrder(entry.orderId);
+    if(!order){alert("Could not find the underlying order — it may have been deleted.");return;}
+    if(order.pendingCancelRequest){alert("A cancellation request is already pending Boon Theng's approval for this order.");return;}
+    const result=await reconcile([order],[{...order,pendingCancelRequest:{requestedBy:email,requestedDate:nowDate(),requestedTime:nowTime(),reason},
+      history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation requested by ${email}: ${reason}`,skipStepDate:true}]}]);
+    if(!result.ok){alert("This didn't save — please check your connection and try again.");return;}
+    await refresh();
+  };
 
   const refresh=async()=>{
     const fresh=await buildLiveList();
@@ -600,6 +622,14 @@ export default function PurchaseOrderTab({branchMeta,isAdmin}){
                       ?<button onClick={()=>setOrderedFor(e)} style={{padding:"6px 12px",borderRadius:7,border:"none",background:C.navy,color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>Ordered</button>
                       :<span style={{fontSize:10,fontWeight:700,color:C.textLight,whiteSpace:"nowrap"}}>View only — switch to the current session to act</span>)}
                   {!e.ordered&&!isAdmin&&<span style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:20,padding:"3px 9px",whiteSpace:"nowrap"}}>Pending</span>}
+                  {/* Cancellation requests only make sense before an order
+                      is actually placed with the supplier — once it's
+                      Ordered, real money/logistics are already committed,
+                      so this simple request-and-accept flow no longer
+                      applies; cancelling a placed order needs a different,
+                      heavier process outside this button. */}
+                  {!e.ordered&&(e.pendingCancelRequest?<div style={{fontSize:9,fontWeight:700,color:"#B45309",marginTop:4,whiteSpace:"nowrap"}}>Cancellation Requested — pending Boon Theng/Sophia</div>
+                    :canRequestCancel&&<button onClick={()=>requestCancelOrder(e)} style={{display:"block",marginTop:4,fontSize:9,fontWeight:700,color:"#DC2626",background:"none",border:"none",cursor:"pointer",padding:0}}>Request Cancel Order</button>)}
                 </td>
               </tr>
               );})}</tbody>

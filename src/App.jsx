@@ -3088,7 +3088,7 @@ export default function App(){
       {tab==="dailySales"&&<DailySalesTab branchMeta={branchMeta} isAdmin={true} canSubmit={true} canVerify={true} email={currentEmail}/>}
       {tab==="jclApplications"&&<JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={currentEmail}/>}
       {tab==="chaileaseApplications"&&<ChaileaseTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={currentEmail}/>}
-      {tab==="purchaseOrder"&&<PurchaseOrderTab branchMeta={branchMeta} isAdmin={true}/>}
+      {tab==="purchaseOrder"&&<PurchaseOrderTab branchMeta={branchMeta} isAdmin={true} email={currentEmail}/>}
       {tab==="warranty"&&<WarrantyTab branchMeta={branchMeta} isAdmin={true} email={currentEmail}/>}
       {tab==="stockWriteOff"&&<StockWriteOffTab branchMeta={branchMeta} isAdmin={true} email={currentEmail}/>}
       {tab==="dailyPayment"&&<DailyPaymentTab email={currentEmail}/>}

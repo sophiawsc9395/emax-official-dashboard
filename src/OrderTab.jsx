@@ -663,6 +663,30 @@ function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClick
     </div>
   </div>;
 }
+
+// Shows on the order detail page once emaxpurchase has requested
+// cancellation (see requestCancelOrder in PurchaseOrderTab.jsx). Boon Theng
+// or Sophia — either one — can accept it here, which cancels the order.
+// There's no separate reject action — if neither agrees with the
+// cancellation, they simply don't click it, and can follow up with
+// Purchase directly outside the app.
+function CancelRequestBox({order,onUpdate,email}){
+  const [accepting,setAccepting]=useState(false);
+  const myEmail=(email||"").toLowerCase();
+  const canAccept=myEmail==="boontheng2004@gmail.com"||myEmail===SOPHIA_EMAIL;
+  if(!order.pendingCancelRequest)return null;
+  const accept=async()=>{
+    setAccepting(true);
+    await onUpdate({...order,cancelled:true,pendingCancelRequest:null,
+      history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation accepted by ${email} — order cancelled. Reason: ${order.pendingCancelRequest?.reason||"—"}`,skipStepDate:true}]});
+    setAccepting(false);
+  };
+  return<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:16}}>
+    <div style={{fontSize:11,fontWeight:700,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Cancellation Request Pending</div>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:canAccept?10:0}}>Requested by {order.pendingCancelRequest.requestedBy} on {fDate(order.pendingCancelRequest.requestedDate)}: {order.pendingCancelRequest.reason}</div>
+    {canAccept&&<PBtn onClick={accept} disabled={accepting} style={{width:"100%",justifyContent:"center",background:"#DC2626"}}>{accepting?"Cancelling…":"Accept & Cancel Order"}</PBtn>}
+  </div>;
+}
 function PhoneModelField({order,onUpdate}){
   const [editing,setEditing]=useState(false);
   const [val,setVal]=useState(order.phoneModel||"");
@@ -1918,6 +1942,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <AmendDeviceBox order={order} onUpdate={onUpdate} isAdmin={isAdmin} userBranch={userBranch}/>
     <AcknowledgeSupersededBox order={order} onUpdate={onUpdate} email={email}/>
     <PickupReminderVoiceBox order={order} onUpdate={onUpdate} email={email}/>
+    <CancelRequestBox order={order} onUpdate={onUpdate} email={email}/>
 
     {/* Two-col: timeline | action */}
     <div className="detail-grid">
@@ -2219,6 +2244,14 @@ function getOrderAlerts(orders,userBranch=null){
     else if(o.orderType==="cash")eligible=!(parseFloat(o.lastVerification?.monthlyInstallment)>0)||!!o.cashBalanceKnockOffDate;
     if(eligible)alerts.push({type:"suggest_delete_completed",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:"Fully knocked off — consider deleting to keep the list clean"});
   });
+  // Cancellation Request Pending — emaxpurchase requested cancelling this
+  // order from the Purchase Order page (with a required reason); it stays
+  // fully open and workable until Boon Theng accepts it here, which is what
+  // actually cancels it. See requestCancelOrder in PurchaseOrderTab.jsx and
+  // the Accept button on this alert below.
+  orders.filter(o=>o.pendingCancelRequest&&!o.cancelled&&visibleToBranch(o,userBranch)).forEach(o=>{
+    alerts.push({type:"cancel_request_pending",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:`Cancellation requested by ${o.pendingCancelRequest.requestedBy}: ${o.pendingCancelRequest.reason}`});
+  });
   return alerts;
 }
 function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder,orders,onUpdateOrder}){
@@ -2264,6 +2297,11 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // only, same as the Actual Purchase Price To-Do list and a few other
   // Sophia-specific views elsewhere in this file.
   const suggestDeleteAlerts=isSophia?alerts.filter(a=>a.type==="suggest_delete_completed"):[];
+  // Boon Theng or Sophia — either can accept a cancellation request. The
+  // alert itself is just a link to the order now (see CancelRequestBox on
+  // the order detail page for the actual Accept/Cancel action).
+  const isBoonTheng=(email||"").toLowerCase()==="boontheng2004@gmail.com";
+  const cancelRequestAlerts=(isBoonTheng||isSophia)?alerts.filter(a=>a.type==="cancel_request_pending"):[];
   // Approval Warning starts collapsed on the admin order page (there's
   // usually a lot of them, and admin has plenty else to look at) but
   // starts expanded on a branch's own view (a short, directly relevant
@@ -2314,6 +2352,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
     <Block items={supersededAlerts} color="#B45309" title="Device Amendment — Old Order Needs Acknowledgment"/>
     <PickupReminderBlock items={pickupReminderAlerts} color="#1D4ED8" title="Arrived Branch, Not Yet Billed"/>
     <Block items={suggestDeleteAlerts} color="#8A96A8" title="Suggest Deleting — Fully Knocked Off"/>
+    <Block items={cancelRequestAlerts} color="#DC2626" title="Cancellation Request Pending"/>
     <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={agreementExpanded} onToggle={()=>setAgreementExpanded(p=>!p)}/>
     <Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={warningExpanded} onToggle={()=>setWarningExpanded(p=>!p)}/>
   </div>;
