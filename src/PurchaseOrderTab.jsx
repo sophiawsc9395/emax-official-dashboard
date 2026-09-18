@@ -330,7 +330,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
   const requestCancelOrder=async({entry,reason,file})=>{
     const order=await getOrder(entry.orderId);
     if(!order){alert("Could not find the underlying order — it may have been deleted.");return false;}
-    if(order.pendingCancelRequest){alert("A cancellation request is already pending Boon Theng/Sophia's approval for this order.");return false;}
+    if(order.pendingCancelRequest){alert("A cancellation request is already pending admin approval for this order.");return false;}
     const cancellationForm=await uploadOrderFile(entry.orderId,file,file.name);
     const result=await reconcile([order],[{...order,pendingCancelRequest:{requestedBy:email,requestedDate:nowDate(),requestedTime:nowTime(),reason,cancellationForm},
       history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation requested by ${email}: ${reason}`,skipStepDate:true}]}]);

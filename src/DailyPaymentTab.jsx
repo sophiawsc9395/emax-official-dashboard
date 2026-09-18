@@ -203,10 +203,10 @@ export default function DailyPaymentTab({email}){
         <div style={{fontSize:12,color:C.textMid,marginBottom:2}}><strong style={{color:C.text}}>Payee:</strong> {e.payeeName}</div>
         <div style={{fontSize:12,color:C.textMid,marginBottom:6}}><strong style={{color:C.text}}>Description:</strong> {e.description||e.purchase}</div>
         {e.status==="requested"
-          ?<div style={{fontSize:10.5,color:"#7C3AED"}}>Requested by Sophia {e.requestedAt}</div>
+          ?<div style={{fontSize:10.5,color:"#7C3AED"}}>Requested by Admin {e.requestedAt}</div>
           :<div style={{fontSize:10.5,color:C.textLight}}>Uploaded {e.uploadedAt}</div>}
         {e.rejectReason&&<div style={{fontSize:10.5,color:"#DC2626",marginTop:2}}>Rejected {e.rejectedAt} — {e.rejectReason}</div>}
-        {e.completedAt&&<div style={{fontSize:10.5,color:"#1E6FDB",marginTop:2}}>Sophia marked completed — keyed into Autocount {e.completedAt}{e.refNo&&` · Ref No. ${e.refNo}`}</div>}
+        {e.completedAt&&<div style={{fontSize:10.5,color:"#1E6FDB",marginTop:2}}>Marked completed — keyed into Autocount {e.completedAt}{e.refNo&&` · Ref No. ${e.refNo}`}</div>}
         {e.printedAt&&<div style={{fontSize:10.5,color:"#15803D",marginTop:2}}>Printed {e.printedAt}</div>}
         {isSophia&&completingId===e.id
           ?<div style={{marginTop:8,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
