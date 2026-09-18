@@ -277,6 +277,44 @@ function OrderedForm({entry,onClose,onConfirm}){
   </div>;
 }
 
+// Requires both a written reason AND an uploaded cancellation form before
+// Purchase can submit a cancellation request — Boon Theng/Sophia see both
+// once they open the order, under a "Cancelled" entry in the tracking
+// timeline once they accept it (see CancelRequestBox in OrderTab.jsx).
+function RequestCancelForm({entry,onClose,onConfirm}){
+  const[reason,setReason]=useState("");
+  const[file,setFile]=useState(null);
+  const[saving,setSaving]=useState(false);
+  const missing=!reason.trim()||!file;
+  return<div className="modal-overlay" style={{position:"fixed",inset:0,background:"rgba(10,22,40,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}}>
+    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:440,maxHeight:"90vh",overflow:"auto"}}>
+      <div style={{padding:"16px 20px",borderBottom:`1px solid ${C.border}`}}>
+        <div style={{fontSize:14,fontWeight:800,color:"#DC2626"}}>Request Cancel Order</div>
+        <div style={{fontSize:11,color:C.textLight,marginTop:2}}>{entry.deviceName} — {entry.agreementNo||"no agreement no."}</div>
+      </div>
+      <div style={{padding:"16px 20px"}}>
+        <div style={{marginBottom:12}}>
+          <L req>Reason for Cancellation</L>
+          <textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder="Why is this order being cancelled?" rows={3} style={{width:"100%",padding:"9px 11px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontFamily:"Inter,sans-serif",boxSizing:"border-box",resize:"vertical"}}/>
+        </div>
+        <L req>Cancellation Form</L>
+        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFile(e.target.files[0]||null)} style={{fontSize:12,width:"100%",marginBottom:4}}/>
+        {file&&<div style={{fontSize:11,color:"#15803D",fontWeight:600}}>{file.name}</div>}
+        <div style={{fontSize:10,color:C.textLight,marginTop:10}}>This sends a cancellation request to Boon Theng/Sophia — the order stays fully open until one of them accepts it on the Order page.</div>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"flex-end",padding:"14px 20px",borderTop:`1px solid ${C.border}`}}>
+        <GBtn onClick={onClose} disabled={saving}>Cancel</GBtn>
+        <PBtn disabled={missing||saving} onClick={async()=>{
+          setSaving(true);
+          const ok=await onConfirm({entry,reason:reason.trim(),file});
+          setSaving(false);
+          if(ok)onClose();
+        }} style={{background:"#DC2626"}}>{saving?"Sending…":"Send Request"}</PBtn>
+      </div>
+    </div>
+  </div>;
+}
+
 export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
   const[list,setList]=useState([]);
   const[loading,setLoading]=useState(true);
@@ -289,22 +327,17 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
   // the one who has to accept it (see the "cancel_request_pending" alert
   // in OrderTab.jsx), which is what actually cancels the order.
   const canRequestCancel=["emaxpurchase@gmail.com","sophiawsc9395@gmail.com"].includes((email||"").toLowerCase());
-  const requestCancelOrder=async(entry)=>{
-    let reason=prompt("Reason for cancellation request (required):");
-    if(reason===null)return; // they hit Cancel on the prompt itself
-    reason=reason.trim();
-    while(!reason){
-      reason=prompt("A reason is required to request cancellation:");
-      if(reason===null)return;
-      reason=reason.trim();
-    }
+  const[cancelRequestFor,setCancelRequestFor]=useState(null);
+  const requestCancelOrder=async({entry,reason,file})=>{
     const order=await getOrder(entry.orderId);
-    if(!order){alert("Could not find the underlying order — it may have been deleted.");return;}
-    if(order.pendingCancelRequest){alert("A cancellation request is already pending Boon Theng's approval for this order.");return;}
-    const result=await reconcile([order],[{...order,pendingCancelRequest:{requestedBy:email,requestedDate:nowDate(),requestedTime:nowTime(),reason},
+    if(!order){alert("Could not find the underlying order — it may have been deleted.");return false;}
+    if(order.pendingCancelRequest){alert("A cancellation request is already pending Boon Theng/Sophia's approval for this order.");return false;}
+    const cancellationForm=await uploadOrderFile(entry.orderId,file,file.name);
+    const result=await reconcile([order],[{...order,pendingCancelRequest:{requestedBy:email,requestedDate:nowDate(),requestedTime:nowTime(),reason,cancellationForm},
       history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation requested by ${email}: ${reason}`,skipStepDate:true}]}]);
-    if(!result.ok){alert("This didn't save — please check your connection and try again.");return;}
+    if(!result.ok){alert("This didn't save — please check your connection and try again.");return false;}
     await refresh();
+    return true;
   };
 
   const refresh=async()=>{
@@ -376,7 +409,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
     if(!e.ordered||!e.orderedAt)return{date:e.sessionDate,session:e.session};
     return getOpenSession(new Date(e.orderedAt));
   };
-  const visible=useMemo(()=>{
+  const rawVisible=useMemo(()=>{
     const ownSession=list.filter(e=>{const s=viewSessionOf(e);return s.date===viewDate&&s.session===viewSession;});
     if(!isViewingCurrentSession)return ownSession; // browsing history — show exactly what belonged there
     // Viewing an open session — also pull in anything still pending from
@@ -393,6 +426,12 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
     const carriedForward=list.filter(e=>!e.ordered&&sessionKey(e.sessionDate,e.session)<sessionKey(viewDate,viewSession)&&new Date()>getSessionDeadline(e.sessionDate,e.session));
     return[...carriedForward,...ownSession];
   },[list,viewDate,viewSession,isViewingCurrentSession]);
+  // Once a cancellation has been requested (see requestCancelOrder), the
+  // order drops off this page's list entirely rather than lingering with a
+  // "pending Boon Theng/Sophia" status — from here on, it's the Order
+  // page's job (the Cancellation Request Pending alert + CancelRequestBox)
+  // to track it through to being accepted or not.
+  const visible=useMemo(()=>rawVisible.filter(e=>!e.pendingCancelRequest),[rawVisible]);
   const pendingCount=visible.filter(e=>!e.ordered).length;
   // A softer bar than plain "not ordered" — the late alert only fires for
   // orders purchaser hasn't even acknowledged with a remark yet. Clicking
@@ -628,8 +667,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
                       so this simple request-and-accept flow no longer
                       applies; cancelling a placed order needs a different,
                       heavier process outside this button. */}
-                  {!e.ordered&&(e.pendingCancelRequest?<div style={{fontSize:9,fontWeight:700,color:"#B45309",marginTop:4,whiteSpace:"nowrap"}}>Cancellation Requested — pending Boon Theng/Sophia</div>
-                    :canRequestCancel&&<button onClick={()=>requestCancelOrder(e)} style={{display:"block",marginTop:4,padding:"6px 12px",borderRadius:7,border:"none",background:"#DC2626",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>Request Cancel Order</button>)}
+                  {!e.ordered&&canRequestCancel&&<button onClick={()=>setCancelRequestFor(e)} style={{display:"block",marginTop:4,padding:"6px 12px",borderRadius:7,border:"none",background:"#DC2626",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",whiteSpace:"nowrap"}}>Request Cancel Order</button>}
                 </td>
               </tr>
               );})}</tbody>
@@ -638,5 +676,6 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
     </div>
 
     {orderedFor&&<OrderedForm entry={orderedFor} onClose={()=>setOrderedFor(null)} onConfirm={confirmOrdered}/>}
+    {cancelRequestFor&&<RequestCancelForm entry={cancelRequestFor} onClose={()=>setCancelRequestFor(null)} onConfirm={requestCancelOrder}/>}
   </div>;
 }

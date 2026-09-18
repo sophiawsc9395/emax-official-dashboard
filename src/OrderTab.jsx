@@ -1,5 +1,5 @@
 import {useState,useEffect,useRef,useMemo,useCallback,memo,Fragment} from "react";
-import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles,updateHistoryRow,deleteHistoryRow} from "./storage/ordersApi.js";
+import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles,signFileUrl,updateHistoryRow,deleteHistoryRow} from "./storage/ordersApi.js";
 import {supabase,loadData,saveData} from "./storage/index.js";
 import {resolveEditorRole} from "./auth/orderRoles.js";
 import * as XLSX from "xlsx";
@@ -94,7 +94,7 @@ const checklistItemsFor=merchant=>merchant==="JCL"?JCL_CHECKLIST_ITEMS:AEON_CHEC
 // every merchant; merged in only for Chailease orders via needsFilesFor().
 const CHAILEASE_EXTRA_FILES=[{key:"jomAuroEMandate",label:"Jom Auto (E-Mandate) Screenshot"}];
 const needsFilesFor=(order,stepDef)=>stepDef?.step===8&&order?.merchant==="Chailease"?[...(stepDef.needsFiles||[]),...CHAILEASE_EXTRA_FILES]:stepDef?.needsFiles;
-const FILE_LABELS={...STEPS.reduce((m,s)=>{(s.needsFiles||[]).forEach(f=>{m[f.key]=f.label;});return m;},{}),...Object.fromEntries(CHAILEASE_EXTRA_FILES.map(f=>[f.key,f.label]))};
+const FILE_LABELS={...STEPS.reduce((m,s)=>{(s.needsFiles||[]).forEach(f=>{m[f.key]=f.label;});return m;},{}),...Object.fromEntries(CHAILEASE_EXTRA_FILES.map(f=>[f.key,f.label])),cancellationForm:"Cancellation Form"};
 
 // Returns steps visible in timeline for a given order
 function getVisibleSteps(order){
@@ -677,15 +677,38 @@ function CancelRequestBox({order,onUpdate,email}){
   if(!order.pendingCancelRequest)return null;
   const accept=async()=>{
     setAccepting(true);
+    // isCancellationEntry marks this specific entry for Timeline to pull
+    // out and show under its own "Cancelled" bubble at the end, rather
+    // than wherever order.step happened to be sitting when this was
+    // accepted — that step number isn't meaningful here, only the
+    // cancellation itself is.
     await onUpdate({...order,cancelled:true,pendingCancelRequest:null,
-      history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation accepted by ${email} — order cancelled. Reason: ${order.pendingCancelRequest?.reason||"—"}`,skipStepDate:true}]});
+      history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation requested by ${order.pendingCancelRequest.requestedBy}: ${order.pendingCancelRequest.reason}. Accepted by ${email}.`,files:order.pendingCancelRequest.cancellationForm?{cancellationForm:order.pendingCancelRequest.cancellationForm}:undefined,isCancellationEntry:true,skipStepDate:true}]});
     setAccepting(false);
   };
   return<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:16}}>
     <div style={{fontSize:11,fontWeight:700,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Cancellation Request Pending</div>
-    <div style={{fontSize:12,color:C.textMid,marginBottom:canAccept?10:0}}>Requested by {order.pendingCancelRequest.requestedBy} on {fDate(order.pendingCancelRequest.requestedDate)}: {order.pendingCancelRequest.reason}</div>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:8}}>Requested by {order.pendingCancelRequest.requestedBy} on {fDate(order.pendingCancelRequest.requestedDate)}: {order.pendingCancelRequest.reason}</div>
+    {order.pendingCancelRequest.cancellationForm&&<div style={{marginBottom:canAccept?10:0}}><CancellationFormLink file={order.pendingCancelRequest.cancellationForm}/></div>}
     {canAccept&&<PBtn onClick={accept} disabled={accepting} style={{width:"100%",justifyContent:"center",background:"#DC2626"}}>{accepting?"Cancelling…":"Accept & Cancel Order"}</PBtn>}
   </div>;
+}
+// The cancellation form is stored the same way every other order file is
+// (a {path,name} reference resolved to a signed URL by signOrderFiles), but
+// pendingCancelRequest is a plain field, not something Timeline's own file-
+// resolution walks — this small helper resolves it separately so the link
+// works from the moment the box first appears, before it's copied into a
+// proper history entry on acceptance.
+function CancellationFormLink({file}){
+  const[url,setUrl]=useState(file.url||null);
+  useEffect(()=>{
+    if(file.url||!file.path)return;
+    let live=true;
+    signFileUrl(file.path).then(u=>{if(live&&u)setUrl(u);});
+    return()=>{live=false;};
+  },[file.path,file.url]);
+  return url?<a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>{Ic.download} Cancellation Form: {file.name}</a>
+    :<span style={{fontSize:11,color:C.textLight}}>Cancellation Form: {file.name} (loading…)</span>;
 }
 function PhoneModelField({order,onUpdate}){
   const [editing,setEditing]=useState(false);
@@ -921,7 +944,18 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
         </div>
       </div>
     </div>;
-  })}</div>;
+  })}
+  {order.cancelled&&(()=>{
+    const cancelEntry=(order.history||[]).map((h,idx)=>({h,idx})).reverse().find(({h})=>h.isCancellationEntry);
+    return<div style={{display:"flex",position:"relative",marginTop:8,paddingTop:8,borderTop:`1px solid ${C.border}`}}>
+      <div style={{flexShrink:0,width:22,height:22,borderRadius:"50%",background:"#DC2626",border:"2px solid #DC2626",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,marginRight:10,marginTop:1,color:"#fff"}}>{Ic.x}</div>
+      <div style={{flex:1,paddingTop:1}}>
+        <span style={{fontSize:12,fontWeight:700,color:"#DC2626"}}>Cancelled</span>
+        {cancelEntry&&renderEntry(cancelEntry.h,cancelEntry.idx,{step:-1,label:"Cancelled"},false)}
+      </div>
+    </div>;
+  })()}
+  </div>;
 }
 
 /* ── Billing Form ─────────────────────────────────────────────────────── */
