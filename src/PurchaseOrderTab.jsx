@@ -300,7 +300,6 @@ function RequestCancelForm({entry,onClose,onConfirm}){
         <L req>Cancellation Form</L>
         <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFile(e.target.files[0]||null)} style={{fontSize:12,width:"100%",marginBottom:4}}/>
         {file&&<div style={{fontSize:11,color:"#15803D",fontWeight:600}}>{file.name}</div>}
-        <div style={{fontSize:10,color:C.textLight,marginTop:10}}>This sends a cancellation request to Boon Theng/Sophia — the order stays fully open until one of them accepts it on the Order page.</div>
       </div>
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",padding:"14px 20px",borderTop:`1px solid ${C.border}`}}>
         <GBtn onClick={onClose} disabled={saving}>Cancel</GBtn>
