@@ -382,7 +382,7 @@ function buildPickupWhatsAppMessage(order,branchMeta){
     }
   }
   const paymentBlock=lines.length?`\n\nTo complete your collection, kindly prepare the following:\n${lines.map(l=>`• ${l}`).join("\n")}\nTotal: RM ${total.toFixed(2)}`:"";
-  return`*📱 Your ${order.phoneModel||"order"} is ready for pickup.*\n\nHi ${order.customerName||"there"} 👋\n\nGood news — your ${order.phoneModel||"order"} has arrived and is ready for collection at our ${branchName} branch:\n\n📍 ${address}${paymentBlock}\n\nPlease visit us at your earliest convenience. Let us know if you have any questions — we look forward to seeing you soon!\n\nThank you,\nEMAX NETWORK HQ`;
+  return`*📱 Your ${order.phoneModel||"order"} is ready for pickup.*\n\nHi ${order.customerName||"there"} 👋\n\nGood news — your ${order.phoneModel||"order"} has arrived and is ready for collection at our ${branchName} branch:\n\n📍 ${address}${paymentBlock}\n\nPlease visit us at your earliest convenience. Let us know if you have any questions — we look forward to seeing you soon!\n\n*Please reply with the date you'll be picking it up* — this is needed so we can register your official warranty.\n\nThank you,\nEMAX NETWORK HQ`;
 }
 
 function copyToClipboard(text){
