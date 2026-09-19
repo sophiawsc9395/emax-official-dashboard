@@ -2,7 +2,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, saveData, supabase } from "../../storage/index.js";
 import { listCustomers, getPaymentsForCustomers } from "../../storage/rtoApi.js";
-import OrderTab from "../../OrderTab.jsx";
+import { listOrders, reconcile } from "../../storage/ordersApi.js";
+import OrderTab, { PickupTodoList } from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
 import JCLTab from "../../JCLTab.jsx";
 import WarrantyTab from "../../WarrantyTab.jsx";
@@ -14,7 +15,7 @@ import StockProfitTab from "../../StockProfitTab.jsx";
 import StockTransferTab from "../../StockTransferTab.jsx";
 import {SRBMModal,TargetModal,DailyEntry} from "../../App.jsx";
 import { mergeOrderPermissions } from "../../auth/orderRoles.js";
-import { RTOSummaryInner } from "../../RTOSummary.jsx";
+import { RTOSummaryInner, RTOLatePaymentTodoList } from "../../RTOSummary.jsx";
 import ExpectedProfitTable from "../../ExpectedProfitTable.jsx";
 
 const CSS = `
@@ -766,6 +767,23 @@ function RTOSummary({branchMeta,email}){
   return <RTOSummaryInner customers={customers} branchMeta={branchMeta} email={email}/>;
 }
 
+// Same fetch as RTOSummary above, feeding the standalone reminder list
+// instead of the full portfolio summary — kept as its own loader so "RTO
+// Summary" and "Payment Reminder To-Do" are genuinely separate views here,
+// not the reminder list embedded inside the summary the way it used to be.
+function RTOLatePaymentTodoListLoader({branchMeta,email}){
+  const [customers,setCustomers]=useState(null);
+  useEffect(()=>{
+    listCustomers().then(headers=>{
+      getPaymentsForCustomers(headers.map(c=>c.id)).then(byId=>{
+        setCustomers(headers.map(c=>({...c,payments:byId[c.id]||{}})));
+      });
+    });
+  },[]);
+  if(!customers)return<div style={{padding:40,textAlign:"center",color:"#8A96A8",fontFamily:"Inter,sans-serif"}}>Loading…</div>;
+  return <RTOLatePaymentTodoList customers={customers} branchMeta={branchMeta} email={email}/>;
+}
+
 export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=false}){
   const now=new Date();
   const [selMonth,setSelMonth]=useState(now.getMonth()+1);
@@ -782,8 +800,32 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   const [selEndDay,setSelEndDay]=useState(daysInMonth(now.getMonth()+1,now.getFullYear()));
   const periodDays=days.filter(d=>d>=selStartDay&&d<=selEndDay);
   const [selBranch,setSelBranch]=useState(BRANCH_ORDER[0]);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto","orders"]:isKnockOff?["overview","report","daily","orders","dailySales","dailyPayment"]:["overview","rankings","points","report","repair","rto","orders","dailySales","jclApplications","chaileaseApplications","stockProfit","stockWriteOff","warranty",...(elevateOrderAccess?["purchaseOrder","stockTransfer"]:[])];return allowed.includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto","orders"]:isKnockOff?["overview","report","daily","orders","dailySales","dailyPayment"]:["overview","todoList","rankings","points","report","repair","rto","orders","dailySales","jclApplications","chaileaseApplications","stockProfit","stockWriteOff","warranty",...(elevateOrderAccess?["purchaseOrder","stockTransfer"]:[])];return allowed.includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
+  // Consolidated "To Do List" tab (Boon Theng/Sophia only) — same as the
+  // one on App.jsx's dashboard, since this viewer (reached via
+  // manager.html) is actually their primary entry point, not App.jsx.
+  // Declared here, after tab/setTab above — the dependency array below
+  // reads tab immediately as this line runs, so tab must already be
+  // declared by this point (getting this ordering backwards once already
+  // crashed the dashboard for Sophia — see App.jsx for that fix).
+  const [todoOrders,setTodoOrders]=useState([]);
+  const [todoRtoCustomers,setTodoRtoCustomers]=useState([]);
+  useEffect(()=>{
+    if(tab!=="todoList")return;
+    listOrders().then(setTodoOrders).catch(()=>{});
+    listCustomers().then(headers=>{
+      getPaymentsForCustomers(headers.map(c=>c.id)).then(byId=>{
+        setTodoRtoCustomers(headers.map(c=>({...c,payments:byId[c.id]||{}})));
+      });
+    }).catch(()=>{});
+  },[tab]);
+  const saveTodoOrder=async(updated)=>{
+    const original=todoOrders.find(o=>o.id===updated.id);
+    const result=await reconcile(original?[original]:[],[updated]);
+    if(result.ok)setTodoOrders(p=>p.map(o=>o.id===updated.id?updated:o));
+    return result.ok;
+  };
   const [sidebarOpen,setSidebarOpen]=useState(false);
 
   const [records,setRecords]=useState({});
@@ -1073,6 +1115,9 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   // reach. Purchase Order only appears in the Purchasing group when
   // elevateOrderAccess is true (Manager); Boss still sees the Purchasing
   // group for Order Tracking, just without that child.
+  const canSeeTodoListBoss=["boontheng2004@gmail.com","sophiawsc9395@gmail.com"].includes((currentEmail||"").toLowerCase());
+  const canSeeLatePaymentTodoBoss=["boontheng2004@gmail.com","emaxhr@gmail.com","sophiawsc9395@gmail.com"].includes((currentEmail||"").toLowerCase());
+  const [rtoView,setRtoView]=useState("summary");
   const SIDEBAR_STRUCTURE=isHR
     ?[
       {id:"overview",label:"Overview"},
@@ -1094,6 +1139,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
     ]
     :[
       {id:"overview",label:"Overview"},
+      ...(canSeeTodoListBoss?[{id:"todoList",label:"To Do List"}]:[]),
       {group:"ranking",label:"Ranking",children:[
         {id:"rankings",label:"Performance Rankings"},
         {id:"points",label:"Reward Point Ranking"},
@@ -1352,7 +1398,24 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
         </div>
       </div>}
 
-      {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}><RTOSummary branchMeta={bMeta} email={currentEmail}/></div>}
+      {tab==="todoList"&&<div className="fade-in" style={{display:"flex",flexDirection:"column",gap:16}}>
+        <div>
+          <div style={{fontSize:15,fontWeight:800,color:"#0A1628",marginBottom:10}}>Pickup Reminder To-Do</div>
+          <PickupTodoList orders={todoOrders} branchMeta={bMeta} onUpdateOrder={saveTodoOrder}/>
+        </div>
+        <div>
+          <div style={{fontSize:15,fontWeight:800,color:"#0A1628",marginBottom:10}}>RTO Monthly Payment Reminder To-Do</div>
+          <RTOLatePaymentTodoList customers={todoRtoCustomers} branchMeta={bMeta} email={currentEmail}/>
+        </div>
+      </div>}
+      {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}>
+        {canSeeLatePaymentTodoBoss&&<div style={{display:"flex",gap:8,marginBottom:14}}>
+          <GBtn onClick={()=>setRtoView("summary")} style={rtoView==="summary"?{background:"#0A1628",color:"#fff",border:"1.5px solid #0A1628"}:{}}>RTO Summary</GBtn>
+          <GBtn onClick={()=>setRtoView("latePayment")} style={rtoView==="latePayment"?{background:"#DC2626",color:"#fff",border:"1.5px solid #DC2626"}:{}}>Payment Reminder To-Do</GBtn>
+        </div>}
+        {rtoView==="summary"&&<RTOSummary branchMeta={bMeta} email={currentEmail}/>}
+        {rtoView==="latePayment"&&canSeeLatePaymentTodoBoss&&<RTOLatePaymentTodoListLoader branchMeta={bMeta} email={currentEmail}/>}
+      </div>}
       {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!((elevateOrderAccess||isKnockOff)&&orderPermissions)} orderPermissions={(elevateOrderAccess||isKnockOff)?orderPermissions:null} srList={srList} email={currentEmail}/></div>}
       {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} canSubmit={false} canVerify={elevateOrderAccess||isKnockOff} email={currentEmail}/></div>}
       {tab==="jclApplications"&&<div className="fade-in"><JCLTab branchMeta={bMeta} isAdmin={elevateOrderAccess} userBranch={null} srList={srList} email={currentEmail}/></div>}
