@@ -1,6 +1,6 @@
 import {useState,useEffect,useRef,useMemo} from "react";
 import {listCustomers,getCustomerPayments,getPaymentsForCustomers,saveCustomer as apiSaveCustomer,deleteCustomer as apiDeleteCustomer,updatePayment as apiUpdatePayment} from "./storage/rtoApi.js";
-import {RTOSummaryInner as RTOSummary, RTOLatePaymentTodoList} from "./RTOSummary.jsx";
+import {RTOSummaryInner as RTOSummary} from "./RTOSummary.jsx";
 
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -393,7 +393,6 @@ const SOPHIA_EMAIL="sophiawsc9395@gmail.com";
 
 export default function RTOTab({branchMeta,email}){
   const isSophia=(email||"").toLowerCase()===SOPHIA_EMAIL;
-  const canSeeLatePaymentTodo=["boontheng2004@gmail.com","emaxhr@gmail.com","sophiawsc9395@gmail.com"].includes((email||"").toLowerCase());
   const [customers,setCustomers]=useState([]);
   const [loading,setLoading]=useState(true);
   const [view,setView]=useState("list"); // "list" | "summary" | "todo"
@@ -485,13 +484,11 @@ export default function RTOTab({branchMeta,email}){
         </div>
         <div style={{display:"flex",gap:8}}>
           <GBtn onClick={()=>setView(view==="summary"?"list":"summary")} style={view==="summary"?{background:C.navy,color:"#fff",border:`1.5px solid ${C.navy}`}:{}}>{view==="summary"?"Back to Customer List":"View Portfolio Summary"}</GBtn>
-          {canSeeLatePaymentTodo&&<GBtn onClick={()=>setView(view==="latePayment"?"list":"latePayment")} style={view==="latePayment"?{background:"#DC2626",color:"#fff",border:"1.5px solid #DC2626"}:{}}>{view==="latePayment"?"Back to Customer List":"View Payment Reminder To-Do"}</GBtn>}
           {isSophia&&<GBtn onClick={()=>setView(view==="todo"?"list":"todo")} style={view==="todo"?{background:"#B45309",color:"#fff",border:"1.5px solid #B45309"}:{}}>{view==="todo"?"Back to Customer List":"View To-Do List"}</GBtn>}
         </div>
       </div>
 
       {view==="summary"&&(summaryCustomers?<RTOSummary customers={summaryCustomers} branchMeta={branchMeta} email={email}/>:<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading portfolio summary…</div>)}
-      {view==="latePayment"&&(summaryCustomers?<RTOLatePaymentTodoList customers={summaryCustomers} branchMeta={branchMeta} email={email}/>:<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>)}
       {view==="todo"&&isSophia&&(()=>{
         if(!summaryCustomers)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
         // Flatten every customer's schedule into individual to-do items —
