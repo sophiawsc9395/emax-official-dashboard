@@ -157,6 +157,7 @@ export function RTOLatePaymentTodoList({customers,branchMeta,email}){
           :c.overdue.reduce((sum,s)=>sum+(s.amount-amountReceivedFor(s,c.payments?.[s.key])),0);
         const tierColor=tier>=4?"#DC2626":tier===3?"#DC2626":tier===2?"#B45309":C.textLight;
         const tierLabel=["1st (due this month)","2nd (1 month overdue)","3rd (2 months overdue)","4th (3+ months overdue)"][tier-1];
+        const emailSubject=`RTO Payment Reminder (${["1st","2nd","3rd","4th"][tier-1]}) — ${c.name||"Customer"} — EMAX NETWORK`;
         return<div key={c.id} style={{border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
           <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
             <div>
@@ -174,6 +175,18 @@ export function RTOLatePaymentTodoList({customers,branchMeta,email}){
               <div style={{fontSize:13,color:C.navy,fontWeight:600,marginTop:2}}>{c.contactNumber||"—"}</div>
             </div>
             {c.contactNumber&&<button title="Copy phone number" onClick={()=>{copyText(c.contactNumber);setCopiedId(`p${c.id}`);setTimeout(()=>setCopiedId(p=>p===`p${c.id}`?null:p),1400);}} style={{border:`1px solid ${C.border}`,background:"#fff",color:C.navy,width:32,height:32,minWidth:32,borderRadius:7,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>{copiedId===`p${c.id}`?Ic.checkCircle:Ic.copy}</button>}
+          </div>
+          <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+            <div style={{minWidth:0}}>
+              <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",fontWeight:700}}>Customer Email</div>
+              <div style={{fontSize:13,color:C.navy,fontWeight:600,marginTop:2,wordBreak:"break-all"}}>{c.email||"—"}</div>
+              {/* In case they've blocked WhatsApp — same reminder, sent by email instead, with a subject line that's identifiable at a glance. */}
+              {c.email&&<div style={{fontSize:10,color:C.textLight,marginTop:2}}>Subject: {emailSubject}</div>}
+            </div>
+            {c.email&&<div style={{display:"flex",gap:6,flexShrink:0}}>
+              <button title="Copy email address" onClick={()=>{copyText(c.email);setCopiedId(`e${c.id}`);setTimeout(()=>setCopiedId(p=>p===`e${c.id}`?null:p),1400);}} style={{border:`1px solid ${C.border}`,background:"#fff",color:C.navy,width:32,height:32,minWidth:32,borderRadius:7,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>{copiedId===`e${c.id}`?Ic.checkCircle:Ic.copy}</button>
+              <button title="Copy email subject" onClick={()=>{copyText(emailSubject);setCopiedId(`s${c.id}`);setTimeout(()=>setCopiedId(p=>p===`s${c.id}`?null:p),1400);}} style={{border:`1px solid ${C.border}`,background:"#fff",color:C.navy,fontSize:10,fontWeight:600,padding:"0 8px",height:32,borderRadius:7,cursor:"pointer",whiteSpace:"nowrap"}}>{copiedId===`s${c.id}`?"Copied!":"Copy Subject"}</button>
+            </div>}
           </div>
           <div style={{padding:"10px 14px",background:C.surface}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -290,8 +303,6 @@ export function RTOSummaryInner({customers,branchMeta,email}){
         </div>
         <PBtn onClick={downloadPhoto}>{Ic.download} Download as Photo</PBtn>
       </div>
-
-      <div style={{marginBottom:16}}><RTOLatePaymentTodoList customers={customers} branchMeta={branchMeta} email={email}/></div>
 
       <div ref={summaryRef} style={{...card}}>
         <style>{`.rtoRow:hover{background:#EEF3FA !important}`}</style>

@@ -2200,29 +2200,6 @@ export default function App(){
   // Sales Report / Order Tracking), so an edit shows the specific role
   // relevant to the action rather than a generic capability-based guess.
   const [currentEmail,setCurrentEmail]=useState(null);
-  // Consolidated "To Do List" tab (Boon Theng/Sophia only) — combines the
-  // Pickup Reminder To-Do (previously only reachable via emaxjcl's page)
-  // and the RTO Monthly Payment Reminder To-Do (previously only on the RTO
-  // Portfolio Summary page) in one place. Only fetched when that tab is
-  // actually open — no point loading either dataset while looking at
-  // something else.
-  const [todoOrders,setTodoOrders]=useState([]);
-  const [todoRtoCustomers,setTodoRtoCustomers]=useState([]);
-  useEffect(()=>{
-    if(tab!=="todoList")return;
-    listOrders().then(setTodoOrders).catch(()=>{});
-    listCustomers().then(headers=>{
-      getPaymentsForCustomers(headers.map(c=>c.id)).then(byId=>{
-        setTodoRtoCustomers(headers.map(c=>({...c,payments:byId[c.id]||{}})));
-      });
-    }).catch(()=>{});
-  },[tab]);
-  const saveTodoOrder=async(updated)=>{
-    const original=todoOrders.find(o=>o.id===updated.id);
-    const result=await reconcile(original?[original]:[],[updated]);
-    if(result.ok)setTodoOrders(p=>p.map(o=>o.id===updated.id?updated:o));
-    return result.ok;
-  };
   useEffect(()=>{supabase.auth.getSession().then(({data})=>setCurrentEmail(data?.session?.user?.email||null));},[]);
   // Month/year selection — default to current month
   const now = new Date();
@@ -2244,6 +2221,31 @@ export default function App(){
     return ["overview","todoList","rankings","points","report","daily","repair","rto","orders","purchaseOrder","dailySales","jclApplications","chaileaseApplications","dailyPayment","stockProfit","stockTransfer","warranty","stockWriteOff"].includes(h)?h:"overview";
   });
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
+  // Consolidated "To Do List" tab (Boon Theng/Sophia only) — combines the
+  // Pickup Reminder To-Do (previously only reachable via emaxjcl's page)
+  // and the RTO Monthly Payment Reminder To-Do (previously only on the RTO
+  // Portfolio Summary page) in one place. Only fetched when that tab is
+  // actually open — no point loading either dataset while looking at
+  // something else. Declared here, after tab/setTab above, not earlier —
+  // the dependency array below reads tab immediately as this line runs,
+  // so tab has to already be declared by this point or it throws.
+  const [todoOrders,setTodoOrders]=useState([]);
+  const [todoRtoCustomers,setTodoRtoCustomers]=useState([]);
+  useEffect(()=>{
+    if(tab!=="todoList")return;
+    listOrders().then(setTodoOrders).catch(()=>{});
+    listCustomers().then(headers=>{
+      getPaymentsForCustomers(headers.map(c=>c.id)).then(byId=>{
+        setTodoRtoCustomers(headers.map(c=>({...c,payments:byId[c.id]||{}})));
+      });
+    }).catch(()=>{});
+  },[tab]);
+  const saveTodoOrder=async(updated)=>{
+    const original=todoOrders.find(o=>o.id===updated.id);
+    const result=await reconcile(original?[original]:[],[updated]);
+    if(result.ok)setTodoOrders(p=>p.map(o=>o.id===updated.id?updated:o));
+    return result.ok;
+  };
   const [sidebarOpen,setSidebarOpen] = useState(false);
   const [showPointsModal,setShowPointsModal] = useState(false);
   const [showStatusHistoryModal,setShowStatusHistoryModal] = useState(false);
