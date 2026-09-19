@@ -2218,7 +2218,7 @@ export default function App(){
   const [loading,setLoading]       = useState(true);
   const [tab,setTabRaw]             = useState(()=>{
     const h=window.location.hash.replace("#","");
-    return ["overview","todoList","rankings","points","report","daily","repair","rto","orders","purchaseOrder","dailySales","jclApplications","chaileaseApplications","dailyPayment","stockProfit","stockTransfer","warranty","stockWriteOff"].includes(h)?h:"overview";
+    return ["overview","todoPickup","todoRto","rankings","points","report","daily","repair","rto","orders","purchaseOrder","dailySales","jclApplications","chaileaseApplications","dailyPayment","stockProfit","stockTransfer","warranty","stockWriteOff"].includes(h)?h:"overview";
   });
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   // Consolidated "To Do List" tab (Boon Theng/Sophia only) — combines the
@@ -2232,7 +2232,7 @@ export default function App(){
   const [todoOrders,setTodoOrders]=useState([]);
   const [todoRtoCustomers,setTodoRtoCustomers]=useState([]);
   useEffect(()=>{
-    if(tab!=="todoList")return;
+    if(tab!=="todoPickup"&&tab!=="todoRto")return;
     listOrders().then(setTodoOrders).catch(()=>{});
     listCustomers().then(headers=>{
       getPaymentsForCustomers(headers.map(c=>c.id)).then(byId=>{
@@ -2836,7 +2836,10 @@ export default function App(){
   const canSeeTodoList=["boontheng2004@gmail.com","sophiawsc9395@gmail.com"].includes((currentEmail||"").toLowerCase());
   const SIDEBAR_STRUCTURE=[
     {id:"overview",label:"Overview"},
-    ...(canSeeTodoList?[{id:"todoList",label:"To Do List"}]:[]),
+    ...(canSeeTodoList?[{group:"todoList",label:"To Do List",children:[
+      {id:"todoPickup",label:"Pickup Reminder"},
+      {id:"todoRto",label:"RTO Payment Reminder"},
+    ]}]:[]),
     {group:"ranking",label:"Ranking",children:[
       {id:"rankings",label:"Performance Rankings"},
       {id:"points",label:"Reward Point Ranking"},
@@ -3113,16 +3116,8 @@ export default function App(){
 
       {/* REPAIR */}
       {tab==="repair"&&<RepairTab month={month} year={year} endDay={selEndDay} refreshKey={repairRefresh}/>}
-      {tab==="todoList"&&<div className="fade-in" style={{display:"flex",flexDirection:"column",gap:16}}>
-        <div>
-          <div style={{fontSize:15,fontWeight:800,color:"#0A1628",marginBottom:10}}>Pickup Reminder To-Do</div>
-          <PickupTodoList orders={todoOrders} branchMeta={branchMeta} onUpdateOrder={saveTodoOrder}/>
-        </div>
-        <div>
-          <div style={{fontSize:15,fontWeight:800,color:"#0A1628",marginBottom:10}}>RTO Monthly Payment Reminder To-Do</div>
-          <RTOLatePaymentTodoList customers={todoRtoCustomers} branchMeta={branchMeta} email={currentEmail}/>
-        </div>
-      </div>}
+      {tab==="todoPickup"&&<PickupTodoList orders={todoOrders} branchMeta={branchMeta} onUpdateOrder={saveTodoOrder}/>}
+      {tab==="todoRto"&&<RTOLatePaymentTodoList customers={todoRtoCustomers} branchMeta={branchMeta} email={currentEmail}/>}
       {tab==="rto"&&<RTOTab branchMeta={branchMeta} email={currentEmail}/>}
       {tab==="orders"&&<OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} email={currentEmail}/>}
       {tab==="dailySales"&&<DailySalesTab branchMeta={branchMeta} isAdmin={true} canSubmit={true} canVerify={true} email={currentEmail}/>}
