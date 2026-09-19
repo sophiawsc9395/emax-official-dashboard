@@ -339,7 +339,7 @@ function StepBadge({order,step}){
 // format it started in (016-830 9395, 0168309395, 60168309395...) — this
 // codebase doesn't enforce a phone format at entry, so this has to be
 // tolerant rather than assume one shape.
-function formatMYPhone(raw){
+export function formatMYPhone(raw){
   const digits=String(raw||"").replace(/\D/g,"");
   if(!digits)return"";
   if(digits.startsWith("60"))return"+"+digits;

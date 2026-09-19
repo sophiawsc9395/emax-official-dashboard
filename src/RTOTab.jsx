@@ -99,7 +99,7 @@ function FormCard({title,children}){
 
 function CustomerForm({initial,branchMeta,onSave,onCancel}){
   const empty={memberId:"",name:"",branch:"KM",monthlyInstallment:"",contactNumber:"",email:"",salesInvoiceDate:"",tenure:"",financePrice:"",agreementFee:"",stampingFee:"",cost:"",autoDebitMonth:"1",autoDebitYear:new Date().getFullYear().toString(),payments:{}};
-  const [f,setF]=useState(initial||empty);
+  const [f,setF]=useState({...empty,...initial});
   const set=(k,v)=>setF(p=>({...p,[k]:v}));
   const cost=parseFloat(f.cost)||0;
   const financePrice=parseFloat(f.financePrice)||0;

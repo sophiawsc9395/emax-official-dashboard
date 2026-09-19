@@ -1,5 +1,6 @@
 import {useState,useEffect,useRef} from "react";
 import {listCustomers,getPaymentsForCustomers,saveCustomer} from "./storage/rtoApi.js";
+import {formatMYPhone} from "./OrderTab.jsx";
 
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
@@ -155,6 +156,7 @@ export function RTOLatePaymentTodoList({customers,branchMeta,email}){
         const totalOverdue=tier===1
           ?(entry?entry.amount-amountReceivedFor(entry,c.payments?.[currentKey]):0)
           :c.overdue.reduce((sum,s)=>sum+(s.amount-amountReceivedFor(s,c.payments?.[s.key])),0);
+        const phone=formatMYPhone(c.contactNumber);
         const tierColor=tier>=4?"#DC2626":tier===3?"#DC2626":tier===2?"#B45309":C.textLight;
         const tierLabel=["1st (due this month)","2nd (1 month overdue)","3rd (2 months overdue)","4th (3+ months overdue)"][tier-1];
         const emailSubject=`RTO Payment Reminder (${["1st","2nd","3rd","4th"][tier-1]}) — ${c.name||"Customer"} — EMAX NETWORK`;
@@ -172,9 +174,9 @@ export function RTOLatePaymentTodoList({customers,branchMeta,email}){
           <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
             <div>
               <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",fontWeight:700}}>Customer Phone</div>
-              <div style={{fontSize:13,color:C.navy,fontWeight:600,marginTop:2}}>{c.contactNumber||"—"}</div>
+              <div style={{fontSize:13,color:C.navy,fontWeight:600,marginTop:2}}>{phone||"—"}</div>
             </div>
-            {c.contactNumber&&<button title="Copy phone number" onClick={()=>{copyText(c.contactNumber);setCopiedId(`p${c.id}`);setTimeout(()=>setCopiedId(p=>p===`p${c.id}`?null:p),1400);}} style={{border:`1px solid ${C.border}`,background:"#fff",color:C.navy,width:32,height:32,minWidth:32,borderRadius:7,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>{copiedId===`p${c.id}`?Ic.checkCircle:Ic.copy}</button>}
+            {phone&&<button title="Copy phone number" onClick={()=>{copyText(phone);setCopiedId(`p${c.id}`);setTimeout(()=>setCopiedId(p=>p===`p${c.id}`?null:p),1400);}} style={{border:`1px solid ${C.border}`,background:"#fff",color:C.navy,width:32,height:32,minWidth:32,borderRadius:7,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>{copiedId===`p${c.id}`?Ic.checkCircle:Ic.copy}</button>}
           </div>
           <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
             <div style={{minWidth:0}}>
