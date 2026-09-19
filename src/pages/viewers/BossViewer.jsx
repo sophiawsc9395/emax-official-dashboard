@@ -1,6 +1,7 @@
 // EMAX NETWORK — Boss Viewer (All Branches, Read-Only)
 import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, saveData, supabase } from "../../storage/index.js";
+import { listCustomers, getPaymentsForCustomers } from "../../storage/rtoApi.js";
 import OrderTab from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
 import JCLTab from "../../JCLTab.jsx";
@@ -746,14 +747,23 @@ function PointsHistoryModal({srList,bMeta,rewardBalances,rewardHistory,onClose,i
   </div>;
 }
 
-const RTO_KEY_BOSS="emax_v5_rto_customers";
-function RTOSummary({branchMeta}){
-  const [customers,setCustomers]=useState([]);
-  const [loading,setLoading]=useState(true);
-  useEffect(()=>{loadData(RTO_KEY_BOSS).then(d=>{setCustomers(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>setLoading(false));},[]);
-  if(loading)return<div style={{padding:40,textAlign:"center",color:"#8A96A8",fontFamily:"Inter,sans-serif"}}>Loading…</div>;
+// Same live data source RTOTab.jsx's own Portfolio Summary uses — this
+// used to read from a separate, periodically-snapshotted blob ("emax_v5_rto_customers")
+// that could drift out of date; now it's the exact same rto_customers +
+// rto_payments query, so whatever Boon Theng/Sophia see through the main
+// dashboard, emaxhr sees the same, live.
+function RTOSummary({branchMeta,email}){
+  const [customers,setCustomers]=useState(null);
+  useEffect(()=>{
+    listCustomers().then(headers=>{
+      getPaymentsForCustomers(headers.map(c=>c.id)).then(byId=>{
+        setCustomers(headers.map(c=>({...c,payments:byId[c.id]||{}})));
+      });
+    });
+  },[]);
+  if(!customers)return<div style={{padding:40,textAlign:"center",color:"#8A96A8",fontFamily:"Inter,sans-serif"}}>Loading…</div>;
   if(!customers.length)return<div style={{padding:40,textAlign:"center",color:"#8A96A8",fontFamily:"Inter,sans-serif"}}>No RTO customers found.</div>;
-  return <RTOSummaryInner customers={customers} branchMeta={branchMeta}/>;
+  return <RTOSummaryInner customers={customers} branchMeta={branchMeta} email={email}/>;
 }
 
 export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=false}){
@@ -1342,7 +1352,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
         </div>
       </div>}
 
-      {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}><RTOSummary branchMeta={bMeta}/></div>}
+      {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}><RTOSummary branchMeta={bMeta} email={currentEmail}/></div>}
       {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!((elevateOrderAccess||isKnockOff)&&orderPermissions)} orderPermissions={(elevateOrderAccess||isKnockOff)?orderPermissions:null} srList={srList} email={currentEmail}/></div>}
       {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} canSubmit={false} canVerify={elevateOrderAccess||isKnockOff} email={currentEmail}/></div>}
       {tab==="jclApplications"&&<div className="fade-in"><JCLTab branchMeta={bMeta} isAdmin={elevateOrderAccess} userBranch={null} srList={srList} email={currentEmail}/></div>}

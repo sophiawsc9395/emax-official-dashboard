@@ -406,9 +406,17 @@ function copyToClipboard(text){
 // — that information only needs to exist inside the message text that's
 // about to be sent to the customer, not duplicated as extra UI chrome.
 export function PickupTodoList({orders,branchMeta,onOrderClick,onUpdateOrder}){
-  const items=useMemo(()=>(orders||[]).filter(o=>o.step===5&&!o.cancelled&&!o.pickupReminderMessagedDate).sort((a,b)=>b.id-a.id),[orders]);
+  // Reshows every day until the customer actually picks up — there's no
+  // permanent dismissal the way a one-off to-do would have. "Mark as
+  // Messaged" only records that today's reminder went out (in
+  // pickupReminderLog, an array — not a single date the way this used to
+  // work), so tomorrow, if the order is still sitting at Arrived Branch,
+  // it's back on this list, showing one more log entry than before.
+  const items=useMemo(()=>(orders||[]).filter(o=>o.step===5&&!o.cancelled).sort((a,b)=>b.id-a.id),[orders]);
   const [copiedId,setCopiedId]=useState(null);
   const [saving,setSaving]=useState(null);
+  const isoToday=nowDate();
+  const messagedToday=(o)=>(o.pickupReminderLog||[]).some(l=>l.date===isoToday);
   const copy=(text,id)=>{
     copyToClipboard(text);
     setCopiedId(id);
@@ -416,8 +424,9 @@ export function PickupTodoList({orders,branchMeta,onOrderClick,onUpdateOrder}){
   };
   const markDone=async(o)=>{
     setSaving(o.id);
-    await onUpdateOrder({...o,pickupReminderMessagedDate:nowDate(),
-      history:[...(o.history||[]),{step:o.step,date:nowDate(),time:nowTime(),note:"Pickup reminder WhatsApp message sent to customer",visibleTo:PICKUP_TODO_HISTORY_EMAILS,skipStepDate:true}]});
+    const nextLog=[...(o.pickupReminderLog||[]),{date:nowDate(),time:nowTime()}];
+    await onUpdateOrder({...o,pickupReminderLog:nextLog,
+      history:[...(o.history||[]),{step:o.step,date:nowDate(),time:nowTime(),note:`Pickup reminder WhatsApp message sent to customer (reminder ${nextLog.length})`,visibleTo:PICKUP_TODO_HISTORY_EMAILS,skipStepDate:true}]});
     setSaving(null);
   };
   if(!items.length)return<div style={{...card,padding:"40px 20px",textAlign:"center",color:C.textLight,fontSize:13}}>No pending pickup reminders — nothing at Arrived Branch is waiting to be messaged.</div>;
@@ -426,14 +435,19 @@ export function PickupTodoList({orders,branchMeta,onOrderClick,onUpdateOrder}){
       const phone=formatMYPhone(o.customerHP);
       const msg=buildPickupWhatsAppMessage(o,branchMeta);
       const pickupCode=o.pickUpBranch||o.branch;
+      const log=o.pickupReminderLog||[];
+      const doneToday=messagedToday(o);
       return<div key={o.id} style={{...card,marginBottom:14}}>
         <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,cursor:onOrderClick?"pointer":"default"}} onClick={()=>onOrderClick?.(o)}>
           <div style={{minWidth:0}}>
             <div style={{fontWeight:700,fontSize:13,color:C.navy}}>{o.customerName||"—"}</div>
-            <div style={{fontSize:11,color:C.textMid,marginTop:2}}>{o.phoneModel||"—"} · Arrived {fDate(o.stepDates?.[5]?.date)}</div>
+            <div style={{fontSize:11,color:C.textMid,marginTop:2}}>{o.phoneModel||"—"} · {branchMeta?.[pickupCode]?.name||pickupCode} · Arrived {fDate(o.stepDates?.[5]?.date)}</div>
           </div>
-          <div style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{branchMeta?.[pickupCode]?.name||pickupCode}</div>
+          <div style={{fontSize:10,fontWeight:700,color:log.length>=3?"#DC2626":log.length>=1?"#B45309":C.textLight,whiteSpace:"nowrap"}}>{log.length===0?"Not yet reminded":`Reminded ${log.length} time${log.length>1?"s":""}`}</div>
         </div>
+        {log.length>0&&<div style={{padding:"8px 16px",background:C.surface,borderBottom:`1px solid ${C.border}`,fontSize:10.5,color:C.textLight}}>
+          Reminder log: {log.map((l,i)=>`${fDate(l.date)}${l.time?` ${l.time}`:""}`).join(" · ")}
+        </div>}
         <div style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
           <div style={{minWidth:0}}>
             <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",fontWeight:700}}>Customer Phone</div>
@@ -449,7 +463,9 @@ export function PickupTodoList({orders,branchMeta,onOrderClick,onUpdateOrder}){
           <div style={{background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",fontSize:11.5,color:C.textMid,whiteSpace:"pre-wrap",lineHeight:1.6}}>{msg}</div>
         </div>
         <div style={{padding:"10px 16px",borderTop:`1px solid ${C.border}`,textAlign:"right"}}>
-          <button onClick={()=>markDone(o)} disabled={saving===o.id} style={{border:"none",background:"transparent",color:"#15803D",fontSize:11,fontWeight:700,cursor:saving===o.id?"default":"pointer"}}>{saving===o.id?"Saving…":"Mark as Messaged ✓"}</button>
+          {doneToday
+            ?<span style={{fontSize:11,fontWeight:700,color:"#15803D"}}>{Ic.check} Reminded today</span>
+            :<button onClick={()=>markDone(o)} disabled={saving===o.id} style={{border:"none",background:"transparent",color:"#15803D",fontSize:11,fontWeight:700,cursor:saving===o.id?"default":"pointer"}}>{saving===o.id?"Saving…":"Mark as Messaged ✓"}</button>}
         </div>
       </div>;
     })}

@@ -1,5 +1,5 @@
 import {useState,useEffect,useRef} from "react";
-import {listCustomers,getPaymentsForCustomers} from "./storage/rtoApi.js";
+import {listCustomers,getPaymentsForCustomers,saveCustomer} from "./storage/rtoApi.js";
 
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
@@ -41,6 +41,7 @@ const Ic={
   wallet:<svg width="15"height="15"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>,
   trendUp:<svg width="15"height="15"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
   coins:<svg width="15"height="15"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><circle cx="8"cy="8"r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>,
+  copy:<svg width="14"height="14"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><rect x="9"y="9"width="13"height="13"rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
 };
 function SecHdr({icon,children,right}){
   return<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"11px 16px",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`}}>
@@ -61,15 +62,19 @@ function StatTile({label,value,color,icon,accent}){
   </div>;
 }
 
-export function RTOSummaryInner({customers,branchMeta}){
+export function RTOSummaryInner({customers,branchMeta,email}){
   const summaryRef=useRef(null);
+  const [remindingId,setRemindingId]=useState(null);
+  const [copiedId,setCopiedId]=useState(null);
+  const [localCustomers,setLocalCustomers]=useState(customers);
+  useEffect(()=>{setLocalCustomers(customers);},[customers]);
   const now=new Date();
   const currentKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
   const nextMonthDate=new Date(now.getFullYear(),now.getMonth()+1,1);
   const nextMonthKey=`${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth()+1).padStart(2,"0")}`;
   const nextMonthLabel=`${MONTHS[nextMonthDate.getMonth()]} ${nextMonthDate.getFullYear()}`;
 
-  const analytics=customers.map(c=>{
+  const analytics=localCustomers.map(c=>{
     const schedule=genSchedule(c);
     const payments=c.payments||{};
     const totalContract=(parseInt(c.tenure)||0)*(parseFloat(c.monthlyInstallment)||0);
@@ -112,6 +117,70 @@ export function RTOSummaryInner({customers,branchMeta}){
   };
 
   const overdueCustomers=analytics.filter(c=>c.overdue.length>0).sort((a,b)=>b.overdue.length-a.overdue.length);
+  // RTO Monthly Payment Reminder To-Do — Boon Theng, emaxhr, and Sophia
+  // only. Every customer who's late shows up here EVERY day until they've
+  // caught up (there's no permanent dismissal the way the pickup reminder
+  // has) — "Mark as Reminded" only tracks that today's reminder went out,
+  // it doesn't remove them from the list.
+  //
+  // The reminder tier is based on how many months behind the customer
+  // actually is, not how many times they've been reminded:
+  //   Tier 1 — this month's payment is late (past the 15th, unpaid) but no
+  //            FULL month has been missed yet. Repeats daily at tier 1
+  //            until either paid, or the calendar rolls into next month
+  //            with this one still unpaid (which promotes it into
+  //            "overdue" below and becomes tier 2).
+  //   Tier 2 — exactly one full month overdue.
+  //   Tier 3 — two full months overdue.
+  //   Tier 4 — three or more full months overdue (stays at 4 for anything
+  //            beyond — there's no tier 5).
+  const canSeeLatePaymentTodo=["boontheng2004@gmail.com","emaxhr@gmail.com","sophiawsc9395@gmail.com"].includes((email||"").toLowerCase());
+  const isoToday=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+  const remindedToday=(c)=>(c.latePaymentReminders||[]).some(r=>r.date===isoToday);
+  const currentMonthEntry=(c)=>c.schedule.find(s=>s.key===currentKey);
+  const currentMonthLate=(c)=>{
+    const entry=currentMonthEntry(c);
+    return!!entry&&now.getDate()>15&&!c.payments?.[currentKey]?.paid;
+  };
+  const lateTier=(c)=>{
+    if(c.overdue.length>=3)return 4;
+    if(c.overdue.length===2)return 3;
+    if(c.overdue.length===1)return 2;
+    return 1;
+  };
+  const latePaymentCustomers=analytics.filter(c=>c.overdue.length>0||currentMonthLate(c)).sort((a,b)=>lateTier(b)-lateTier(a));
+  const buildLatePaymentMessage=(c)=>{
+    const tier=lateTier(c);
+    const entry=currentMonthEntry(c);
+    // Tier 1 customers have nothing in c.overdue yet (that only covers
+    // fully-past months) — the amount owed is this month's own entry.
+    const monthsList=tier===1?entry?.label:c.overdue.map(s=>s.label).join(", ");
+    const totalOverdue=tier===1
+      ?(entry?entry.amount-amountReceivedFor(entry,c.payments?.[currentKey]):0)
+      :c.overdue.reduce((sum,s)=>sum+(s.amount-amountReceivedFor(s,c.payments?.[s.key])),0);
+    const bankLine="EMAX NETWORK SDN BHD\nPublic Bank: 3217607733";
+    if(tier===1)return`Hi ${c.name||"there"} 👋\n\nThis is a friendly reminder from EMAX NETWORK that your Rent-to-Own monthly installment of RM${totalOverdue.toFixed(2)} (${monthsList}) is now due.\n\nKindly make payment via bank transfer to:\n${bankLine}\n\nPlease send us the payment slip once done. Thank you!`;
+    if(tier===2)return`Hi ${c.name||"there"},\n\nThis is our *SECOND reminder* regarding your overdue Rent-to-Own payment of RM${totalOverdue.toFixed(2)} (${monthsList}).\n\nPlease settle this as soon as possible via bank transfer to:\n${bankLine}\n\nKindly send proof of payment once transferred. We appreciate your prompt attention to this matter.`;
+    if(tier===3)return`Hi ${c.name||"there"},\n\nThis is our *THIRD reminder* — your Rent-to-Own payment of RM${totalOverdue.toFixed(2)} (${monthsList}) remains unpaid.\n\nPlease be advised that continued non-payment may affect your credit score with Bank Negara Malaysia.\n\nKindly make payment immediately via bank transfer to:\n${bankLine}\n\nPlease send proof of payment once done.`;
+    return`Hi ${c.name||"there"},\n\n*This is an URGENT reminder* — your Rent-to-Own payment of RM${totalOverdue.toFixed(2)} (${monthsList}) remains unpaid despite previous reminders.\n\nPlease be advised that continued non-payment may affect your credit score with Bank Negara Malaysia, and EMAX NETWORK reserves the right to repossess the device and lodge a police report if payment is not received.\n\nKindly make payment immediately via bank transfer to:\n${bankLine}\n\nPlease send proof of payment once done to avoid further action.`;
+  };
+  const copyText=(text)=>{
+    const ta=document.createElement("textarea");
+    ta.value=text;ta.style.position="fixed";ta.style.opacity="0";
+    document.body.appendChild(ta);ta.select();
+    try{document.execCommand("copy");}catch(e){}
+    document.body.removeChild(ta);
+  };
+  const markReminded=async(c)=>{
+    setRemindingId(c.id);
+    const nowD=new Date();
+    const timeStr=`${String(nowD.getHours()).padStart(2,"0")}:${String(nowD.getMinutes()).padStart(2,"0")}`;
+    const nextLog=[...(c.latePaymentReminders||[]),{date:isoToday,time:timeStr}];
+    const result=await saveCustomer({...c,latePaymentReminders:nextLog});
+    if(result.ok)setLocalCustomers(p=>p.map(x=>x.id===c.id?{...x,latePaymentReminders:nextLog}:x));
+    else alert("This didn't save — please check your connection and try again.");
+    setRemindingId(null);
+  };
   // Total overdue outstanding grouped by month, across every overdue
   // customer - a different cut of the same Overdue table above (that one
   // groups by customer, this groups by which month is owed).
@@ -158,6 +227,56 @@ export function RTOSummaryInner({customers,branchMeta}){
         </div>
         <PBtn onClick={downloadPhoto}>{Ic.download} Download as Photo</PBtn>
       </div>
+
+      {canSeeLatePaymentTodo&&latePaymentCustomers.length>0&&<div style={{...card,marginBottom:16}}>
+        <SecHdr icon={Ic.alertCircle}>RTO Monthly Payment Reminder To-Do — {latePaymentCustomers.length} customer{latePaymentCustomers.length>1?"s":""}</SecHdr>
+        <div style={{padding:14,display:"flex",flexDirection:"column",gap:12}}>
+          {latePaymentCustomers.map(c=>{
+            const tier=lateTier(c);
+            const doneToday=remindedToday(c);
+            const msg=buildLatePaymentMessage(c);
+            const reminderLog=c.latePaymentReminders||[];
+            const entry=currentMonthEntry(c);
+            const monthsList=tier===1?entry?.label:c.overdue.map(s=>s.label).join(", ");
+            const totalOverdue=tier===1
+              ?(entry?entry.amount-amountReceivedFor(entry,c.payments?.[currentKey]):0)
+              :c.overdue.reduce((sum,s)=>sum+(s.amount-amountReceivedFor(s,c.payments?.[s.key])),0);
+            const tierColor=tier>=4?"#DC2626":tier===3?"#DC2626":tier===2?"#B45309":C.textLight;
+            const tierLabel=["1st (due this month)","2nd (1 month overdue)","3rd (2 months overdue)","4th (3+ months overdue)"][tier-1];
+            return<div key={c.id} style={{border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
+              <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:13,color:C.navy}}>{c.name} <span style={{fontWeight:400,color:C.textLight,fontSize:11}}>· {branchMeta?.[c.branch]?.name||c.branch}</span></div>
+                  <div style={{fontSize:11,color:C.textMid,marginTop:2}}>{tier===1?"Due":"Overdue"}: {monthsList} — {fRM(totalOverdue)}</div>
+                </div>
+                <div style={{fontSize:10,fontWeight:700,color:tierColor,whiteSpace:"nowrap"}}>{tierLabel}</div>
+              </div>
+              {reminderLog.length>0&&<div style={{padding:"8px 14px",background:C.surface,borderBottom:`1px solid ${C.border}`,fontSize:10.5,color:C.textLight}}>
+                Reminder log: {reminderLog.map((r,i)=>`${r.date}${r.time?` ${r.time}`:""}`).join(" · ")}
+              </div>}
+              <div style={{padding:"10px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+                <div>
+                  <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",fontWeight:700}}>Customer Phone</div>
+                  <div style={{fontSize:13,color:C.navy,fontWeight:600,marginTop:2}}>{c.contactNumber||"—"}</div>
+                </div>
+                {c.contactNumber&&<button title="Copy phone number" onClick={()=>{copyText(c.contactNumber);setCopiedId(`p${c.id}`);setTimeout(()=>setCopiedId(p=>p===`p${c.id}`?null:p),1400);}} style={{border:`1px solid ${C.border}`,background:"#fff",color:C.navy,width:32,height:32,minWidth:32,borderRadius:7,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,padding:0}}>{copiedId===`p${c.id}`?Ic.checkCircle:Ic.copy}</button>}
+              </div>
+              <div style={{padding:"10px 14px",background:C.surface}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em",fontWeight:700}}>{["1st","2nd","3rd","4th"][tier-1]} Reminder Message</div>
+                  <button onClick={()=>{copyText(msg);setCopiedId(`m${c.id}`);setTimeout(()=>setCopiedId(p=>p===`m${c.id}`?null:p),1400);}} style={{border:"none",background:C.navy,color:"#fff",fontSize:11,fontWeight:600,padding:"6px 10px",borderRadius:7,cursor:"pointer"}}>{copiedId===`m${c.id}`?"Copied!":"Copy Message"}</button>
+                </div>
+                <div style={{background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",fontSize:11.5,color:C.textMid,whiteSpace:"pre-wrap",lineHeight:1.6}}>{msg}</div>
+              </div>
+              <div style={{padding:"10px 14px",textAlign:"right"}}>
+                {doneToday
+                  ?<span style={{fontSize:11,fontWeight:700,color:"#15803D"}}>{Ic.checkCircle} Reminded today</span>
+                  :<PBtn onClick={()=>markReminded(c)} disabled={remindingId===c.id} style={{fontSize:11,padding:"7px 14px"}}>{remindingId===c.id?"Saving…":"Mark as Reminded"}</PBtn>}
+              </div>
+            </div>;
+          })}
+        </div>
+      </div>}
 
       <div ref={summaryRef} style={{...card}}>
         <style>{`.rtoRow:hover{background:#EEF3FA !important}`}</style>
