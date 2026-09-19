@@ -406,17 +406,21 @@ function copyToClipboard(text){
 // — that information only needs to exist inside the message text that's
 // about to be sent to the customer, not duplicated as extra UI chrome.
 export function PickupTodoList({orders,branchMeta,onOrderClick,onUpdateOrder}){
-  // Reshows every day until the customer actually picks up — there's no
-  // permanent dismissal the way a one-off to-do would have. "Mark as
-  // Messaged" only records that today's reminder went out (in
-  // pickupReminderLog, an array — not a single date the way this used to
-  // work), so tomorrow, if the order is still sitting at Arrived Branch,
-  // it's back on this list, showing one more log entry than before.
-  const items=useMemo(()=>(orders||[]).filter(o=>o.step===5&&!o.cancelled).sort((a,b)=>b.id-a.id),[orders]);
+  // Reshows once every two days — not every single day — until the order
+  // actually reaches Billing Request (step 6), at which point it's off
+  // this list entirely (it's no longer step 5, so the base filter already
+  // excludes it). "Mark as Messaged" logs today's reminder in
+  // pickupReminderLog; the order then stays off this list until 2 full
+  // days have passed since that log entry, at which point it reappears —
+  // there's no permanent dismissal.
+  const lastReminderDaysAgo=(o)=>{
+    const log=o.pickupReminderLog;
+    if(!log||!log.length)return Infinity;
+    return daysSince(log[log.length-1].date);
+  };
+  const items=useMemo(()=>(orders||[]).filter(o=>o.step===5&&!o.cancelled&&lastReminderDaysAgo(o)>=2).sort((a,b)=>b.id-a.id),[orders]);
   const [copiedId,setCopiedId]=useState(null);
   const [saving,setSaving]=useState(null);
-  const isoToday=nowDate();
-  const messagedToday=(o)=>(o.pickupReminderLog||[]).some(l=>l.date===isoToday);
   const copy=(text,id)=>{
     copyToClipboard(text);
     setCopiedId(id);
@@ -436,7 +440,6 @@ export function PickupTodoList({orders,branchMeta,onOrderClick,onUpdateOrder}){
       const msg=buildPickupWhatsAppMessage(o,branchMeta);
       const pickupCode=o.pickUpBranch||o.branch;
       const log=o.pickupReminderLog||[];
-      const doneToday=messagedToday(o);
       return<div key={o.id} style={{...card,marginBottom:14}}>
         <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,cursor:onOrderClick?"pointer":"default"}} onClick={()=>onOrderClick?.(o)}>
           <div style={{minWidth:0}}>
@@ -463,9 +466,7 @@ export function PickupTodoList({orders,branchMeta,onOrderClick,onUpdateOrder}){
           <div style={{background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",fontSize:11.5,color:C.textMid,whiteSpace:"pre-wrap",lineHeight:1.6}}>{msg}</div>
         </div>
         <div style={{padding:"10px 16px",borderTop:`1px solid ${C.border}`,textAlign:"right"}}>
-          {doneToday
-            ?<span style={{fontSize:11,fontWeight:700,color:"#15803D"}}>{Ic.check} Reminded today</span>
-            :<button onClick={()=>markDone(o)} disabled={saving===o.id} style={{border:"none",background:"transparent",color:"#15803D",fontSize:11,fontWeight:700,cursor:saving===o.id?"default":"pointer"}}>{saving===o.id?"Saving…":"Mark as Messaged ✓"}</button>}
+          <button onClick={()=>markDone(o)} disabled={saving===o.id} style={{border:"none",background:"transparent",color:"#15803D",fontSize:11,fontWeight:700,cursor:saving===o.id?"default":"pointer"}}>{saving===o.id?"Saving…":"Mark as Messaged ✓"}</button>
         </div>
       </div>;
     })}
