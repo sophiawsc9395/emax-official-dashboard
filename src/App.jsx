@@ -4,9 +4,12 @@
 // ============================================================
 import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, saveData, supabase } from "./storage/index.js";
+import { listOrders, reconcile } from "./storage/ordersApi.js";
+import { listCustomers, getPaymentsForCustomers } from "./storage/rtoApi.js";
 import ExpectedProfitTable from "./ExpectedProfitTable.jsx";
 import RTOTab from "./RTOTab.jsx";
-import OrderTab from "./OrderTab.jsx";
+import {RTOLatePaymentTodoList} from "./RTOSummary.jsx";
+import OrderTab, {PickupTodoList} from "./OrderTab.jsx";
 import DailySalesTab from "./DailySalesTab.jsx";
 import JCLTab from "./JCLTab.jsx";
 import ChaileaseTab from "./ChaileaseTab.jsx";
@@ -2197,6 +2200,29 @@ export default function App(){
   // Sales Report / Order Tracking), so an edit shows the specific role
   // relevant to the action rather than a generic capability-based guess.
   const [currentEmail,setCurrentEmail]=useState(null);
+  // Consolidated "To Do List" tab (Boon Theng/Sophia only) — combines the
+  // Pickup Reminder To-Do (previously only reachable via emaxjcl's page)
+  // and the RTO Monthly Payment Reminder To-Do (previously only on the RTO
+  // Portfolio Summary page) in one place. Only fetched when that tab is
+  // actually open — no point loading either dataset while looking at
+  // something else.
+  const [todoOrders,setTodoOrders]=useState([]);
+  const [todoRtoCustomers,setTodoRtoCustomers]=useState([]);
+  useEffect(()=>{
+    if(tab!=="todoList")return;
+    listOrders().then(setTodoOrders).catch(()=>{});
+    listCustomers().then(headers=>{
+      getPaymentsForCustomers(headers.map(c=>c.id)).then(byId=>{
+        setTodoRtoCustomers(headers.map(c=>({...c,payments:byId[c.id]||{}})));
+      });
+    }).catch(()=>{});
+  },[tab]);
+  const saveTodoOrder=async(updated)=>{
+    const original=todoOrders.find(o=>o.id===updated.id);
+    const result=await reconcile(original?[original]:[],[updated]);
+    if(result.ok)setTodoOrders(p=>p.map(o=>o.id===updated.id?updated:o));
+    return result.ok;
+  };
   useEffect(()=>{supabase.auth.getSession().then(({data})=>setCurrentEmail(data?.session?.user?.email||null));},[]);
   // Month/year selection — default to current month
   const now = new Date();
@@ -2215,7 +2241,7 @@ export default function App(){
   const [loading,setLoading]       = useState(true);
   const [tab,setTabRaw]             = useState(()=>{
     const h=window.location.hash.replace("#","");
-    return ["overview","rankings","points","report","daily","repair","rto","orders","purchaseOrder","dailySales","jclApplications","chaileaseApplications","dailyPayment","stockProfit","stockTransfer","warranty","stockWriteOff"].includes(h)?h:"overview";
+    return ["overview","todoList","rankings","points","report","daily","repair","rto","orders","purchaseOrder","dailySales","jclApplications","chaileaseApplications","dailyPayment","stockProfit","stockTransfer","warranty","stockWriteOff"].includes(h)?h:"overview";
   });
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen] = useState(false);
@@ -2805,8 +2831,10 @@ export default function App(){
   // permissions, and render logic elsewhere in this file all still key
   // off these same ids) — only the sidebar's visual grouping and a couple
   // of labels changed, nothing about what each page actually does.
+  const canSeeTodoList=["boontheng2004@gmail.com","sophiawsc9395@gmail.com"].includes((currentEmail||"").toLowerCase());
   const SIDEBAR_STRUCTURE=[
     {id:"overview",label:"Overview"},
+    ...(canSeeTodoList?[{id:"todoList",label:"To Do List"}]:[]),
     {group:"ranking",label:"Ranking",children:[
       {id:"rankings",label:"Performance Rankings"},
       {id:"points",label:"Reward Point Ranking"},
@@ -3083,6 +3111,16 @@ export default function App(){
 
       {/* REPAIR */}
       {tab==="repair"&&<RepairTab month={month} year={year} endDay={selEndDay} refreshKey={repairRefresh}/>}
+      {tab==="todoList"&&<div className="fade-in" style={{display:"flex",flexDirection:"column",gap:16}}>
+        <div>
+          <div style={{fontSize:15,fontWeight:800,color:"#0A1628",marginBottom:10}}>Pickup Reminder To-Do</div>
+          <PickupTodoList orders={todoOrders} branchMeta={branchMeta} onUpdateOrder={saveTodoOrder}/>
+        </div>
+        <div>
+          <div style={{fontSize:15,fontWeight:800,color:"#0A1628",marginBottom:10}}>RTO Monthly Payment Reminder To-Do</div>
+          <RTOLatePaymentTodoList customers={todoRtoCustomers} branchMeta={branchMeta} email={currentEmail}/>
+        </div>
+      </div>}
       {tab==="rto"&&<RTOTab branchMeta={branchMeta} email={currentEmail}/>}
       {tab==="orders"&&<OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} email={currentEmail}/>}
       {tab==="dailySales"&&<DailySalesTab branchMeta={branchMeta} isAdmin={true} canSubmit={true} canVerify={true} email={currentEmail}/>}
