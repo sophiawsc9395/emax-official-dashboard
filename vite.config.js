@@ -24,6 +24,7 @@ export default defineConfig({
         itcc:  'branch-ITCC.html',
         tenom: 'branch-TENOM.html',
         hq:    'branch-HQ.html',
+        ohye:  'ohye.html',
       },
     },
   },
