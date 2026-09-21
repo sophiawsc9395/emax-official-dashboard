@@ -286,7 +286,7 @@ export function RTOSummaryInner({customers,branchMeta,email}){
           document.head.appendChild(s);
         });
       }
-      const canvas=await window.html2canvas(el,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false});
+      const canvas=await window.html2canvas(el,{scale:3,backgroundColor:"#ffffff",useCORS:true,logging:false});
       const a=document.createElement("a");
       a.href=canvas.toDataURL("image/png");
       a.download=`RTO_Summary_${now.toISOString().split("T")[0]}.png`;

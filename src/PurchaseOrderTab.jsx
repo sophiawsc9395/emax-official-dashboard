@@ -575,7 +575,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
         +(pendingRows.length?secHdr(`Still Pending (${pendingRows.length})`)+pendingHtml:"");
 
       document.body.appendChild(root);
-      const canvas=await window.html2canvas(root,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false});
+      const canvas=await window.html2canvas(root,{scale:3,backgroundColor:"#ffffff",useCORS:true,logging:false});
       document.body.removeChild(root);
 
       const a=document.createElement("a");
