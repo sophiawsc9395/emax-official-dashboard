@@ -1189,9 +1189,9 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     // with both columns reading "Pending" instead of not appearing at all.
     if(isUpfront1Knockoff){
       if(o.orderType==="cash")return false;
-      if(!o.upfront1KnockOffDate&&!o.upfront1KnockOff2Date)return true;
+      if(!o.upfront1KnockOffDate&&!o.firstInstallmentKnockOffDate)return true;
       return(o.upfront1KnockOffDate&&(!dateFilter||o.upfront1KnockOffDate===dateFilter))
-        ||(o.upfront1KnockOff2Date&&(!dateFilter||o.upfront1KnockOff2Date===dateFilter));
+        ||(o.firstInstallmentKnockOffDate&&(!dateFilter||o.firstInstallmentKnockOffDate===dateFilter));
     }
     // Payment Collection Overview — every payment actually collected from
     // the customer, cash and CCM orders together: cash Deposit (from New
@@ -1289,7 +1289,7 @@ async function downloadReport(orders,type,dateFilter,merchantFilter){
     rows=filtered.map((o,i)=>{
       const amt=calcUpfront(o).total;
       total1+=amt;
-      return`<tr><td>${i+1}</td><td>${o.agreementNumber||"—"}</td><td>${o.customerName}</td><td><b>${o.invoiceNo||"—"}</b></td><td>RM ${amt.toFixed(2)}</td><td>${o.upfront1KnockOffDate?fDate(o.upfront1KnockOffDate):"Pending"}</td><td>${o.upfront1KnockOff2Date?fDate(o.upfront1KnockOff2Date):"Pending"}</td></tr>`;
+      return`<tr><td>${i+1}</td><td>${o.agreementNumber||"—"}</td><td>${o.customerName}</td><td><b>${o.invoiceNo||"—"}</b></td><td>RM ${amt.toFixed(2)}</td><td>${o.upfront1KnockOffDate?fDate(o.upfront1KnockOffDate):"Pending"}</td><td>${o.merchant!=="Aeon"?"—":(o.firstInstallmentKnockOffDate?fDate(o.firstInstallmentKnockOffDate):"Pending")}</td></tr>`;
     }).join("");
     rows+=`<tr class="tot"><td colspan="4"><b>TOTAL (${filtered.length})</b></td><td><b>RM ${total1.toFixed(2)}</b></td><td></td><td></td></tr>`;
   } else if(isPaymentCollection){
@@ -2498,7 +2498,7 @@ function BulkKnockOffInstallment({orders,onSave,onClose}){
   // knocked off. Uses the denormalized lastVerification snapshot rather than
   // a full history fetch — accurate for the normal single-verification case
   // this bulk tool is meant for.
-  const pending=orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&o.lastVerification?.paymentChecked&&o.lastVerification?.monthlyInstallment&&!o.firstInstallmentKnockOffDate);
+  const pending=orders.filter(o=>!o.cancelled&&o.merchant==="Aeon"&&o.lastVerification?.paymentChecked&&o.lastVerification?.monthlyInstallment&&!o.firstInstallmentKnockOffDate);
   const [sel,setSel]=useState(new Set());
   const [date,setDate]=useState(nowDate());
   const [search,setSearch]=useState("");
@@ -2905,7 +2905,12 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   // Pending lists for the Knock Off section, computed once here (not
   // inside the render-time IIFE below) so the payment-slip fetch effect
   // can share the exact same lists without duplicating the filter logic.
-  const upfront1Pending=useMemo(()=>orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!(o.upfront1KnockOffDate&&o.upfront1KnockOff2Date)),[orders]);
+  // Aeon needs BOTH K/O 1 (Upfront 1 itself) and the First Monthly
+  // Installment knocked off before this clears an order — JCL/Chailease
+  // orders don't have a first-installment concept at all, so requiring it
+  // for them would mean they could never actually finish this checklist;
+  // K/O 1 alone is enough to clear them.
+  const upfront1Pending=useMemo(()=>orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.paymentProofAmount)>0&&!(o.merchant==="Aeon"?(o.upfront1KnockOffDate&&o.firstInstallmentKnockOffDate):o.upfront1KnockOffDate)),[orders]);
   const upfront2Pending=useMemo(()=>orders.filter(o=>!o.cancelled&&o.orderType!=="cash"&&parseFloat(o.lastVerification?.secondPaymentAmount)>0&&!o.upfront2KnockOffDate),[orders]);
   const claimPending=useMemo(()=>orders.filter(o=>!o.cancelled&&o.knockOffDate&&!o.claimReportKnockOffDate),[orders]);
   const depositPending=useMemo(()=>orders.filter(o=>!o.cancelled&&o.orderType==="cash"&&o.depositPaymentDate&&!o.cashDepositKnockOffDate),[orders]);
@@ -3370,7 +3375,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {isAdmin&&!isReadOnly&&canAdminStep(4)&&orders.some(o=>o.step===3)&&<GBtn onClick={()=>setShowBulkDispatch(true)}>{Ic.truck} Dispatch to Branch</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(11)&&orders.some(o=>!o.cancelled&&o.step===10)&&<GBtn onClick={()=>setShowBulkAgreementReceived(true)}>{Ic.checkCircle} Set Agreement Received by HQ Date</GBtn>}
-        {isAdmin&&!isReadOnly&&canSeeReport("firstInstallmentKnockoff")&&orders.some(o=>!o.cancelled&&o.orderType!=="cash"&&o.lastVerification?.paymentChecked&&o.lastVerification?.monthlyInstallment&&!o.firstInstallmentKnockOffDate)&&<GBtn onClick={()=>setShowBulkKnockOffInstallment(true)}>{Ic.checkCircle} Knock Off First Monthly Installment</GBtn>}
+        {isAdmin&&!isReadOnly&&canSeeReport("firstInstallmentKnockoff")&&orders.some(o=>!o.cancelled&&o.merchant==="Aeon"&&o.lastVerification?.paymentChecked&&o.lastVerification?.monthlyInstallment&&!o.firstInstallmentKnockOffDate)&&<GBtn onClick={()=>setShowBulkKnockOffInstallment(true)}>{Ic.checkCircle} Knock Off First Monthly Installment</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(12)&&orders.some(o=>!o.cancelled&&o.step===11)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Agreement Sent to Merchant Date</GBtn>}
         {isAdmin&&!isReadOnly&&canAdminStep(13)&&orders.some(o=>!o.cancelled&&o.step===12)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Merchant Claim</GBtn>}
         {isSophia&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
@@ -3590,10 +3595,10 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
             const h=o.lastVerification;
             return<Row key={o.id} order={o} buttons={[
               {label:"K/O 1",done:!!o.upfront1KnockOffDate,onClick:()=>bulkSave([{...o,upfront1KnockOffDate:nowDate()}])},
-              {label:"K/O 2",done:!!o.upfront1KnockOff2Date,onClick:()=>bulkSave([{...o,upfront1KnockOff2Date:nowDate()}])},
+              ...(o.merchant==="Aeon"?[{label:"K/O 2",done:!!o.firstInstallmentKnockOffDate,onClick:()=>bulkSave([{...o,firstInstallmentKnockOffDate:nowDate()}])}]:[]),
             ]} meta={`Invoice: ${o.invoiceNo||"—"} · Agreement: ${o.agreementNumber||"—"}`} amounts={<>
               <AmtBadge label="Upfront 1" value={calcUpfront(o).total} bg="#EFF6FF" fg="#1D4ED8"/>
-              <AmtBadge label="Upfront 2" value={parseFloat(h?.monthlyInstallment??o.monthlyInstallment)||0} bg="#F5F0FF" fg="#7C3AED"/>
+              {o.merchant==="Aeon"&&<AmtBadge label="Upfront 2" value={parseFloat(h?.monthlyInstallment??o.monthlyInstallment)||0} bg="#F5F0FF" fg="#7C3AED"/>}
             </>} remark={h?.verificationRemark}/>;
           }}/>
           <Checklist checklistKey="upfront2" title="Short/Second Payment Knock Off (CCM Order)" items={upfront2Pending} rowRenderer={o=>{
