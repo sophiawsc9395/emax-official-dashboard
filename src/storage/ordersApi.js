@@ -28,7 +28,7 @@ const CORE_COLUMNS = [
 ];
 
 function rowToOrder(row) {
-  return {
+  const o = {
     ...(row.data || {}),
     id: row.id,
     step: row.step,
@@ -50,6 +50,19 @@ function rowToOrder(row) {
     lastVerification: row.last_verification || undefined,
     pickUpBranch: row.pick_up_branch || undefined,
   };
+  // First Monthly Installment knock-off used to be tracked under
+  // upfront1KnockOff2Date (a confusingly-named field shared with a
+  // different concept) before being split out into its own
+  // firstInstallmentKnockOffDate field. Orders knocked off under the old
+  // name still only have the old field set — backfilling it here, at the
+  // single point every order passes through on read, means every place
+  // downstream that checks firstInstallmentKnockOffDate just sees the
+  // right value automatically, without needing this same fallback
+  // repeated at every individual read site.
+  if (!o.firstInstallmentKnockOffDate && o.upfront1KnockOff2Date) {
+    o.firstInstallmentKnockOffDate = o.upfront1KnockOff2Date;
+  }
+  return o;
 }
 
 function orderToRow(order) {
