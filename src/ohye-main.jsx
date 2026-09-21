@@ -6,15 +6,16 @@ import POSPreview from './ohye/POSPreview.jsx'
 
 // OHYE! POS — separate business from EMAX Network, hosted on this same
 // project purely because this is the working auth backend already in
-// place. Sophia gets to see everything but can't touch anything (an
-// invisible overlay blocks every click/keystroke, rather than threading a
-// read-only prop through the whole 2000-line preview component — that
-// component was built as a fully self-contained interactive demo with no
-// props at all, so blocking interaction from the outside is far safer
-// than rewiring its internals). kennethc.interior@gmail.com gets full,
-// normal interactive access — he's the one actually running this.
+// place. Both Sophia and kennethc.interior@gmail.com get full, normal
+// interactive admin access. The view-only overlay code below still exists
+// for any future account added to ALLOWED but not ADMIN_EMAILS — an
+// invisible overlay blocks every click/keystroke for that case, rather
+// than threading a read-only prop through the whole 2000-line preview
+// component (it was built as a fully self-contained interactive demo with
+// no props at all, so blocking interaction from the outside is far safer
+// than rewiring its internals).
 const ALLOWED = ["sophiawsc9395@gmail.com", "kennethc.interior@gmail.com"]
-const ADMIN_EMAIL = "kennethc.interior@gmail.com"
+const ADMIN_EMAILS = ["kennethc.interior@gmail.com", "sophiawsc9395@gmail.com"]
 
 function OhyeApp() {
   const [email, setEmail] = useState(null)
@@ -25,7 +26,7 @@ function OhyeApp() {
     })
   }, [])
 
-  const isAdmin = email === ADMIN_EMAIL
+  const isAdmin = ADMIN_EMAILS.includes(email)
   const isViewOnly = email !== null && !isAdmin
 
   return (
