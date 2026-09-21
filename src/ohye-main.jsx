@@ -31,7 +31,7 @@ function OhyeApp() {
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh' }}>
-      <POSPreview />
+      <POSPreview isAdmin={isAdmin} />
       {isViewOnly && (
         <>
           <div

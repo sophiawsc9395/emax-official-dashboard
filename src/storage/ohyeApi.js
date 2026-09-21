@@ -9,6 +9,7 @@ const MENU_TABLE = 'ohye_menu'
 const BUNDLES_TABLE = 'ohye_bundles'
 const ORDERS_TABLE = 'ohye_orders'
 const SETTINGS_TABLE = 'ohye_settings'
+const MENU_PHOTOS_BUCKET = 'ohye-menu-photos'
 
 /* ── Menu ──────────────────────────────────────────────────────────────── */
 
@@ -23,6 +24,7 @@ function rowToMenuItem(row) {
     trackStock: row.track_stock,
     stockQty: parseFloat(row.stock_qty) || 0,
     variations: row.variations || [],
+    photoUrl: row.photo_url || null,
     sortOrder: row.sort_order || 0,
   }
 }
@@ -38,9 +40,27 @@ function menuItemToRow(item) {
     track_stock: !!item.trackStock,
     stock_qty: item.stockQty ?? 0,
     variations: item.variations || [],
+    photo_url: item.photoUrl || null,
     sort_order: item.sortOrder ?? 0,
     updated_at: new Date().toISOString(),
   }
+}
+
+// Photo goes straight to a public URL — no signing needed (see the bucket
+// comment in schema_ohye.sql), so the menu grid can just use it directly
+// in an <img src>. Re-uploading for the same item overwrites the old file
+// at a fresh path each time rather than reusing one, which is simplest
+// and avoids any CDN caching showing a stale photo after a re-upload.
+export async function uploadMenuPhoto(itemId, file) {
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+  const path = `${itemId}/${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from(MENU_PHOTOS_BUCKET).upload(path, file, {
+    upsert: false,
+    contentType: file.type || undefined,
+  })
+  if (error) { console.error('uploadMenuPhoto error:', error); return null }
+  const { data } = supabase.storage.from(MENU_PHOTOS_BUCKET).getPublicUrl(path)
+  return data?.publicUrl || null
 }
 
 export async function listMenu() {

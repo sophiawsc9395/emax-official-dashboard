@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import {
-  listMenu, saveMenuItem, deleteMenuItem,
+  listMenu, saveMenuItem, deleteMenuItem, uploadMenuPhoto,
   listBundles, saveBundle as apiSaveBundle, deleteBundle as apiDeleteBundle,
   listOrders, createOrder, refundOrder as apiRefundOrder,
   getSettings, saveSettings, nextOrderSeq,
@@ -255,7 +255,7 @@ function usePrinterConnection(role) {
 }
 
 // ---- Main component -----------------------------------------------------
-export default function POSPreview() {
+export default function POSPreview({ isAdmin: isLoggedInAdmin }) {
   const [view, setView] = useState("order"); // order | receipt | label | settings | backoffice | daily-closing
   const [loading, setLoading] = useState(true);
   const [menu, setMenuState] = useState([]);
@@ -540,6 +540,7 @@ export default function POSPreview() {
           orders={orders}
           managerPassword={biz.managerPassword}
           requestPassword={requestPassword}
+          isLoggedInAdmin={isLoggedInAdmin}
           onRefund={refundOrder}
           onClose={() => setView("order")}
         />
@@ -728,18 +729,21 @@ function OrderScreen({
             .map((item) => (
               <button
                 key={item.id}
-                style={{ ...styles.menuCard, ...(item.soldOut ? styles.menuCardSoldOut : {}) }}
+                style={{ ...styles.menuCard, ...(item.photoUrl ? styles.menuCardWithPhoto : {}), ...(item.soldOut ? styles.menuCardSoldOut : {}) }}
                 onClick={() => !item.soldOut && onItemTap(item)}
                 disabled={item.soldOut}
               >
-                <div style={styles.menuCardName}>{item.name}</div>
-                {item.soldOut ? (
-                  <div style={styles.soldOutBadge}>Sold out</div>
-                ) : (
-                  <div style={styles.menuCardPrice}>
-                    {item.variations?.length > 0 ? `From ${fmt(Math.min(item.price, ...item.variations.map((v) => v.price)))}` : fmt(item.price)}
-                  </div>
-                )}
+                {item.photoUrl && <img src={item.photoUrl} alt={item.name} style={styles.menuCardPhoto} />}
+                <div style={item.photoUrl ? styles.menuCardBody : undefined}>
+                  <div style={styles.menuCardName}>{item.name}</div>
+                  {item.soldOut ? (
+                    <div style={styles.soldOutBadge}>Sold out</div>
+                  ) : (
+                    <div style={styles.menuCardPrice}>
+                      {item.variations?.length > 0 ? `From ${fmt(Math.min(item.price, ...item.variations.map((v) => v.price)))}` : fmt(item.price)}
+                    </div>
+                  )}
+                </div>
               </button>
             ))}
 
@@ -1613,14 +1617,14 @@ function DailyClosingScreen({ orders, onClose }) {
 }
 
 // ---- Backoffice: menu management + reports --------------------------------
-function BackofficeScreen({ menu, setMenu, bundles, setBundles, orders, managerPassword, requestPassword, onRefund, onClose }) {
+function BackofficeScreen({ menu, setMenu, bundles, setBundles, orders, managerPassword, requestPassword, isLoggedInAdmin, onRefund, onClose }) {
   const [tab, setTab] = useState("menu"); // menu | reports
 
   return (
     <div style={styles.settingsWrap}>
       <div style={styles.backofficeHeader}>
         <div style={styles.settingsTitle}>Backoffice</div>
-        <button style={styles.secondaryActionBtn} onClick={onClose}>
+        <button style={styles.doneBtn} onClick={onClose}>
           Done
         </button>
       </div>
@@ -1637,15 +1641,15 @@ function BackofficeScreen({ menu, setMenu, bundles, setBundles, orders, managerP
         </button>
       </div>
 
-      {tab === "menu" && <MenuManagement menu={menu} setMenu={setMenu} bundles={bundles} setBundles={setBundles} managerPassword={managerPassword} requestPassword={requestPassword} />}
-      {tab === "stock" && <StockBalancePanel menu={menu} />}
+      {tab === "menu" && <MenuManagement menu={menu} setMenu={setMenu} bundles={bundles} setBundles={setBundles} managerPassword={managerPassword} requestPassword={requestPassword} isLoggedInAdmin={isLoggedInAdmin} />}
+      {tab === "stock" && <StockBalancePanel menu={menu} setMenu={setMenu} />}
       {tab === "reports" && <ReportsPanel orders={orders} managerPassword={managerPassword} requestPassword={requestPassword} onRefund={onRefund} />}
     </div>
   );
 }
 
 // ---- Menu management (item + bundle CRUD, password gated) -------------------
-function MenuManagement({ menu, setMenu, bundles, setBundles, managerPassword, requestPassword }) {
+function MenuManagement({ menu, setMenu, bundles, setBundles, managerPassword, requestPassword, isLoggedInAdmin }) {
   const [addingCat, setAddingCat] = useState(null);
   const [draftName, setDraftName] = useState("");
   const [draftPrice, setDraftPrice] = useState("");
@@ -1655,7 +1659,12 @@ function MenuManagement({ menu, setMenu, bundles, setBundles, managerPassword, r
   const [addingBundle, setAddingBundle] = useState(false);
 
   const toggleSoldOut = (id) => setMenu((m) => m.map((it) => (it.id === id ? { ...it, soldOut: !it.soldOut } : it)));
-  const gated = (title, fn) => requestPassword(title, managerPassword, fn);
+  // Sophia and Kenneth are both already authenticated as themselves
+  // specifically (this whole page is restricted to their two accounts) —
+  // the manager password was really gating "is this the manager, not just
+  // whoever's got the till open," which doesn't apply to either of them.
+  // Still gated for anyone else this page might ever be opened by.
+  const gated = (title, fn) => (isLoggedInAdmin ? fn() : requestPassword(title, managerPassword, fn));
 
   const startAdd = (cat) => {
     setAddingCat(cat);
@@ -1708,6 +1717,7 @@ function MenuManagement({ menu, setMenu, bundles, setBundles, managerPassword, r
             .filter((it) => it.cat === cat)
             .map((it) => (
               <div key={it.id} style={styles.backofficeRow}>
+                {it.photoUrl && <img src={it.photoUrl} alt={it.name} style={styles.backofficeThumb} />}
                 <div style={{ flex: 1 }}>
                   <div style={it.soldOut ? styles.backofficeItemNameSoldOut : styles.backofficeItemName}>{it.name}</div>
                   <div style={styles.backofficeItemMeta}>
@@ -1797,12 +1807,28 @@ function MenuManagement({ menu, setMenu, bundles, setBundles, managerPassword, r
 // ---- Stock Balance (live view — Sophia and Kenneth both just look here,
 // no password needed to VIEW; only editing quantity still goes through
 // Menu & pricing's manager-password gate) --------------------------------
-function StockBalancePanel({ menu }) {
+function StockBalancePanel({ menu, setMenu }) {
   const tracked = menu.filter((it) => it.trackStock);
   const untracked = menu.filter((it) => !it.trackStock);
+  const [restockingId, setRestockingId] = useState(null);
+  const [restockAmount, setRestockAmount] = useState("");
+
+  const startRestock = (id) => {
+    setRestockingId(id);
+    setRestockAmount("");
+  };
+
+  const confirmRestock = (item) => {
+    const add = parseFloat(restockAmount);
+    if (isNaN(add) || add <= 0) return;
+    setMenu((m) => m.map((it) => (it.id === item.id ? { ...it, stockQty: it.stockQty + add, soldOut: it.stockQty + add > 0 ? false : it.soldOut } : it)));
+    setRestockingId(null);
+    setRestockAmount("");
+  };
+
   return (
     <div>
-      <div style={styles.settingsHint}>Updates automatically with every sale. To restock or start tracking a new item, edit it under Menu & pricing.</div>
+      <div style={styles.settingsHint}>Updates automatically with every sale. Use "+ Restock" below to add newly-arrived stock — to change the total directly, or to start tracking a new item, edit it under Menu & pricing instead.</div>
       {CATEGORIES.map((cat) => {
         const items = tracked.filter((it) => it.cat === cat);
         if (!items.length) return null;
@@ -1810,13 +1836,34 @@ function StockBalancePanel({ menu }) {
           <div key={cat} style={styles.backofficeSection}>
             <div style={styles.backofficeSectionTitle}>{cat}</div>
             {items.map((it) => (
-              <div key={it.id} style={styles.backofficeRow}>
-                <div style={{ flex: 1 }}>
-                  <div style={it.soldOut ? styles.backofficeItemNameSoldOut : styles.backofficeItemName}>{it.name}</div>
+              <div key={it.id}>
+                <div style={styles.backofficeRow}>
+                  <div style={{ flex: 1 }}>
+                    <div style={it.soldOut ? styles.backofficeItemNameSoldOut : styles.backofficeItemName}>{it.name}</div>
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: it.stockQty <= 0 ? dangerRed : it.stockQty <= 5 ? "#B45309" : teal }}>
+                    {it.stockQty}
+                  </div>
+                  <button style={styles.smallBtn} onClick={() => (restockingId === it.id ? setRestockingId(null) : startRestock(it.id))}>
+                    {restockingId === it.id ? "Cancel" : "+ Restock"}
+                  </button>
                 </div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: it.stockQty <= 0 ? dangerRed : it.stockQty <= 5 ? "#B45309" : teal }}>
-                  {it.stockQty}
-                </div>
+                {restockingId === it.id && (
+                  <div style={styles.backofficeAddRow}>
+                    <input
+                      style={styles.backofficePriceInput}
+                      type="number"
+                      step="1"
+                      autoFocus
+                      placeholder="Qty received"
+                      value={restockAmount}
+                      onChange={(e) => setRestockAmount(e.target.value)}
+                    />
+                    <button style={styles.smallBtn} onClick={() => confirmRestock(it)}>
+                      Add to stock
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -1842,6 +1889,9 @@ function ReportsPanel({ orders, managerPassword, requestPassword, onRefund }) {
   const filtered = useMemo(() => filterOrdersByPeriod(orders, period, customStart, customEnd), [orders, period, customStart, customEnd]);
   const s = useMemo(() => summarize(filtered), [filtered]);
   const products = useMemo(() => salesByProduct(filtered), [filtered]);
+  const topAmount = products.length ? products[0].amount : 0;
+
+  const periodLabel = { today: "Today", week: "This week", month: "This month", all: "All time", custom: "Custom period" }[period];
 
   const requestRefund = (order) => {
     requestPassword(`Manager approval — refund ${order.number}`, managerPassword, () => onRefund(order));
@@ -1871,74 +1921,110 @@ function ReportsPanel({ orders, managerPassword, requestPassword, onRefund }) {
         </div>
       )}
 
-      <div style={styles.reportMetricGrid}>
-        <div style={styles.metricCard}>
-          <div style={styles.metricLabel}>Orders</div>
-          <div style={styles.metricValue}>{s.totalOrders}</div>
+      {/* Headline numbers — the two figures anyone checking a report wants
+          first, made prominent rather than buried in a grid of equal-weight
+          cards. */}
+      <div style={styles.reportHeroRow}>
+        <div style={styles.reportHeroCard}>
+          <div style={styles.reportHeroLabel}>Net Sales — {periodLabel}</div>
+          <div style={styles.reportHeroValue}>{fmt(s.net)}</div>
+          <div style={styles.reportHeroSubValue}>{s.totalOrders} order{s.totalOrders === 1 ? "" : "s"}</div>
         </div>
-        <div style={styles.metricCard}>
-          <div style={styles.metricLabel}>Net sales</div>
-          <div style={styles.metricValue}>{fmt(s.net)}</div>
+        <div style={styles.reportHeroCard}>
+          <div style={styles.reportHeroLabel}>Gross Sales</div>
+          <div style={styles.reportHeroValue}>{fmt(s.gross)}</div>
+          <div style={styles.reportHeroSubValue}>{s.discounts > 0 ? `-${fmt(s.discounts)} in discounts` : "No discounts given"}</div>
         </div>
-        <div style={styles.metricCard}>
-          <div style={styles.metricLabel}>Gross sales</div>
-          <div style={styles.metricValue}>{fmt(s.gross)}</div>
-        </div>
-        <div style={styles.metricCard}>
-          <div style={styles.metricLabel}>Discounts</div>
-          <div style={styles.metricValue}>-{fmt(s.discounts)}</div>
-        </div>
-        <div style={styles.metricCard}>
-          <div style={styles.metricLabel}>SST</div>
-          <div style={styles.metricValue}>{fmt(s.sst)}</div>
-        </div>
-        <div style={styles.metricCard}>
-          <div style={styles.metricLabel}>Cash</div>
-          <div style={styles.metricValue}>{fmt(s.cash)}</div>
-        </div>
-        <div style={styles.metricCard}>
-          <div style={styles.metricLabel}>QR</div>
-          <div style={styles.metricValue}>{fmt(s.qr)}</div>
-        </div>
-        {s.refundCount > 0 && (
-          <div style={styles.metricCard}>
-            <div style={styles.metricLabel}>Refunds</div>
-            <div style={styles.metricValue}>
-              {s.refundCount} · -{fmt(s.refundAmount)}
-            </div>
-          </div>
-        )}
       </div>
 
-      <div style={styles.backofficeSection}>
-        <div style={styles.backofficeSectionTitle}>Sales by product</div>
+      <div style={styles.reportCard}>
+        <div style={styles.reportCardTitle}>Payment breakdown</div>
+        <div style={styles.reportCardSub}>How this period's sales were collected</div>
+        <div style={styles.reportKpiGrid}>
+          <div style={styles.reportKpi}>
+            <div style={styles.reportKpiLabel}>Cash</div>
+            <div style={styles.reportKpiValue}>{fmt(s.cash)}</div>
+          </div>
+          <div style={styles.reportKpi}>
+            <div style={styles.reportKpiLabel}>QR</div>
+            <div style={styles.reportKpiValue}>{fmt(s.qr)}</div>
+          </div>
+          <div style={styles.reportKpi}>
+            <div style={styles.reportKpiLabel}>SST collected</div>
+            <div style={styles.reportKpiValue}>{fmt(s.sst)}</div>
+          </div>
+          <div style={styles.reportKpi}>
+            <div style={styles.reportKpiLabel}>Discounts given</div>
+            <div style={s.discounts > 0 ? styles.reportKpiValueNeg : styles.reportKpiValue}>{s.discounts > 0 ? `-${fmt(s.discounts)}` : fmt(0)}</div>
+          </div>
+          <div style={styles.reportKpi}>
+            <div style={styles.reportKpiLabel}>Cash rounding</div>
+            <div style={styles.reportKpiValue}>{fmt(s.rounding)}</div>
+          </div>
+          {s.refundCount > 0 && (
+            <div style={styles.reportKpi}>
+              <div style={styles.reportKpiLabel}>Refunded</div>
+              <div style={styles.reportKpiValueNeg}>
+                {s.refundCount} · -{fmt(s.refundAmount)}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={styles.reportCard}>
+        <div style={styles.reportCardTitle}>Sales by product</div>
+        <div style={styles.reportCardSub}>Ranked by revenue, {periodLabel.toLowerCase()}</div>
         {products.length === 0 && <div style={styles.cartEmpty}>No orders in this period.</div>}
-        {products.map((p) => (
-          <div key={p.name} style={styles.reportProductRow}>
-            <span style={styles.reportProductName}>{p.name}</span>
-            <span style={styles.reportProductQty}>x{p.qty}</span>
-            <span style={styles.reportProductAmount}>{fmt(p.amount)}</span>
+        {products.length > 0 && (
+          <div style={styles.reportTableHead}>
+            <span style={styles.reportRankCol}></span>
+            <span style={{ flex: 1 }}>Product</span>
+            <span style={{ minWidth: 70, textAlign: "center" }}>Qty</span>
+            <span style={{ minWidth: 70, textAlign: "right" }}>Amount</span>
+          </div>
+        )}
+        {products.map((p, i) => (
+          <div key={p.name} style={styles.reportProductRowV2}>
+            <div style={styles.reportRankBadge}>{i + 1}</div>
+            <span style={{ flex: 1 }}>{p.name}</span>
+            <div style={styles.reportBarTrack}>
+              <div style={{ ...styles.reportBarFill, width: `${topAmount ? (p.amount / topAmount) * 100 : 0}%` }} />
+            </div>
+            <span style={{ ...styles.reportProductQty, minWidth: 28 }}>x{p.qty}</span>
+            <span style={{ ...styles.reportProductAmount, minWidth: 68 }}>{fmt(p.amount)}</span>
           </div>
         ))}
       </div>
 
-      <div style={styles.backofficeSection}>
-        <div style={styles.backofficeSectionTitle}>Orders ({filtered.length})</div>
+      <div style={styles.reportCard}>
+        <div style={styles.reportOrdersHeader}>
+          <div style={styles.reportCardTitle}>Order list</div>
+          <div style={styles.reportOrdersCount}>{filtered.length} order{filtered.length === 1 ? "" : "s"}</div>
+        </div>
         {filtered.length === 0 && <div style={styles.cartEmpty}>No orders in this period.</div>}
         <div style={styles.orderListWrap}>
           {[...filtered]
             .sort((a, b) => b.time - a.time)
             .map((o) => (
-              <div key={o.number} style={styles.orderListRow}>
-                <div style={{ flex: 1 }}>
+              <div key={o.number} style={styles.orderListRowV2}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={styles.backofficeItemName}>
                     {o.number} {o.refunded && <span style={styles.refundedTag}>Refunded</span>}
                   </div>
                   <div style={styles.backofficeItemMeta}>
                     {o.time.toLocaleDateString("en-MY")} {o.time.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" })} · {o.lines.length} item
-                    {o.lines.length > 1 ? "s" : ""} · {o.paymentMethod === "cash" ? "Cash" : o.paymentMethod === "qr" ? "QR" : "Split"}
+                    {o.lines.length > 1 ? "s" : ""}
                   </div>
                 </div>
+                <span
+                  style={{
+                    ...styles.paymentBadge,
+                    ...(o.paymentMethod === "cash" ? styles.paymentBadgeCash : o.paymentMethod === "qr" ? styles.paymentBadgeQr : styles.paymentBadgeSplit),
+                  }}
+                >
+                  {o.paymentMethod === "cash" ? "CASH" : o.paymentMethod === "qr" ? "QR" : "SPLIT"}
+                </span>
                 <div style={{ ...styles.orderListTotal, ...(o.refunded ? styles.orderListTotalRefunded : {}) }}>{fmt(o.total)}</div>
                 {!o.refunded && (
                   <button style={styles.smallBtn} onClick={() => requestRefund(o)}>
@@ -1963,7 +2049,22 @@ function EditItemModal({ item, onCancel, onSave }) {
   const [newVarPrice, setNewVarPrice] = useState("");
   const [trackStock, setTrackStock] = useState(!!item.trackStock);
   const [stockQty, setStockQty] = useState(String(item.stockQty ?? 0));
+  const [photoUrl, setPhotoUrl] = useState(item.photoUrl || null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [error, setError] = useState("");
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setError("Please choose an image file"); return; }
+    setError("");
+    setUploadingPhoto(true);
+    const url = await uploadMenuPhoto(item.id, file);
+    setUploadingPhoto(false);
+    if (!url) { setError("Photo upload failed — please check your connection and try again."); return; }
+    setPhotoUrl(url);
+  };
 
   const addVariation = () => {
     const p = parseFloat(newVarPrice);
@@ -1980,13 +2081,21 @@ function EditItemModal({ item, onCancel, onSave }) {
     if (isNaN(p) || p < 0) return setError("Enter a valid price");
     const qty = parseFloat(stockQty);
     if (trackStock && (isNaN(qty) || qty < 0)) return setError("Enter a valid stock quantity");
-    onSave({ name: name.trim(), price: p, hasCustom: ice, variations, trackStock, stockQty: trackStock ? qty : 0 });
+    onSave({ name: name.trim(), price: p, hasCustom: ice, variations, trackStock, stockQty: trackStock ? qty : 0, photoUrl });
   };
 
   return (
     <div style={styles.modalOverlay}>
       <div style={{ ...styles.modalCard, maxHeight: "80vh", overflowY: "auto" }}>
         <div style={styles.modalTitle}>Edit item</div>
+
+        <div style={styles.modalLabel}>Photo</div>
+        {photoUrl && <img src={photoUrl} alt={name} style={{ width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 8, marginBottom: 8 }} />}
+        <label style={{ ...styles.backofficeAddBtn, display: "inline-block", textAlign: "center", cursor: uploadingPhoto ? "default" : "pointer" }}>
+          {uploadingPhoto ? "Uploading…" : photoUrl ? "Replace photo" : "+ Add photo"}
+          <input type="file" accept="image/*" onChange={handlePhotoChange} disabled={uploadingPhoto} style={{ display: "none" }} />
+        </label>
+
         <label style={styles.field}>
           <span>Name</span>
           <input style={styles.input} value={name} onChange={(e) => setName(e.target.value)} />
@@ -2140,6 +2249,9 @@ const styles = {
   parkedChip: { fontSize: 11, padding: "5px 10px", borderRadius: 16, border: `1px solid ${amber}`, background: "#FAEEDA", color: "#854F0B", cursor: "pointer", marginLeft: "auto", whiteSpace: "nowrap" },
   menuGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8, padding: 14 },
   menuCard: { textAlign: "left", border: `1px solid ${line}`, background: "#fff", borderRadius: 10, padding: 12, cursor: "pointer" },
+  menuCardWithPhoto: { padding: 0, overflow: "hidden" },
+  menuCardPhoto: { width: "100%", height: 90, objectFit: "cover", display: "block" },
+  menuCardBody: { padding: 12 },
   menuCardSoldOut: { opacity: 0.5, cursor: "not-allowed" },
   menuCardName: { fontSize: 13, fontWeight: 500, marginBottom: 6 },
   menuCardPrice: { fontSize: 13, color: teal, fontWeight: 600 },
@@ -2217,12 +2329,14 @@ const styles = {
   input: { padding: "9px 10px", borderRadius: 8, border: `1px solid ${line}`, fontSize: 13, color: ink },
   checkboxField: { display: "flex", alignItems: "center", gap: 8, fontSize: 12, margin: "10px 0" },
   backofficeHeader: { display: "flex", alignItems: "center", justifyContent: "space-between" },
+  doneBtn: { padding: "9px 18px", borderRadius: 10, border: `1px solid ${line}`, background: "#fff", fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" },
   boTabRow: { display: "flex", gap: 6, marginTop: 12, marginBottom: 4 },
   boTab: { flex: 1, padding: "8px 0", fontSize: 12.5, borderRadius: 8, border: `1px solid ${line}`, background: "#fff", color: "#5F5E5A", cursor: "pointer" },
   boTabActive: { background: teal, color: "#fff", borderColor: teal, fontWeight: 600 },
   backofficeSection: { marginTop: 18 },
   backofficeSectionTitle: { fontSize: 12, fontWeight: 600, color: "#5F5E5A", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 },
   backofficeRow: { display: "flex", alignItems: "center", gap: 6, padding: "8px 0", borderBottom: `1px solid ${cream}` },
+  backofficeThumb: { width: 40, height: 40, objectFit: "cover", borderRadius: 6, flexShrink: 0 },
   backofficeItemName: { fontSize: 13 },
   backofficeItemNameSoldOut: { fontSize: 13, color: "#888780", textDecoration: "line-through" },
   backofficeItemMeta: { fontSize: 11, color: "#888780" },
@@ -2251,4 +2365,32 @@ const styles = {
   orderListTotal: { fontSize: 13, fontWeight: 600 },
   orderListTotalRefunded: { textDecoration: "line-through", color: "#888780" },
   refundedTag: { fontSize: 9.5, fontWeight: 700, color: dangerRed, border: `1px solid ${dangerRed}`, borderRadius: 4, padding: "1px 4px", marginLeft: 4 },
+
+  // ---- Reports redesign ----------------------------------------------------
+  reportCard: { background: "#fff", border: `1px solid ${line}`, borderRadius: 12, padding: 16, marginTop: 14 },
+  reportCardTitle: { fontSize: 13, fontWeight: 700, color: ink, marginBottom: 2 },
+  reportCardSub: { fontSize: 11, color: "#888780", marginBottom: 12 },
+  reportHeroRow: { display: "flex", gap: 10, marginBottom: 10 },
+  reportHeroCard: { flex: 1, background: tealDark, borderRadius: 10, padding: "14px 16px" },
+  reportHeroLabel: { fontSize: 10.5, color: "rgba(255,255,255,.65)", textTransform: "uppercase", letterSpacing: 0.5 },
+  reportHeroValue: { fontSize: 22, fontWeight: 700, color: "#fff", marginTop: 3 },
+  reportHeroSubValue: { fontSize: 11, color: "rgba(255,255,255,.6)", marginTop: 2 },
+  reportKpiGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 },
+  reportKpi: { background: cream, borderRadius: 8, padding: "10px 10px" },
+  reportKpiLabel: { fontSize: 10.5, color: "#888780" },
+  reportKpiValue: { fontSize: 14, fontWeight: 700, marginTop: 2, color: ink },
+  reportKpiValueNeg: { fontSize: 14, fontWeight: 700, marginTop: 2, color: dangerRed },
+  reportTableHead: { display: "flex", alignItems: "center", gap: 8, padding: "0 0 8px", borderBottom: `1.5px solid ${ink}`, fontSize: 10.5, fontWeight: 700, color: "#888780", textTransform: "uppercase", letterSpacing: 0.4 },
+  reportRankCol: { width: 20, flexShrink: 0 },
+  reportProductRowV2: { display: "flex", alignItems: "center", gap: 8, padding: "9px 0", borderBottom: `1px solid ${cream}`, fontSize: 13 },
+  reportRankBadge: { width: 20, height: 20, borderRadius: "50%", background: cream, color: "#5F5E5A", fontSize: 10.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  reportBarTrack: { flex: 1, height: 5, background: cream, borderRadius: 3, overflow: "hidden", margin: "0 4px" },
+  reportBarFill: { height: "100%", background: teal, borderRadius: 3 },
+  reportOrdersHeader: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 2 },
+  reportOrdersCount: { fontSize: 11, color: "#888780" },
+  orderListRowV2: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "10px 0", borderBottom: `1px solid ${cream}` },
+  paymentBadge: { fontSize: 9.5, fontWeight: 700, borderRadius: 4, padding: "1px 6px", whiteSpace: "nowrap" },
+  paymentBadgeCash: { background: "#F0EAD6", color: "#854F0B" },
+  paymentBadgeQr: { background: "#E1EFEC", color: teal },
+  paymentBadgeSplit: { background: "#EAE3F5", color: "#5B3E96" },
 };

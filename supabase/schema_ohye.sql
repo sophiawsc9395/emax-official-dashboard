@@ -22,10 +22,16 @@ create table if not exists public.ohye_menu (
   track_stock  boolean not null default false,
   stock_qty    numeric not null default 0,
   variations   jsonb not null default '[]'::jsonb,
+  photo_url    text,
   sort_order   int not null default 0,
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
+
+-- Safe to re-run against a table that already existed before this column
+-- was added (create table if not exists above won't add it to an
+-- existing table on its own).
+alter table public.ohye_menu add column if not exists photo_url text;
 
 -- ─── ohye_bundles: set/combo promotions ─────────────────────────────────
 create table if not exists public.ohye_bundles (
@@ -132,3 +138,32 @@ where not exists (select 1 from public.ohye_menu where id='f1');
 insert into public.ohye_bundles (id, name, item_ids, price)
 select 'b1','Breakfast Set','["f2","c1"]'::jsonb,5.0
 where not exists (select 1 from public.ohye_bundles);
+
+-- ─── Storage bucket for menu item photos ────────────────────────────────
+-- Public bucket (unlike order-files) — these are just product photos
+-- shown on the order-taking screen, nothing sensitive, so a plain public
+-- URL is simpler than generating signed URLs every time a menu card
+-- renders.
+insert into storage.buckets (id, name, public)
+values ('ohye-menu-photos', 'ohye-menu-photos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "ohye-menu-photos public read" on storage.objects;
+create policy "ohye-menu-photos public read"
+  on storage.objects for select
+  using (bucket_id = 'ohye-menu-photos');
+
+drop policy if exists "ohye-menu-photos authenticated upload" on storage.objects;
+create policy "ohye-menu-photos authenticated upload"
+  on storage.objects for insert to authenticated
+  with check (bucket_id = 'ohye-menu-photos');
+
+drop policy if exists "ohye-menu-photos authenticated update" on storage.objects;
+create policy "ohye-menu-photos authenticated update"
+  on storage.objects for update to authenticated
+  using (bucket_id = 'ohye-menu-photos');
+
+drop policy if exists "ohye-menu-photos authenticated delete" on storage.objects;
+create policy "ohye-menu-photos authenticated delete"
+  on storage.objects for delete to authenticated
+  using (bucket_id = 'ohye-menu-photos');
