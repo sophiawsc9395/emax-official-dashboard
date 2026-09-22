@@ -29,7 +29,7 @@
  */
 import {useState,useEffect,useMemo} from "react";
 import {supabase} from "./storage/index.js";
-import {listStockRequestOrders,getOrder,reconcile,uploadOrderFile,deleteOrders as apiDeleteOrders} from "./storage/ordersApi.js";
+import {listStockRequestOrders,getOrder,reconcile,uploadOrderFile} from "./storage/ordersApi.js";
 
 const SUPPLIERS=[
   {key:"shopee",label:"Shopee"},{key:"lazada",label:"Lazada"},{key:"tiktok",label:"TikTok"},
@@ -330,41 +330,81 @@ function PendingPurchaseTable({orders,role,onOpenPurchaseModal}){
   </table>;
 }
 
-function PurchasedTable({orders,role,onDelete}){
-  const headers=role==="approver"
-    ?["Device / Customer","Actual Purchase Price","Remark by Approver / Cheapest Supplier",""]
-    :["Device / Customer","Order Creation Date","Agreement No.","Actual Purchase Price","Remark by Approver / Cheapest Supplier",""];
-  return<table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:900}}>
-    <thead><tr style={{background:C.surface}}>
-      {headers.map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>)}
-    </tr></thead>
-    <tbody>{orders.map(order=>{
-      const top1=topN(quotesFromOrder(order),1)[0];
-      const hasRemark=!!order.poApproverRemark;
-      const label=hasRemark?"Remark by Approver":"Cheapest Supplier";
-      const value=hasRemark?order.poApproverRemark:(top1?`${top1.supplier} — ${fRM(top1.price)}`:"—");
-      const actualPrice=parseFloat(order.purchaseProof?.actualPrice??order.actualPrice)||0;
-      const overBudget=top1&&actualPrice>top1.price;
-      return<tr key={order.id} style={{borderTop:`1px solid ${C.border}`}}>
-        <BaselineCells order={order} includeCreatedAt={role!=="approver"} includeAgreementNo={role!=="approver"} includeFinancePrice={false}/>
-        <td style={{padding:"10px",minWidth:120,verticalAlign:"top"}}>
-          <div style={{background:overBudget?"#FEF2F2":"#F0FDF4",borderRadius:8,padding:"6px 8px",display:"inline-block"}}>
-            <div style={{fontSize:13,fontWeight:700,color:overBudget?C.red:C.green}}>{fRM(actualPrice)}</div>
-            <div style={{fontSize:9.5,color:C.textLight,marginTop:1}}>{order.supplierName||"—"}</div>
-          </div>
-        </td>
-        <td style={{padding:"10px",minWidth:240,verticalAlign:"top"}}>
-          <div style={{background:C.surface,borderRadius:8,padding:"8px 10px"}}>
-            <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700}}>{label}</div>
-            <div style={{fontSize:12,color:C.text,marginTop:2}}>{value}</div>
-          </div>
-        </td>
-        <td style={{padding:"10px",verticalAlign:"top"}}>
-          {role==="approver"&&<button title="Remove from Purchased" onClick={()=>onDelete(order.id)} style={{border:"none",background:"none",color:C.red,cursor:"pointer",fontSize:15,padding:4}}>🗑</button>}
-        </td>
-      </tr>;
-    })}</tbody>
-  </table>;
+function PurchasedTable({orders,role,canDelete,onBulkDismiss}){
+  if(role!=="approver"){
+    const headers=["Device / Customer","Order Creation Date","Agreement No.","PO Number","Actual Purchase Price","Remark by Approver / Cheapest Supplier"];
+    return<table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:900}}>
+      <thead><tr style={{background:C.surface}}>
+        {headers.map(h=><th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>)}
+      </tr></thead>
+      <tbody>{orders.map(order=><PurchasedRow key={order.id} order={order} includeBaseline/>)}</tbody>
+    </table>;
+  }
+  // Approver's view — grouped by the actual purchase date (day by day),
+  // each day collapsible with its own bulk "Delete" button (Sophia only —
+  // Boon Theng sees the same grouped view but without the button).
+  const groups={};
+  orders.forEach(o=>{
+    const key=o.orderDate||"unknown";
+    (groups[key]=groups[key]||[]).push(o);
+  });
+  const dayKeys=Object.keys(groups).sort().reverse();
+  const dayLabel=k=>{
+    if(k==="unknown")return"Date unknown";
+    const[y,m,d]=k.split("-");
+    return new Date(Number(y),Number(m)-1,Number(d)).toLocaleDateString("en-MY",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  };
+  return<div>
+    {dayKeys.map(dk=>{
+      const dayOrders=groups[dk];
+      return<DayGroup key={dk} label={dayLabel(dk)} orders={dayOrders} canDelete={canDelete} onBulkDismiss={()=>onBulkDismiss(dayOrders.map(o=>o.id))}/>;
+    })}
+  </div>;
+}
+function DayGroup({label,orders,canDelete,onBulkDismiss}){
+  const[expanded,setExpanded]=useState(true);
+  return<div style={{...card,marginBottom:10,overflow:"hidden"}}>
+    <div onClick={()=>setExpanded(p=>!p)} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",cursor:"pointer",userSelect:"none",background:C.surface}}>
+      <span style={{color:C.textMid,transition:"transform .15s",transform:expanded?"rotate(180deg)":"none",fontSize:11}}>▼</span>
+      <span style={{fontSize:12.5,fontWeight:700,color:C.text}}>{label}</span>
+      <span style={{fontSize:10,fontWeight:700,color:C.green,background:"#F0FDF4",padding:"1px 8px",borderRadius:20}}>{orders.length}</span>
+      {canDelete&&<button onClick={e=>{e.stopPropagation();if(!confirm(`Remove all ${orders.length} order(s) purchased on ${label} from this list? This only hides them from Purchase Order — nothing changes in Order Tracking.`))return;onBulkDismiss();}} style={{marginLeft:"auto",fontSize:10.5,fontWeight:700,color:C.red,background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:6,padding:"3px 9px",cursor:"pointer"}}>Delete All ({orders.length})</button>}
+    </div>
+    {expanded&&<table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+      <thead><tr style={{background:"#fff"}}>
+        {["Device / Customer","PO Number","Actual Purchase Price","Remark by Approver / Cheapest Supplier"].map(h=>
+          <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>)}
+      </tr></thead>
+      <tbody>{orders.map(order=><PurchasedRow key={order.id} order={order}/>)}</tbody>
+    </table>}
+  </div>;
+}
+function PurchasedRow({order,includeBaseline}){
+  const top1=topN(quotesFromOrder(order),1)[0];
+  const hasRemark=!!order.poApproverRemark;
+  const label=hasRemark?"Remark by Approver":"Cheapest Supplier";
+  const value=hasRemark?order.poApproverRemark:(top1?`${top1.supplier} — ${fRM(top1.price)}`:"—");
+  const actualPrice=parseFloat(order.purchaseProof?.actualPrice??order.actualPrice)||0;
+  const overBudget=top1&&actualPrice>top1.price;
+  return<tr style={{borderTop:`1px solid ${C.border}`}}>
+    {includeBaseline?<BaselineCells order={order} includeFinancePrice={false}/>:<td style={{padding:"10px",verticalAlign:"top"}}>
+      <div style={{fontWeight:700,color:C.text,fontSize:12.5,whiteSpace:"nowrap"}}>{order.phoneModel||"—"}</div>
+      <div style={{fontSize:10.5,color:C.textLight,marginTop:2}}>{order.customerName} · {order.branch}</div>
+    </td>}
+    <td style={{padding:"10px",color:C.textMid,whiteSpace:"nowrap",verticalAlign:"top"}}>{order.poNumber||"—"}</td>
+    <td style={{padding:"10px",minWidth:120,verticalAlign:"top"}}>
+      <div style={{background:overBudget?"#FEF2F2":"#F0FDF4",borderRadius:8,padding:"6px 8px",display:"inline-block"}}>
+        <div style={{fontSize:13,fontWeight:700,color:overBudget?C.red:C.green}}>{fRM(actualPrice)}</div>
+        <div style={{fontSize:9.5,color:C.textLight,marginTop:1}}>{order.supplierName||"—"}</div>
+      </div>
+    </td>
+    <td style={{padding:"10px",minWidth:240,verticalAlign:"top"}}>
+      <div style={{background:C.surface,borderRadius:8,padding:"8px 10px"}}>
+        <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700}}>{label}</div>
+        <div style={{fontSize:12,color:C.text,marginTop:2}}>{value}</div>
+      </div>
+    </td>
+  </tr>;
 }
 
 /* ── Main page ────────────────────────────────────────────────────────── */
@@ -451,14 +491,21 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
     await refresh();
     return true;
   };
-  const deletePurchased=async id=>{
-    if(!confirm("Remove this order from Purchased? This deletes it entirely."))return;
-    const result=await apiDeleteOrders([id]);
-    if(!result?.ok){alert("Delete failed — please try again.");return;}
+  // Only hides the order from THIS page's Purchased list — never a real
+  // delete. The order itself, its full history, and everything about it
+  // in Order Tracking stays completely untouched; this just sets a flag
+  // this page's own Purchased query filters out from here on.
+  const dismissPurchased=async ids=>{
+    const list=Array.isArray(ids)?ids:[ids];
+    for(const id of list){
+      const fresh=await getOrder(id);
+      if(!fresh)continue;
+      await reconcile([fresh],[{...fresh,poHiddenFromList:true}]);
+    }
     await refresh();
   };
 
-  const staged=useMemo(()=>orders.filter(o=>!o.cancelled&&!o.pendingCancelRequest).map(o=>({...o,_stage:poStageOf(o)})),[orders]);
+  const staged=useMemo(()=>orders.filter(o=>!o.cancelled&&!o.pendingCancelRequest&&!o.poHiddenFromList).map(o=>({...o,_stage:poStageOf(o)})),[orders]);
   const stageOrders=staged.filter(o=>o._stage===stage);
   const activeStage=STAGES.find(s=>s.key===stage);
 
@@ -496,7 +543,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
             :stage==="new"?<NewRequestTable orders={stageOrders} role={role} onSubmitQuotes={submitQuotes} onRequestCancel={canRequestCancel?setCancellingOrder:()=>{}}/>
             :stage==="submitted"?<SubmittedTable orders={stageOrders} role={role} onProceed={proceed}/>
             :stage==="pending_purchase"?<PendingPurchaseTable orders={stageOrders} role={role} onOpenPurchaseModal={(o,l,v)=>{setPurchasingOrder(o);setPurchasingTarget({label:l,value:v});}}/>
-            :<PurchasedTable orders={stageOrders} role={isSophia||myEmail==="boontheng2004@gmail.com"?"approver":role} onDelete={isSophia?deletePurchased:()=>{}}/>}
+            :<PurchasedTable orders={stageOrders} role={isSophia||myEmail==="boontheng2004@gmail.com"?"approver":role} canDelete={isSophia} onBulkDismiss={dismissPurchased}/>}
         </div>
       </div>
     </div>
