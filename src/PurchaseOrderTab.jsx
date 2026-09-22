@@ -114,6 +114,16 @@ const STAGES=[
   {key:"purchased",label:"Purchased",color:C.green,bg:"#F0FDF4",icon:Ic.checkCircle},
 ];
 
+function useIsMobile(){
+  const[isMobile,setIsMobile]=useState(typeof window!=="undefined"&&window.innerWidth<=760);
+  useEffect(()=>{
+    const onResize=()=>setIsMobile(window.innerWidth<=760);
+    window.addEventListener("resize",onResize);
+    return()=>window.removeEventListener("resize",onResize);
+  },[]);
+  return isMobile;
+}
+
 function QuoteChips({quotes}){
   if(!quotes.length)return<span style={{fontSize:11,color:C.textLight}}>—</span>;
   return<div style={{display:"flex",flexWrap:"wrap"}}>
@@ -260,7 +270,7 @@ function NewRequestTable({orders,role,onSubmitQuotes,onRequestCancel}){
   </table>;
 }
 
-function SubmittedTable({orders,role,onProceed}){
+function SubmittedTable({orders,role,isMobile,onProceed}){
   if(role==="purchase"){
     const Row=({order})=><tr style={{borderTop:`1px solid ${C.border}`}}>
       <BaselineCells order={order}/>
@@ -278,6 +288,28 @@ function SubmittedTable({orders,role,onProceed}){
       <tbody>{orders.map(o=><Row key={o.id} order={o}/>)}</tbody>
     </table>;
   }
+  // Approver's card, shared between mobile and desktop table row — same
+  // fields either way, just arranged differently.
+  const ApproverCard=({order})=>{
+    const[approverRemark,setApproverRemark]=useState(order.poApproverRemark||"");
+    const top3=topN(quotesFromOrder(order),3);
+    return<div style={{...card,padding:"12px 14px",marginBottom:10}}>
+      <div style={{fontWeight:700,color:C.text,fontSize:13}}>{order.phoneModel||"—"}</div>
+      <div style={{fontSize:11,color:C.textLight,marginTop:2,marginBottom:8}}>{order.customerName} · {order.branch} · {fRM(order.financePrice)}</div>
+      <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700,marginBottom:4}}>Top 3 Cheapest Supplier</div>
+      <QuoteChips quotes={top3}/>
+      {order.poPurchaserRemark&&<div style={{marginTop:8}}>
+        <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700,marginBottom:2}}>Remark by Purchaser</div>
+        <div style={{fontSize:12,color:C.textMid}}>{order.poPurchaserRemark}</div>
+      </div>}
+      <div style={{marginTop:10}}>
+        <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700,marginBottom:4}}>Remark by Approver</div>
+        <textarea rows={2} value={approverRemark} onChange={e=>setApproverRemark(e.target.value)} placeholder="Optional — e.g. found a lower price elsewhere" style={{width:"100%",padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
+      </div>
+      <button onClick={()=>onProceed(order,approverRemark.trim())} style={{marginTop:10,width:"100%",padding:"9px 0",borderRadius:8,border:"none",fontWeight:700,fontSize:12,background:C.navy,color:"#fff",cursor:"pointer"}}>Proceed</button>
+    </div>;
+  };
+  if(isMobile)return<div>{orders.map(o=><ApproverCard key={o.id} order={o}/>)}</div>;
   const Row=({order})=>{
     const[approverRemark,setApproverRemark]=useState(order.poApproverRemark||"");
     const top3=topN(quotesFromOrder(order),3);
@@ -330,7 +362,7 @@ function PendingPurchaseTable({orders,role,onOpenPurchaseModal}){
   </table>;
 }
 
-function PurchasedTable({orders,role,canDelete,onBulkDismiss}){
+function PurchasedTable({orders,role,canDelete,isMobile,onBulkDismiss}){
   if(role!=="approver"){
     const headers=["Device / Customer","Order Creation Date","Agreement No.","PO Number","Actual Purchase Price","Remark by Approver / Cheapest Supplier"];
     return<table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:900}}>
@@ -357,26 +389,49 @@ function PurchasedTable({orders,role,canDelete,onBulkDismiss}){
   return<div>
     {dayKeys.map(dk=>{
       const dayOrders=groups[dk];
-      return<DayGroup key={dk} label={dayLabel(dk)} orders={dayOrders} canDelete={canDelete} onBulkDismiss={()=>onBulkDismiss(dayOrders.map(o=>o.id))}/>;
+      return<DayGroup key={dk} label={dayLabel(dk)} orders={dayOrders} canDelete={canDelete} isMobile={isMobile} onBulkDismiss={()=>onBulkDismiss(dayOrders.map(o=>o.id))}/>;
     })}
   </div>;
 }
-function DayGroup({label,orders,canDelete,onBulkDismiss}){
+function PurchasedCard({order}){
+  const top1=topN(quotesFromOrder(order),1)[0];
+  const hasRemark=!!order.poApproverRemark;
+  const label=hasRemark?"Remark by Approver":"Cheapest Supplier";
+  const value=hasRemark?order.poApproverRemark:(top1?`${top1.supplier} — ${fRM(top1.price)}`:"—");
+  const actualPrice=parseFloat(order.purchaseProof?.actualPrice??order.actualPrice)||0;
+  const overBudget=top1&&actualPrice>top1.price;
+  return<div style={{padding:"10px 14px",borderTop:`1px solid ${C.border}`}}>
+    <div style={{fontWeight:700,color:C.text,fontSize:12.5}}>{order.phoneModel||"—"}</div>
+    <div style={{fontSize:10.5,color:C.textLight,marginTop:2,marginBottom:8}}>{order.customerName} · {order.branch} · PO {order.poNumber||"—"}</div>
+    <div style={{display:"flex",gap:8}}>
+      <div style={{flex:1,background:overBudget?"#FEF2F2":"#F0FDF4",borderRadius:8,padding:"6px 8px"}}>
+        <div style={{fontSize:13,fontWeight:700,color:overBudget?C.red:C.green}}>{fRM(actualPrice)}</div>
+        <div style={{fontSize:9.5,color:C.textLight,marginTop:1}}>{order.supplierName||"—"}</div>
+      </div>
+      <div style={{flex:1,background:C.surface,borderRadius:8,padding:"6px 8px"}}>
+        <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700}}>{label}</div>
+        <div style={{fontSize:12,color:C.text,marginTop:2}}>{value}</div>
+      </div>
+    </div>
+  </div>;
+}
+function DayGroup({label,orders,canDelete,isMobile,onBulkDismiss}){
   const[expanded,setExpanded]=useState(true);
   return<div style={{...card,marginBottom:10,overflow:"hidden"}}>
-    <div onClick={()=>setExpanded(p=>!p)} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",cursor:"pointer",userSelect:"none",background:C.surface}}>
+    <div onClick={()=>setExpanded(p=>!p)} style={{display:"flex",alignItems:"center",gap:8,padding:"10px 14px",cursor:"pointer",userSelect:"none",background:C.surface,flexWrap:"wrap"}}>
       <span style={{color:C.textMid,transition:"transform .15s",transform:expanded?"rotate(180deg)":"none",fontSize:11}}>▼</span>
       <span style={{fontSize:12.5,fontWeight:700,color:C.text}}>{label}</span>
       <span style={{fontSize:10,fontWeight:700,color:C.green,background:"#F0FDF4",padding:"1px 8px",borderRadius:20}}>{orders.length}</span>
       {canDelete&&<button onClick={e=>{e.stopPropagation();if(!confirm(`Remove all ${orders.length} order(s) purchased on ${label} from this list? This only hides them from Purchase Order — nothing changes in Order Tracking.`))return;onBulkDismiss();}} style={{marginLeft:"auto",fontSize:10.5,fontWeight:700,color:C.red,background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:6,padding:"3px 9px",cursor:"pointer"}}>Delete All ({orders.length})</button>}
     </div>
-    {expanded&&<table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-      <thead><tr style={{background:"#fff"}}>
-        {["Device / Customer","PO Number","Actual Purchase Price","Remark by Approver / Cheapest Supplier"].map(h=>
-          <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>)}
-      </tr></thead>
-      <tbody>{orders.map(order=><PurchasedRow key={order.id} order={order}/>)}</tbody>
-    </table>}
+    {expanded&&(isMobile?<div>{orders.map(order=><PurchasedCard key={order.id} order={order}/>)}</div>:
+      <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+        <thead><tr style={{background:"#fff"}}>
+          {["Device / Customer","PO Number","Actual Purchase Price","Remark by Approver / Cheapest Supplier"].map(h=>
+            <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>)}
+        </tr></thead>
+        <tbody>{orders.map(order=><PurchasedRow key={order.id} order={order}/>)}</tbody>
+      </table>)}
   </div>;
 }
 function PurchasedRow({order,includeBaseline}){
@@ -421,6 +476,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
 
   const[orders,setOrders]=useState([]);
   const[loading,setLoading]=useState(true);
+  const isMobile=useIsMobile();
   const[stage,setStage]=useState("new");
   const[purchasingOrder,setPurchasingOrder]=useState(null);
   const[purchasingTarget,setPurchasingTarget]=useState({label:"",value:""});
@@ -541,9 +597,9 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
         <div style={{overflowX:"auto"}}>
           {stageOrders.length===0?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No orders here.</div>
             :stage==="new"?<NewRequestTable orders={stageOrders} role={role} onSubmitQuotes={submitQuotes} onRequestCancel={canRequestCancel?setCancellingOrder:()=>{}}/>
-            :stage==="submitted"?<SubmittedTable orders={stageOrders} role={role} onProceed={proceed}/>
+            :stage==="submitted"?<SubmittedTable orders={stageOrders} role={role} isMobile={isMobile} onProceed={proceed}/>
             :stage==="pending_purchase"?<PendingPurchaseTable orders={stageOrders} role={role} onOpenPurchaseModal={(o,l,v)=>{setPurchasingOrder(o);setPurchasingTarget({label:l,value:v});}}/>
-            :<PurchasedTable orders={stageOrders} role={isSophia||myEmail==="boontheng2004@gmail.com"?"approver":role} canDelete={isSophia} onBulkDismiss={dismissPurchased}/>}
+            :<PurchasedTable orders={stageOrders} role={isSophia||myEmail==="boontheng2004@gmail.com"?"approver":role} canDelete={isSophia} isMobile={isMobile} onBulkDismiss={dismissPurchased}/>}
         </div>
       </div>
     </div>
