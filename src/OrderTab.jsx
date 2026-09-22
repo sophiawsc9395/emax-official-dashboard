@@ -2092,7 +2092,7 @@ function OrderForm({order,orders=[],branchMeta,onSave,onCancel,isAdmin,userBranc
   const isFieldLocked=k=>{
     if(!order||isSuperAdminForm)return false;
     if(isBillingRole)return["phoneModel","salesAgentId","pickUpBranch"].includes(k);
-    if(isPurchaseRole)return!["phoneModel","pickUpBranch"].includes(k);
+    if(isPurchaseRole)return!["phoneModel","pickUpBranch","financePrice","stampingFee","agreementFee","deposit","monthlyInstallment"].includes(k);
     return false;
   };
   const lockedStyle={background:C.surface,color:C.textMid,cursor:"not-allowed"};
@@ -2305,7 +2305,7 @@ function getOrderAlerts(orders,userBranch=null){
   });
   return alerts;
 }
-function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder,orders,onUpdateOrder}){
+function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder,orders,onUpdateOrder,onBulkDelete}){
   const isMobile=useIsMobile();
   if(!alerts.length)return null;
   const isEmaxPurchase=(email||"").toLowerCase()===EMAX_PURCHASE_EMAIL;
@@ -2353,15 +2353,17 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // the order detail page for the actual Accept/Cancel action).
   const isBoonTheng=(email||"").toLowerCase()==="boontheng2004@gmail.com";
   const cancelRequestAlerts=(isBoonTheng||isSophia)?alerts.filter(a=>a.type==="cancel_request_pending"):[];
-  // Approval Warning starts collapsed on the admin order page (there's
-  // usually a lot of them, and admin has plenty else to look at) but
-  // starts expanded on a branch's own view (a short, directly relevant
-  // list they should see right away). Urgent Attention — and every other
-  // alert block — has no collapse toggle at all, always fully expanded.
-  const [warningExpanded,setWarningExpanded]=useState(!isAdmin);
-  // Agreement Received by HQ starts collapsed specifically for Sophia —
-  // everyone else still sees it always expanded, unchanged.
-  const [agreementExpanded,setAgreementExpanded]=useState(!isSophia);
+  // Every alert block below can be collapsed, purely by the user clicking
+  // its own chevron — none of them start collapsed automatically based on
+  // role or anything else; every one starts expanded.
+  // Every alert collapses purely by the user clicking its own chevron from
+  // here on — but Approval Warning and Agreement Received by HQ keep their
+  // previous role-based STARTING state (collapsed by default for
+  // admin/Sophia respectively, since those two tend to be long lists that
+  // aren't the first thing that role needs to see) — this only sets where
+  // each one starts, clicking still freely toggles either one afterward.
+  const [collapsedAlerts,setCollapsedAlerts]=useState({warning:isAdmin,agreementReceived:isSophia});
+  const toggleAlert=key=>setCollapsedAlerts(c=>({...c,[key]:!c[key]}));
   const Block=({items,color,title,collapsible,expanded,onToggle})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
     <div onClick={collapsible?onToggle:undefined} style={{display:"flex",alignItems:"center",gap:8,marginBottom:collapsible&&!expanded?0:9,cursor:collapsible?"pointer":"default",userSelect:collapsible?"none":"auto"}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
@@ -2384,28 +2386,79 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // whichever of those three is currently logged in; PickupReminderAlertRow
   // handles that check per row (same email list PickupReminderVoiceBox
   // uses).
-  const PickupReminderBlock=({items,color,title})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
-    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
+  // Suggest Deleting, grouped by the month each order reached Completed
+  // (stepDates["14"].date) — a flat list of every fully-knocked-off order
+  // ever isn't actionable, but "here's January's 12, delete them as a
+  // batch" is. Each month collapses independently (same click-to-collapse
+  // as every other alert, keyed by month so they don't share one toggle),
+  // and only Sophia gets the bulk-delete button per month — everyone else
+  // just sees the grouped list.
+  const SuggestDeleteBlock=({items,color,title})=>{
+    if(!items.length)return null;
+    const groups={};
+    items.forEach(a=>{
+      const o=orders?.find(x=>x.id===a.orderId);
+      const d=o?.stepDates?.["14"]?.date;
+      const monthKey=d?d.slice(0,7):"unknown";
+      (groups[monthKey]=groups[monthKey]||[]).push(a);
+    });
+    const monthKeys=Object.keys(groups).sort().reverse();
+    const monthLabel=k=>{
+      if(k==="unknown")return"Date unknown";
+      const[y,m]=k.split("-");
+      return new Date(Number(y),Number(m)-1,1).toLocaleDateString("en-MY",{month:"long",year:"numeric"});
+    };
+    return<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
+        <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
+        <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>{title}</span>
+        <span style={{fontSize:10,fontWeight:700,color,background:color+"15",padding:"1px 8px",borderRadius:20}}>{items.length}</span>
+      </div>
+      {monthKeys.map(mk=>{
+        const monthItems=groups[mk];
+        const toggleKey=`suggestDelete_${mk}`;
+        const expanded=!collapsedAlerts[toggleKey];
+        return<div key={mk} style={{marginTop:6}}>
+          <div onClick={()=>toggleAlert(toggleKey)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 4px",cursor:"pointer",userSelect:"none"}}>
+            <span style={{color,transition:"transform .15s",transform:expanded?"rotate(180deg)":"none",fontSize:11}}>{Ic.chevDown}</span>
+            <span style={{fontSize:11.5,fontWeight:700,color:C.text}}>{monthLabel(mk)}</span>
+            <span style={{fontSize:10,fontWeight:700,color,background:color+"15",padding:"1px 7px",borderRadius:20}}>{monthItems.length}</span>
+            {isSophia&&<button onClick={e=>{e.stopPropagation();if(!confirm(`Delete all ${monthItems.length} order(s) fully knocked off in ${monthLabel(mk)}? This can't be undone.`))return;onBulkDelete(monthItems.map(a=>a.orderId));}} style={{marginLeft:"auto",fontSize:10.5,fontWeight:700,color:"#DC2626",background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:6,padding:"3px 9px",cursor:"pointer"}}>Delete All ({monthItems.length})</button>}
+          </div>
+          {expanded&&monthItems.map((a,i)=><div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,padding:"8px 4px 8px 22px",borderTop:`1px solid ${C.border}`,cursor:onClickOrder?"pointer":"default"}}>
+            <div style={{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
+              <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.phoneModel}</div>
+              <div style={{fontSize:11,color:C.textLight}}>{a.customerName} · {a.branch}</div>
+            </div>
+            <span style={{fontSize:11,color,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{a.msg}</span>
+          </div>)}
+        </div>;
+      })}
+    </div>;
+  };
+  const PickupReminderBlock=({items,color,title,collapsible,expanded,onToggle})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
+    <div onClick={collapsible?onToggle:undefined} style={{display:"flex",alignItems:"center",gap:8,marginBottom:collapsible&&!expanded?0:9,cursor:collapsible?"pointer":"default",userSelect:collapsible?"none":"auto"}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
       <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>{title}</span>
       <span style={{fontSize:10,fontWeight:700,color,background:color+"15",padding:"1px 8px",borderRadius:20}}>{items.length}</span>
+      {collapsible&&<span style={{marginLeft:"auto",color,transition:"transform .15s",transform:expanded?"rotate(180deg)":"none"}}>{Ic.chevDown}</span>}
     </div>
-    {items.map((a,i)=><PickupReminderAlertRow key={a.orderId} alert={a} color={color} isFirst={i===0} order={orders?.find(o=>o.id===a.orderId)} onUpdateOrder={onUpdateOrder} email={email} onClickOrder={onClickOrder}/>)}
+    {(!collapsible||expanded)&&items.map((a,i)=><PickupReminderAlertRow key={a.orderId} alert={a} color={color} isFirst={i===0} order={orders?.find(o=>o.id===a.orderId)} onUpdateOrder={onUpdateOrder} email={email} onClickOrder={onClickOrder}/>)}
   </div>;
   return<div style={{marginBottom:18}}>
-    <Block items={expired} color="#DC2626" title="Approval Expired"/>
-    <Block items={urgent} color="#B91C1C" title="Urgent Attention"/>
-    <Block items={collectionOverdue} color="#B91C1C" title="Collection Proof Overdue"/>
-    <Block items={cashBalanceOverdue} color="#7C3AED" title="Cash Balance Payment Slip Overdue"/>
-    <Block items={merchantRejected} color="#DC2626" title="Merchant Rejected"/>
-    <Block items={billingRequestOverdue} color="#B91C1C" title="Billing Request Overdue"/>
-    <Block items={missingActualPrice} color="#B45309" title="Actual Purchase Price Missing"/>
-    <Block items={supersededAlerts} color="#B45309" title="Device Amendment — Old Order Needs Acknowledgment"/>
-    <PickupReminderBlock items={pickupReminderAlerts} color="#1D4ED8" title="Arrived Branch, Not Yet Billed"/>
-    <Block items={suggestDeleteAlerts} color="#8A96A8" title="Suggest Deleting — Fully Knocked Off"/>
-    <Block items={cancelRequestAlerts} color="#DC2626" title="Cancellation Request Pending"/>
-    <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={agreementExpanded} onToggle={()=>setAgreementExpanded(p=>!p)}/>
-    <Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={warningExpanded} onToggle={()=>setWarningExpanded(p=>!p)}/>
+    <Block items={expired} color="#DC2626" title="Approval Expired" collapsible expanded={!collapsedAlerts.expired} onToggle={()=>toggleAlert("expired")}/>
+    <Block items={urgent} color="#B91C1C" title="Urgent Attention" collapsible expanded={!collapsedAlerts.urgent} onToggle={()=>toggleAlert("urgent")}/>
+    <Block items={collectionOverdue} color="#B91C1C" title="Collection Proof Overdue" collapsible expanded={!collapsedAlerts.collectionOverdue} onToggle={()=>toggleAlert("collectionOverdue")}/>
+    <Block items={cashBalanceOverdue} color="#7C3AED" title="Cash Balance Payment Slip Overdue" collapsible expanded={!collapsedAlerts.cashBalanceOverdue} onToggle={()=>toggleAlert("cashBalanceOverdue")}/>
+    <Block items={merchantRejected} color="#DC2626" title="Merchant Rejected" collapsible expanded={!collapsedAlerts.merchantRejected} onToggle={()=>toggleAlert("merchantRejected")}/>
+    <Block items={billingRequestOverdue} color="#B91C1C" title="Billing Request Overdue" collapsible expanded={!collapsedAlerts.billingRequestOverdue} onToggle={()=>toggleAlert("billingRequestOverdue")}/>
+    <Block items={missingActualPrice} color="#B45309" title="Actual Purchase Price Missing" collapsible expanded={!collapsedAlerts.missingActualPrice} onToggle={()=>toggleAlert("missingActualPrice")}/>
+    <Block items={supersededAlerts} color="#B45309" title="Device Amendment — Old Order Needs Acknowledgment" collapsible expanded={!collapsedAlerts.supersededAlerts} onToggle={()=>toggleAlert("supersededAlerts")}/>
+    <PickupReminderBlock items={pickupReminderAlerts} color="#1D4ED8" title="Arrived Branch, Not Yet Billed" collapsible expanded={!collapsedAlerts.pickupReminder} onToggle={()=>toggleAlert("pickupReminder")}/>
+    <SuggestDeleteBlock items={suggestDeleteAlerts} color="#8A96A8" title="Suggest Deleting — Fully Knocked Off"/>
+    <Block items={cancelRequestAlerts} color="#DC2626" title="Cancellation Request Pending" collapsible expanded={!collapsedAlerts.cancelRequest} onToggle={()=>toggleAlert("cancelRequest")}/>
+    <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={!collapsedAlerts.agreementReceived} onToggle={()=>toggleAlert("agreementReceived")}/>
+    <Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={!collapsedAlerts.warning} onToggle={()=>toggleAlert("warning")}/>
   </div>;
 }
 
@@ -3384,7 +3437,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     </div>
 
     {/* Alerts */}
-    <AlertBanner alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} orderPermissions={orderPermissions} email={email} orders={alertableOrders} onUpdateOrder={patchOrderNoNav} onClickOrder={id=>{const o=alertableOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
+    <AlertBanner alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} orderPermissions={orderPermissions} email={email} orders={alertableOrders} onUpdateOrder={patchOrderNoNav} onBulkDelete={bulkDelete} onClickOrder={id=>{const o=alertableOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
 
     {(()=>{
       const outOfStockUnacked=cancelledOrders.filter(o=>o.outOfStock&&!(o.outOfStockAckAdmin&&o.outOfStockAckBranch));
