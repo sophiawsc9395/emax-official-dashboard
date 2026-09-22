@@ -41,8 +41,8 @@ begin
   from public.app_storage
   where key = 'emax_v5_purchase_order_supp';
 
-  if blob is null then
-    raise notice 'No old Purchase Order data found (app_storage key not present) — nothing to migrate.';
+  if blob is null or jsonb_typeof(blob) is distinct from 'object' then
+    raise notice 'No old Purchase Order data found (empty or not present) — nothing to migrate.';
     return;
   end if;
 
