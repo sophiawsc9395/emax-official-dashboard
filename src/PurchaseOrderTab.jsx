@@ -225,112 +225,114 @@ function RequestCancelForm({order,onClose,onConfirm}){
 }
 
 /* ── Stage tables ─────────────────────────────────────────────────────── */
+function NewRequestRow({order,role,onSubmitQuotes,onRequestCancel}){
+  const[prices,setPrices]=useState(order.poPrices||{});
+  const[otherSupplier,setOtherSupplier]=useState(order.poOtherSupplier||"");
+  const[otherPrice,setOtherPrice]=useState(order.poOtherPrice||"");
+  const[purchaserRemark,setPurchaserRemark]=useState(order.poPurchaserRemark||"");
+  const canEdit=role==="purchase";
+  const canSubmit=SUPPLIERS.some(s=>parseFloat(prices[s.key])>0)||(otherSupplier.trim()&&parseFloat(otherPrice)>0);
+  return<tr style={{borderTop:`1px solid ${C.border}`}}>
+    <BaselineCells order={order}/>
+    <td style={{padding:"10px",verticalAlign:"top"}}>
+      {isOverdue(order)?<span style={{display:"inline-block",fontSize:9.5,fontWeight:700,color:C.red,background:"#FEF2F2",border:`1px solid ${C.red}`,borderRadius:20,padding:"2px 8px",whiteSpace:"nowrap"}}>Overdue — {overdueDuration(getOpenSessionFrom(createdAtOf(order)).deadline)}</span>:<span style={{fontSize:10.5,color:C.textLight}}>—</span>}
+    </td>
+    {SUPPLIERS.map(s=><td key={s.key} style={{padding:"4px 6px",verticalAlign:"top"}}>
+      {canEdit?<input type="number" value={prices[s.key]||""} onChange={e=>setPrices(p=>({...p,[s.key]:e.target.value}))} placeholder="0.00" style={{width:78,padding:"5px 6px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"Inter,sans-serif"}}/>
+        :<div style={{width:78,padding:"5px 6px",fontSize:11,color:C.textMid}}>{order.poPrices?.[s.key]?fRM(order.poPrices[s.key]):"—"}</div>}
+    </td>)}
+    <td style={{padding:"4px 6px",verticalAlign:"top"}}>
+      {canEdit?<div style={{display:"flex",flexDirection:"column",gap:3}}>
+        <input placeholder="Supplier" value={otherSupplier} onChange={e=>setOtherSupplier(e.target.value)} style={{width:90,padding:"5px 6px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11}}/>
+        <input type="number" placeholder="0.00" value={otherPrice} onChange={e=>setOtherPrice(e.target.value)} style={{width:90,padding:"5px 6px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11}}/>
+      </div>:<div style={{fontSize:11,color:C.textMid}}>{order.poOtherSupplier?`${order.poOtherSupplier} — ${fRM(order.poOtherPrice)}`:"—"}</div>}
+    </td>
+    <td style={{padding:"10px",minWidth:180,verticalAlign:"top"}}>
+      {canEdit?<textarea rows={2} value={purchaserRemark} onChange={e=>setPurchaserRemark(e.target.value)} placeholder="Optional notes (stock, delivery time, etc.)" style={{width:"100%",padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
+        :<div style={{fontSize:11,color:C.textMid}}>{order.poPurchaserRemark||"—"}</div>}
+    </td>
+    <td style={{padding:"10px",verticalAlign:"top"}}>
+      {role==="purchase"?<div style={{display:"flex",flexDirection:"column",gap:6}}>
+        <button disabled={!canSubmit} onClick={()=>onSubmitQuotes(order,{prices,otherSupplier,otherPrice,purchaserRemark})} style={{padding:"7px 12px",borderRadius:7,border:"none",fontWeight:700,fontSize:11,whiteSpace:"nowrap",background:canSubmit?C.navy:C.border,color:canSubmit?"#fff":C.textLight,cursor:canSubmit?"pointer":"default"}}>Submit Quotes</button>
+        {!order.pendingCancelRequest?<button onClick={()=>onRequestCancel(order)} style={{padding:"7px 12px",borderRadius:7,border:"none",fontWeight:700,fontSize:11,whiteSpace:"nowrap",background:C.red,color:"#fff",cursor:"pointer"}}>Request Cancel Order</button>
+          :<div style={{fontSize:10,fontWeight:700,color:C.amber,whiteSpace:"nowrap"}}>Cancellation Requested — pending approver</div>}
+      </div>:<span style={{fontSize:10.5,color:C.textLight,fontStyle:"italic"}}>Waiting on Purchase</span>}
+    </td>
+  </tr>;
+}
 function NewRequestTable({orders,role,onSubmitQuotes,onRequestCancel}){
-  const Row=({order})=>{
-    const[prices,setPrices]=useState(order.poPrices||{});
-    const[otherSupplier,setOtherSupplier]=useState(order.poOtherSupplier||"");
-    const[otherPrice,setOtherPrice]=useState(order.poOtherPrice||"");
-    const[purchaserRemark,setPurchaserRemark]=useState(order.poPurchaserRemark||"");
-    const canEdit=role==="purchase";
-    const canSubmit=SUPPLIERS.some(s=>parseFloat(prices[s.key])>0)||(otherSupplier.trim()&&parseFloat(otherPrice)>0);
-    return<tr style={{borderTop:`1px solid ${C.border}`}}>
-      <BaselineCells order={order}/>
-      <td style={{padding:"10px",verticalAlign:"top"}}>
-        {isOverdue(order)?<span style={{display:"inline-block",fontSize:9.5,fontWeight:700,color:C.red,background:"#FEF2F2",border:`1px solid ${C.red}`,borderRadius:20,padding:"2px 8px",whiteSpace:"nowrap"}}>Overdue — {overdueDuration(getOpenSessionFrom(createdAtOf(order)).deadline)}</span>:<span style={{fontSize:10.5,color:C.textLight}}>—</span>}
-      </td>
-      {SUPPLIERS.map(s=><td key={s.key} style={{padding:"4px 6px",verticalAlign:"top"}}>
-        {canEdit?<input type="number" value={prices[s.key]||""} onChange={e=>setPrices(p=>({...p,[s.key]:e.target.value}))} placeholder="0.00" style={{width:78,padding:"5px 6px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"Inter,sans-serif"}}/>
-          :<div style={{width:78,padding:"5px 6px",fontSize:11,color:C.textMid}}>{order.poPrices?.[s.key]?fRM(order.poPrices[s.key]):"—"}</div>}
-      </td>)}
-      <td style={{padding:"4px 6px",verticalAlign:"top"}}>
-        {canEdit?<div style={{display:"flex",flexDirection:"column",gap:3}}>
-          <input placeholder="Supplier" value={otherSupplier} onChange={e=>setOtherSupplier(e.target.value)} style={{width:90,padding:"5px 6px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11}}/>
-          <input type="number" placeholder="0.00" value={otherPrice} onChange={e=>setOtherPrice(e.target.value)} style={{width:90,padding:"5px 6px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11}}/>
-        </div>:<div style={{fontSize:11,color:C.textMid}}>{order.poOtherSupplier?`${order.poOtherSupplier} — ${fRM(order.poOtherPrice)}`:"—"}</div>}
-      </td>
-      <td style={{padding:"10px",minWidth:180,verticalAlign:"top"}}>
-        {canEdit?<textarea rows={2} value={purchaserRemark} onChange={e=>setPurchaserRemark(e.target.value)} placeholder="Optional notes (stock, delivery time, etc.)" style={{width:"100%",padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
-          :<div style={{fontSize:11,color:C.textMid}}>{order.poPurchaserRemark||"—"}</div>}
-      </td>
-      <td style={{padding:"10px",verticalAlign:"top"}}>
-        {role==="purchase"?<div style={{display:"flex",flexDirection:"column",gap:6}}>
-          <button disabled={!canSubmit} onClick={()=>onSubmitQuotes(order,{prices,otherSupplier,otherPrice,purchaserRemark})} style={{padding:"7px 12px",borderRadius:7,border:"none",fontWeight:700,fontSize:11,whiteSpace:"nowrap",background:canSubmit?C.navy:C.border,color:canSubmit?"#fff":C.textLight,cursor:canSubmit?"pointer":"default"}}>Submit Quotes</button>
-          {!order.pendingCancelRequest?<button onClick={()=>onRequestCancel(order)} style={{padding:"7px 12px",borderRadius:7,border:"none",fontWeight:700,fontSize:11,whiteSpace:"nowrap",background:C.red,color:"#fff",cursor:"pointer"}}>Request Cancel Order</button>
-            :<div style={{fontSize:10,fontWeight:700,color:C.amber,whiteSpace:"nowrap"}}>Cancellation Requested — pending approver</div>}
-        </div>:<span style={{fontSize:10.5,color:C.textLight,fontStyle:"italic"}}>Waiting on Purchase</span>}
-      </td>
-    </tr>;
-  };
   return<table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1500}}>
     <thead><tr style={{background:C.surface}}>
       {["Device / Customer","Order Creation Date","Agreement No.","Finance Price","Overdue",...SUPPLIERS.map(s=>s.label),"Other","Remark by Purchaser","Action"].map(h=>
         <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>)}
     </tr></thead>
-    <tbody>{orders.map(o=><Row key={o.id} order={o}/>)}</tbody>
+    <tbody>{orders.map(o=><NewRequestRow key={o.id} order={o} role={role} onSubmitQuotes={onSubmitQuotes} onRequestCancel={onRequestCancel}/>)}</tbody>
   </table>;
 }
 
+function SubmittedPurchaseRow({order}){
+  return<tr style={{borderTop:`1px solid ${C.border}`}}>
+    <BaselineCells order={order}/>
+    {SUPPLIERS.map(s=><td key={s.key} style={{padding:"5px 6px",verticalAlign:"top",fontSize:11,color:C.textMid,whiteSpace:"nowrap"}}>{order.poPrices?.[s.key]?fRM(order.poPrices[s.key]):"—"}</td>)}
+    <td style={{padding:"10px",verticalAlign:"top",fontSize:11,color:C.textMid,whiteSpace:"nowrap"}}>{order.poOtherSupplier?`${order.poOtherSupplier} — ${fRM(order.poOtherPrice)}`:"—"}</td>
+    <td style={{padding:"10px",minWidth:160,verticalAlign:"top",color:C.textMid,fontSize:11}}>{order.poPurchaserRemark||"—"}</td>
+    <td style={{padding:"10px",minWidth:200,verticalAlign:"top",color:C.textMid,fontSize:11}}>{order.poApproverRemark||"—"}</td>
+    <td style={{padding:"10px",verticalAlign:"top",whiteSpace:"nowrap"}}><span style={{fontSize:10.5,color:C.textLight,fontStyle:"italic"}}>Waiting on Approver</span></td>
+  </tr>;
+}
+// Approver's card, shared between mobile and desktop table row — same
+// fields either way, just arranged differently.
+function ApproverCard({order,onProceed}){
+  const[approverRemark,setApproverRemark]=useState(order.poApproverRemark||"");
+  const top3=topN(quotesFromOrder(order),3);
+  return<div style={{...card,padding:"12px 14px",marginBottom:10}}>
+    <div style={{fontWeight:700,color:C.text,fontSize:13}}>{order.phoneModel||"—"}</div>
+    <div style={{fontSize:11,color:C.textLight,marginTop:2,marginBottom:8}}>{order.customerName} · {order.branch} · {fRM(order.financePrice)}</div>
+    <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700,marginBottom:4}}>Top 3 Cheapest Supplier</div>
+    <QuoteChips quotes={top3}/>
+    {order.poPurchaserRemark&&<div style={{marginTop:8}}>
+      <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700,marginBottom:2}}>Remark by Purchaser</div>
+      <div style={{fontSize:12,color:C.textMid}}>{order.poPurchaserRemark}</div>
+    </div>}
+    <div style={{marginTop:10}}>
+      <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700,marginBottom:4}}>Remark by Approver</div>
+      <textarea rows={2} value={approverRemark} onChange={e=>setApproverRemark(e.target.value)} placeholder="Optional — e.g. found a lower price elsewhere" style={{width:"100%",padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
+    </div>
+    <button onClick={()=>onProceed(order,approverRemark.trim())} style={{marginTop:10,width:"100%",padding:"9px 0",borderRadius:8,border:"none",fontWeight:700,fontSize:12,background:C.navy,color:"#fff",cursor:"pointer"}}>Proceed</button>
+  </div>;
+}
+function ApproverRow({order,onProceed}){
+  const[approverRemark,setApproverRemark]=useState(order.poApproverRemark||"");
+  const top3=topN(quotesFromOrder(order),3);
+  return<tr style={{borderTop:`1px solid ${C.border}`}}>
+    <BaselineCells order={order} includeCreatedAt={false} includeAgreementNo={false}/>
+    <td style={{padding:"10px",minWidth:220,verticalAlign:"top"}}><QuoteChips quotes={top3}/></td>
+    <td style={{padding:"10px",minWidth:160,verticalAlign:"top",color:C.textMid,fontSize:11}}>{order.poPurchaserRemark||"—"}</td>
+    <td style={{padding:"10px",minWidth:200,verticalAlign:"top"}}>
+      <textarea rows={2} value={approverRemark} onChange={e=>setApproverRemark(e.target.value)} placeholder="Optional — e.g. found a lower price elsewhere" style={{width:"100%",padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
+    </td>
+    <td style={{padding:"10px",verticalAlign:"top",whiteSpace:"nowrap"}}>
+      <button onClick={()=>onProceed(order,approverRemark.trim())} style={{padding:"7px 12px",borderRadius:7,border:"none",fontWeight:700,fontSize:11,background:C.navy,color:"#fff",cursor:"pointer"}}>Proceed</button>
+    </td>
+  </tr>;
+}
 function SubmittedTable({orders,role,isMobile,onProceed}){
   if(role==="purchase"){
-    const Row=({order})=><tr style={{borderTop:`1px solid ${C.border}`}}>
-      <BaselineCells order={order}/>
-      {SUPPLIERS.map(s=><td key={s.key} style={{padding:"5px 6px",verticalAlign:"top",fontSize:11,color:C.textMid,whiteSpace:"nowrap"}}>{order.poPrices?.[s.key]?fRM(order.poPrices[s.key]):"—"}</td>)}
-      <td style={{padding:"10px",verticalAlign:"top",fontSize:11,color:C.textMid,whiteSpace:"nowrap"}}>{order.poOtherSupplier?`${order.poOtherSupplier} — ${fRM(order.poOtherPrice)}`:"—"}</td>
-      <td style={{padding:"10px",minWidth:160,verticalAlign:"top",color:C.textMid,fontSize:11}}>{order.poPurchaserRemark||"—"}</td>
-      <td style={{padding:"10px",minWidth:200,verticalAlign:"top",color:C.textMid,fontSize:11}}>{order.poApproverRemark||"—"}</td>
-      <td style={{padding:"10px",verticalAlign:"top",whiteSpace:"nowrap"}}><span style={{fontSize:10.5,color:C.textLight,fontStyle:"italic"}}>Waiting on Approver</span></td>
-    </tr>;
     return<table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1500}}>
       <thead><tr style={{background:C.surface}}>
         {["Device / Customer","Order Creation Date","Agreement No.","Finance Price",...SUPPLIERS.map(s=>s.label),"Other","Remark by Purchaser","Remark by Approver","Action"].map(h=>
           <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>)}
       </tr></thead>
-      <tbody>{orders.map(o=><Row key={o.id} order={o}/>)}</tbody>
+      <tbody>{orders.map(o=><SubmittedPurchaseRow key={o.id} order={o}/>)}</tbody>
     </table>;
   }
-  // Approver's card, shared between mobile and desktop table row — same
-  // fields either way, just arranged differently.
-  const ApproverCard=({order})=>{
-    const[approverRemark,setApproverRemark]=useState(order.poApproverRemark||"");
-    const top3=topN(quotesFromOrder(order),3);
-    return<div style={{...card,padding:"12px 14px",marginBottom:10}}>
-      <div style={{fontWeight:700,color:C.text,fontSize:13}}>{order.phoneModel||"—"}</div>
-      <div style={{fontSize:11,color:C.textLight,marginTop:2,marginBottom:8}}>{order.customerName} · {order.branch} · {fRM(order.financePrice)}</div>
-      <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700,marginBottom:4}}>Top 3 Cheapest Supplier</div>
-      <QuoteChips quotes={top3}/>
-      {order.poPurchaserRemark&&<div style={{marginTop:8}}>
-        <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700,marginBottom:2}}>Remark by Purchaser</div>
-        <div style={{fontSize:12,color:C.textMid}}>{order.poPurchaserRemark}</div>
-      </div>}
-      <div style={{marginTop:10}}>
-        <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700,marginBottom:4}}>Remark by Approver</div>
-        <textarea rows={2} value={approverRemark} onChange={e=>setApproverRemark(e.target.value)} placeholder="Optional — e.g. found a lower price elsewhere" style={{width:"100%",padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
-      </div>
-      <button onClick={()=>onProceed(order,approverRemark.trim())} style={{marginTop:10,width:"100%",padding:"9px 0",borderRadius:8,border:"none",fontWeight:700,fontSize:12,background:C.navy,color:"#fff",cursor:"pointer"}}>Proceed</button>
-    </div>;
-  };
-  if(isMobile)return<div>{orders.map(o=><ApproverCard key={o.id} order={o}/>)}</div>;
-  const Row=({order})=>{
-    const[approverRemark,setApproverRemark]=useState(order.poApproverRemark||"");
-    const top3=topN(quotesFromOrder(order),3);
-    return<tr style={{borderTop:`1px solid ${C.border}`}}>
-      <BaselineCells order={order} includeCreatedAt={false} includeAgreementNo={false}/>
-      <td style={{padding:"10px",minWidth:220,verticalAlign:"top"}}><QuoteChips quotes={top3}/></td>
-      <td style={{padding:"10px",minWidth:160,verticalAlign:"top",color:C.textMid,fontSize:11}}>{order.poPurchaserRemark||"—"}</td>
-      <td style={{padding:"10px",minWidth:200,verticalAlign:"top"}}>
-        <textarea rows={2} value={approverRemark} onChange={e=>setApproverRemark(e.target.value)} placeholder="Optional — e.g. found a lower price elsewhere" style={{width:"100%",padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
-      </td>
-      <td style={{padding:"10px",verticalAlign:"top",whiteSpace:"nowrap"}}>
-        <button onClick={()=>onProceed(order,approverRemark.trim())} style={{padding:"7px 12px",borderRadius:7,border:"none",fontWeight:700,fontSize:11,background:C.navy,color:"#fff",cursor:"pointer"}}>Proceed</button>
-      </td>
-    </tr>;
-  };
+  if(isMobile)return<div>{orders.map(o=><ApproverCard key={o.id} order={o} onProceed={onProceed}/>)}</div>;
   return<table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1100}}>
     <thead><tr style={{background:C.surface}}>
       {["Device / Customer","Finance Price","Top 3 Cheapest Supplier","Remark by Purchaser","Remark by Approver","Action"].map(h=>
         <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>)}
     </tr></thead>
-    <tbody>{orders.map(o=><Row key={o.id} order={o}/>)}</tbody>
+    <tbody>{orders.map(o=><ApproverRow key={o.id} order={o} onProceed={onProceed}/>)}</tbody>
   </table>;
 }
 
