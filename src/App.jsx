@@ -4,7 +4,7 @@
 // ============================================================
 import { useState, useEffect, useMemo, useRef } from "react";
 import { loadData, saveData, supabase } from "./storage/index.js";
-import { listOrders, reconcile } from "./storage/ordersApi.js";
+import { listOrders, listStockRequestOrders, reconcile } from "./storage/ordersApi.js";
 import { listCustomers, getPaymentsForCustomers } from "./storage/rtoApi.js";
 import ExpectedProfitTable from "./ExpectedProfitTable.jsx";
 import RTOTab from "./RTOTab.jsx";
@@ -2877,25 +2877,50 @@ export default function App(){
     });
   },[tab]);
 
-  // Red-dot notification on the Daily Payment sidebar item — lit whenever
-  // there's at least one item needing someone's attention: "pending"
-  // (uploaded by Knock-off, not yet reviewed by Sophia), "rejected" (Sophia
-  // sent it back, Knock-off needs to re-upload), or "requested" (Sophia
-  // asked for a file, Knock-off hasn't uploaded it yet) — across ANY of
-  // the 4 company tabs, not just Emax. Checked once on load, then kept
-  // live via a Supabase Realtime subscription scoped to these specific
-  // storage keys, so the dot appears/clears without needing a refresh.
-  const [hasPendingDailyPayment,setHasPendingDailyPayment]=useState(false);
+  // Sidebar badge on Daily Payment — a count, not just a dot, of every
+  // item needing someone's attention: "pending" (uploaded by Knock-off,
+  // not yet reviewed by Sophia), "rejected" (Sophia sent it back,
+  // Knock-off needs to re-upload), or "requested" (Sophia asked for a
+  // file, Knock-off hasn't uploaded it yet) — tracked per company too, so
+  // once inside the page each company tab can show its own count instead
+  // of just the page-wide total. Checked once on load, then kept live via
+  // a Supabase Realtime subscription scoped to these specific storage
+  // keys, so the count updates without needing a refresh.
+  const [pendingDailyPaymentByCompany,setPendingDailyPaymentByCompany]=useState({});
   useEffect(()=>{
     const dailyPaymentKeys=DAILY_PAYMENT_COMPANIES.map(c=>dailyPaymentKeyFor(c.key));
     const checkPending=async()=>{
-      const results=await Promise.all(dailyPaymentKeys.map(k=>loadData(k)));
-      const anyPending=results.some(entries=>Array.isArray(entries)&&entries.some(e=>["pending","rejected","requested"].includes(e.status)));
-      setHasPendingDailyPayment(anyPending);
+      const results=await Promise.all(DAILY_PAYMENT_COMPANIES.map(async c=>{
+        const entries=await loadData(dailyPaymentKeyFor(c.key));
+        const count=Array.isArray(entries)?entries.filter(e=>["pending","rejected","requested"].includes(e.status)).length:0;
+        return[c.key,count];
+      }));
+      setPendingDailyPaymentByCompany(Object.fromEntries(results));
     };
     checkPending();
     const channel=supabase.channel("daily-payment-notify")
       .on("postgres_changes",{event:"*",schema:"public",table:"app_storage",filter:`key=in.(${dailyPaymentKeys.join(",")})`},checkPending)
+      .subscribe();
+    return()=>{supabase.removeChannel(channel);};
+  },[]);
+  const pendingDailyPaymentCount=Object.values(pendingDailyPaymentByCompany).reduce((a,b)=>a+b,0);
+
+  // Sidebar badge on Purchase Order — count of orders currently sitting
+  // in the Submitted stage (quotes in, waiting on the approver to proceed)
+  // — the stage that actually needs someone's attention day to day.
+  // "Submitted" here means still at Step 1 (not yet ordered) with
+  // poStage:"submitted" — matching poStageOf's own logic in
+  // PurchaseOrderTab.jsx. Kept live the same way as the Daily Payment
+  // count, via a Realtime subscription on the orders table.
+  const [submittedPurchaseOrderCount,setSubmittedPurchaseOrderCount]=useState(0);
+  useEffect(()=>{
+    const checkSubmitted=async()=>{
+      const orders=await listStockRequestOrders();
+      setSubmittedPurchaseOrderCount(orders.filter(o=>o.step<2&&o.poStage==="submitted"&&!o.cancelled).length);
+    };
+    checkSubmitted();
+    const channel=supabase.channel("purchase-order-notify")
+      .on("postgres_changes",{event:"*",schema:"public",table:"orders"},checkSubmitted)
       .subscribe();
     return()=>{supabase.removeChannel(channel);};
   },[]);
@@ -3126,7 +3151,7 @@ export default function App(){
       {tab==="purchaseOrder"&&<PurchaseOrderTab branchMeta={branchMeta} isAdmin={true} email={currentEmail}/>}
       {tab==="warranty"&&<WarrantyTab branchMeta={branchMeta} isAdmin={true} email={currentEmail}/>}
       {tab==="stockWriteOff"&&<StockWriteOffTab branchMeta={branchMeta} isAdmin={true} email={currentEmail}/>}
-      {tab==="dailyPayment"&&<DailyPaymentTab email={currentEmail}/>}
+      {tab==="dailyPayment"&&<DailyPaymentTab email={currentEmail} pendingByCompany={pendingDailyPaymentByCompany}/>}
       {tab==="stockProfit"&&<StockProfitTab email={currentEmail}/>}
       {tab==="stockTransfer"&&<StockTransferTab canCreate={true} branchMeta={branchMeta} email={currentEmail}/>}
 
@@ -3148,7 +3173,8 @@ export default function App(){
                 transition:"background .15s",
               }}>
                 <span>{item.label}</span>
-                {item.id==="dailyPayment"&&hasPendingDailyPayment&&<span style={{width:7,height:7,borderRadius:"50%",background:"#DC2626",flexShrink:0}}/>}
+                {item.id==="dailyPayment"&&pendingDailyPaymentCount>0&&<span style={{minWidth:16,height:16,padding:"0 4px",borderRadius:8,background:"#DC2626",color:"#fff",fontSize:9.5,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,lineHeight:1}}>{pendingDailyPaymentCount}</span>}
+                {item.id==="purchaseOrder"&&submittedPurchaseOrderCount>0&&<span style={{minWidth:16,height:16,padding:"0 4px",borderRadius:8,background:"#1D4ED8",color:"#fff",fontSize:9.5,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,lineHeight:1}}>{submittedPurchaseOrderCount}</span>}
               </button>
             );
             const isOpen=!!expandedGroups[item.group];

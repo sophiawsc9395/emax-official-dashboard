@@ -483,6 +483,8 @@ function repairBlankDefaultSections(company,d){
     d.sections.jcl = defaultRows(company,"jcl");
   if(emptyOrAllBlank(d.sections?.supplier,"label"))
     d.sections.supplier = defaultRows(company,"supplier");
+  if(emptyOrAllBlank(d.sections?.chailease,"label"))
+    d.sections.chailease = defaultRows(company,"chailease");
   if(!d.sections?.customer?.length)
     d.sections.customer = defaultRows(company,"customer");
   if(emptyOrAllBlank(d.sections?.stock,"branch"))
@@ -547,18 +549,31 @@ async function autoFillLabelsFromLastRecord(company,date,targetData){
     targetData.sections.aeon = yData.sections.aeon.map(r=>({label:r.label,amount:''}));
   if(yData.sections.jcl && Array.isArray(yData.sections.jcl))
     targetData.sections.jcl = yData.sections.jcl.map(r=>({label:r.label,amount:''}));
+  // Chailease was missing from this carry-forward entirely — every new day
+  // silently reset back to a single blank row instead of keeping
+  // yesterday's row labels, unlike every other section here.
+  if(yData.sections.chailease && Array.isArray(yData.sections.chailease))
+    targetData.sections.chailease = yData.sections.chailease.map(r=>({label:r.label,amount:''}));
   if(yData.sections.supplier && Array.isArray(yData.sections.supplier))
     targetData.sections.supplier = yData.sections.supplier.map(r=>({label:r.label,amount:''}));
+  // Customer carries its actual amount forward too, not just the row
+  // label — this section's numbers tend to hold steady day to day rather
+  // than reset to zero, so starting from yesterday's real value is more
+  // useful than starting blank.
   if(yData.sections.customer && Array.isArray(yData.sections.customer))
-    targetData.sections.customer = yData.sections.customer.map(r=>({label:r.label,amount:''}));
+    targetData.sections.customer = yData.sections.customer.map(r=>({label:r.label,amount:r.amount||''}));
   if(yData.sections.rto){
     const yr = yData.sections.rto;
     if(yr.pendingMonth&&!yr.pendingMonths)
       yr.pendingMonths=[{month:yr.pendingMonth,count:yr.pendingCount||'',amount:''}];
+    // Rent-to-Own carries its actual amounts and counts forward too, same
+    // reasoning as Customer above — these are running totals that barely
+    // move day to day, so yesterday's real figures are a far more useful
+    // starting point than blank fields someone has to re-key from scratch.
     targetData.sections.rto = {
-      contractValue:'', deviceDTP:'', expectedProfit:'', collectedPayment:'',
-      pendingMonths:(yr.pendingMonths||[{month:'',count:'',amount:''}]).map(pm=>({month:pm.month,count:'',amount:''})),
-      nextMonthLabel:yr.nextMonthLabel||'', nextMonthAmount:''
+      contractValue:yr.contractValue||'', deviceDTP:yr.deviceDTP||'', expectedProfit:yr.expectedProfit||'', collectedPayment:yr.collectedPayment||'',
+      pendingMonths:(yr.pendingMonths||[{month:'',count:'',amount:''}]).map(pm=>({month:pm.month,count:pm.count||'',amount:pm.amount||''})),
+      nextMonthLabel:yr.nextMonthLabel||'', nextMonthAmount:yr.nextMonthAmount||''
     };
   }
   // Qty-based sections (Children Playground, Activate Game, Other) — same

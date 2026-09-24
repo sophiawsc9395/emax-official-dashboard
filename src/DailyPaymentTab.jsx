@@ -68,13 +68,15 @@ function SecHdr({children}){
 const PBtn=({children,disabled,...p})=><button disabled={disabled} {...p} style={{padding:"6px 14px",borderRadius:7,border:"none",background:disabled?"#E4EAF2":`linear-gradient(135deg,${C.blue},${C.blueBright})`,color:disabled?C.textLight:"#fff",fontWeight:700,fontSize:11,cursor:disabled?"default":"pointer",fontFamily:"Inter,sans-serif",...(p.style||{})}}>{children}</button>;
 const GBtn=({children,...p})=><button {...p} style={{padding:"6px 14px",borderRadius:7,border:`1px solid ${C.border}`,background:"#fff",color:C.textMid,fontWeight:600,fontSize:11,cursor:"pointer",fontFamily:"Inter,sans-serif",...(p.style||{})}}>{children}</button>;
 
-export default function DailyPaymentTab({email}){
+export default function DailyPaymentTab({email,pendingByCompany={}}){
+  const isSophia=(email||"").toLowerCase()===SOPHIA_EMAIL;
   const [company,setCompany]=useState("emax");
   const [entries,setEntries]=useState([]);
   const [loading,setLoading]=useState(true);
   const [showUpload,setShowUpload]=useState(false);
   const [payeeName,setPayeeName]=useState("");
   const [description,setDescription]=useState("");
+  const [amount,setAmount]=useState("");
   const [file,setFile]=useState(null);
   const [uploading,setUploading]=useState(false);
   const [fileUrls,setFileUrls]=useState({});
@@ -90,18 +92,18 @@ export default function DailyPaymentTab({email}){
   const [fulfillingId,setFulfillingId]=useState(null);
   const [fulfillFile,setFulfillFile]=useState(null);
   const [fulfilling,setFulfilling]=useState(false);
-  const [filterStatus,setFilterStatus]=useState("all");
+  const [filterStatus,setFilterStatus]=useState(isSophia?"pending":"all");
+  const [searchQuery,setSearchQuery]=useState("");
 
-  const isSophia=(email||"").toLowerCase()===SOPHIA_EMAIL;
-
-  useEffect(()=>{
+    useEffect(()=>{
     setLoading(true);
     setSelected({});
     setCompletingId(null);setRefNoInput("");
     setRejectingId(null);setRejectReasonInput("");
     setShowRequest(false);setRequestPayee("");setRequestDescription("");
     setFulfillingId(null);setFulfillFile(null);
-    setFilterStatus("all");
+    setFilterStatus(isSophia?"pending":"all");
+    setSearchQuery("");
     (async()=>{
       const list=(await loadData(keyFor(company)))||[];
       setEntries(list);
@@ -117,11 +119,11 @@ export default function DailyPaymentTab({email}){
     const id=`dp_${company}_${Date.now()}`;
     const uploaded=await uploadOrderFile(id,file,file.name);
     const entry={
-      id,date:nowDate(),file:uploaded,payeeName:payeeName.trim(),description:description.trim(),
+      id,date:nowDate(),file:uploaded,payeeName:payeeName.trim(),description:description.trim(),amount:amount.trim()?parseFloat(amount):null,
       status:"pending",uploadedAt:nowStamp(),completedAt:null,printedAt:null,
     };
     await save([entry,...entries]);
-    setPayeeName("");setDescription("");setFile(null);setShowUpload(false);
+    setPayeeName("");setDescription("");setAmount("");setFile(null);setShowUpload(false);
     setUploading(false);
   };
 
@@ -178,7 +180,13 @@ export default function DailyPaymentTab({email}){
   };
 
   const tabBar=<div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
-    {COMPANIES.map(c=><button key={c.key} onClick={()=>setCompany(c.key)} style={{padding:"7px 16px",borderRadius:8,border:`1.5px solid ${company===c.key?C.blue:C.border}`,background:company===c.key?C.blue:"#fff",color:company===c.key?"#fff":C.textMid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{c.label}</button>)}
+    {COMPANIES.map(c=>{
+      const pending=pendingByCompany[c.key]||0;
+      return<button key={c.key} onClick={()=>setCompany(c.key)} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 16px",borderRadius:8,border:`1.5px solid ${company===c.key?C.blue:C.border}`,background:company===c.key?C.blue:"#fff",color:company===c.key?"#fff":C.textMid,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>
+        {c.label}
+        {pending>0&&<span style={{minWidth:16,height:16,padding:"0 4px",borderRadius:8,background:company===c.key?"rgba(255,255,255,.25)":"#DC2626",color:"#fff",fontSize:9.5,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>{pending}</span>}
+      </button>;
+    })}
   </div>;
 
   if(loading)return<div>{tabBar}<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div></div>;
@@ -201,7 +209,8 @@ export default function DailyPaymentTab({email}){
           <span style={{fontSize:10,fontWeight:700,color:sm.fg,background:sm.bg,border:`1px solid ${sm.border}`,borderRadius:20,padding:"3px 10px",whiteSpace:"nowrap"}}>{sm.label}</span>
         </div>
         <div style={{fontSize:12,color:C.textMid,marginBottom:2}}><strong style={{color:C.text}}>Payee:</strong> {e.payeeName}</div>
-        <div style={{fontSize:12,color:C.textMid,marginBottom:6}}><strong style={{color:C.text}}>Description:</strong> {e.description||e.purchase}</div>
+        <div style={{fontSize:12,color:C.textMid,marginBottom:2}}><strong style={{color:C.text}}>Description:</strong> {e.description||e.purchase}</div>
+        {e.amount!=null&&<div style={{fontSize:12,color:C.textMid,marginBottom:6}}><strong style={{color:C.text}}>Amount:</strong> RM {Number(e.amount).toFixed(2)}</div>}
         {e.status==="requested"
           ?<div style={{fontSize:10.5,color:"#7C3AED"}}>Requested by Admin {e.requestedAt}</div>
           :<div style={{fontSize:10.5,color:C.textLight}}>Uploaded {e.uploadedAt}</div>}
@@ -236,6 +245,18 @@ export default function DailyPaymentTab({email}){
     </div>;
   };
 
+  // Matches payee, description, or amount — a bare number in the search
+  // box (e.g. "250") matches an amount of 250 or 250.00, not just an
+  // exact string match, since RM amounts are stored/shown with 2 decimals
+  // but someone searching would naturally type the whole number.
+  const q=searchQuery.trim().toLowerCase();
+  const matchesSearch=e=>{
+    if(!q)return true;
+    if((e.payeeName||"").toLowerCase().includes(q))return true;
+    if((e.description||e.purchase||"").toLowerCase().includes(q))return true;
+    if(e.amount!=null&&(String(e.amount).includes(q)||Number(e.amount).toFixed(2).includes(q)))return true;
+    return false;
+  };
   const allActiveByStatus=entries.filter(e=>e.status!=="printed");
   const printedEntries=entries.filter(e=>e.status==="printed");
   const statusCounts=Object.keys(statusMeta).reduce((acc,s)=>({...acc,[s]:s==="printed"?printedEntries.length:allActiveByStatus.filter(e=>e.status===s).length}),{});
@@ -244,14 +265,24 @@ export default function DailyPaymentTab({email}){
   // list for "printed" would always come back empty even though the
   // count shows correctly, so that specific case pulls from
   // printedEntries instead.
-  const activeEntries=filterStatus==="all"?allActiveByStatus:filterStatus==="printed"?printedEntries:allActiveByStatus.filter(e=>e.status===filterStatus);
-  const historyEntries=printedEntries;
+  const activeEntries=(filterStatus==="all"?allActiveByStatus:filterStatus==="printed"?printedEntries:allActiveByStatus.filter(e=>e.status===filterStatus)).filter(matchesSearch);
+  const historyEntries=printedEntries.filter(matchesSearch);
 
   return<div>
     {tabBar}
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,marginBottom:14}}>
       {Object.keys(statusMeta).map(s=><StatusCard key={s} status={s} count={statusCounts[s]} active={filterStatus===s} onClick={()=>setFilterStatus(filterStatus===s?"all":s)}/>)}
+    </div>
+
+    <div style={{position:"relative",marginBottom:14}}>
+      <input
+        value={searchQuery}
+        onChange={e=>setSearchQuery(e.target.value)}
+        placeholder="Search payee, description, or amount…"
+        style={{width:"100%",padding:"10px 34px 10px 12px",border:`1px solid ${C.border}`,borderRadius:9,fontSize:13,boxSizing:"border-box",fontFamily:"Inter,sans-serif"}}
+      />
+      {searchQuery&&<button onClick={()=>setSearchQuery("")} title="Clear search" style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",border:"none",background:"none",color:C.textLight,cursor:"pointer",fontSize:15,padding:4,lineHeight:1}}>×</button>}
     </div>
 
     <div style={{...card}}>
@@ -274,9 +305,13 @@ export default function DailyPaymentTab({email}){
               <label style={{fontSize:10,fontWeight:700,color:C.textMid,display:"block",marginBottom:3,textTransform:"uppercase"}}>Description</label>
               <input value={description} onChange={e=>setDescription(e.target.value)} placeholder="Short description…" style={{width:"100%",padding:"8px 10px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,boxSizing:"border-box"}}/>
             </div>
+            <div>
+              <label style={{fontSize:10,fontWeight:700,color:C.textMid,display:"block",marginBottom:3,textTransform:"uppercase"}}>Amount (RM) — optional</label>
+              <input type="number" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" style={{width:"100%",padding:"8px 10px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,boxSizing:"border-box"}}/>
+            </div>
             <div style={{display:"flex",gap:8}}>
               <PBtn onClick={addEntry} disabled={!file||!payeeName.trim()||!description.trim()||uploading}>{uploading?"Uploading…":"Upload"}</PBtn>
-              <GBtn onClick={()=>{setShowUpload(false);setFile(null);setPayeeName("");setDescription("");}} disabled={uploading}>Cancel</GBtn>
+              <GBtn onClick={()=>{setShowUpload(false);setFile(null);setPayeeName("");setDescription("");setAmount("");}} disabled={uploading}>Cancel</GBtn>
             </div>
           </div>}
       </div>}

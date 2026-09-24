@@ -857,7 +857,13 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
     // deleted step no longer has a coherent chain behind it.
     const remainingHistory=(order.history||[]).filter(h=>h._rowId!==rowId);
     let newStep=remainingHistory.length?Math.max(...remainingHistory.map(h=>h.step||1)):1;
-    if(deletedEntry){
+    // skipStepDate entries (pickup reminder logs, device-amendment notes,
+    // acknowledgments, etc.) were never a step CONFIRMATION to begin with
+    // — they're informational asides logged alongside whatever step the
+    // order happened to be sitting on at the time. Deleting one of those
+    // must never revert the order's actual step backward; only deleting
+    // a real step-confirmation entry should trigger that reversion.
+    if(deletedEntry&&!deletedEntry.skipStepDate){
       const isCash=order.orderType==="cash";
       const isReady=order.stockStatus==="ready";
       const isChailease=order.merchant==="Chailease";
@@ -873,6 +879,7 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
     {isTrueSuperAdminTL&&hist._rowId&&<button onClick={()=>deleteHistoryEntry(hist._rowId)} title="Remove this log entry" style={{position:"absolute",top:5,right:5,background:"none",border:"none",cursor:"pointer",color:"#DC2626",padding:2,fontSize:13,lineHeight:1,fontWeight:700}}>×</button>}
     {hist.date&&<div style={{marginBottom:3,fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em"}}>{isLatest?"Latest — ":""}{fDT(hist.date,hist.time)}</div>}
     {hist.reversedFrom&&<div style={{marginBottom:3,fontSize:12,fontWeight:700,color:"#DC2626"}}>Agreement Issue</div>}
+    {hist.note&&<div style={{marginBottom:2,color:C.textMid}}>{hist.note}</div>}
     {hist.orderDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Order Date: {fDate(hist.orderDate)}{hist.supplierName?` · ${hist.supplierName}`:""}</div>}
     {hist.poNumber&&<div style={{marginBottom:2,color:C.textMid}}>PO Number: {hist.poNumber}</div>}
     {isAdmin&&hist.purchaserName&&<div style={{marginBottom:2,color:C.textMid}}>Purchaser: {hist.purchaserName}</div>}
