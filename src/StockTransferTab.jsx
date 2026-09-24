@@ -105,7 +105,14 @@ export default function StockTransferTab({canCreate=false,userBranch=null,branch
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
-  const save=async(next)=>{
+  // Reads fresh from the database before applying a change, rather than
+  // building the new list from possibly-stale local `transfers` state —
+  // this page is used by multiple branches at once, and without this a
+  // branch marking a transfer Received could silently get overwritten by
+  // another branch's save built from an older snapshot.
+  const saveTransfers=async(updater)=>{
+    const latest=(await loadData(KEY))||transfers;
+    const next=updater(latest);
     setTransfers(next);
     await saveData(KEY,next);
   };
@@ -121,7 +128,7 @@ export default function StockTransferTab({canCreate=false,userBranch=null,branch
         file:{name:uploaded.name,path:uploaded.path},
         status:"pending",uploadedAt:nowStamp(),
       };
-      await save([record,...transfers]);
+      await saveTransfers(latest=>[record,...latest]);
       setShowForm(false);
       setFile(null);
       setRefNo("");
@@ -132,8 +139,7 @@ export default function StockTransferTab({canCreate=false,userBranch=null,branch
   };
 
   const markReceived=async(id)=>{
-    const next=transfers.map(t=>t.id===id?{...t,status:"received",receivedAt:nowStamp(),receivedAtMs:Date.now()}:t);
-    await save(next);
+    await saveTransfers(latest=>latest.map(t=>t.id===id?{...t,status:"received",receivedAt:nowStamp(),receivedAtMs:Date.now()}:t));
   };
 
   // Removes the record from the live list, but keeps it in storage
@@ -141,8 +147,7 @@ export default function StockTransferTab({canCreate=false,userBranch=null,branch
   // forward, just no longer cluttering the active view.
   const acknowledge=async(id)=>{
     if(!window.confirm("Acknowledge this transfer? It will be removed from this list but stays available in monthly reports."))return;
-    const next=transfers.map(t=>t.id===id?{...t,acknowledged:true,acknowledgedAt:nowStamp()}:t);
-    await save(next);
+    await saveTransfers(latest=>latest.map(t=>t.id===id?{...t,acknowledged:true,acknowledgedAt:nowStamp()}:t));
   };
 
   const openFile=async(path)=>{

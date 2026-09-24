@@ -12,7 +12,7 @@
  * (only Sophia marks Completed, only Knock-off marks Printed).
  */
 import {useState,useEffect} from "react";
-import {loadData,saveData} from "./storage/index.js";
+import {loadData,saveData,supabase} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl} from "./storage/ordersApi.js";
 
 export const KEY="emax_v5_daily_payment";
@@ -111,7 +111,41 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
     })();
   },[company]);
 
-  const save=async(next)=>{setEntries(next);await saveData(keyFor(company),next);};
+  // Live updates — refetches this company's data whenever it changes in
+  // the database, from anyone: another tab of Sophia's own, or Knock-off
+  // on their own device. This is what makes the page actually live rather
+  // than just "loads once when opened" — without it, two people working
+  // from different snapshots is exactly how a change gets silently
+  // overwritten.
+  useEffect(()=>{
+    let refreshTimer;
+    const scheduleRefresh=()=>{
+      clearTimeout(refreshTimer);
+      refreshTimer=setTimeout(async()=>{
+        const fresh=(await loadData(keyFor(company)))||[];
+        setEntries(fresh);
+      },400);
+    };
+    const channel=supabase.channel(`daily-payment-live-${company}`)
+      .on("postgres_changes",{event:"*",schema:"public",table:"app_storage",filter:`key=eq.${keyFor(company)}`},scheduleRefresh)
+      .subscribe();
+    return()=>{clearTimeout(refreshTimer);supabase.removeChannel(channel);};
+  },[company]);
+
+  // Reads the current saved data fresh from the database, applies the
+  // change on top of THAT (not on top of possibly-stale React state), then
+  // saves. This is what actually prevents Sophia's "Mark Completed" (or
+  // anyone else's change) from getting silently overwritten if another
+  // browser tab/device had this page open with an older snapshot and
+  // saves something around the same time — the classic "last write wins
+  // against stale data" race that a plain whole-list overwrite is prone
+  // to. updater receives the fresh list and returns the new list.
+  const saveEntries=async(updater)=>{
+    const fresh=(await loadData(keyFor(company)))||[];
+    const next=updater(fresh);
+    setEntries(next);
+    await saveData(keyFor(company),next);
+  };
 
   const addEntry=async()=>{
     if(!file||!payeeName.trim()||!description.trim())return;
@@ -122,21 +156,21 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
       id,date:nowDate(),file:uploaded,payeeName:payeeName.trim(),description:description.trim(),amount:amount.trim()?parseFloat(amount):null,
       status:"pending",uploadedAt:nowStamp(),completedAt:null,printedAt:null,
     };
-    await save([entry,...entries]);
+    await saveEntries(fresh=>[entry,...fresh]);
     setPayeeName("");setDescription("");setAmount("");setFile(null);setShowUpload(false);
     setUploading(false);
   };
 
   const markCompleted=async(id,refNo)=>{
-    await save(entries.map(e=>e.id!==id?e:{...e,status:"completed",completedAt:nowStamp(),refNo:refNo.trim()}));
+    await saveEntries(fresh=>fresh.map(e=>e.id!==id?e:{...e,status:"completed",completedAt:nowStamp(),refNo:refNo.trim()}));
     setCompletingId(null);setRefNoInput("");
   };
   const markPrinted=async(id)=>{
-    await save(entries.map(e=>e.id!==id?e:{...e,status:"printed",printedAt:nowStamp()}));
+    await saveEntries(fresh=>fresh.map(e=>e.id!==id?e:{...e,status:"printed",printedAt:nowStamp()}));
   };
 
   const rejectEntry=async(id,reason)=>{
-    await save(entries.map(e=>e.id!==id?e:{...e,status:"rejected",rejectReason:reason.trim(),rejectedAt:nowStamp()}));
+    await saveEntries(fresh=>fresh.map(e=>e.id!==id?e:{...e,status:"rejected",rejectReason:reason.trim(),rejectedAt:nowStamp()}));
     setRejectingId(null);setRejectReasonInput("");
   };
 
@@ -147,7 +181,7 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
       id,date:nowDate(),file:null,payeeName:requestPayee.trim(),description:requestDescription.trim(),
       status:"requested",requestedAt:nowStamp(),uploadedAt:null,completedAt:null,printedAt:null,
     };
-    await save([entry,...entries]);
+    await saveEntries(fresh=>[entry,...fresh]);
     setRequestPayee("");setRequestDescription("");setShowRequest(false);
   };
 
@@ -159,7 +193,7 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
     if(!fulfillFile)return;
     setFulfilling(true);
     const uploaded=await uploadOrderFile(id,fulfillFile,fulfillFile.name);
-    await save(entries.map(e=>e.id!==id?e:{...e,file:uploaded,status:"pending",uploadedAt:nowStamp()}));
+    await saveEntries(fresh=>fresh.map(e=>e.id!==id?e:{...e,file:uploaded,status:"pending",uploadedAt:nowStamp()}));
     setFulfillingId(null);setFulfillFile(null);setFulfilling(false);
   };
 
@@ -169,7 +203,7 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
     if(!selectedCount)return;
     if(!window.confirm(`Permanently delete ${selectedCount} payment record${selectedCount>1?"s":""}? This can't be undone.`))return;
     const idsToDelete=new Set(Object.keys(selected).filter(id=>selected[id]));
-    await save(entries.filter(e=>!idsToDelete.has(e.id)));
+    await saveEntries(fresh=>fresh.filter(e=>!idsToDelete.has(e.id)));
     setSelected({});
   };
 

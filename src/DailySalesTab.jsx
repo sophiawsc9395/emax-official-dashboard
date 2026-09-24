@@ -12,7 +12,7 @@
  * order id.
  */
 import {useState,useEffect,useMemo,useRef,Fragment} from "react";
-import {loadData,saveData} from "./storage/index.js";
+import {loadData,saveData,supabase} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl,removeOrderFile} from "./storage/ordersApi.js";
 import {resolveEditorRole} from "./auth/orderRoles.js";
 
@@ -562,20 +562,46 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
 
   useEffect(()=>{loadData(DAILY_SALES_KEY).then(d=>{setReports(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>setLoading(false));},[]);
 
+  // Live updates — multiple branches submit and verify reports here, so
+  // this refetches whenever the data changes from anyone, not just once
+  // on page load.
+  useEffect(()=>{
+    let refreshTimer;
+    const scheduleRefresh=()=>{
+      clearTimeout(refreshTimer);
+      refreshTimer=setTimeout(async()=>{
+        const fresh=await loadData(DAILY_SALES_KEY);
+        setReports(Array.isArray(fresh)?fresh:[]);
+      },400);
+    };
+    const channel=supabase.channel("daily-sales-live")
+      .on("postgres_changes",{event:"*",schema:"public",table:"app_storage",filter:`key=eq.${DAILY_SALES_KEY}`},scheduleRefresh)
+      .subscribe();
+    return()=>{clearTimeout(refreshTimer);supabase.removeChannel(channel);};
+  },[]);
+
+  // Reads fresh from the database before applying a change, rather than
+  // building the new list from possibly-stale local `reports` state —
+  // multiple branches submit and verify reports here, so a page left open
+  // a while could otherwise silently overwrite a submission it doesn't
+  // know about yet.
   const save=async(updated)=>{
-    const next=[...reports.filter(r=>r.id!==updated.id),updated].sort((a,b)=>b.date.localeCompare(a.date)||a.branch.localeCompare(b.branch));
+    const latest=(await loadData(DAILY_SALES_KEY))||reports;
+    const next=[...latest.filter(r=>r.id!==updated.id),updated].sort((a,b)=>b.date.localeCompare(a.date)||a.branch.localeCompare(b.branch));
     setReports(next);
     await saveData(DAILY_SALES_KEY,next);
   };
   const saveAll=async(newReports)=>{
     if(!newReports.length)return;
+    const latest=(await loadData(DAILY_SALES_KEY))||reports;
     const newIds=new Set(newReports.map(r=>r.id));
-    const next=[...reports.filter(r=>!newIds.has(r.id)),...newReports].sort((a,b)=>b.date.localeCompare(a.date)||a.branch.localeCompare(b.branch));
+    const next=[...latest.filter(r=>!newIds.has(r.id)),...newReports].sort((a,b)=>b.date.localeCompare(a.date)||a.branch.localeCompare(b.branch));
     setReports(next);
     await saveData(DAILY_SALES_KEY,next);
   };
   const deleteReport=async(id)=>{
-    const next=reports.filter(r=>r.id!==id);
+    const latest=(await loadData(DAILY_SALES_KEY))||reports;
+    const next=latest.filter(r=>r.id!==id);
     setReports(next);
     await saveData(DAILY_SALES_KEY,next);
   };
@@ -592,7 +618,8 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       r.balancePaymentSlip?.path?removeOrderFile(r.balancePaymentSlip.path):null,
     ].filter(Boolean)));
     const affectedIds=new Set(affected.map(r=>r.id));
-    const next=reports.map(r=>affectedIds.has(r.id)?{...r,bankInSlip:null,bankInSlips:[],bankInUploadedAt:null,balancePaymentSlip:null,balancePaymentUploadedAt:null}:r);
+    const latest=(await loadData(DAILY_SALES_KEY))||reports;
+    const next=latest.map(r=>affectedIds.has(r.id)?{...r,bankInSlip:null,bankInSlips:[],bankInUploadedAt:null,balancePaymentSlip:null,balancePaymentUploadedAt:null}:r);
     setReports(next);
     await saveData(DAILY_SALES_KEY,next);
     setCleaningUp(false);
