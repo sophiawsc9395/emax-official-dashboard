@@ -84,6 +84,8 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
   const [selected,setSelected]=useState({});
   const [completingId,setCompletingId]=useState(null);
   const [refNoInput,setRefNoInput]=useState("");
+  const [editingRefNoId,setEditingRefNoId]=useState(null);
+  const [refNoEditDraft,setRefNoEditDraft]=useState("");
   const [rejectingId,setRejectingId]=useState(null);
   const [rejectReasonInput,setRejectReasonInput]=useState("");
   const [showRequest,setShowRequest]=useState(false);
@@ -164,6 +166,10 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
   const markCompleted=async(id,refNo)=>{
     await saveEntries(fresh=>fresh.map(e=>e.id!==id?e:{...e,status:"completed",completedAt:nowStamp(),refNo:refNo.trim()}));
     setCompletingId(null);setRefNoInput("");
+  };
+  const updateRefNo=async(id,refNo)=>{
+    await saveEntries(fresh=>fresh.map(e=>e.id!==id?e:{...e,refNo:refNo.trim()}));
+    setEditingRefNoId(null);setRefNoEditDraft("");
   };
   const markPrinted=async(id)=>{
     await saveEntries(fresh=>fresh.map(e=>e.id!==id?e:{...e,status:"printed",printedAt:nowStamp()}));
@@ -249,7 +255,19 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
           ?<div style={{fontSize:10.5,color:"#7C3AED"}}>Requested by Admin {e.requestedAt}</div>
           :<div style={{fontSize:10.5,color:C.textLight}}>Uploaded {e.uploadedAt}</div>}
         {e.rejectReason&&<div style={{fontSize:10.5,color:"#DC2626",marginTop:2}}>Rejected {e.rejectedAt} — {e.rejectReason}</div>}
-        {e.completedAt&&<div style={{fontSize:10.5,color:"#1E6FDB",marginTop:2}}>Marked completed — keyed into Autocount {e.completedAt}{e.refNo&&` · Ref No. ${e.refNo}`}</div>}
+        {e.completedAt&&<div style={{fontSize:10.5,color:"#1E6FDB",marginTop:2,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+          <span>Marked completed — keyed into Autocount {e.completedAt}</span>
+          {isSophia&&editingRefNoId===e.id
+            ?<span style={{display:"flex",alignItems:"center",gap:6}}>
+              <input autoFocus value={refNoEditDraft} onChange={ev=>setRefNoEditDraft(ev.target.value)} onKeyDown={ev=>{if(ev.key==="Enter")updateRefNo(e.id,refNoEditDraft);if(ev.key==="Escape"){setEditingRefNoId(null);setRefNoEditDraft("");}}} placeholder="Ref No." style={{padding:"3px 7px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,width:130}}/>
+              <button onClick={()=>updateRefNo(e.id,refNoEditDraft)} style={{fontSize:10,fontWeight:700,color:"#fff",background:C.blue,border:"none",borderRadius:5,padding:"2px 8px",cursor:"pointer"}}>Save</button>
+              <button onClick={()=>{setEditingRefNoId(null);setRefNoEditDraft("");}} style={{fontSize:10,fontWeight:600,color:C.textMid,background:"none",border:`1px solid ${C.border}`,borderRadius:5,padding:"2px 8px",cursor:"pointer"}}>Cancel</button>
+            </span>
+            :<span>
+              {e.refNo&&`· Ref No. ${e.refNo}`}
+              {isSophia&&<button onClick={()=>{setEditingRefNoId(e.id);setRefNoEditDraft(e.refNo||"");}} style={{marginLeft:6,fontSize:10,fontWeight:600,color:C.blueBright,background:"none",border:"none",cursor:"pointer",textDecoration:"underline",padding:0}}>{e.refNo?"Edit":"+ Add Ref No."}</button>}
+            </span>}
+        </div>}
         {e.printedAt&&<div style={{fontSize:10.5,color:"#15803D",marginTop:2}}>Printed {e.printedAt}</div>}
         {isSophia&&completingId===e.id
           ?<div style={{marginTop:8,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
