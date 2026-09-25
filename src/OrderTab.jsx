@@ -2360,16 +2360,14 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // the order detail page for the actual Accept/Cancel action).
   const isBoonTheng=(email||"").toLowerCase()==="boontheng2004@gmail.com";
   const cancelRequestAlerts=(isBoonTheng||isSophia)?alerts.filter(a=>a.type==="cancel_request_pending"):[];
-  // Every alert block below can be collapsed, purely by the user clicking
-  // its own chevron — none of them start collapsed automatically based on
-  // role or anything else; every one starts expanded.
   // Every alert collapses purely by the user clicking its own chevron from
-  // here on — but Approval Warning and Agreement Received by HQ keep their
-  // previous role-based STARTING state (collapsed by default for
-  // admin/Sophia respectively, since those two tend to be long lists that
-  // aren't the first thing that role needs to see) — this only sets where
-  // each one starts, clicking still freely toggles either one afterward.
-  const [collapsedAlerts,setCollapsedAlerts]=useState({warning:isAdmin,agreementReceived:isSophia});
+  // here on — but a few keep a role-based STARTING state (collapsed by
+  // default for that role, since those tend to be long lists that aren't
+  // the first thing that role needs to see): Approval Warning for admin,
+  // Agreement Received by HQ for Sophia, and Arrived Branch/Not Yet Billed
+  // for Sophia and Boon Theng — this only sets where each one starts,
+  // clicking still freely toggles any of them afterward.
+  const [collapsedAlerts,setCollapsedAlerts]=useState({warning:isAdmin,agreementReceived:isSophia,pickupReminder:isSophia||isBoonTheng});
   const toggleAlert=key=>setCollapsedAlerts(c=>({...c,[key]:!c[key]}));
   const Block=({items,color,title,collapsible,expanded,onToggle})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
     <div onClick={collapsible?onToggle:undefined} style={{display:"flex",alignItems:"center",gap:8,marginBottom:collapsible&&!expanded?0:9,cursor:collapsible?"pointer":"default",userSelect:collapsible?"none":"auto"}}>
@@ -2424,7 +2422,11 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
       {monthKeys.map(mk=>{
         const monthItems=groups[mk];
         const toggleKey=`suggestDelete_${mk}`;
-        const expanded=!collapsedAlerts[toggleKey];
+        // Sophia and Boon Theng get every month collapsed by default (this
+        // list only grows and isn't the first thing they need to see);
+        // everyone else starts expanded. Once a person clicks a month's
+        // chevron, their choice for that month wins from then on.
+        const expanded=collapsedAlerts[toggleKey]===undefined?!(isSophia||isBoonTheng):!collapsedAlerts[toggleKey];
         return<div key={mk} style={{marginTop:6}}>
           <div onClick={()=>toggleAlert(toggleKey)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 4px",cursor:"pointer",userSelect:"none"}}>
             <span style={{color,transition:"transform .15s",transform:expanded?"rotate(180deg)":"none",fontSize:11}}>{Ic.chevDown}</span>
