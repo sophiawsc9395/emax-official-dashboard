@@ -3174,7 +3174,7 @@ export default function App(){
               }}>
                 <span>{item.label}</span>
                 {item.id==="dailyPayment"&&pendingDailyPaymentCount>0&&<span style={{minWidth:16,height:16,padding:"0 4px",borderRadius:8,background:"#DC2626",color:"#fff",fontSize:9.5,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,lineHeight:1}}>{pendingDailyPaymentCount}</span>}
-                {item.id==="purchaseOrder"&&submittedPurchaseOrderCount>0&&<span style={{minWidth:16,height:16,padding:"0 4px",borderRadius:8,background:"#1D4ED8",color:"#fff",fontSize:9.5,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,lineHeight:1}}>{submittedPurchaseOrderCount}</span>}
+                {item.id==="purchaseOrder"&&submittedPurchaseOrderCount>0&&<span style={{minWidth:16,height:16,padding:"0 4px",borderRadius:8,background:"#DC2626",color:"#fff",fontSize:9.5,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,lineHeight:1}}>{submittedPurchaseOrderCount}</span>}
               </button>
             );
             const isOpen=!!expandedGroups[item.group];

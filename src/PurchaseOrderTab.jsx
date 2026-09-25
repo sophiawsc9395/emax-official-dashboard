@@ -130,15 +130,15 @@ function QuoteChips({quotes}){
     {quotes.map((q,i)=><span key={i} style={{display:"inline-block",background:"#fff",border:`1px solid ${C.border}`,borderRadius:6,padding:"3px 8px",marginRight:5,marginTop:3,fontSize:10,fontWeight:700,color:C.text,whiteSpace:"nowrap"}}>{i+1}. {q.supplier} — {fRM(q.price)}</span>)}
   </div>;
 }
-function BaselineCells({order,includeCreatedAt=true,includeAgreementNo=true,includeFinancePrice=true}){
+function BaselineCells({order,includeDevice=true,includeCreatedAt=true,includeAgreementNo=true,includeFinancePrice=true}){
   return<>
-    <td style={{padding:"10px",verticalAlign:"top"}}>
+    {includeDevice&&<td style={{padding:"10px",verticalAlign:"top"}}>
       <div style={{fontWeight:700,color:C.text,fontSize:12.5,whiteSpace:"nowrap"}}>{order.phoneModel||"—"}</div>
       <div style={{fontSize:10.5,color:C.textLight,marginTop:2}}>{order.customerName} · {order.branch}</div>
-    </td>
+    </td>}
     {includeCreatedAt&&<td style={{padding:"10px",color:C.textMid,whiteSpace:"nowrap",verticalAlign:"top",fontSize:11.5}}>{fDateTime(createdAtOf(order))}</td>}
-    {includeAgreementNo&&<td style={{padding:"10px",color:C.textMid,whiteSpace:"nowrap",verticalAlign:"top"}}>{order.agreementNumber||"—"}</td>}
-    {includeFinancePrice&&<td style={{padding:"10px",color:C.textMid,whiteSpace:"nowrap",verticalAlign:"top"}}>{fRM(order.financePrice)}</td>}
+    {includeAgreementNo&&<td style={{padding:"10px",color:C.textMid,whiteSpace:"nowrap",verticalAlign:"top"}}>{order.agreementNumber||<span style={{fontSize:9.5,fontWeight:700,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"2px 8px",borderRadius:4,whiteSpace:"nowrap"}}>Cash Order</span>}</td>}
+    {includeFinancePrice&&<td style={{padding:"10px",color:C.textMid,whiteSpace:"nowrap",verticalAlign:"top"}}>{fRM(order.financePrice||order.retailPrice)}</td>}
   </>;
 }
 
@@ -225,18 +225,28 @@ function RequestCancelForm({order,onClose,onConfirm}){
 }
 
 /* ── Stage tables ─────────────────────────────────────────────────────── */
-function NewRequestRow({order,role,onSubmitQuotes,onRequestCancel}){
+function NewRequestRow({order,role,onSubmitQuotes,onRequestCancel,onSavePendingRemark}){
   const[prices,setPrices]=useState(order.poPrices||{});
   const[otherSupplier,setOtherSupplier]=useState(order.poOtherSupplier||"");
   const[otherPrice,setOtherPrice]=useState(order.poOtherPrice||"");
   const[purchaserRemark,setPurchaserRemark]=useState(order.poPurchaserRemark||"");
+  const[pendingRemark,setPendingRemark]=useState(order.poPendingRemark||"");
+  const[savingPendingRemark,setSavingPendingRemark]=useState(false);
+  useEffect(()=>{setPendingRemark(order.poPendingRemark||"");},[order.poPendingRemark]);
   const canEdit=role==="purchase";
   const canSubmit=SUPPLIERS.some(s=>parseFloat(prices[s.key])>0)||(otherSupplier.trim()&&parseFloat(otherPrice)>0);
   return<tr style={{borderTop:`1px solid ${C.border}`}}>
-    <BaselineCells order={order}/>
+    <BaselineCells order={order} includeCreatedAt={false} includeAgreementNo={false} includeFinancePrice={false}/>
     <td style={{padding:"10px",verticalAlign:"top"}}>
       {isOverdue(order)?<span style={{display:"inline-block",fontSize:9.5,fontWeight:700,color:C.red,background:"#FEF2F2",border:`1px solid ${C.red}`,borderRadius:20,padding:"2px 8px",whiteSpace:"nowrap"}}>Overdue — {overdueDuration(getOpenSessionFrom(createdAtOf(order)).deadline)}</span>:<span style={{fontSize:10.5,color:C.textLight}}>—</span>}
     </td>
+    <td style={{padding:"10px",minWidth:170,verticalAlign:"top"}}>
+      {canEdit?<div style={{display:"flex",flexDirection:"column",gap:4}}>
+        <textarea rows={2} value={pendingRemark} onChange={e=>setPendingRemark(e.target.value)} placeholder="e.g. waiting on stock confirmation" style={{width:"100%",padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
+        {pendingRemark!==(order.poPendingRemark||"")&&<button disabled={savingPendingRemark} onClick={async()=>{setSavingPendingRemark(true);await onSavePendingRemark(order,pendingRemark.trim());setSavingPendingRemark(false);}} style={{padding:"5px 10px",borderRadius:6,border:"none",fontWeight:700,fontSize:10.5,background:C.navy,color:"#fff",cursor:"pointer",alignSelf:"flex-start"}}>{savingPendingRemark?"Saving…":"Save"}</button>}
+      </div>:<div style={{fontSize:11,color:C.textMid}}>{order.poPendingRemark||"—"}</div>}
+    </td>
+    <BaselineCells order={order} includeDevice={false}/>
     {SUPPLIERS.map(s=><td key={s.key} style={{padding:"4px 6px",verticalAlign:"top"}}>
       {canEdit?<input type="number" value={prices[s.key]||""} onChange={e=>setPrices(p=>({...p,[s.key]:e.target.value}))} placeholder="0.00" style={{width:78,padding:"5px 6px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"Inter,sans-serif"}}/>
         :<div style={{width:78,padding:"5px 6px",fontSize:11,color:C.textMid}}>{order.poPrices?.[s.key]?fRM(order.poPrices[s.key]):"—"}</div>}
@@ -260,13 +270,13 @@ function NewRequestRow({order,role,onSubmitQuotes,onRequestCancel}){
     </td>
   </tr>;
 }
-function NewRequestTable({orders,role,onSubmitQuotes,onRequestCancel}){
+function NewRequestTable({orders,role,onSubmitQuotes,onRequestCancel,onSavePendingRemark}){
   return<table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1500}}>
     <thead><tr style={{background:C.surface}}>
-      {["Device / Customer","Order Creation Date","Agreement No.","Finance Price","Overdue",...SUPPLIERS.map(s=>s.label),"Other","Remark by Purchaser","Action"].map(h=>
+      {["Device / Customer","Overdue","Pending Remark","Order Creation Date","Agreement No.","Finance Price",...SUPPLIERS.map(s=>s.label),"Other","Remark by Purchaser","Action"].map(h=>
         <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>)}
     </tr></thead>
-    <tbody>{orders.map(o=><NewRequestRow key={o.id} order={o} role={role} onSubmitQuotes={onSubmitQuotes} onRequestCancel={onRequestCancel}/>)}</tbody>
+    <tbody>{orders.map(o=><NewRequestRow key={o.id} order={o} role={role} onSubmitQuotes={onSubmitQuotes} onRequestCancel={onRequestCancel} onSavePendingRemark={onSavePendingRemark}/>)}</tbody>
   </table>;
 }
 
@@ -287,7 +297,7 @@ function ApproverCard({order,onProceed}){
   const top3=topN(quotesFromOrder(order),3);
   return<div style={{...card,padding:"12px 14px",marginBottom:10}}>
     <div style={{fontWeight:700,color:C.text,fontSize:13}}>{order.phoneModel||"—"}</div>
-    <div style={{fontSize:11,color:C.textLight,marginTop:2,marginBottom:8}}>{order.customerName} · {order.branch} · {fRM(order.financePrice)}</div>
+    <div style={{fontSize:11,color:C.textLight,marginTop:2,marginBottom:8}}>{order.customerName} · {order.branch} · {fRM(order.financePrice||order.retailPrice)}{!order.agreementNumber&&" · Cash Order"}</div>
     <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700,marginBottom:4}}>Top 3 Cheapest Supplier</div>
     <QuoteChips quotes={top3}/>
     {order.poPurchaserRemark&&<div style={{marginTop:8}}>
@@ -518,6 +528,13 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
     if(!result.ok){alert("This didn't save — please check your connection and try again.");return;}
     await refresh();
   };
+  const savePendingRemark=async(order,remark)=>{
+    const fresh=await getOrder(order.id);
+    if(!fresh){alert("Could not find this order — it may have been deleted.");return;}
+    const result=await reconcile([fresh],[{...fresh,poPendingRemark:remark}]);
+    if(!result.ok){alert("This didn't save — please check your connection and try again.");return;}
+    await refresh();
+  };
   const proceed=async(order,approverRemark)=>{
     const fresh=await getOrder(order.id);
     if(!fresh){alert("Could not find this order — it may have been deleted.");return;}
@@ -598,7 +615,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
         </div>
         <div style={{overflowX:"auto"}}>
           {stageOrders.length===0?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No orders here.</div>
-            :stage==="new"?<NewRequestTable orders={stageOrders} role={role} onSubmitQuotes={submitQuotes} onRequestCancel={canRequestCancel?setCancellingOrder:()=>{}}/>
+            :stage==="new"?<NewRequestTable orders={stageOrders} role={role} onSubmitQuotes={submitQuotes} onRequestCancel={canRequestCancel?setCancellingOrder:()=>{}} onSavePendingRemark={savePendingRemark}/>
             :stage==="submitted"?<SubmittedTable orders={stageOrders} role={role} isMobile={isMobile} onProceed={proceed}/>
             :stage==="pending_purchase"?<PendingPurchaseTable orders={stageOrders} role={role} onOpenPurchaseModal={(o,l,v)=>{setPurchasingOrder(o);setPurchasingTarget({label:l,value:v});}}/>
             :<PurchasedTable orders={stageOrders} role={isSophia||myEmail==="boontheng2004@gmail.com"?"approver":role} canDelete={isSophia} isMobile={isMobile} onBulkDismiss={dismissPurchased}/>}

@@ -35,6 +35,7 @@ const statusMeta={
   rejected:{label:"Needs Re-upload",bg:"#FEF2F2",fg:"#DC2626",border:"#FECACA"},
   completed:{label:"Completed",bg:"#EFF6FF",fg:"#1E6FDB",border:"#BFDBFE"},
   printed:{label:"Printed",bg:"#F0FDF4",fg:"#15803D",border:"#BBF7D0"},
+  paid:{label:"Paid",bg:"#F5F0FF",fg:"#6D28D9",border:"#DDD6FE"},
 };
 
 // Icons per status, matching Order Tracking's own icon set.
@@ -44,8 +45,9 @@ const Ic={
   alertCircle:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
   checkCircle:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
   printer:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>,
+  dollar:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
 };
-const STATUS_ICONS={requested:Ic.fileText,pending:Ic.clock,rejected:Ic.alertCircle,completed:Ic.checkCircle,printed:Ic.printer};
+const STATUS_ICONS={requested:Ic.fileText,pending:Ic.clock,rejected:Ic.alertCircle,completed:Ic.checkCircle,printed:Ic.printer,paid:Ic.dollar};
 
 // KPI card, matching Order Tracking's own clickable step-count cards -
 // colored top border, icon swatch tinted from that status's color,
@@ -174,6 +176,9 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
   const markPrinted=async(id)=>{
     await saveEntries(fresh=>fresh.map(e=>e.id!==id?e:{...e,status:"printed",printedAt:nowStamp()}));
   };
+  const markPaid=async(id)=>{
+    await saveEntries(fresh=>fresh.map(e=>e.id!==id?e:{...e,status:"paid",paidAt:nowStamp()}));
+  };
 
   const rejectEntry=async(id,reason)=>{
     await saveEntries(fresh=>fresh.map(e=>e.id!==id?e:{...e,status:"rejected",rejectReason:reason.trim(),rejectedAt:nowStamp()}));
@@ -269,6 +274,7 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
             </span>}
         </div>}
         {e.printedAt&&<div style={{fontSize:10.5,color:"#15803D",marginTop:2}}>Printed {e.printedAt}</div>}
+        {e.paidAt&&<div style={{fontSize:10.5,color:"#6D28D9",marginTop:2}}>Paid {e.paidAt}</div>}
         {isSophia&&completingId===e.id
           ?<div style={{marginTop:8,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
             <input autoFocus value={refNoInput} onChange={ev=>setRefNoInput(ev.target.value)} onKeyDown={ev=>{if(ev.key==="Enter")markCompleted(e.id,refNoInput);}} placeholder="Ref No. (optional)…" style={{padding:"6px 10px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,width:180}}/>
@@ -291,6 +297,7 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
             {isSophia&&e.status==="pending"&&<PBtn onClick={()=>{setCompletingId(e.id);setRefNoInput("");}}>Mark Completed</PBtn>}
             {isSophia&&e.status==="pending"&&<GBtn onClick={()=>{setRejectingId(e.id);setRejectReasonInput("");}} style={{color:"#DC2626",borderColor:"#FECACA"}}>Reject</GBtn>}
             {!isSophia&&e.status==="completed"&&<PBtn onClick={()=>markPrinted(e.id)}>Mark Printed</PBtn>}
+            {isSophia&&company!=="emax"&&e.status==="completed"&&<PBtn onClick={()=>markPaid(e.id)} style={{background:`linear-gradient(135deg,#6D28D9,#8B5CF6)`}}>Mark Paid</PBtn>}
             {!isSophia&&needsUploadFromKnockOff&&<PBtn onClick={()=>{setFulfillingId(e.id);setFulfillFile(null);}}>{e.status==="rejected"?"Re-upload":"Upload File"}</PBtn>}
           </div>}
       </div>
@@ -309,16 +316,17 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
     if(e.amount!=null&&(String(e.amount).includes(q)||Number(e.amount).toFixed(2).includes(q)))return true;
     return false;
   };
-  const allActiveByStatus=entries.filter(e=>e.status!=="printed");
-  const printedEntries=entries.filter(e=>e.status==="printed");
-  const statusCounts=Object.keys(statusMeta).reduce((acc,s)=>({...acc,[s]:s==="printed"?printedEntries.length:allActiveByStatus.filter(e=>e.status===s).length}),{});
-  // "Printed" entries live in a separate list (historyEntries) by
-  // design, not within the active list at all - filtering the active
-  // list for "printed" would always come back empty even though the
-  // count shows correctly, so that specific case pulls from
-  // printedEntries instead.
-  const activeEntries=(filterStatus==="all"?allActiveByStatus:filterStatus==="printed"?printedEntries:allActiveByStatus.filter(e=>e.status===filterStatus)).filter(matchesSearch);
-  const historyEntries=printedEntries.filter(matchesSearch);
+  // "Printed" and "Paid" entries both live in a separate list
+  // (historyEntries) by design, not within the active list at all —
+  // filtering the active list for either would always come back empty
+  // even though the count shows correctly, so those specific cases pull
+  // from finalEntries instead.
+  const FINAL_STATUSES=["printed","paid"];
+  const allActiveByStatus=entries.filter(e=>!FINAL_STATUSES.includes(e.status));
+  const finalEntries=entries.filter(e=>FINAL_STATUSES.includes(e.status));
+  const statusCounts=Object.keys(statusMeta).reduce((acc,s)=>({...acc,[s]:FINAL_STATUSES.includes(s)?entries.filter(e=>e.status===s).length:allActiveByStatus.filter(e=>e.status===s).length}),{});
+  const activeEntries=(filterStatus==="all"?allActiveByStatus:FINAL_STATUSES.includes(filterStatus)?entries.filter(e=>e.status===filterStatus):allActiveByStatus.filter(e=>e.status===filterStatus)).filter(matchesSearch);
+  const historyEntries=finalEntries.filter(matchesSearch);
 
   return<div>
     {tabBar}
@@ -340,7 +348,7 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
     <div style={{...card}}>
       <SecHdr>Daily Payment — {COMPANIES.find(c=>c.key===company)?.label}</SecHdr>
 
-      {!isSophia&&<div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
+      <div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
         {!showUpload
           ?<PBtn onClick={()=>setShowUpload(true)}>+ Upload Today's Invoice</PBtn>
           :<div style={{display:"flex",flexDirection:"column",gap:8,maxWidth:420}}>
@@ -366,7 +374,7 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
               <GBtn onClick={()=>{setShowUpload(false);setFile(null);setPayeeName("");setDescription("");setAmount("");}} disabled={uploading}>Cancel</GBtn>
             </div>
           </div>}
-      </div>}
+      </div>
 
       {isSophia&&<div style={{padding:"14px 16px",borderBottom:`1px solid ${C.border}`,background:C.surface}}>
         {!showRequest
