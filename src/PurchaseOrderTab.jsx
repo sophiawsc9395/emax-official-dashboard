@@ -27,9 +27,9 @@
  * New Request becomes overdue for having quotes submitted — once
  * submitted, the deadline no longer applies.
  */
-import {useState,useEffect,useMemo} from "react";
+import {useState,useEffect,useMemo,useRef} from "react";
 import {supabase} from "./storage/index.js";
-import {listStockRequestOrders,getOrder,reconcile,uploadOrderFile} from "./storage/ordersApi.js";
+import {listStockRequestOrders,getOrder,reconcile,uploadOrderFile,getHistoryForOrders} from "./storage/ordersApi.js";
 
 const SUPPLIERS=[
   {key:"shopee",label:"Shopee"},{key:"lazada",label:"Lazada"},{key:"tiktok",label:"TikTok"},
@@ -75,6 +75,14 @@ function fDateTime(d){
   const dd=String(d.getDate()).padStart(2,"0"),mm=String(d.getMonth()+1).padStart(2,"0"),yyyy=d.getFullYear();
   const time=d.toLocaleTimeString("en-MY",{hour:"2-digit",minute:"2-digit",hour12:false});
   return`${dd}/${mm}/${yyyy} ${time}`;
+}
+// Formats the separate date ("YYYY-MM-DD") + time ("HH:MM") strings stored
+// alongside an action (e.g. poProceedDate/poProceedTime) into the same
+// DD/MM/YYYY HH:MM display used everywhere else on this page.
+function fStampDateTime(date,time){
+  if(!date)return"—";
+  const[y,m,d]=date.split("-");
+  return`${d}/${m}/${y}${time?` ${time}`:""}`;
 }
 // Order ids are Date.now().toString() at creation — this is the order's
 // real creation timestamp, no separate field needed.
@@ -349,7 +357,7 @@ function SubmittedTable({orders,role,isMobile,onProceed}){
 function PendingPurchaseTable({orders,role,onOpenPurchaseModal}){
   return<table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:900}}>
     <thead><tr style={{background:C.surface}}>
-      {["Device / Customer","Order Creation Date","Agreement No.","Finance Price","Remark by Approver / Cheapest Supplier","Action"].map(h=>
+      {["Device / Customer","Order Creation Date","Agreement No.","Finance Price","Remark by Approver / Cheapest Supplier","Proceed Date/Time","Action"].map(h=>
         <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>)}
     </tr></thead>
     <tbody>{orders.map(order=>{
@@ -365,6 +373,7 @@ function PendingPurchaseTable({orders,role,onOpenPurchaseModal}){
             <div style={{fontSize:12,color:C.text,marginTop:2}}>{value}</div>
           </div>
         </td>
+        <td style={{padding:"10px",verticalAlign:"top",whiteSpace:"nowrap",color:C.textMid,fontSize:11.5}}>{fStampDateTime(order.poProceedDate,order.poProceedTime)}</td>
         <td style={{padding:"10px",verticalAlign:"top",whiteSpace:"nowrap"}}>
           {role==="purchase"?<button onClick={()=>onOpenPurchaseModal(order,label,value)} style={{padding:"7px 12px",borderRadius:7,border:"none",fontWeight:700,fontSize:11,background:C.amber,color:"#fff",cursor:"pointer"}}>Mark as Purchased</button>
             :<span style={{fontSize:10.5,color:C.textLight,fontStyle:"italic"}}>Waiting on Purchase</span>}
@@ -538,7 +547,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
   const proceed=async(order,approverRemark)=>{
     const fresh=await getOrder(order.id);
     if(!fresh){alert("Could not find this order — it may have been deleted.");return;}
-    const result=await reconcile([fresh],[{...fresh,poStage:"pending_purchase",poApproverRemark:approverRemark,
+    const result=await reconcile([fresh],[{...fresh,poStage:"pending_purchase",poApproverRemark:approverRemark,poProceedDate:nowDate(),poProceedTime:nowTime(),
       history:[...(fresh.history||[]),{step:fresh.step,date:nowDate(),time:nowTime(),note:approverRemark?`Proceed to purchase — ${email}: ${approverRemark}`:`Proceed to purchase — ${email}, follow lowest quote`,skipStepDate:true}]}]);
     if(!result.ok){alert("This didn't save — please check your connection and try again.");return;}
     await refresh();
@@ -583,6 +592,35 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
   const staged=useMemo(()=>orders.filter(o=>!o.cancelled&&!o.pendingCancelRequest&&!o.poHiddenFromList).map(o=>({...o,_stage:poStageOf(o)})),[orders]);
   const stageOrders=staged.filter(o=>o._stage===stage);
   const activeStage=STAGES.find(s=>s.key===stage);
+
+  // One-time backfill for orders that reached Pending Purchase before the
+  // Proceed Date/Time column existed — their timestamp already lives in
+  // the order's history log (the "Proceed to purchase" entry written when
+  // the approver clicked Proceed), it just was never copied onto the order
+  // row itself. Pull it from history once per order and save it there, so
+  // the column shows real data for old orders too instead of "—" forever.
+  // backfillAttempted guards against retrying every realtime refresh for
+  // an order with no matching history entry to find.
+  const backfillAttempted=useRef(new Set());
+  useEffect(()=>{
+    const missing=staged.filter(o=>o._stage==="pending_purchase"&&!o.poProceedDate&&!backfillAttempted.current.has(o.id));
+    if(!missing.length)return;
+    missing.forEach(o=>backfillAttempted.current.add(o.id));
+    (async()=>{
+      const historyById=await getHistoryForOrders(missing.map(o=>o.id));
+      let changed=false;
+      for(const o of missing){
+        const hist=historyById[o.id]||historyById[String(o.id)]||[];
+        const entry=[...hist].reverse().find(h=>typeof h.note==="string"&&h.note.startsWith("Proceed to purchase"));
+        if(!entry)continue;
+        const fresh=await getOrder(o.id);
+        if(!fresh)continue;
+        const result=await reconcile([fresh],[{...fresh,poProceedDate:entry.date,poProceedTime:entry.time}]);
+        if(result.ok)changed=true;
+      }
+      if(changed)await refresh();
+    })();
+  },[staged]);
 
   if(loading)return<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>;
 
