@@ -244,7 +244,11 @@ function NewRequestRow({order,role,onSubmitQuotes,onRequestCancel,onSavePendingR
   const canEdit=role==="purchase";
   const canSubmit=SUPPLIERS.some(s=>parseFloat(prices[s.key])>0)||(otherSupplier.trim()&&parseFloat(otherPrice)>0);
   return<tr style={{borderTop:`1px solid ${C.border}`}}>
-    <BaselineCells order={order} includeCreatedAt={false} includeAgreementNo={false} includeFinancePrice={false}/>
+    <td style={{padding:"10px",verticalAlign:"top"}}>
+      <div style={{fontWeight:700,color:C.text,fontSize:12.5,whiteSpace:"nowrap"}}>{order.phoneModel||"—"}</div>
+      <div style={{fontSize:10.5,color:C.textLight,marginTop:2}}>{order.customerName} · {order.branch}</div>
+      {order.poRejectionReason!==undefined&&order.poRejectionReason!==""&&<div style={{marginTop:4,fontSize:10,fontWeight:700,color:C.red}}>Rejected by Approver{order.poRejectionReason?`: ${order.poRejectionReason}`:""}</div>}
+    </td>
     <td style={{padding:"10px",verticalAlign:"top"}}>
       {isOverdue(order)?<span style={{display:"inline-block",fontSize:9.5,fontWeight:700,color:C.red,background:"#FEF2F2",border:`1px solid ${C.red}`,borderRadius:20,padding:"2px 8px",whiteSpace:"nowrap"}}>Overdue — {overdueDuration(getOpenSessionFrom(createdAtOf(order)).deadline)}</span>:<span style={{fontSize:10.5,color:C.textLight}}>—</span>}
     </td>
@@ -300,7 +304,7 @@ function SubmittedPurchaseRow({order}){
 }
 // Approver's card, shared between mobile and desktop table row — same
 // fields either way, just arranged differently.
-function ApproverCard({order,onProceed}){
+function ApproverCard({order,onProceed,onReject,canReject}){
   const[approverRemark,setApproverRemark]=useState(order.poApproverRemark||"");
   const top3=topN(quotesFromOrder(order),3);
   return<div style={{...card,padding:"12px 14px",marginBottom:10}}>
@@ -316,10 +320,13 @@ function ApproverCard({order,onProceed}){
       <div style={{fontSize:9,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.03em",fontWeight:700,marginBottom:4}}>Remark by Approver</div>
       <textarea rows={2} value={approverRemark} onChange={e=>setApproverRemark(e.target.value)} placeholder="Optional — e.g. found a lower price elsewhere" style={{width:"100%",padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:12,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
     </div>
-    <button onClick={()=>onProceed(order,approverRemark.trim())} style={{marginTop:10,width:"100%",padding:"9px 0",borderRadius:8,border:"none",fontWeight:700,fontSize:12,background:C.navy,color:"#fff",cursor:"pointer"}}>Proceed</button>
+    <div style={{display:"flex",gap:8,marginTop:10}}>
+      {canReject&&<button onClick={()=>{const reason=prompt("Reason for rejecting these quotes (optional) — this sends the order back to New Request for Purchase to revise:")||"";if(reason===null)return;onReject(order,reason.trim());}} style={{flex:1,padding:"9px 0",borderRadius:8,border:`1px solid ${C.red}`,fontWeight:700,fontSize:12,background:"#fff",color:C.red,cursor:"pointer"}}>Reject</button>}
+      <button onClick={()=>onProceed(order,approverRemark.trim())} style={{flex:canReject?1:undefined,width:canReject?undefined:"100%",padding:"9px 0",borderRadius:8,border:"none",fontWeight:700,fontSize:12,background:C.navy,color:"#fff",cursor:"pointer"}}>Proceed</button>
+    </div>
   </div>;
 }
-function ApproverRow({order,onProceed}){
+function ApproverRow({order,onProceed,onReject,canReject}){
   const[approverRemark,setApproverRemark]=useState(order.poApproverRemark||"");
   const top3=topN(quotesFromOrder(order),3);
   return<tr style={{borderTop:`1px solid ${C.border}`}}>
@@ -330,11 +337,14 @@ function ApproverRow({order,onProceed}){
       <textarea rows={2} value={approverRemark} onChange={e=>setApproverRemark(e.target.value)} placeholder="Optional — e.g. found a lower price elsewhere" style={{width:"100%",padding:"6px 8px",border:`1px solid ${C.border}`,borderRadius:6,fontSize:11,fontFamily:"inherit",resize:"vertical",boxSizing:"border-box"}}/>
     </td>
     <td style={{padding:"10px",verticalAlign:"top",whiteSpace:"nowrap"}}>
-      <button onClick={()=>onProceed(order,approverRemark.trim())} style={{padding:"7px 12px",borderRadius:7,border:"none",fontWeight:700,fontSize:11,background:C.navy,color:"#fff",cursor:"pointer"}}>Proceed</button>
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        <button onClick={()=>onProceed(order,approverRemark.trim())} style={{padding:"7px 12px",borderRadius:7,border:"none",fontWeight:700,fontSize:11,background:C.navy,color:"#fff",cursor:"pointer"}}>Proceed</button>
+        {canReject&&<button onClick={()=>{const reason=prompt("Reason for rejecting these quotes (optional) — this sends the order back to New Request for Purchase to revise:")||"";if(reason===null)return;onReject(order,reason.trim());}} style={{padding:"7px 12px",borderRadius:7,border:`1px solid ${C.red}`,fontWeight:700,fontSize:11,background:"#fff",color:C.red,cursor:"pointer"}}>Reject</button>}
+      </div>
     </td>
   </tr>;
 }
-function SubmittedTable({orders,role,isMobile,onProceed}){
+function SubmittedTable({orders,role,isMobile,onProceed,onReject,canReject}){
   if(role==="purchase"){
     return<table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1500}}>
       <thead><tr style={{background:C.surface}}>
@@ -344,13 +354,13 @@ function SubmittedTable({orders,role,isMobile,onProceed}){
       <tbody>{orders.map(o=><SubmittedPurchaseRow key={o.id} order={o}/>)}</tbody>
     </table>;
   }
-  if(isMobile)return<div>{orders.map(o=><ApproverCard key={o.id} order={o} onProceed={onProceed}/>)}</div>;
+  if(isMobile)return<div>{orders.map(o=><ApproverCard key={o.id} order={o} onProceed={onProceed} onReject={onReject} canReject={canReject}/>)}</div>;
   return<table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:1100}}>
     <thead><tr style={{background:C.surface}}>
       {["Device / Customer","Finance Price","Top 3 Cheapest Supplier","Remark by Purchaser","Remark by Approver","Action"].map(h=>
         <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:10,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>)}
     </tr></thead>
-    <tbody>{orders.map(o=><ApproverRow key={o.id} order={o} onProceed={onProceed}/>)}</tbody>
+    <tbody>{orders.map(o=><ApproverRow key={o.id} order={o} onProceed={onProceed} onReject={onReject} canReject={canReject}/>)}</tbody>
   </table>;
 }
 
@@ -532,8 +542,25 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
   const submitQuotes=async(order,{prices,otherSupplier,otherPrice,purchaserRemark})=>{
     const fresh=await getOrder(order.id);
     if(!fresh){alert("Could not find this order — it may have been deleted.");return;}
-    const result=await reconcile([fresh],[{...fresh,poStage:"submitted",poPrices:prices,poOtherSupplier:otherSupplier,poOtherPrice:otherPrice,poPurchaserRemark:purchaserRemark,
+    const result=await reconcile([fresh],[{...fresh,poStage:"submitted",poPrices:prices,poOtherSupplier:otherSupplier,poOtherPrice:otherPrice,poPurchaserRemark:purchaserRemark,poRejectionReason:"",
       history:[...(fresh.history||[]),{step:fresh.step,date:nowDate(),time:nowTime(),note:`Supplier quotes submitted by ${email}`,skipStepDate:true}]}]);
+    if(!result.ok){alert("This didn't save — please check your connection and try again.");return;}
+    await refresh();
+  };
+  // Sophia-only: sends a submitted set of quotes back to New Request so
+  // Purchase can revise and resubmit, instead of it sitting stuck in
+  // Submitted waiting on an approver who won't Proceed with it as-is. The
+  // quotes/remark Purchase already entered are left in place (no reason to
+  // make them retype everything) — only the stage flips back and the
+  // approver's own remark is cleared, since it no longer applies to
+  // whatever gets resubmitted. poRejectionReason is shown back to Purchase
+  // on the New Request row so they know why, and clears itself the moment
+  // they resubmit.
+  const rejectQuotes=async(order,reason)=>{
+    const fresh=await getOrder(order.id);
+    if(!fresh){alert("Could not find this order — it may have been deleted.");return;}
+    const result=await reconcile([fresh],[{...fresh,poStage:"new",poApproverRemark:"",poRejectionReason:reason||"",
+      history:[...(fresh.history||[]),{step:fresh.step,date:nowDate(),time:nowTime(),note:reason?`Quotes rejected by ${email} — back to New Request: ${reason}`:`Quotes rejected by ${email} — back to New Request`,skipStepDate:true}]}]);
     if(!result.ok){alert("This didn't save — please check your connection and try again.");return;}
     await refresh();
   };
@@ -654,7 +681,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
         <div style={{overflowX:"auto"}}>
           {stageOrders.length===0?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No orders here.</div>
             :stage==="new"?<NewRequestTable orders={stageOrders} role={role} onSubmitQuotes={submitQuotes} onRequestCancel={canRequestCancel?setCancellingOrder:()=>{}} onSavePendingRemark={savePendingRemark}/>
-            :stage==="submitted"?<SubmittedTable orders={stageOrders} role={role} isMobile={isMobile} onProceed={proceed}/>
+            :stage==="submitted"?<SubmittedTable orders={stageOrders} role={role} isMobile={isMobile} onProceed={proceed} onReject={rejectQuotes} canReject={isSophia}/>
             :stage==="pending_purchase"?<PendingPurchaseTable orders={stageOrders} role={role} onOpenPurchaseModal={(o,l,v)=>{setPurchasingOrder(o);setPurchasingTarget({label:l,value:v});}}/>
             :<PurchasedTable orders={stageOrders} role={isSophia||myEmail==="boontheng2004@gmail.com"?"approver":role} canDelete={isSophia} isMobile={isMobile} onBulkDismiss={dismissPurchased}/>}
         </div>

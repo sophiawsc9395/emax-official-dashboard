@@ -18,7 +18,6 @@ import {loadData,saveData,supabase} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl} from "./storage/ordersApi.js";
 
 export const WARRANTY_KEY="emax_v5_warranty_requests";
-const STOCK_EMAIL="emaxstock@gmail.com";
 
 const STEPS=[
   {step:1,label:"New Request",color:"#1D4ED8",bg:"#EFF6FF"},
@@ -216,26 +215,36 @@ function RequestForm({branchMeta,userBranch,editingApp,onSaved,onCancel}){
 // No outer card/SecHdr here — this renders straight inside the Action
 // Panel's own card+SecHdr wrapper in RequestDetail, avoiding a
 // card-within-a-card.
+// The device leaving branch and arriving at HQ are two different facts
+// known by two different people, so Received by HQ is confirmed by
+// whoever actually receives it there — Sophia, Boon Theng, or
+// emaxwarranty — rather than by anyone who happens to have this panel
+// open. The branch can (and normally does) upload the Stock Transfer File
+// itself via BranchUploadTransferFile below, while the order is still at
+// step 1; this just confirms receipt and advances the step, uploading the
+// file itself too if the branch hasn't already.
+const CAN_MARK_RECEIVED=["sophiawsc9395@gmail.com","boontheng2004@gmail.com","emaxwarranty@gmail.com"];
 function AdminStepActionsInner({app,email,onAdvance}){
   const [transferFile,setTransferFile]=useState(null);
   const [serviceForm,setServiceForm]=useState(null);
   const [consignmentNote,setConsignmentNote]=useState("");
   const [returnTransferFile,setReturnTransferFile]=useState(null);
   const [saving,setSaving]=useState(false);
-  const canUploadStockTransfer=["sophiawsc9395@gmail.com","boontheng2004@gmail.com",STOCK_EMAIL].includes((email||"").toLowerCase());
-
+  const canMarkReceived=CAN_MARK_RECEIVED.includes((email||"").toLowerCase());
 
   if(app.step===1)return<div>
-    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Upload the Stock Transfer File before this can move to Received by HQ.</div>
-    <L req>Stock Transfer File</L>
-    <input type="file" disabled={!canUploadStockTransfer} onChange={e=>setTransferFile(e.target.files[0]||null)} style={{fontSize:12}}/>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>{app.stockTransferFile1?"Stock Transfer File uploaded — confirm once the device has arrived at HQ.":"Upload the Stock Transfer File, or wait for the branch to upload it, before this can move to Received by HQ."}</div>
+    <L req={!app.stockTransferFile1}>Stock Transfer File{app.stockTransferFile1?" (already uploaded — choose a file to replace)":""}</L>
+    <input type="file" onChange={e=>setTransferFile(e.target.files[0]||null)} style={{fontSize:12}}/>
     {transferFile&&<div style={{fontSize:10,color:"#15803D",marginTop:6,fontWeight:600}}>{transferFile.name}</div>}
-    <div style={{marginTop:12}}><PBtn disabled={!transferFile||saving} onClick={async()=>{
+    {app.stockTransferFile1&&!transferFile&&<div style={{fontSize:10,color:"#15803D",marginTop:6,fontWeight:600}}>✓ Already uploaded by branch</div>}
+    <div style={{marginTop:12}}><PBtn disabled={(!transferFile&&!app.stockTransferFile1)||saving||!canMarkReceived} onClick={async()=>{
       setSaving(true);
-      const file=await readAppFile(transferFile,`${app.id}_stockTransferFile1`);
-      await onAdvance({...app,step:2,stockTransferFile1:file,history:[...app.history,{step:2,date:nowDate(),time:nowTime(),note:"Stock received at HQ."}]});
+      const file=transferFile?await readAppFile(transferFile,`${app.id}_stockTransferFile1`):app.stockTransferFile1;
+      await onAdvance({...app,step:2,stockTransferFile1:file,history:[...app.history,{step:2,date:nowDate(),time:nowTime(),note:`Stock received at HQ — confirmed by ${email}.`}]});
       setSaving(false);
     }}>{Ic.box} {saving?"Saving…":"Mark Received by HQ"}</PBtn></div>
+    {!canMarkReceived&&<div style={{fontSize:10,color:C.textLight,marginTop:6,fontStyle:"italic"}}>Only emaxwarranty, Sophia, or Boon Theng can confirm receipt.</div>}
   </div>;
 
   if(app.step===2)return<div>
@@ -280,7 +289,31 @@ function AdminStepActionsInner({app,email,onAdvance}){
 
 function DOC_FIELD_URL(app,key,fileUrls){return fileUrls[`${app.id}_${key}`];}
 
-function RequestDetail({app,branchMeta,isAdmin,canEditDelete,email,fileUrls,onBack,onAdvance,onDelete,onEdit}){
+// Branch-only, step-1 upload — the branch is the one physically shipping
+// the device back, so they're the one who has the Stock Transfer File to
+// begin with. This only saves the file onto the request; it never
+// advances the step itself (see CAN_MARK_RECEIVED above for who confirms
+// receipt), so the branch can upload as soon as they have the file
+// without waiting on HQ.
+function BranchUploadTransferFile({app,onSave}){
+  const[file,setFile]=useState(null);
+  const[saving,setSaving]=useState(false);
+  return<div>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>{app.stockTransferFile1?"Stock Transfer File uploaded. You can replace it below if needed — HQ will confirm receipt once the device arrives.":"Upload the Stock Transfer File for this device — HQ (emaxwarranty) will confirm receipt once it arrives."}</div>
+    <L req={!app.stockTransferFile1}>Stock Transfer File</L>
+    <input type="file" onChange={e=>setFile(e.target.files[0]||null)} style={{fontSize:12}}/>
+    {file&&<div style={{fontSize:10,color:"#15803D",marginTop:6,fontWeight:600}}>{file.name}</div>}
+    {app.stockTransferFile1&&!file&&<div style={{fontSize:10,color:"#15803D",marginTop:6,fontWeight:600}}>✓ Uploaded — waiting on HQ to confirm receipt</div>}
+    <div style={{marginTop:12}}><PBtn disabled={!file||saving} onClick={async()=>{
+      setSaving(true);
+      const uploaded=await readAppFile(file,`${app.id}_stockTransferFile1`);
+      await onSave({...app,stockTransferFile1:uploaded,history:[...app.history,{step:1,date:nowDate(),time:nowTime(),note:"Stock Transfer File uploaded by branch."}]});
+      setSaving(false);
+    }}>{Ic.fileText} {saving?"Uploading…":"Upload Stock Transfer File"}</PBtn></div>
+  </div>;
+}
+
+function RequestDetail({app,branchMeta,isAdmin,canEditDelete,userBranch,email,fileUrls,onBack,onAdvance,onDelete,onEdit}){
   const openFile=url=>{if(url)window.open(url,"_blank");};
   return<div>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:8}}>
@@ -329,6 +362,8 @@ function RequestDetail({app,branchMeta,isAdmin,canEditDelete,email,fileUrls,onBa
         <div style={{padding:16}}>
           {isAdmin&&app.step<5
             ?<AdminStepActionsInner app={app} email={email} onAdvance={onAdvance}/>
+            :userBranch&&app.branch===userBranch&&app.step===1
+            ?<BranchUploadTransferFile app={app} onSave={onAdvance}/>
             :<div style={{fontSize:12,color:C.textLight,fontStyle:"italic",textAlign:"center",padding:"12px 0"}}>{app.step>=5?"Completed — no further action available.":"View only — actions disabled for this viewer."}</div>}
         </div>
       </div>
@@ -429,7 +464,7 @@ export default function WarrantyTab({branchMeta={},isAdmin,userBranch,email=null
 
   if(view==="form")return<RequestForm branchMeta={branchMeta} userBranch={userBranch} editingApp={editingApp} onSaved={save} onCancel={()=>{setView(editingApp?"detail":"list");setEditingApp(null);}}/>;
 
-  if(view==="detail"&&selectedApp)return<RequestDetail app={selectedApp} branchMeta={branchMeta} isAdmin={isAdmin} canEditDelete={canEditDelete} email={email} fileUrls={fileUrls}
+  if(view==="detail"&&selectedApp)return<RequestDetail app={selectedApp} branchMeta={branchMeta} isAdmin={isAdmin} canEditDelete={canEditDelete} userBranch={userBranch} email={email} fileUrls={fileUrls}
     onBack={()=>{setView("list");setSelectedId(null);}}
     onAdvance={save}
     onDelete={()=>deleteApp(selectedApp.id)}

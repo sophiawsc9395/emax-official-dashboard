@@ -126,11 +126,15 @@ function OrderOnlyApp(){
   // seeing an empty tab. This hides the tab itself for them, keeping it
   // for whoever genuinely has capability (Billing, Manager, Sophia).
   const canSeeDailySales = isSuperAdminForPO || (orderPermissions && orderPermissions.adminSteps !== "all" && orderPermissions.adminSteps.includes(7))
-  // Warranty and Stock Write-off both have a step that specifically
-  // requires emaxstock@gmail.com to upload a Stock Transfer File — so she
-  // needs to reach both pages from here, same as her existing Stock
-  // Transfer access. Also open to whoever is a super-admin on this page.
-  const canSeeWarrantyStockOff = isSuperAdminForPO || email === "emaxstock@gmail.com"
+  // Stock Write-off still has a step that specifically requires
+  // emaxstock@gmail.com to upload a Stock Transfer File, so she keeps
+  // reaching that page from here, same as her existing Stock Transfer
+  // access. Warranty no longer needs her — branches now upload their own
+  // Stock Transfer File on that page and emaxwarranty confirms receipt —
+  // so she's been removed from Warranty specifically, per her access
+  // being pulled from that page.
+  const canSeeStockWriteOff = isSuperAdminForPO || email === "emaxstock@gmail.com"
+  const canSeeWarranty = isSuperAdminForPO
 
   return (
     <div style={{ minHeight:"100vh", background:"#F7F9FC", fontFamily:"Inter,-apple-system,sans-serif" }}>
@@ -158,7 +162,7 @@ function OrderOnlyApp(){
         {/* MAIN CONTENT */}
         <div style={{ flex:1, minWidth:0, padding:"20px", maxWidth:1180 }}>
           <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-            {[["orders","Order Tracking"],...(canSeeDailySales?[["dailySales","Daily Sales Report"]]:[]),...(canSeePurchaseOrder?[["purchaseOrder","Purchase Order"]]:[]),...(canSeeStockTransfer?[["stockTransfer","Stock Transfer"]]:[]),...(canSeeWarrantyStockOff?[["warranty","Warranty"],["stockWriteOff","Stock Write-off"]]:[])].map(([id,label])=>(
+            {[["orders","Order Tracking"],...(canSeeDailySales?[["dailySales","Daily Sales Report"]]:[]),...(canSeePurchaseOrder?[["purchaseOrder","Purchase Order"]]:[]),...(canSeeStockTransfer?[["stockTransfer","Stock Transfer"]]:[]),...(canSeeWarranty?[["warranty","Warranty"]]:[]),...(canSeeStockWriteOff?[["stockWriteOff","Stock Write-off"]]:[])].map(([id,label])=>(
               <button key={id} onClick={()=>setPageTab(id)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${pageTab===id?"#0A1628":"#E4EAF2"}`,background:pageTab===id?"#0A1628":"#fff",color:pageTab===id?"#fff":"#4A5568",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{label}</button>
             ))}
           </div>
@@ -169,8 +173,8 @@ function OrderOnlyApp(){
           })()}
           {canSeePurchaseOrder && pageTab==="purchaseOrder" && <PurchaseOrderTab branchMeta={branchMeta} isAdmin={true} email={email} />}
           {canSeeStockTransfer && pageTab==="stockTransfer" && <StockTransferTab canCreate={true} branchMeta={branchMeta} email={email} />}
-          {canSeeWarrantyStockOff && pageTab==="warranty" && <WarrantyTab branchMeta={branchMeta} isAdmin={true} email={email} />}
-          {canSeeWarrantyStockOff && pageTab==="stockWriteOff" && <StockWriteOffTab branchMeta={branchMeta} isAdmin={true} email={email} />}
+          {canSeeWarranty && pageTab==="warranty" && <WarrantyTab branchMeta={branchMeta} isAdmin={true} email={email} />}
+          {canSeeStockWriteOff && pageTab==="stockWriteOff" && <StockWriteOffTab branchMeta={branchMeta} isAdmin={true} email={email} />}
         </div>
 
         {/* SIDEBAR — right side, collapsible, same treatment as the main dashboard's */}

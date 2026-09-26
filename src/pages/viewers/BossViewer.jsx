@@ -1116,6 +1116,11 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   // elevateOrderAccess is true (Manager); Boss still sees the Purchasing
   // group for Order Tracking, just without that child.
   const canSeeTodoListBoss=["boontheng2004@gmail.com","sophiawsc9395@gmail.com"].includes((currentEmail||"").toLowerCase());
+  // emaxstock's access to Warranty was pulled — branches now upload their
+  // own Stock Transfer File there and emaxwarranty confirms receipt, so
+  // she no longer needs (or has) a reason to be on that page. She keeps
+  // everything else here (Stock Write-off, Stock Profit, etc.).
+  const isStockExecOnly=(currentEmail||"").toLowerCase()==="emaxstock@gmail.com";
   const SIDEBAR_STRUCTURE=isHR
     ?[
       {id:"overview",label:"Overview"},
@@ -1154,7 +1159,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {group:"purchasing",label:"Purchasing",children:[
         {id:"orders",label:"Order Tracking"},
         {id:"stockWriteOff",label:"Stock Write-off"},
-        {id:"warranty",label:"Warranty"},
+        ...(isStockExecOnly?[]:[{id:"warranty",label:"Warranty"}]),
         ...(elevateOrderAccess?[{id:"purchaseOrder",label:"Purchase Order"}]:[]),
       ]},
       {id:"dailySales",label:"Daily Sales Report"},
@@ -1411,7 +1416,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {tab==="stockProfit"&&<div className="fade-in"><StockProfitTab email={currentEmail}/></div>}
       {elevateOrderAccess&&tab==="stockTransfer"&&<div className="fade-in"><StockTransferTab canCreate={true} branchMeta={bMeta} email={currentEmail}/></div>}
       {tab==="purchaseOrder"&&elevateOrderAccess&&<div className="fade-in"><PurchaseOrderTab branchMeta={bMeta} isAdmin={elevateOrderAccess} email={currentEmail}/></div>}
-      {tab==="warranty"&&<div className="fade-in"><WarrantyTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com","emaxstock@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
+      {tab==="warranty"&&!isStockExecOnly&&<div className="fade-in"><WarrantyTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
       {tab==="stockWriteOff"&&<div className="fade-in"><StockWriteOffTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com","emaxstock@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
       {tab==="dailyPayment"&&isKnockOff&&<div className="fade-in"><DailyPaymentTab email={currentEmail}/></div>}
     </div>{/* end main content */}
