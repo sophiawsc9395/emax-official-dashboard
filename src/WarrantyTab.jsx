@@ -175,7 +175,7 @@ function RequestForm({branchMeta,userBranch,editingApp,onSaved,onCancel}){
         customerName:f.customerName,customerPhone:f.customerPhone,sendDate:f.sendDate,
         invoiceFile:invoice,proofFile:proof,
         submittedAt:now,submittedTime:time,
-        stockTransferFile1:null,serviceForm:null,consignmentNote:"",stockTransferFile2:null,
+        stockTransferFile1:null,serviceForm:null,stockTransferFile2:null,
         history:[{step:1,date:now,time,note:"New warranty request submitted by branch."}]};
     await onSaved(app);
     setSaving(false);
@@ -227,7 +227,6 @@ const CAN_MARK_RECEIVED=["sophiawsc9395@gmail.com","boontheng2004@gmail.com","em
 function AdminStepActionsInner({app,email,onAdvance}){
   const [defectPhoto,setDefectPhoto]=useState(null);
   const [serviceForm,setServiceForm]=useState(null);
-  const [consignmentNote,setConsignmentNote]=useState("");
   const [returnTransferFile,setReturnTransferFile]=useState(null);
   const [saving,setSaving]=useState(false);
   const canMarkReceived=CAN_MARK_RECEIVED.includes((email||"").toLowerCase());
@@ -264,18 +263,17 @@ function AdminStepActionsInner({app,email,onAdvance}){
   </div>;
 
   if(app.step===3)return<div>
-    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Write the Consignment Note and upload the Consignment File before this can move to Return to Branch.</div>
-    <L req>Consignment Note</L>
-    <TX value={consignmentNote} onChange={e=>setConsignmentNote(e.target.value)} rows={3} style={{marginBottom:10}} placeholder="e.g. CN-88213, 1 unit, condition notes…"/>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Upload the Consignment File before this can move to Return to Branch.</div>
     <L req>Consignment File</L>
-    <input type="file" onChange={e=>setReturnTransferFile(e.target.files[0]||null)} style={{fontSize:12}}/>
+    <input type="file" disabled={!canMarkReceived} onChange={e=>setReturnTransferFile(e.target.files[0]||null)} style={{fontSize:12}}/>
     {returnTransferFile&&<div style={{fontSize:10,color:"#15803D",marginTop:6,fontWeight:600}}>{returnTransferFile.name}</div>}
-    <div style={{marginTop:12}}><PBtn disabled={!consignmentNote.trim()||!returnTransferFile||saving} onClick={async()=>{
+    <div style={{marginTop:12}}><PBtn disabled={!returnTransferFile||saving||!canMarkReceived} onClick={async()=>{
       setSaving(true);
       const file=await readAppFile(returnTransferFile,`${app.id}_stockTransferFile2`);
-      await onAdvance({...app,step:4,consignmentNote,stockTransferFile2:file,history:[...app.history,{step:4,date:nowDate(),time:nowTime(),note:`Repaired device sent back to branch. Consignment Note: ${consignmentNote}`}]});
+      await onAdvance({...app,step:4,stockTransferFile2:file,history:[...app.history,{step:4,date:nowDate(),time:nowTime(),note:"Repaired device sent back to branch."}]});
       setSaving(false);
     }}>{Ic.rotate} {saving?"Saving…":"Return to Branch"}</PBtn></div>
+    {!canMarkReceived&&<div style={{fontSize:10,color:C.textLight,marginTop:6,fontStyle:"italic"}}>Only emaxwarranty, Sophia, or Boon Theng can upload the Consignment File here.</div>}
   </div>;
 
   if(app.step===4)return<div>
@@ -350,7 +348,6 @@ function RequestDetail({app,branchMeta,isAdmin,canEditDelete,userBranch,email,fi
           {app.serviceForm&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"serviceForm",fileUrls))}>{Ic.fileText} Service Form</GBtn>}
           {app.stockTransferFile2&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"stockTransferFile2",fileUrls))}>{Ic.fileText} Consignment File (Return)</GBtn>}
         </div>
-        {app.consignmentNote&&<div style={{marginTop:10,padding:10,background:C.surface,borderRadius:8,fontSize:12,color:C.textMid}}><strong style={{color:C.text}}>Consignment Note:</strong> {app.consignmentNote}</div>}
       </div>
     </div>
 
