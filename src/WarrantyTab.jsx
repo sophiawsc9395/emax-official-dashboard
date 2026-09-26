@@ -1,8 +1,8 @@
 /**
  * Warranty — Branch submits a warranty request for a defective device →
- * Admin uploads the Stock Transfer File to mark it Received by HQ →
+ * Admin uploads the Consignment File to mark it Received by HQ →
  * Admin uploads a Service Form to move it to Transfer to Service Center →
- * Admin writes a Consignment Note and uploads another Stock Transfer File
+ * Admin writes a Consignment Note and uploads another Consignment File
  * to move it to Return to Branch → Admin confirms Completed.
  *
  * UI follows the same list -> click-to-detail pattern as Order Tracking:
@@ -219,29 +219,32 @@ function RequestForm({branchMeta,userBranch,editingApp,onSaved,onCancel}){
 // known by two different people, so Received by HQ is confirmed by
 // whoever actually receives it there — Sophia, Boon Theng, or
 // emaxwarranty — rather than by anyone who happens to have this panel
-// open. The branch can (and normally does) upload the Stock Transfer File
+// open. The branch can (and normally does) upload the Consignment File
 // itself via BranchUploadTransferFile below, while the order is still at
 // step 1; this just confirms receipt and advances the step, uploading the
 // file itself too if the branch hasn't already.
 const CAN_MARK_RECEIVED=["sophiawsc9395@gmail.com","boontheng2004@gmail.com","emaxwarranty@gmail.com"];
 function AdminStepActionsInner({app,email,onAdvance}){
-  const [transferFile,setTransferFile]=useState(null);
+  const [defectPhoto,setDefectPhoto]=useState(null);
   const [serviceForm,setServiceForm]=useState(null);
   const [consignmentNote,setConsignmentNote]=useState("");
   const [returnTransferFile,setReturnTransferFile]=useState(null);
   const [saving,setSaving]=useState(false);
   const canMarkReceived=CAN_MARK_RECEIVED.includes((email||"").toLowerCase());
 
+  // Consignment File is the branch's own upload now (BranchUploadTransferFile,
+  // shown to them while the request sits at New Request) — HQ's part of
+  // Received by HQ is uploading a photo of the defect product as arrival
+  // proof, which is what actually gates the Mark Received by HQ button.
   if(app.step===1)return<div>
-    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>{app.stockTransferFile1?"Stock Transfer File uploaded — confirm once the device has arrived at HQ.":"Upload the Stock Transfer File, or wait for the branch to upload it, before this can move to Received by HQ."}</div>
-    <L req={!app.stockTransferFile1}>Stock Transfer File{app.stockTransferFile1?" (already uploaded — choose a file to replace)":""}</L>
-    <input type="file" onChange={e=>setTransferFile(e.target.files[0]||null)} style={{fontSize:12}}/>
-    {transferFile&&<div style={{fontSize:10,color:"#15803D",marginTop:6,fontWeight:600}}>{transferFile.name}</div>}
-    {app.stockTransferFile1&&!transferFile&&<div style={{fontSize:10,color:"#15803D",marginTop:6,fontWeight:600}}>✓ Already uploaded by branch</div>}
-    <div style={{marginTop:12}}><PBtn disabled={(!transferFile&&!app.stockTransferFile1)||saving||!canMarkReceived} onClick={async()=>{
+    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>{app.stockTransferFile1?"Consignment File received from branch.":"Waiting for the branch to upload the Consignment File."} Upload a photo of the defect product before this can move to Received by HQ.</div>
+    <L req>Photo of Defect Product</L>
+    <input type="file" accept="image/*" onChange={e=>setDefectPhoto(e.target.files[0]||null)} style={{fontSize:12}}/>
+    {defectPhoto&&<div style={{fontSize:10,color:"#15803D",marginTop:6,fontWeight:600}}>{defectPhoto.name}</div>}
+    <div style={{marginTop:12}}><PBtn disabled={!defectPhoto||saving||!canMarkReceived} onClick={async()=>{
       setSaving(true);
-      const file=transferFile?await readAppFile(transferFile,`${app.id}_stockTransferFile1`):app.stockTransferFile1;
-      await onAdvance({...app,step:2,stockTransferFile1:file,history:[...app.history,{step:2,date:nowDate(),time:nowTime(),note:`Stock received at HQ — confirmed by ${email}.`}]});
+      const file=await readAppFile(defectPhoto,`${app.id}_hqDefectPhoto`);
+      await onAdvance({...app,step:2,hqDefectPhoto:file,history:[...app.history,{step:2,date:nowDate(),time:nowTime(),note:`Stock received at HQ — confirmed by ${email}.`}]});
       setSaving(false);
     }}>{Ic.box} {saving?"Saving…":"Mark Received by HQ"}</PBtn></div>
     {!canMarkReceived&&<div style={{fontSize:10,color:C.textLight,marginTop:6,fontStyle:"italic"}}>Only emaxwarranty, Sophia, or Boon Theng can confirm receipt.</div>}
@@ -261,11 +264,11 @@ function AdminStepActionsInner({app,email,onAdvance}){
   </div>;
 
   if(app.step===3)return<div>
-    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Write the Consignment Note and upload the Stock Transfer File before this can move to Return to Branch.</div>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Write the Consignment Note and upload the Consignment File before this can move to Return to Branch.</div>
     <L req>Consignment Note</L>
     <TX value={consignmentNote} onChange={e=>setConsignmentNote(e.target.value)} rows={3} style={{marginBottom:10}} placeholder="e.g. CN-88213, 1 unit, condition notes…"/>
-    <L req>Stock Transfer File</L>
-    <input type="file" disabled={!canUploadStockTransfer} onChange={e=>setReturnTransferFile(e.target.files[0]||null)} style={{fontSize:12}}/>
+    <L req>Consignment File</L>
+    <input type="file" onChange={e=>setReturnTransferFile(e.target.files[0]||null)} style={{fontSize:12}}/>
     {returnTransferFile&&<div style={{fontSize:10,color:"#15803D",marginTop:6,fontWeight:600}}>{returnTransferFile.name}</div>}
     <div style={{marginTop:12}}><PBtn disabled={!consignmentNote.trim()||!returnTransferFile||saving} onClick={async()=>{
       setSaving(true);
@@ -290,7 +293,7 @@ function AdminStepActionsInner({app,email,onAdvance}){
 function DOC_FIELD_URL(app,key,fileUrls){return fileUrls[`${app.id}_${key}`];}
 
 // Branch-only, step-1 upload — the branch is the one physically shipping
-// the device back, so they're the one who has the Stock Transfer File to
+// the device back, so they're the one who has the Consignment File to
 // begin with. This only saves the file onto the request; it never
 // advances the step itself (see CAN_MARK_RECEIVED above for who confirms
 // receipt), so the branch can upload as soon as they have the file
@@ -299,17 +302,17 @@ function BranchUploadTransferFile({app,onSave}){
   const[file,setFile]=useState(null);
   const[saving,setSaving]=useState(false);
   return<div>
-    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>{app.stockTransferFile1?"Stock Transfer File uploaded. You can replace it below if needed — HQ will confirm receipt once the device arrives.":"Upload the Stock Transfer File for this device — HQ (emaxwarranty) will confirm receipt once it arrives."}</div>
-    <L req={!app.stockTransferFile1}>Stock Transfer File</L>
+    <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>{app.stockTransferFile1?"Consignment File uploaded. You can replace it below if needed — HQ will confirm receipt once the device arrives.":"Upload the Consignment File for this device — HQ (emaxwarranty) will confirm receipt once it arrives."}</div>
+    <L req={!app.stockTransferFile1}>Consignment File</L>
     <input type="file" onChange={e=>setFile(e.target.files[0]||null)} style={{fontSize:12}}/>
     {file&&<div style={{fontSize:10,color:"#15803D",marginTop:6,fontWeight:600}}>{file.name}</div>}
     {app.stockTransferFile1&&!file&&<div style={{fontSize:10,color:"#15803D",marginTop:6,fontWeight:600}}>✓ Uploaded — waiting on HQ to confirm receipt</div>}
     <div style={{marginTop:12}}><PBtn disabled={!file||saving} onClick={async()=>{
       setSaving(true);
       const uploaded=await readAppFile(file,`${app.id}_stockTransferFile1`);
-      await onSave({...app,stockTransferFile1:uploaded,history:[...app.history,{step:1,date:nowDate(),time:nowTime(),note:"Stock Transfer File uploaded by branch."}]});
+      await onSave({...app,stockTransferFile1:uploaded,history:[...app.history,{step:1,date:nowDate(),time:nowTime(),note:"Consignment File uploaded by branch."}]});
       setSaving(false);
-    }}>{Ic.fileText} {saving?"Uploading…":"Upload Stock Transfer File"}</PBtn></div>
+    }}>{Ic.fileText} {saving?"Uploading…":"Upload Consignment File"}</PBtn></div>
   </div>;
 }
 
@@ -342,9 +345,10 @@ function RequestDetail({app,branchMeta,isAdmin,canEditDelete,userBranch,email,fi
         <div style={{padding:"10px 0 0",display:"flex",gap:8,flexWrap:"wrap"}}>
           {app.invoiceFile&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"invoiceFile",fileUrls))}>{Ic.fileText} Invoice</GBtn>}
           {app.proofFile&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"proofFile",fileUrls))}>{Ic.fileText} Defect Proof</GBtn>}
-          {app.stockTransferFile1&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"stockTransferFile1",fileUrls))}>{Ic.fileText} Stock Transfer File (Received)</GBtn>}
+          {app.stockTransferFile1&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"stockTransferFile1",fileUrls))}>{Ic.fileText} Consignment File (Received)</GBtn>}
+          {app.hqDefectPhoto&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"hqDefectPhoto",fileUrls))}>{Ic.fileText} Photo of Defect Product</GBtn>}
           {app.serviceForm&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"serviceForm",fileUrls))}>{Ic.fileText} Service Form</GBtn>}
-          {app.stockTransferFile2&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"stockTransferFile2",fileUrls))}>{Ic.fileText} Stock Transfer File (Return)</GBtn>}
+          {app.stockTransferFile2&&<GBtn onClick={()=>openFile(DOC_FIELD_URL(app,"stockTransferFile2",fileUrls))}>{Ic.fileText} Consignment File (Return)</GBtn>}
         </div>
         {app.consignmentNote&&<div style={{marginTop:10,padding:10,background:C.surface,borderRadius:8,fontSize:12,color:C.textMid}}><strong style={{color:C.text}}>Consignment Note:</strong> {app.consignmentNote}</div>}
       </div>
@@ -418,7 +422,7 @@ export default function WarrantyTab({branchMeta={},isAdmin,userBranch,email=null
 
   useEffect(()=>{
     if(!apps.length)return;
-    const DOC_FIELDS=["invoiceFile","proofFile","stockTransferFile1","serviceForm","stockTransferFile2"];
+    const DOC_FIELDS=["invoiceFile","proofFile","stockTransferFile1","hqDefectPhoto","serviceForm","stockTransferFile2"];
     (async()=>{
       const entries=await Promise.all(apps.flatMap(a=>DOC_FIELDS.map(async key=>{
         const meta=a[key];
