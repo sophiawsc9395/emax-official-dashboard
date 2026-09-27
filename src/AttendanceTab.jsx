@@ -135,12 +135,23 @@ const MANUAL_ROSTER_ONLY_BRANCHES=["HQ"];
 // history does) — a manager can have different hours/history at each
 // branch they run — keyed BM_<branch>, never by managerId. Identity is
 // only shared for DISPLAY (the "Also manages" note), not for the record.
+// Directors who hold a Branch Manager slot in the data (for their branch's
+// own commission/monthly-report/target tracking, which this list must never
+// touch) but are not regular staff and should never appear on the
+// Attendance page or in the Reward Point Ranking — per Sophia: "Max siew
+// and EC (both director) no need attendance, point reward." Matched by
+// name, case-insensitively, wherever a roster/ranking entry's display name
+// comes from — a manager name or an SR canon name. Keep this in sync by
+// hand with the matching list in App.jsx (the two files don't share a
+// lookup module for this one narrow case).
+const DIRECTOR_EXCLUDED_NAMES=["MAX SIEW","EC"];
+const isDirectorExcluded=name=>DIRECTOR_EXCLUDED_NAMES.includes((name||"").trim().toUpperCase());
 function rosterFor(branch,meta,srList){
   if(MANUAL_ROSTER_ONLY_BRANCHES.includes(branch))return[];
   const m=meta[branch]||{};
   const people=[];
-  if(m.manager)people.push({id:`BM_${branch}`,name:m.manager,role:"Branch Manager",branch,alsoManages:otherBranchesManagedBy(branch,meta)});
-  srList.filter(s=>s.branch===branch).forEach(s=>people.push({id:s.id,name:s.canon,role:`${s.type} SR`,branch}));
+  if(m.manager&&!isDirectorExcluded(m.manager))people.push({id:`BM_${branch}`,name:m.manager,role:"Branch Manager",branch,alsoManages:otherBranchesManagedBy(branch,meta)});
+  srList.filter(s=>s.branch===branch&&!isDirectorExcluded(s.canon)).forEach(s=>people.push({id:s.id,name:s.canon,role:`${s.type} SR`,branch}));
   return people;
 }
 // Attendance-only staff (added via "Add Staff") can be deactivated instead
@@ -326,20 +337,20 @@ function DayEditModal({person,day,monthLabel,entry,hours,onSave,onClose}){
   const handleSave=()=>{
     const newEntry=type==="WORKED"?{in:inT,out:outT||null}:{leave:type};
     if(entry&&!isUnchanged){
-      if(!confirm(`Day ${day} for ${person.name} is already filled in. Saving will overwrite the existing record. Continue?`))return;
+      if(!confirm(`${day} ${monthLabel} for ${person.name} is already filled in. Saving will overwrite the existing record. Continue?`))return;
     }
     onSave(day,newEntry);
     onClose();
   };
   const handleClear=()=>{
-    if(!confirm(`Clear the attendance record for ${person.name} on Day ${day}? This cannot be undone.`))return;
+    if(!confirm(`Clear the attendance record for ${person.name} on ${day} ${monthLabel}? This cannot be undone.`))return;
     onSave(day,null);
     onClose();
   };
   return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{...card,width:"90%",maxWidth:380}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>{person.name} · Day {day}, {monthLabel}</div>
+        <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>{person.name} · {day} {monthLabel}</div>
         <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer"}}>×</button>
       </div>
       <div style={{padding:18}}>
@@ -384,7 +395,14 @@ function DayLegend(){
 
 /* ── Fill-in table: staff down the side, one column per day — the same
    shape as the monthly report table (emaxhr / Sophia only). ─────────── */
-function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,extraStaff,onAddStaff,onEditStaff,branch,setBranch}){
+function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,extraStaff,onAddStaff,onEditStaff,branch,setBranch,readOnly=false,daysReadOnly=false}){
+  // readOnly = the whole grid is view-only (Boon Theng/Wingfei: no Add
+  // Staff, no rename, no day-cell editing). daysReadOnly = just the
+  // day-cell click-to-edit is disabled (emaxhr/Sophia: editing now happens
+  // exclusively through "Fill Attendance (List)"), but Add Staff and
+  // rename stay fully working. readOnly implies day cells are non-editable
+  // too, so callers only need to pass one or the other.
+  const cellsLocked=readOnly||daysReadOnly;
   const[editing,setEditing]=useState(null); // {person, day}
   const[adding,setAdding]=useState(false);
   const[editingStaff,setEditingStaff]=useState(null); // attendance-only person being renamed/re-roled
@@ -417,7 +435,7 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
         <input type="checkbox" checked={showInactive} onChange={e=>setShowInactive(e.target.checked)}/>
         Show inactive staff
       </label>
-      <GBtn onClick={()=>setAdding(true)}>{Ic.plus} Add Staff</GBtn>
+      {!readOnly&&<GBtn onClick={()=>setAdding(true)}>{Ic.plus} Add Staff</GBtn>}
     </div>
 
     {roster.length===0?<div style={{...card,padding:24,textAlign:"center",fontSize:12,color:C.textLight}}>No staff yet for {meta[branch]?.name||branch}. Use "Add Staff" above to start tracking attendance here.</div>:
@@ -441,7 +459,7 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
               <td style={{...tdBase,position:"sticky",left:0,background:rowBg,textAlign:"left",padding:"8px 10px",zIndex:1}}>
                 <div style={{display:"flex",alignItems:"center",gap:5}}>
                   <div style={{fontWeight:700,fontSize:12,color:C.text}}>{person.name}</div>
-                  {person.isExtra&&<button onClick={()=>setEditingStaff(person)} title="Edit name/role" style={{background:"transparent",border:"none",color:C.textLight,cursor:"pointer",padding:2,display:"flex"}}>{Ic.edit}</button>}
+                  {person.isExtra&&!readOnly&&<button onClick={()=>setEditingStaff(person)} title="Edit name/role" style={{background:"transparent",border:"none",color:C.textLight,cursor:"pointer",padding:2,display:"flex"}}>{Ic.edit}</button>}
                   {inactive&&<span style={{fontSize:8.5,fontWeight:700,color:C.textLight,background:C.surface,border:`1px solid ${C.border}`,borderRadius:4,padding:"1px 5px",textTransform:"uppercase"}}>Inactive</span>}
                 </div>
                 <div style={{fontSize:10,color:C.textLight}}>{person.role}</div>
@@ -454,9 +472,11 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
                 if(st.filled&&st.isLeave){const m=leaveMeta(st.leaveCode);bg=m.color+"18";fg=m.color;label=st.leaveCode;}
                 else if(st.filled&&st.isIssue){bg="#FEF2F2";fg=C.red;label="!";}
                 else if(st.filled){bg="#F0FDF4";fg=C.green;label="✓";}
-                const title=st.filled?(st.isLeave?st.leaveLabel:`${entry.in} – ${entry.out||"—"}`):"Not filled — click to fill in";
+                const title=st.filled?(st.isLeave?st.leaveLabel:`${entry.in} – ${entry.out||"—"}`):"Not filled";
                 return<td key={d} style={{...tdBase,background:bg}}>
-                  <button onClick={()=>setEditing({person,day:d})} title={title} style={{width:"100%",height:30,border:"none",background:"transparent",color:fg,fontSize:st.isLeave?9:11,fontWeight:700,cursor:"pointer"}}>{label}</button>
+                  {cellsLocked
+                    ?<div title={title} style={{width:"100%",height:30,display:"flex",alignItems:"center",justifyContent:"center",color:fg,fontSize:st.isLeave?9:11,fontWeight:700}}>{label}</div>
+                    :<button onClick={()=>setEditing({person,day:d})} title={title+" — click to fill in"} style={{width:"100%",height:30,border:"none",background:"transparent",color:fg,fontSize:st.isLeave?9:11,fontWeight:700,cursor:"pointer"}}>{label}</button>}
                 </td>;
               })}
               <td style={{...tdBase,background:rowBg,fontSize:12,fontWeight:700,color:stats.issues>0?C.red:C.textLight}}>{stats.issues}</td>
@@ -468,10 +488,106 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
     </div>}
     <DayLegend/>
 
-    {editing&&<DayEditModal person={editing.person} day={editing.day} monthLabel={monthLabel} entry={attendance[editing.person.id]?.[editing.day]} hours={branchHours}
+    {!cellsLocked&&editing&&<DayEditModal person={editing.person} day={editing.day} monthLabel={monthLabel} entry={attendance[editing.person.id]?.[editing.day]} hours={branchHours}
       onSave={(day,entry)=>saveDay(editing.person.id,day,entry)} onClose={()=>setEditing(null)}/>}
-    {adding&&<AddStaffModal branch={branch} meta={meta} existingNames={roster.map(p=>p.name.trim().toLowerCase())} roleOptions={roleOptions} onAdd={p=>onAddStaff(branch,p)} onClose={()=>setAdding(false)}/>}
-    {editingStaff&&<EditStaffModal person={editingStaff} meta={meta} roleOptions={roleOptions} onSave={updates=>onEditStaff(branch,editingStaff.id,updates)} onClose={()=>setEditingStaff(null)}/>}
+    {!readOnly&&adding&&<AddStaffModal branch={branch} meta={meta} existingNames={roster.map(p=>p.name.trim().toLowerCase())} roleOptions={roleOptions} onAdd={p=>onAddStaff(branch,p)} onClose={()=>setAdding(false)}/>}
+    {!readOnly&&editingStaff&&<EditStaffModal person={editingStaff} meta={meta} roleOptions={roleOptions} onSave={updates=>onEditStaff(branch,editingStaff.id,updates)} onClose={()=>setEditingStaff(null)}/>}
+  </div>;
+}
+
+/* ── Fill-in LIST: an alternative to HRFillInView's wide grid, for filling
+   in one staff member's whole month quickly — branch, then person, then
+   the same Day/Clock In/Clock Out/Status layout as
+   PersonAttendanceDetailModal, but editable (click a row to open the same
+   DayEditModal the grid uses, which already carries its own
+   overwrite-confirmation for an already-filled day). Purely additive — the
+   grid (HRFillInView) is untouched and still the default "Attendance
+   Table" sub-tab. ─────────────────────────────────────────────────────── */
+function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours,extraStaff,branch,setBranch}){
+  const roster=combinedRoster(branch,meta,srList,extraStaff,attendance,false);
+  const days=daysInMonth(year,month);
+  const dayList=Array.from({length:days},(_,i)=>i+1);
+  const [day,setDay]=useState(1);
+  // Keep the selected day valid if the month changes to one with fewer days.
+  useEffect(()=>{
+    if(day>days)setDay(days);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[days]);
+  const monthLabel=`${MONTH_NAMES[month]} ${year}`;
+  const branchHours=hours[branch]||{start:"09:30",end:"18:30"};
+  const [editingPersonId,setEditingPersonId]=useState(null);
+  const editingPerson=roster.find(p=>p.id===editingPersonId)||null;
+
+  const saveDay=(personId,d,entry)=>{
+    setAttendance(prev=>{
+      const personRec={...(prev[personId]||{})};
+      if(entry===null)delete personRec[d];
+      else personRec[d]=entry;
+      return{...prev,[personId]:personRec};
+    });
+  };
+
+  const navBtn={padding:"7px 12px",borderRadius:6,border:`1px solid ${C.border}`,background:"#fff",color:C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"};
+
+  return<div>
+    <div style={{marginBottom:14}}><BranchTabs value={branch} onChange={setBranch} meta={meta}/></div>
+    <div style={{marginBottom:14,display:"flex",alignItems:"flex-end",gap:8,flexWrap:"wrap"}}>
+      <div style={{maxWidth:140}}>
+        <L>Day</L>
+        <SEL value={day} onChange={e=>setDay(Number(e.target.value))}>
+          {dayList.map(d=><option key={d} value={d}>{d}</option>)}
+        </SEL>
+      </div>
+      <button onClick={()=>setDay(d=>Math.max(1,d-1))} disabled={day<=1} style={{...navBtn,opacity:day<=1?.45:1,cursor:day<=1?"default":"pointer"}}>‹ Prev day</button>
+      <button onClick={()=>setDay(d=>Math.min(days,d+1))} disabled={day>=days} style={{...navBtn,opacity:day>=days?.45:1,cursor:day>=days?"default":"pointer"}}>Next day ›</button>
+    </div>
+
+    {roster.length===0?<div style={{...card,padding:24,textAlign:"center",fontSize:12,color:C.textLight}}>No staff yet for {meta[branch]?.name||branch}. Use the Attendance Table tab's "Add Staff" to add one first.</div>:
+    <div style={{...card,overflow:"hidden"}}>
+      <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"12px 18px"}}>
+        <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>{day} {monthLabel}</div>
+        <div style={{fontSize:10.5,color:"rgba(255,255,255,.65)"}}>{meta[branch]?.name||branch} · click a staff member to fill in their attendance for this day</div>
+      </div>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11.5}}>
+          <thead><tr>
+            <th style={{textAlign:"left",padding:"8px 10px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`}}>Staff</th>
+            <th style={{textAlign:"left",padding:"8px 10px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`}}>Clock In</th>
+            <th style={{textAlign:"left",padding:"8px 10px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`}}>Clock Out</th>
+            <th style={{textAlign:"left",padding:"8px 10px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`}}>Status</th>
+            <th style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`}}></th>
+          </tr></thead>
+          <tbody>
+            {roster.map(person=>{
+              const entry=attendance[person.id]?.[day];
+              const st=dayStatus(entry,branchHours);
+              let statusEl;
+              if(!st.filled)statusEl=<span style={{color:C.textLight}}>Not filled</span>;
+              else if(st.isLeave)statusEl=<span style={{color:leaveMeta(st.leaveCode).color,fontWeight:700}}>{st.leaveLabel}</span>;
+              else if(st.isLate&&st.isEarlyOut)statusEl=<span style={{color:C.red,fontWeight:700}}>Late {fmtMinutes(st.lateBy)} + Early Out {fmtMinutes(st.earlyBy)}</span>;
+              else if(st.isLate)statusEl=<span style={{color:C.red,fontWeight:700}}>Late by {fmtMinutes(st.lateBy)}</span>;
+              else if(st.isEarlyOut)statusEl=<span style={{color:C.amber,fontWeight:700}}>Early Out by {fmtMinutes(st.earlyBy)}</span>;
+              else statusEl=<span style={{color:C.green,fontWeight:700}}>On time</span>;
+              return<tr key={person.id} onClick={()=>setEditingPersonId(person.id)} style={{cursor:"pointer",background:st.filled&&st.isIssue?"#FEF2F2":"transparent"}}>
+                <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,color:C.text,fontWeight:700}}>
+                  {person.name}
+                  {person.isExtra&&!isActiveStaff(person)?<span style={{marginLeft:5,fontSize:8.5,fontWeight:700,color:C.textLight,background:C.surface,border:`1px solid ${C.border}`,borderRadius:4,padding:"1px 5px",textTransform:"uppercase"}}>Inactive</span>:null}
+                  <div style={{fontSize:9.5,fontWeight:400,color:C.textLight}}>{person.role}</div>
+                </td>
+                <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,color:C.textMid}}>{st.filled&&!st.isLeave?entry.in:"—"}</td>
+                <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,color:C.textMid}}>{st.filled&&!st.isLeave?(entry.out||"—"):"—"}</td>
+                <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}>{statusEl}</td>
+                <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,color:C.textLight,display:"flex",alignItems:"center"}}>{Ic.edit}</td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>}
+    <DayLegend/>
+
+    {editingPerson&&<DayEditModal person={editingPerson} day={day} monthLabel={monthLabel} entry={attendance[editingPerson.id]?.[day]} hours={branchHours}
+      onSave={(d,entry)=>saveDay(editingPerson.id,d,entry)} onClose={()=>setEditingPersonId(null)}/>}
   </div>;
 }
 
@@ -666,7 +782,7 @@ function PersonAttendanceDetailModal({person,meta,year,month,attendance,hours,on
             <th style={{textAlign:"left",padding:"8px 4px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`}}>Day</th>
             <th style={{textAlign:"left",padding:"8px 4px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`}}>Clock In</th>
             <th style={{textAlign:"left",padding:"8px 4px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`}}>Clock Out</th>
-            <th style={{textAlign:"left",padding:"8px 4px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`}}>Status (as filled by emaxhr)</th>
+            <th style={{textAlign:"left",padding:"8px 4px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`}}>Status</th>
           </tr></thead>
           <tbody>
             {dayList.map(d=>{
@@ -754,7 +870,13 @@ export default function AttendanceTab({branchMeta={},srList=[],isAdmin=false,can
   const setBranch=userBranch?()=>{}:setBranchRaw; // locked-branch views never switch
   const effectiveBranch=userBranch||branch;
 
-  const [sub,setSub]=useState(canManageHours?"hours":"table"); // hours | table | summary — admin only
+  // Clicking into Attendance should land on the "Fill Attendance (List)"
+  // workflow first for both emaxhr and Sophia (per Sophia's instruction),
+  // regardless of the order the tab buttons are drawn in below. The
+  // view-only cross-branch viewers (Boon Theng/Wingfei) have no "list" tab
+  // at all, so they default to "table" (their first/leftmost tab) instead.
+  const viewCross=!isAdmin&&allowBranchSwitch; // Boon Theng / Wingfei: view-only, multi-branch
+  const [sub,setSub]=useState(isAdmin?"list":"cards"); // hours | list | table | summary | cards
 
   const [hours,setHours_]=useState(seedBusinessHours());
   const [extraStaff,setExtraStaff_]=useState({});
@@ -833,10 +955,20 @@ export default function AttendanceTab({branchMeta={},srList=[],isAdmin=false,can
     </div>}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
       <div style={{fontSize:16,fontWeight:800,color:C.navy}}>Attendance</div>
-      {isAdmin&&<div style={{display:"flex",gap:6,background:"#fff",border:`1px solid ${C.border}`,borderRadius:9,padding:4,flexWrap:"wrap"}}>
-        {canManageHours&&<button onClick={()=>setSub("hours")} style={{padding:"7px 12px",borderRadius:6,border:"none",background:sub==="hours"?C.navy:"transparent",color:sub==="hours"?"#fff":C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Business Hours & Staff</button>}
-        <button onClick={()=>setSub("table")} style={{padding:"7px 12px",borderRadius:6,border:"none",background:sub==="table"?C.navy:"transparent",color:sub==="table"?"#fff":C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Attendance Table</button>
-        <button onClick={()=>setSub("summary")} style={{padding:"7px 12px",borderRadius:6,border:"none",background:sub==="summary"?C.navy:"transparent",color:sub==="summary"?"#fff":C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Attendance Summary</button>
+      {(isAdmin||viewCross)&&<div style={{display:"flex",gap:6,background:"#fff",border:`1px solid ${C.border}`,borderRadius:9,padding:4,flexWrap:"wrap"}}>
+        {isAdmin?<>
+          {canManageHours&&<button onClick={()=>setSub("hours")} style={{padding:"7px 12px",borderRadius:6,border:"none",background:sub==="hours"?C.navy:"transparent",color:sub==="hours"?"#fff":C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Business Hours & Staff</button>}
+          <button onClick={()=>setSub("list")} style={{padding:"7px 12px",borderRadius:6,border:"none",background:sub==="list"?C.navy:"transparent",color:sub==="list"?"#fff":C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Fill Attendance (List)</button>
+          <button onClick={()=>setSub("table")} style={{padding:"7px 12px",borderRadius:6,border:"none",background:sub==="table"?C.navy:"transparent",color:sub==="table"?"#fff":C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Attendance Table</button>
+          <button onClick={()=>setSub("summary")} style={{padding:"7px 12px",borderRadius:6,border:"none",background:sub==="summary"?C.navy:"transparent",color:sub==="summary"?"#fff":C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Attendance Summary</button>
+        </>:<>
+          {/* Boon Theng / Wingfei — view-only, multi-branch: no Fill List (an editing
+              feature) and Attendance Table is rendered read-only below.
+              Branch Overview (the card grid) is first/default per Sophia. */}
+          <button onClick={()=>setSub("cards")} style={{padding:"7px 12px",borderRadius:6,border:"none",background:sub==="cards"?C.navy:"transparent",color:sub==="cards"?"#fff":C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Branch Overview</button>
+          <button onClick={()=>setSub("table")} style={{padding:"7px 12px",borderRadius:6,border:"none",background:sub==="table"?C.navy:"transparent",color:sub==="table"?"#fff":C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Attendance Table</button>
+          <button onClick={()=>setSub("summary")} style={{padding:"7px 12px",borderRadius:6,border:"none",background:sub==="summary"?C.navy:"transparent",color:sub==="summary"?"#fff":C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Attendance Summary</button>
+        </>}
       </div>}
     </div>
 
@@ -849,8 +981,19 @@ export default function AttendanceTab({branchMeta={},srList=[],isAdmin=false,can
 
     {isAdmin?<>
       {sub==="hours"&&canManageHours&&<BusinessHoursView year={year} month={month} meta={meta} srList={srList} attendance={attendance} hours={hours} setHours={setHours} extraStaff={extraStaff} onAddStaff={addStaff} onEditStaff={editStaff} onSetStaffActive={setStaffActive} onRemoveStaff={removeStaffHard}/>}
-      {sub==="table"&&<HRFillInView year={year} month={month} meta={meta} srList={srList} attendance={attendance} setAttendance={setAttendance} hours={hours} extraStaff={extraStaff} onAddStaff={addStaff} onEditStaff={editStaff} branch={effectiveBranch} setBranch={setBranch}/>}
+      {sub==="list"&&<HRFillInListView year={year} month={month} meta={meta} srList={srList} attendance={attendance} setAttendance={setAttendance} hours={hours} extraStaff={extraStaff} branch={effectiveBranch} setBranch={setBranch}/>}
+      {sub==="table"&&<HRFillInView daysReadOnly year={year} month={month} meta={meta} srList={srList} attendance={attendance} setAttendance={setAttendance} hours={hours} extraStaff={extraStaff} onAddStaff={addStaff} onEditStaff={editStaff} branch={effectiveBranch} setBranch={setBranch}/>}
       {sub==="summary"&&<AttendanceSummaryTable year={year} month={month} meta={meta} srList={srList} attendance={attendance} hours={hours} extraStaff={extraStaff} onEditStaff={editStaff} branch={effectiveBranch} setBranch={setBranch}/>}
+    </>:viewCross?<>
+      {/* Boon Theng / Wingfei: same grid/summary components emaxhr uses, but
+          the grid is rendered read-only (no day-cell editing, no Add Staff,
+          no staff rename) — no separate viewer-only re-implementation
+          needed. Their old single card-grid view is kept too, as a third
+          "Branch Overview" tab, since it was already read-only and still a
+          fast at-a-glance view. */}
+      {sub==="table"&&<HRFillInView readOnly year={year} month={month} meta={meta} srList={srList} attendance={attendance} setAttendance={setAttendance} hours={hours} extraStaff={extraStaff} branch={effectiveBranch} setBranch={setBranch}/>}
+      {sub==="summary"&&<AttendanceSummaryTable year={year} month={month} meta={meta} srList={srList} attendance={attendance} hours={hours} extraStaff={extraStaff} onEditStaff={editStaff} branch={effectiveBranch} setBranch={setBranch}/>}
+      {sub==="cards"&&<BranchView year={year} month={month} meta={meta} srList={srList} attendance={attendance} hours={hours} extraStaff={extraStaff} allowBranchSwitch={true} branch={effectiveBranch} setBranch={setBranch}/>}
     </>:<BranchView year={year} month={month} meta={meta} srList={srList} attendance={attendance} hours={hours} extraStaff={extraStaff} allowBranchSwitch={allowBranchSwitch&&!userBranch} branch={effectiveBranch} setBranch={setBranch}/>}
   </div>;
 }

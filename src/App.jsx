@@ -98,6 +98,17 @@ const CSS = `
 function daysInMonth(m,y){return new Date(y,m,0).getDate();}
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 
+// Directors who hold a Branch Manager slot in the data (for their branch's
+// own commission/monthly-report/target tracking, which must never be
+// touched by this list) but are not regular staff and should never appear
+// in the Reward Point Ranking — per Sophia: "Max siew and EC (both
+// director) no need attendance, point reward." Matched by name,
+// case-insensitively. Keep this in sync by hand with the matching list in
+// AttendanceTab.jsx (the two files don't share a lookup module for this one
+// narrow case).
+const DIRECTOR_EXCLUDED_NAMES=["MAX SIEW","EC"];
+const isDirectorExcluded=name=>DIRECTOR_EXCLUDED_NAMES.includes((name||"").trim().toUpperCase());
+
 // managerId is no longer auto-assigned by the app — it's a manually-entered
 // field Sophia/emaxhr set themselves (same ID format as SR ids, e.g.
 // "EM0360"), editable from the Manage Staff panel. Left blank here on
@@ -3331,13 +3342,14 @@ export default function App(){
           {(()=>{
             const bmByManagerId={};
             BRANCH_ORDER.forEach(b=>{
+              if(isDirectorExcluded(branchMeta[b]?.manager))return; // director, not staff — see DIRECTOR_EXCLUDED_NAMES
               const mid=branchMeta[b]?.managerId||b;
               if(!bmByManagerId[mid])bmByManagerId[mid]={id:`BM_${mid}`,name:branchMeta[b]?.manager||b,role:"Branch Manager",branches:[]};
               bmByManagerId[mid].branches.push(b);
             });
             const allPeople=[
               ...Object.values(bmByManagerId).map(p=>({...p,branch:p.branches.join(", ")})),
-              ...srList.filter(sr=>srVisibleInMonth(sr,selMonth,selYear)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch,branches:[sr.branch]})),
+              ...srList.filter(sr=>srVisibleInMonth(sr,selMonth,selYear)&&!isDirectorExcluded(sr.canon)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch,branches:[sr.branch]})),
             ];
             const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0,asOf:pointsAsOfFor(p.branches[0])})).sort((a,b)=>b.balance-a.balance);
             const medals=["🥇","🥈","🥉"];
