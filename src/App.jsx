@@ -20,6 +20,7 @@ import StockTransferTab from "./StockTransferTab.jsx";
 import DailyReportPanel from "./DailyReportPanel.jsx";
 import WarrantyTab from "./WarrantyTab.jsx";
 import StockWriteOffTab from "./StockWriteOffTab.jsx";
+import AttendanceTab from "./AttendanceTab.jsx";
 
 const T = {
   navy:"#0A1628", navyMid:"#0F2040", navyLight:"#162B52",
@@ -2452,7 +2453,7 @@ export default function App(){
   const [loading,setLoading]       = useState(true);
   const [tab,setTabRaw]             = useState(()=>{
     const h=window.location.hash.replace("#","");
-    return ["overview","todoPickup","todoRto","rankings","points","report","daily","repair","rto","orders","purchaseOrder","dailySales","jclApplications","chaileaseApplications","dailyPayment","stockProfit","stockTransfer","warranty","stockWriteOff"].includes(h)?h:"overview";
+    return ["overview","todoPickup","todoRto","rankings","points","report","daily","repair","rto","orders","purchaseOrder","dailySales","jclApplications","chaileaseApplications","dailyPayment","stockProfit","stockTransfer","warranty","stockWriteOff","attendance"].includes(h)?h:"overview";
   });
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   // Consolidated "To Do List" tab (Boon Theng/Sophia only) — combines the
@@ -3168,6 +3169,13 @@ export default function App(){
     {id:"dailyPayment",label:"Daily Payment"},
     {id:"stockProfit",label:"Stock Profit Checker"},
     {id:"stockTransfer",label:"Stock Transfer"},
+    // This whole page (index.html/main.jsx) is already gated to just
+    // sophiawsc9395@gmail.com by AuthGate — unlike BossViewer.jsx (shared by
+    // hr.html/boss.html/manager.html for several different accounts with
+    // different Attendance permission levels), there's no one else who can
+    // even reach this component, so Attendance is included unconditionally
+    // here with full admin access, no separate email re-check needed.
+    {id:"attendance",label:"Attendance"},
   ];
   const [expandedGroups,setExpandedGroups]=useState(()=>{
     const initial={};
@@ -3466,6 +3474,7 @@ export default function App(){
       {tab==="dailyPayment"&&<DailyPaymentTab email={currentEmail} pendingByCompany={pendingDailyPaymentByCompany}/>}
       {tab==="stockProfit"&&<StockProfitTab email={currentEmail}/>}
       {tab==="stockTransfer"&&<StockTransferTab canCreate={true} branchMeta={branchMeta} email={currentEmail}/>}
+      {tab==="attendance"&&<div className="fade-in"><AttendanceTab branchMeta={branchMeta} srList={srList} isAdmin={true} canManageHours={true} allowBranchSwitch={true} email={currentEmail}/></div>}
 
       </div>{/* end main content */}
 
