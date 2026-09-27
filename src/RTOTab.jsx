@@ -408,10 +408,20 @@ export default function RTOTab({branchMeta,email}){
   // when the Portfolio Summary view is opened — never on the list/board load.
   const [summaryCustomers,setSummaryCustomers]=useState(null);
   const [summaryLoading,setSummaryLoading]=useState(false);
+  // Real payment records for every customer in the list, keyed by customer id
+  // ({[custId]:{[schedKey]:{paid,...}}}). The list's Progress badge computes
+  // its count live from this — never from the denormalized paid_count column
+  // on the header row, which can drift stale (see updatePayment below).
+  const [listPayments,setListPayments]=useState({});
 
-  // Headers only — no payments. This is the ONLY query the customer list/
-  // cards need, regardless of how many months of payment history pile up.
-  const refreshList=()=>listCustomers().then(d=>{setCustomers(d);setLoading(false);});
+  // Headers + a single batched payments query, so the Progress column can be
+  // computed live from real rto_payments rows for every customer, not just
+  // the ones whose detail panel happens to have been opened.
+  const refreshList=()=>listCustomers().then(d=>{
+    setCustomers(d);
+    setLoading(false);
+    getPaymentsForCustomers(d.map(c=>c.id)).then(byId=>setListPayments(byId));
+  });
   useEffect(()=>{refreshList();},[]);
 
   useEffect(()=>{
@@ -461,6 +471,7 @@ export default function RTOTab({branchMeta,email}){
     const result=await apiUpdatePayment(customerId,schedKey,payData,{paidCount,totalReceived});
     if(!result.ok){alert(`Save failed — please try again.${result.error?.message?`\n\n(${result.error.message})`:""}`);return;}
     setPaymentsCache(p=>({...p,[customerId]:newPayments}));
+    setListPayments(p=>({...p,[customerId]:newPayments}));
     setCustomers(p=>p.map(c=>c.id===customerId?{...c,paidCount,totalReceived}:c));
     setSummaryCustomers(null);
   };
@@ -545,8 +556,16 @@ export default function RTOTab({branchMeta,email}){
               <div style={{maxHeight:620,overflowY:"auto"}}>
                 {filtered.map((c,i)=>{
                   const schedule=genSchedule(c);
-                  const paidCount=c.paidCount||0;
-                  const totalReceived=c.totalReceived||0;
+                  // Live count from the real payment records (matches
+                  // RTOSummary.jsx's logic) — never the cached c.paidCount,
+                  // which can get stuck stale after rapid successive writes.
+                  const custPayments=listPayments[c.id]||{};
+                  const paidCount=schedule.filter(s=>custPayments[s.key]?.paid).length;
+                  // Live total, computed the same way as PaymentSchedule's
+                  // "Total Payment Received" (line ~182) — never the cached
+                  // c.totalReceived column, which shares the same staleness
+                  // exposure the Progress badge had.
+                  const totalReceived=schedule.reduce((sum,s)=>sum+amountReceivedFor(s,custPayments[s.key]),0);
                   const totalContract=(parseInt(c.tenure)||0)*(parseFloat(c.monthlyInstallment)||0);
                   const outstanding=totalContract-totalReceived;
                   const isFullyPaid=outstanding<=0&&schedule.length>0;

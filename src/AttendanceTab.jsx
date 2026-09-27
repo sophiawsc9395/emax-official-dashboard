@@ -395,16 +395,15 @@ function DayLegend(){
 
 /* ── Fill-in table: staff down the side, one column per day — the same
    shape as the monthly report table (emaxhr / Sophia only). ─────────── */
-function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,extraStaff,onAddStaff,onEditStaff,branch,setBranch,readOnly=false,daysReadOnly=false}){
-  // readOnly = the whole grid is view-only (Boon Theng/Wingfei: no Add
-  // Staff, no rename, no day-cell editing). daysReadOnly = just the
-  // day-cell click-to-edit is disabled (emaxhr/Sophia: editing now happens
-  // exclusively through "Fill Attendance (List)"), but Add Staff and
-  // rename stay fully working. readOnly implies day cells are non-editable
-  // too, so callers only need to pass one or the other.
+function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,extraStaff,onEditStaff,branch,setBranch,readOnly=false,daysReadOnly=false}){
+  // readOnly = the whole grid is view-only (Boon Theng/Wingfei: no rename,
+  // no day-cell editing). daysReadOnly = just the day-cell click-to-edit is
+  // disabled (emaxhr/Sophia: editing now happens exclusively through "Fill
+  // Attendance (List)", which is also where "Add Staff" now lives), but
+  // rename stays fully working. readOnly implies day cells are
+  // non-editable too, so callers only need to pass one or the other.
   const cellsLocked=readOnly||daysReadOnly;
   const[editing,setEditing]=useState(null); // {person, day}
-  const[adding,setAdding]=useState(false);
   const[editingStaff,setEditingStaff]=useState(null); // attendance-only person being renamed/re-roled
   const[showInactive,setShowInactive]=useState(false);
   const roster=combinedRoster(branch,meta,srList,extraStaff,attendance,showInactive);
@@ -435,10 +434,9 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
         <input type="checkbox" checked={showInactive} onChange={e=>setShowInactive(e.target.checked)}/>
         Show inactive staff
       </label>
-      {!readOnly&&<GBtn onClick={()=>setAdding(true)}>{Ic.plus} Add Staff</GBtn>}
     </div>
 
-    {roster.length===0?<div style={{...card,padding:24,textAlign:"center",fontSize:12,color:C.textLight}}>No staff yet for {meta[branch]?.name||branch}. Use "Add Staff" above to start tracking attendance here.</div>:
+    {roster.length===0?<div style={{...card,padding:24,textAlign:"center",fontSize:12,color:C.textLight}}>No staff yet for {meta[branch]?.name||branch}. Use "Add Staff" on the Fill Attendance (List) tab to start tracking attendance here.</div>:
     <div style={{...card,overflowX:"auto"}}>
       <table style={{borderCollapse:"collapse",width:"100%",fontFamily:"Inter,sans-serif"}}>
         <thead>
@@ -446,7 +444,7 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
             <th style={{...thStyle,position:"sticky",left:0,background:C.navy,textAlign:"left",padding:"7px 10px",minWidth:150,zIndex:2}}>Staff</th>
             {dayList.map(d=><th key={d} style={{...thStyle,minWidth:28}}>{d}</th>)}
             <th style={{...thStyle,minWidth:52}}>Issues</th>
-            <th style={{...thStyle,minWidth:64}}>Payout</th>
+            {!hidesPayout(branch,meta)&&<th style={{...thStyle,minWidth:64}}>Payout</th>}
           </tr>
         </thead>
         <tbody>
@@ -479,8 +477,8 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
                     :<button onClick={()=>setEditing({person,day:d})} title={title+" — click to fill in"} style={{width:"100%",height:30,border:"none",background:"transparent",color:fg,fontSize:st.isLeave?9:11,fontWeight:700,cursor:"pointer"}}>{label}</button>}
                 </td>;
               })}
-              <td style={{...tdBase,background:rowBg,fontSize:12,fontWeight:700,color:stats.issues>0?C.red:C.textLight}}>{stats.issues}</td>
-              <td style={{...tdBase,background:rowBg,borderRight:"none"}}>{hidesPayout(branch,meta)?<span style={{fontSize:11,color:C.textLight}}>—</span>:<span style={{fontSize:11,fontWeight:800,color:payoutColor(pct),background:payoutColor(pct)+"15",padding:"3px 9px",borderRadius:20,display:"inline-block"}}>{pct}%</span>}</td>
+              <td style={{...tdBase,background:rowBg,borderRight:hidesPayout(branch,meta)?"none":undefined,fontSize:12,fontWeight:700,color:stats.issues>0?C.red:C.textLight}}>{stats.issues}</td>
+              {!hidesPayout(branch,meta)&&<td style={{...tdBase,background:rowBg,borderRight:"none"}}><span style={{fontSize:11,fontWeight:800,color:payoutColor(pct),background:payoutColor(pct)+"15",padding:"3px 9px",borderRadius:20,display:"inline-block"}}>{pct}%</span></td>}
             </tr>;
           })}
         </tbody>
@@ -490,7 +488,6 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
 
     {!cellsLocked&&editing&&<DayEditModal person={editing.person} day={editing.day} monthLabel={monthLabel} entry={attendance[editing.person.id]?.[editing.day]} hours={branchHours}
       onSave={(day,entry)=>saveDay(editing.person.id,day,entry)} onClose={()=>setEditing(null)}/>}
-    {!readOnly&&adding&&<AddStaffModal branch={branch} meta={meta} existingNames={roster.map(p=>p.name.trim().toLowerCase())} roleOptions={roleOptions} onAdd={p=>onAddStaff(branch,p)} onClose={()=>setAdding(false)}/>}
     {!readOnly&&editingStaff&&<EditStaffModal person={editingStaff} meta={meta} roleOptions={roleOptions} onSave={updates=>onEditStaff(branch,editingStaff.id,updates)} onClose={()=>setEditingStaff(null)}/>}
   </div>;
 }
@@ -507,8 +504,10 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
    uses, so a failed save rolls the whole batch back and surfaces the usual
    red banner — nothing is ever left looking saved when it silently
    wasn't). Purely additive — the grid (HRFillInView) is untouched. ────── */
-function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours,extraStaff,branch,setBranch}){
+function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours,extraStaff,onAddStaff,branch,setBranch}){
   const roster=combinedRoster(branch,meta,srList,extraStaff,attendance,false);
+  const roleOptions=[...new Set(roster.map(p=>p.role).filter(Boolean))];
+  const[adding,setAdding]=useState(false);
   const days=daysInMonth(year,month);
   const dayList=Array.from({length:days},(_,i)=>i+1);
   const [day,setDay]=useState(1);
@@ -594,9 +593,11 @@ function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours
       </div>
       <button onClick={()=>setDay(d=>Math.max(1,d-1))} disabled={day<=1} style={{...navBtn,opacity:day<=1?.45:1,cursor:day<=1?"default":"pointer"}}>‹ Prev day</button>
       <button onClick={()=>setDay(d=>Math.min(days,d+1))} disabled={day>=days} style={{...navBtn,opacity:day>=days?.45:1,cursor:day>=days?"default":"pointer"}}>Next day ›</button>
+      <div style={{flex:1}}/>
+      <GBtn onClick={()=>setAdding(true)}>{Ic.plus} Add Staff</GBtn>
     </div>
 
-    {roster.length===0?<div style={{...card,padding:24,textAlign:"center",fontSize:12,color:C.textLight}}>No staff yet for {meta[branch]?.name||branch}. Use the Attendance Table tab's "Add Staff" to add one first.</div>:
+    {roster.length===0?<div style={{...card,padding:24,textAlign:"center",fontSize:12,color:C.textLight}}>No staff yet for {meta[branch]?.name||branch}. Use "Add Staff" above to start tracking attendance here.</div>:
     <div style={{...card,overflow:"hidden"}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"12px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
         <div>
@@ -659,6 +660,8 @@ function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours
       </div>
     </div>}
     <DayLegend/>
+
+    {adding&&<AddStaffModal branch={branch} meta={meta} existingNames={roster.map(p=>p.name.trim().toLowerCase())} roleOptions={roleOptions} onAdd={p=>onAddStaff(branch,p)} onClose={()=>setAdding(false)}/>}
   </div>;
 }
 
@@ -1052,8 +1055,8 @@ export default function AttendanceTab({branchMeta={},srList=[],isAdmin=false,can
 
     {isAdmin?<>
       {sub==="hours"&&canManageHours&&<BusinessHoursView year={year} month={month} meta={meta} srList={srList} attendance={attendance} hours={hours} setHours={setHours} extraStaff={extraStaff} onAddStaff={addStaff} onEditStaff={editStaff} onSetStaffActive={setStaffActive} onRemoveStaff={removeStaffHard}/>}
-      {sub==="list"&&<HRFillInListView year={year} month={month} meta={meta} srList={srList} attendance={attendance} setAttendance={setAttendance} hours={hours} extraStaff={extraStaff} branch={effectiveBranch} setBranch={setBranch}/>}
-      {sub==="table"&&<HRFillInView daysReadOnly year={year} month={month} meta={meta} srList={srList} attendance={attendance} setAttendance={setAttendance} hours={hours} extraStaff={extraStaff} onAddStaff={addStaff} onEditStaff={editStaff} branch={effectiveBranch} setBranch={setBranch}/>}
+      {sub==="list"&&<HRFillInListView year={year} month={month} meta={meta} srList={srList} attendance={attendance} setAttendance={setAttendance} hours={hours} extraStaff={extraStaff} onAddStaff={addStaff} branch={effectiveBranch} setBranch={setBranch}/>}
+      {sub==="table"&&<HRFillInView daysReadOnly year={year} month={month} meta={meta} srList={srList} attendance={attendance} setAttendance={setAttendance} hours={hours} extraStaff={extraStaff} onEditStaff={editStaff} branch={effectiveBranch} setBranch={setBranch}/>}
       {sub==="summary"&&<AttendanceSummaryTable year={year} month={month} meta={meta} srList={srList} attendance={attendance} hours={hours} extraStaff={extraStaff} onEditStaff={editStaff} branch={effectiveBranch} setBranch={setBranch}/>}
     </>:viewCross?<>
       {/* Boon Theng / Wingfei: same grid/summary components emaxhr uses, but
