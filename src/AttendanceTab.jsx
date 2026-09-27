@@ -496,13 +496,17 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
 }
 
 /* ── Fill-in LIST: an alternative to HRFillInView's wide grid, for filling
-   in one staff member's whole month quickly — branch, then person, then
-   the same Day/Clock In/Clock Out/Status layout as
-   PersonAttendanceDetailModal, but editable (click a row to open the same
-   DayEditModal the grid uses, which already carries its own
-   overwrite-confirmation for an already-filled day). Purely additive — the
-   grid (HRFillInView) is untouched and still the default "Attendance
-   Table" sub-tab. ─────────────────────────────────────────────────────── */
+   in a whole branch's staff for ONE day at once — branch, then day, then
+   every staff member's Day Type / Clock In / Clock Out inline in the row
+   (no popup). Per Sophia: "choose day type from day type column as drop
+   down list, and key in clock in clock out time directly, no need to pop
+   out. click save all after key in all staff in same branch." Each row is
+   a local, unsaved draft; nothing is written until "Save All" is pressed,
+   which commits every changed row for this branch+day in one go (through
+   the same persistedUpdate-wrapped setAttendance the rest of the file
+   uses, so a failed save rolls the whole batch back and surfaces the usual
+   red banner — nothing is ever left looking saved when it silently
+   wasn't). Purely additive — the grid (HRFillInView) is untouched. ────── */
 function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours,extraStaff,branch,setBranch}){
   const roster=combinedRoster(branch,meta,srList,extraStaff,attendance,false);
   const days=daysInMonth(year,month);
@@ -515,19 +519,69 @@ function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours
   },[days]);
   const monthLabel=`${MONTH_NAMES[month]} ${year}`;
   const branchHours=hours[branch]||{start:"09:30",end:"18:30"};
-  const [editingPersonId,setEditingPersonId]=useState(null);
-  const editingPerson=roster.find(p=>p.id===editingPersonId)||null;
 
-  const saveDay=(personId,d,entry)=>{
+  // Entries as stored use {leave} or {in,out?}, with `out` sometimes simply
+  // absent rather than null — normalize both sides the same way before ever
+  // comparing "did this row actually change".
+  const normalizeEntry=entry=>{
+    if(!entry)return null;
+    if(entry.leave)return{leave:entry.leave};
+    return{in:entry.in,out:entry.out||null};
+  };
+  const draftFromEntry=entry=>{
+    const n=normalizeEntry(entry);
+    if(!n)return{type:"WORKED",in:"",out:""};
+    if(n.leave)return{type:n.leave,in:"",out:""};
+    return{type:"WORKED",in:n.in||"",out:n.out||""};
+  };
+  // One local draft per person, reset to whatever's already saved whenever
+  // the branch or day changes — a fresh sheet for the newly-selected day.
+  const [drafts,setDrafts]=useState({});
+  useEffect(()=>{
+    const seeded={};
+    roster.forEach(p=>{seeded[p.id]=draftFromEntry(attendance[p.id]?.[day]);});
+    setDrafts(seeded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[branch,day]);
+  const setRowDraft=(personId,patch)=>setDrafts(prev=>({...prev,[personId]:{...(prev[personId]||draftFromEntry(attendance[personId]?.[day])),...patch}}));
+
+  // A row only ever contributes to Save All once it's a *complete* entry
+  // that actually *differs* from what's already saved — an untouched row,
+  // or a half-filled "Worked" row with no Clock In yet, is simply left
+  // alone (never blanks out an existing record).
+  const entryFromDraft=draft=>{
+    if(draft.type==="WORKED"){
+      if(!draft.in)return undefined; // incomplete — skip this row entirely
+      return{in:draft.in,out:draft.out||null};
+    }
+    return{leave:draft.type};
+  };
+  const pendingChanges=roster.map(person=>{
+    const draft=drafts[person.id]||draftFromEntry(attendance[person.id]?.[day]);
+    const newEntry=entryFromDraft(draft);
+    if(newEntry===undefined)return null;
+    const original=normalizeEntry(attendance[person.id]?.[day]);
+    if(JSON.stringify(newEntry)===JSON.stringify(original))return null;
+    return{personId:person.id,name:person.name,newEntry,isOverwrite:!!original};
+  }).filter(Boolean);
+
+  const handleSaveAll=()=>{
+    if(pendingChanges.length===0)return;
+    const overwrites=pendingChanges.filter(c=>c.isOverwrite);
+    if(overwrites.length>0){
+      if(!confirm(`${overwrites.length} of these ${overwrites.length===1?"person":"people"} already ${overwrites.length===1?"has":"have"} an entry for ${day} ${monthLabel} that will be overwritten (${overwrites.map(c=>c.name).join(", ")}). Continue?`))return;
+    }
     setAttendance(prev=>{
-      const personRec={...(prev[personId]||{})};
-      if(entry===null)delete personRec[d];
-      else personRec[d]=entry;
-      return{...prev,[personId]:personRec};
+      const next={...prev};
+      pendingChanges.forEach(c=>{next[c.personId]={...(next[c.personId]||{}),[day]:c.newEntry};});
+      return next;
     });
   };
 
   const navBtn={padding:"7px 12px",borderRadius:6,border:`1px solid ${C.border}`,background:"#fff",color:C.textMid,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"};
+  const thStyle={textAlign:"left",padding:"8px 10px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`};
+  const smallSelStyle={padding:"5px 6px",fontSize:11.5,minWidth:170};
+  const smallTimeStyle={padding:"5px 6px",fontSize:11.5,width:92};
 
   return<div>
     <div style={{marginBottom:14}}><BranchTabs value={branch} onChange={setBranch} meta={meta}/></div>
@@ -544,23 +598,34 @@ function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours
 
     {roster.length===0?<div style={{...card,padding:24,textAlign:"center",fontSize:12,color:C.textLight}}>No staff yet for {meta[branch]?.name||branch}. Use the Attendance Table tab's "Add Staff" to add one first.</div>:
     <div style={{...card,overflow:"hidden"}}>
-      <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"12px 18px"}}>
-        <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>{day} {monthLabel}</div>
-        <div style={{fontSize:10.5,color:"rgba(255,255,255,.65)"}}>{meta[branch]?.name||branch} · click a staff member to fill in their attendance for this day</div>
+      <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"12px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        <div>
+          <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>{day} {monthLabel}</div>
+          <div style={{fontSize:10.5,color:"rgba(255,255,255,.65)"}}>{meta[branch]?.name||branch} · pick a Day Type and key in times for each staff member, then Save All</div>
+        </div>
+        <PBtn disabled={pendingChanges.length===0} onClick={handleSaveAll}>{Ic.check} Save All{pendingChanges.length>0?` (${pendingChanges.length})`:""}</PBtn>
       </div>
       <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:11.5}}>
           <thead><tr>
-            <th style={{textAlign:"left",padding:"8px 10px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`}}>Staff</th>
-            <th style={{textAlign:"left",padding:"8px 10px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`}}>Clock In</th>
-            <th style={{textAlign:"left",padding:"8px 10px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`}}>Clock Out</th>
-            <th style={{textAlign:"left",padding:"8px 10px",color:C.textLight,fontSize:10,textTransform:"uppercase",letterSpacing:"0.04em",borderBottom:`1px solid ${C.border}`}}>Status</th>
-            <th style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`}}></th>
+            <th style={thStyle}>Staff</th>
+            <th style={thStyle}>Day Type</th>
+            <th style={thStyle}>Clock In</th>
+            <th style={thStyle}>Clock Out</th>
+            <th style={thStyle}>Status</th>
           </tr></thead>
           <tbody>
             {roster.map(person=>{
-              const entry=attendance[person.id]?.[day];
-              const st=dayStatus(entry,branchHours);
+              const draft=drafts[person.id]||draftFromEntry(attendance[person.id]?.[day]);
+              const isWorked=draft.type==="WORKED";
+              const newEntry=entryFromDraft(draft);
+              const original=normalizeEntry(attendance[person.id]?.[day]);
+              const isChanged=newEntry!==undefined&&JSON.stringify(newEntry)!==JSON.stringify(original);
+              // Live preview grades whatever's actually complete right now —
+              // the in-progress draft if it's ready, otherwise whatever's
+              // already saved, so a half-filled row doesn't just show blank.
+              const previewEntry=newEntry!==undefined?newEntry:(attendance[person.id]?.[day]||null);
+              const st=dayStatus(previewEntry,branchHours);
               let statusEl;
               if(!st.filled)statusEl=<span style={{color:C.textLight}}>Not filled</span>;
               else if(st.isLeave)statusEl=<span style={{color:leaveMeta(st.leaveCode).color,fontWeight:700}}>{st.leaveLabel}</span>;
@@ -568,16 +633,25 @@ function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours
               else if(st.isLate)statusEl=<span style={{color:C.red,fontWeight:700}}>Late by {fmtMinutes(st.lateBy)}</span>;
               else if(st.isEarlyOut)statusEl=<span style={{color:C.amber,fontWeight:700}}>Early Out by {fmtMinutes(st.earlyBy)}</span>;
               else statusEl=<span style={{color:C.green,fontWeight:700}}>On time</span>;
-              return<tr key={person.id} onClick={()=>setEditingPersonId(person.id)} style={{cursor:"pointer",background:st.filled&&st.isIssue?"#FEF2F2":"transparent"}}>
+              return<tr key={person.id} style={{background:isChanged?"#EFF6FF":"transparent"}}>
                 <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,color:C.text,fontWeight:700}}>
                   {person.name}
                   {person.isExtra&&!isActiveStaff(person)?<span style={{marginLeft:5,fontSize:8.5,fontWeight:700,color:C.textLight,background:C.surface,border:`1px solid ${C.border}`,borderRadius:4,padding:"1px 5px",textTransform:"uppercase"}}>Inactive</span>:null}
                   <div style={{fontSize:9.5,fontWeight:400,color:C.textLight}}>{person.role}</div>
                 </td>
-                <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,color:C.textMid}}>{st.filled&&!st.isLeave?entry.in:"—"}</td>
-                <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,color:C.textMid}}>{st.filled&&!st.isLeave?(entry.out||"—"):"—"}</td>
+                <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}>
+                  <SEL value={draft.type} onChange={e=>setRowDraft(person.id,{type:e.target.value})} style={smallSelStyle}>
+                    <option value="WORKED">Worked (clock in / out)</option>
+                    {LEAVE_TYPES.map(l=><option key={l.code} value={l.code}>{l.label}{HALF_DAY_LEAVE_CODES.includes(l.code)?" — 0.5 day":""}</option>)}
+                  </SEL>
+                </td>
+                <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}>
+                  <I type="time" disabled={!isWorked} value={draft.in} onChange={e=>setRowDraft(person.id,{in:e.target.value})} style={{...smallTimeStyle,opacity:isWorked?1:.4}}/>
+                </td>
+                <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}>
+                  <I type="time" disabled={!isWorked} value={draft.out} onChange={e=>setRowDraft(person.id,{out:e.target.value})} style={{...smallTimeStyle,opacity:isWorked?1:.4}}/>
+                </td>
                 <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}>{statusEl}</td>
-                <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,color:C.textLight,display:"flex",alignItems:"center"}}>{Ic.edit}</td>
               </tr>;
             })}
           </tbody>
@@ -585,9 +659,6 @@ function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours
       </div>
     </div>}
     <DayLegend/>
-
-    {editingPerson&&<DayEditModal person={editingPerson} day={day} monthLabel={monthLabel} entry={attendance[editingPerson.id]?.[day]} hours={branchHours}
-      onSave={(d,entry)=>saveDay(editingPerson.id,d,entry)} onClose={()=>setEditingPersonId(null)}/>}
   </div>;
 }
 
