@@ -11,6 +11,7 @@ import StockWriteOffTab from "../../StockWriteOffTab.jsx";
 import ChaileaseTab from "../../ChaileaseTab.jsx";
 import StockProfitTab from "../../StockProfitTab.jsx";
 import StockTransferTab from "../../StockTransferTab.jsx";
+import AttendanceTab from "../../AttendanceTab.jsx";
 
 const BRANCH_ID = "TW1";
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
@@ -229,11 +230,14 @@ function RankingTable({title,rows,showBonus,showPoints,branchMeta,period}){
 
 function StatusHistoryModal({srList,bMeta,statusHistory,onClose,initialPerson}){
   const isBM=initialPerson&&initialPerson.startsWith("BM_");
-  const branchId=isBM?initialPerson.replace("BM_",""):null;
+  const managerId=isBM?initialPerson.replace("BM_",""):null;
+  const bmBranches=isBM?Object.keys(bMeta).filter(b=>bMeta[b]?.managerId===managerId):[];
+  const branchId=isBM&&bmBranches.length===0?managerId:null;
+  const displayBranch=isBM?(bmBranches.length?bmBranches.join(", "):branchId):null;
   const person=isBM
-    ?{name:bMeta[branchId]?.manager||branchId,role:`${branchId} — Branch Manager`}
+    ?{name:bMeta[bmBranches[0]||branchId]?.manager||managerId,role:`${displayBranch} — Branch Manager`}
     :(()=>{const sr=srList.find(s=>s.id===initialPerson);return sr?{name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}:null;})();
-  const currentStatus=isBM?bMeta[branchId]?.mStatus:srList.find(s=>s.id===initialPerson)?.status;
+  const currentStatus=isBM?bMeta[bmBranches[0]||branchId]?.mStatus:srList.find(s=>s.id===initialPerson)?.status;
   const history=(statusHistory[initialPerson]||[]).slice().reverse();
 
   return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
@@ -269,9 +273,12 @@ function StatusHistoryModal({srList,bMeta,statusHistory,onClose,initialPerson}){
 
 function PointsHistoryModal({srList,bMeta,rewardBalances,rewardHistory,onClose,initialPerson}){
   const isBM=initialPerson&&initialPerson.startsWith("BM_");
-  const branchId=isBM?initialPerson.replace("BM_",""):null;
+  const managerId=isBM?initialPerson.replace("BM_",""):null;
+  const bmBranches=isBM?Object.keys(bMeta).filter(b=>bMeta[b]?.managerId===managerId):[];
+  const branchId=isBM&&bmBranches.length===0?managerId:null;
+  const displayBranch=isBM?(bmBranches.length?bmBranches.join(", "):branchId):null;
   const person=isBM
-    ?{name:bMeta[branchId]?.manager||branchId,role:`${branchId} — Branch Manager`}
+    ?{name:bMeta[bmBranches[0]||branchId]?.manager||managerId,role:`${displayBranch} — Branch Manager`}
     :(()=>{const sr=srList.find(s=>s.id===initialPerson);return sr?{name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}:null;})();
   const balance=rewardBalances[initialPerson]?.balance||0;
   const rawHistory=rewardHistory[initialPerson]||[];
@@ -385,7 +392,7 @@ export default function App(){
   const [allSRList,setAllSRList]=useState(DEFAULT_SR); // all branches, for company-wide ranking
   const [bMeta,setBMeta]=useState(DEFAULT_BRANCH_META);
   const [loading,setLoading]=useState(true);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications","chaileaseApplications","stockProfit","stockTransfer","warranty","stockWriteOff"].includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications","chaileaseApplications","stockProfit","stockTransfer","warranty","stockWriteOff","attendance"].includes(h)?h:"overview";});
   const SIDEBAR_STRUCTURE=[
     {id:"overview",label:"Performance"},
     {group:"ranking",label:"Ranking",children:[
@@ -402,6 +409,7 @@ export default function App(){
     {id:"stockWriteOff",label:"Stock Write-off"},
     {id:"stockProfit",label:"Stock Profit Checker"},
     {id:"stockTransfer",label:"Stock Transfer"},
+    {id:"attendance",label:"Attendance"},
   ];
   const [expandedGroups,setExpandedGroups]=useState(()=>{
     const initial={};
@@ -480,6 +488,7 @@ export default function App(){
         const isCurMonthB=(selMonth===nowB.getMonth()+1&&selYear===nowB.getFullYear());
         // Apply BM status snapshot for past months
         const metaWithSnap={...baseMeta};
+        const bmManagerId=baseMeta[BRANCH_ID]?.managerId||BRANCH_ID;
         if(!isCurMonthB&&snap&&snap[`BM_${BRANCH_ID}`]?.status){
           metaWithSnap[BRANCH_ID]={...metaWithSnap[BRANCH_ID],mStatus:snap[`BM_${BRANCH_ID}`].status};
         }
@@ -589,6 +598,7 @@ export default function App(){
   }).sort((a,b)=>pctN(b.profit,b.target)-pctN(a.profit,a.target));
   const branchPct=pctN(bTotal.total,bTarget);
   const meta=bMeta[BRANCH_ID]||{};
+  const bmManagerId=meta.managerId||BRANCH_ID;
 
   if(loading)return <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"#0A1628",fontFamily:"Inter,sans-serif"}}>
     <div style={{textAlign:"center"}}>
@@ -642,6 +652,7 @@ export default function App(){
       {tab==="chaileaseApplications"&&<div className="fade-in"><ChaileaseTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
       {tab==="stockProfit"&&<div className="fade-in"><StockProfitTab/></div>}
       {tab==="stockTransfer"&&<div className="fade-in"><StockTransferTab canCreate={false} userBranch={BRANCH_ID} branchMeta={bMeta}/></div>}
+      {tab==="attendance"&&<div className="fade-in"><AttendanceTab branchMeta={bMeta} srList={allSRList} isAdmin={false} allowBranchSwitch={false} userBranch={BRANCH_ID}/></div>}
       {tab==="rankings"&&<div className="fade-in" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:20}}>
         <RankingTable title="Branch Manager Ranking" rows={bmRankRows} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
         <RankingTable title="Online SR Ranking — Company" rows={srRankRows.filter(r=>r.type==="Online")} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
@@ -655,8 +666,14 @@ export default function App(){
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {(()=>{
+            const bmByManagerId={};
+            BRANCH_ORDER.forEach(b=>{
+              const mid=bMeta[b]?.managerId||b;
+              if(!bmByManagerId[mid])bmByManagerId[mid]={id:`BM_${mid}`,name:bMeta[b]?.manager||b,role:"Branch Manager",branches:[]};
+              bmByManagerId[mid].branches.push(b);
+            });
             const allPeople=[
-              ...BRANCH_ORDER.map(b=>({id:`BM_${b}`,name:bMeta[b]?.manager||b,role:"Branch Manager",branch:b})),
+              ...Object.values(bmByManagerId).map(p=>({...p,branch:p.branches.join(", ")})),
               ...allSRList.filter(sr=>srVisibleInMonth(sr,month,year)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
             ];
             const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0})).sort((a,b)=>b.balance-a.balance);
@@ -719,7 +736,7 @@ export default function App(){
         <div style={{position:"relative",zIndex:1,marginTop:12,paddingTop:12,borderTop:"1px solid rgba(255,255,255,.12)"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12,marginBottom:10,gap:8,flexWrap:"wrap"}}>
             <span style={{color:"rgba(255,255,255,.55)"}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
-            <span style={{fontWeight:800,color:"#fff"}}>{(rewardBalances[`BM_${BRANCH_ID}`]?.balance||0).toLocaleString()} pts</span>
+            <span style={{fontWeight:800,color:"#fff"}}>{(rewardBalances[`BM_${bmManagerId}`]?.balance||0).toLocaleString()} pts</span>
           </div>
       {(()=>{
         const achBonus=branchPct>=120?calcAchievementBonus(branchPct,"bm"):0;

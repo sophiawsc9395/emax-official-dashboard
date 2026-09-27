@@ -97,6 +97,11 @@ const CSS = `
 function daysInMonth(m,y){return new Date(y,m,0).getDate();}
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 
+// managerId is no longer auto-assigned by the app — it's a manually-entered
+// field Sophia/emaxhr set themselves (same ID format as SR ids, e.g.
+// "EM0360"), editable from the Manage Staff panel. Left blank here on
+// purpose so the UI prompts for it; whatever's saved in Supabase (branchMeta)
+// overrides these seed defaults once set.
 const DEFAULT_BRANCH_META={
   KM:{name:"EMAX Kota Marudu",manager:"SUHAINIZAM",mStatus:"Confirmed (P5 F0)",address:"1st Flr, EG Mall CL225317046, Jalan Goshen, Kota Marudu"},
   T1:{name:"EMAX Tuaran 1",manager:"REX WENMIN",mStatus:"Confirmed (P5 F0)",address:"G Flr, Lot 10, Teo Ee Teh Shopping Complex, Tuaran"},
@@ -479,6 +484,7 @@ function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,
 // ─── BM TABLE ──────────────────────────────────────────────
 function BMTable({branchId,records,targets,srList,branchMeta,onEdit,printMode,month,year,days,rewardBalance=0,pointsAsOf="",onStatusHistory}){
   const meta=branchMeta[branchId]||{},bSRs=srList.filter(s=>s.branch===branchId);
+  const managerId=meta.managerId||branchId;
   const target=targets?.bm?.[branchId]||0,bmBonus=targets?.bmBonus?.[branchId]||0,bmBasic=targets?.bmBasic?.[branchId]||0;
   const rows=days.map(d=>{
     const k=`${d}/${month}/${year}`,day=records[k]||{},bm=day[`BM_${branchId}`]||{};
@@ -1222,11 +1228,17 @@ function StatusEditWidget({status,onSave,onViewHistory}){
   </div>;
 }
 
+// Small pencil affordance reused wherever a field is click-to-edit inline
+// (same visual language as AttendanceTab.jsx's extra-staff edit icon), so
+// clicking a name/ID isn't a hidden interaction.
+const EDIT_PENCIL=<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+
 function AdjustBalanceWidget({personId,balance,adjustBalance}){
   const [open,setOpen]=useState(false);
   const [amount,setAmount]=useState("");
   const [note,setNote]=useState("");
   const [mode,setMode]=useState("add"); // "add" | "subtract"
+  const popRef=useRef(null);
 
   const submit=async()=>{
     const n=Math.abs(Number(amount)||0);
@@ -1235,7 +1247,17 @@ function AdjustBalanceWidget({personId,balance,adjustBalance}){
     setAmount("");setNote("");setOpen(false);
   };
 
-  return <div style={{position:"relative"}}>
+  // Click-outside and Escape both close the popover without submitting.
+  useEffect(()=>{
+    if(!open)return;
+    const onDown=e=>{if(popRef.current&&!popRef.current.contains(e.target))setOpen(false);};
+    const onKey=e=>{if(e.key==="Escape")setOpen(false);};
+    document.addEventListener("mousedown",onDown);
+    document.addEventListener("keydown",onKey);
+    return()=>{document.removeEventListener("mousedown",onDown);document.removeEventListener("keydown",onKey);};
+  },[open]);
+
+  return <div style={{position:"relative"}} ref={popRef}>
     <div style={{display:"flex",alignItems:"center",gap:6}}>
       <span style={{fontWeight:700,fontSize:11,color:"#0A1628",whiteSpace:"nowrap"}}>{balance.toLocaleString()} pts</span>
       <button onClick={()=>setOpen(o=>!o)} style={{padding:"3px 8px",fontSize:10,fontWeight:700,border:"1px solid #E4EAF2",borderRadius:6,background:open?"#0A1628":"#F7F9FC",color:open?"#fff":"#4A5568",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>
@@ -1256,9 +1278,8 @@ function AdjustBalanceWidget({personId,balance,adjustBalance}){
   </div>;
 }
 
-export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,isHR=false}){
+export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,setRewardBalances,rewardHistory,setRewardHistory,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,isHR=false}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
-  const [tab,setTab]=useState("bm");
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
   const [localSR,setLocalSR]=useState(JSON.parse(JSON.stringify(srList)));
   const [editSR,setEditSR]=useState(null);
@@ -1285,8 +1306,69 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
     else if(res.reason!=="unchanged")setSrIdError("Could not save");
     else setEditSRId(null);
   };
+  // Manager ID is a manually-entered field (Sophia/emaxhr set it themselves,
+  // same ID format as SR ids) — the app never auto-generates one. This is
+  // the BM-side equivalent of editSRId/trySaveSRId above: inline edit with
+  // its own validation, since setting/changing a manager's ID also means
+  // migrating their reward balance/points history (never status history —
+  // that always stays branch-scoped) onto whatever key they're changing to.
+  const [editBMId,setEditBMId]=useState(null); // {branch, value}
+  const [bmIdError,setBmIdError]=useState(null);
+  const renameManagerId=(branch,newManagerIdRaw)=>{
+    const newManagerId=(newManagerIdRaw||"").trim().toUpperCase();
+    const oldManagerId=localBM[branch]?.managerId||"";
+    if(newManagerId===oldManagerId)return{ok:false,reason:"unchanged"};
+    if(!newManagerId){
+      // Clearing the id — nothing to migrate, their reward data (if any)
+      // just stays parked under the old BM_<oldManagerId> key until a new
+      // id is set.
+      const updatedMeta={...localBM,[branch]:{...localBM[branch],managerId:undefined}};
+      setLocalBM(updatedMeta);setBranchMeta(updatedMeta);saveData(BM_KEY,updatedMeta);
+      return{ok:true};
+    }
+    // Sharing an id with another branch's manager (one person running two
+    // branches) or reusing an existing SR's id (that SR is/was also this
+    // manager) is both valid and expected — just confirm so a typo doesn't
+    // silently merge reward identities.
+    const usedByBranch=Object.keys(localBM).find(ob=>ob!==branch&&localBM[ob]?.managerId===newManagerId);
+    const usedBySR=localSR.find(s=>s.id===newManagerId);
+    if(usedByBranch||usedBySR){
+      const who=usedByBranch?`${localBM[usedByBranch]?.manager||usedByBranch}'s branch (${usedByBranch})`:`SR ${usedBySR.canon} (${usedBySR.id})`;
+      if(!confirm(`"${newManagerId}" is already used by ${who}. Assigning it here means this manager shares the same reward balance/points identity. Continue?`))return{ok:false,reason:"cancelled"};
+    }
+    const updatedMeta={...localBM,[branch]:{...localBM[branch],managerId:newManagerId}};
+    setLocalBM(updatedMeta);setBranchMeta(updatedMeta);saveData(BM_KEY,updatedMeta);
+    // Migrate this branch's reward balance/points history (NOT status
+    // history — that stays branch-keyed forever) from the old key to the
+    // new one. Non-destructive merge, same additive policy used elsewhere.
+    const oldKey=`BM_${oldManagerId||branch}`,newKey=`BM_${newManagerId}`;
+    if(oldKey!==newKey){
+      const hasSourceData=rewardBalances[oldKey]!==undefined||(rewardHistory[oldKey]&&rewardHistory[oldKey].length);
+      if(hasSourceData){
+        const alreadyMerged=(rewardHistory[newKey]||[]).some(e=>e.mergedFromKey===oldKey);
+        if(!alreadyMerged){
+          const mergedBalance=((rewardBalances[oldKey]?.balance)||0)+((rewardBalances[newKey]?.balance)||0);
+          const rb={...rewardBalances,[newKey]:{...(rewardBalances[newKey]||{}),balance:mergedBalance}};
+          const mergedHist=[...(rewardHistory[newKey]||[]),...((rewardHistory[oldKey]||[]).map(e=>e.mergedFromKey?e:{...e,mergedFromKey:oldKey}))].sort((a,b)=>new Date(a.date)-new Date(b.date));
+          const rh={...rewardHistory,[newKey]:mergedHist};
+          setRewardBalances(rb);setRewardHistory(rh);
+          saveData("emax_v5_reward_balance",rb);
+          saveData("emax_v5_reward_history",rh);
+        }
+      }
+    }
+    return{ok:true};
+  };
+  const trySaveBMId=(branch,value)=>{
+    const res=renameManagerId(branch,value);
+    if(res.ok){setEditBMId(null);setBmIdError(null);}
+    else if(res.reason==="cancelled"){/* leave the field open so they can retry */}
+    else if(res.reason!=="unchanged")setBmIdError("Could not save");
+    else setEditBMId(null);
+  };
   const [newSR,setNewSR]=useState({id:"",canon:"",branch:"KM",type:"Online",status:"Training (P0 F0)",joinDate:`${year}-${String(month).padStart(2,"0")}`});
   const [filterBranch,setFilterBranch]=useState("ALL");
+  const [searchQuery,setSearchQuery]=useState("");
   const [saved,setSaved]=useState(false);
   const [srSaved,setSRSaved]=useState(false);
   // Monthly type overrides — per month, per SR
@@ -1352,8 +1434,17 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
     const isNowOrPast=effectiveFrom<=nowYM;
     const isSR=person.kind==="sr";
     const roleChanging=newRole!==(isSR?"sr":"bm");
+    // Employment/status history is always branch-scoped for a Branch
+    // Manager (BM_<branch>), never managerId-scoped — even a manager who
+    // runs multiple branches (e.g. one person managing both T5 and ITCC)
+    // keeps a separate status log per branch. Only reward balance/points
+    // history are shared across a manager's branches, via BM_<managerId>.
     const historyKey=isSR?person.sr.id:`BM_${person.branch}`;
-    const resolvedStatus=status==="continue"?(isSR?person.sr.status:person.status):status;
+    // A role change (SR↔BM) never carries forward employment/status
+    // history, reward balance or reward-points history — it's a fresh
+    // start in the new role/position, always at Probation (P0 F0),
+    // regardless of what the update panel's status picker was set to.
+    const resolvedStatus=roleChanging?"Probation (P0 F0)":(status==="continue"?(isSR?person.sr.status:person.status):status);
     const logNote=(parts)=>{
       const hist=statusHistory[historyKey]||[];
       const note=`Staff update (effective ${effectiveFrom}): ${parts.join(", ")}`;
@@ -1380,13 +1471,37 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
       logNote([newBranch!==sr.branch?`branch → ${newBranch}`:null,`status → ${resolvedStatus}`].filter(Boolean));
 
     }else if(isSR&&roleChanging){
-      // SR → Branch Manager
+      // SR → Branch Manager. Role change only resets STATUS and HISTORY —
+      // it never resets the reward POINTS BALANCE. Status always starts
+      // fresh at Probation (P0 F0) (see resolvedStatus above), and neither
+      // status history nor reward-points history carry forward (historyKey
+      // is the branch-scoped BM_<branch> key, which the promoted person's
+      // SR-era statusHistory[sr.id] never fed into, and rewardHistory below
+      // is deliberately left untouched). But the current balance NUMBER is
+      // carried over so it doesn't silently look reset to 0 — just the
+      // running total, not the log of how it got there.
       const sr=person.sr;
       if(isNowOrPast){
-        const updatedMeta={...localBM,[newBranch]:{...localBM[newBranch],manager:sr.canon,mStatus:resolvedStatus}};
+        const updatedMeta={...localBM,[newBranch]:{...localBM[newBranch],manager:sr.canon,managerId:sr.id,mStatus:resolvedStatus}};
         setLocalBM(updatedMeta);
         setBranchMeta(updatedMeta);
         await saveData(BM_KEY,updatedMeta);
+        // Carry the reward balance NUMBER only (never rewardHistory) from
+        // the SR identity key to the new BM identity key. If the new key
+        // already somehow has a balance, we overwrite/set it to the old
+        // key's number rather than summing — a role change is a single
+        // continuous identity here (the managerId is just set to the SR's
+        // own id), so there's no legitimate "reactivating a separate old
+        // identity" case to add on top of.
+        {
+          const oldKey=sr.id,newKey=`BM_${sr.id}`;
+          if(oldKey!==newKey){
+            const carried=rewardBalances[oldKey]?.balance||0;
+            const rb={...rewardBalances,[newKey]:{...(rewardBalances[newKey]||{}),balance:carried}};
+            setRewardBalances(rb);
+            await saveData("emax_v5_reward_balance",rb);
+          }
+        }
         const updated=localSR.map(s=>s.id!==sr.id?s:{
           ...s,
           status:"Promoted to Branch Manager",
@@ -1412,20 +1527,45 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
       logNote([`status → ${resolvedStatus}`]);
 
     }else{
-      // Branch Manager → SR
+      // Branch Manager → SR. Role change only resets STATUS and HISTORY —
+      // it never resets the reward POINTS BALANCE. Status always starts
+      // fresh at Probation (P0 F0) (see resolvedStatus above; the demoted
+      // person's status history stays behind under BM_<branch> and reward
+      // history is deliberately left untouched below), but the current
+      // balance NUMBER is carried over to the new SR id so it doesn't
+      // silently look reset to 0.
       const b=person.branch;
       if(isNowOrPast){
-        let newId="BM"+b+nowYM.replace("-","");
-        let suffix=1;
-        while(localSR.find(s=>s.id===newId)){newId="BM"+b+nowYM.replace("-","")+"_"+suffix;suffix++;}
+        const existingManagerId=localBM[b]?.managerId;
+        let newId;
+        if(existingManagerId&&!localSR.find(s=>s.id===existingManagerId)){
+          newId=existingManagerId;
+        }else{
+          newId="BM"+b+nowYM.replace("-","");
+          let suffix=1;
+          while(localSR.find(s=>s.id===newId)){newId="BM"+b+nowYM.replace("-","")+"_"+suffix;suffix++;}
+        }
         const newSR={id:newId,canon:person.name,branch:b,type:newType||"Online",status:resolvedStatus,joinDate:effectiveFrom};
         const updatedSRList=[...localSR,newSR];
         setLocalSR(updatedSRList);
         await saveSR(updatedSRList);
-        const updatedMeta={...localBM,[b]:{...localBM[b],manager:"",mStatus:""}};
+        const updatedMeta={...localBM,[b]:{...localBM[b],manager:"",managerId:undefined,mStatus:""}};
         setLocalBM(updatedMeta);
         setBranchMeta(updatedMeta);
         await saveData(BM_KEY,updatedMeta);
+        // Carry the reward balance NUMBER only (never rewardHistory) from
+        // the manager's BM identity key to their new SR id. Overwrite/set
+        // rather than sum at the new key, for the same reason as the SR→BM
+        // direction above — see that comment.
+        {
+          const oldKey=`BM_${existingManagerId||b}`,newKey=newId;
+          if(oldKey!==newKey){
+            const carried=rewardBalances[oldKey]?.balance||0;
+            const rb={...rewardBalances,[newKey]:{...(rewardBalances[newKey]||{}),balance:carried}};
+            setRewardBalances(rb);
+            await saveData("emax_v5_reward_balance",rb);
+          }
+        }
       }
       logNote([`role → SR`,`status → ${resolvedStatus}`]);
     }
@@ -1435,20 +1575,37 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
     setBranchMeta(updatedMeta);
     await saveData(BM_KEY,updatedMeta);
     setLocalBM(p=>({...p,[b]:{...p[b],mStatus:newStatus}}));
-    const key=`BM_${b}`;
+    const key=`BM_${b}`; // status/employment history is always branch-scoped, not managerId-scoped
     const hist=statusHistory[key]||[];
     const newHist={...statusHistory,[key]:[...hist,{date:new Date().toISOString(),status:newStatus,note:desc}]};
     setStatusHistory(newHist);
     await saveData("emax_v5_status_history",newHist);
   };
-  const removeSR=async(id)=>{if(!confirm("Remove this SR?"))return;const updated=localSR.filter(s=>s.id!==id);setLocalSR(updated);await saveSR(updated);};
-  const filteredSR=(filterBranch==="ALL"?localSR:localSR.filter(s=>s.branch===filterBranch)).filter(s=>!(s.status||'').toLowerCase().includes('resigned')&&srActiveInMonth(s,month,year));
+  const removeSR=async(sr)=>{
+    if(!confirm(`Remove ${sr.canon} (${sr.id}) from the roster? This permanently deletes their SR record — branch, type and status. It does NOT delete their existing reward points balance/history or status history (those stay under ${sr.id} in case they're re-added later), but they will disappear from every list, table and ranking immediately. This cannot be undone from here. Continue?`))return;
+    const updated=localSR.filter(s=>s.id!==sr.id);setLocalSR(updated);await saveSR(updated);
+  };
   // All staff for this branch: BM + SRs (active + resigned)
   const allStaffForBranch=(b)=>{
     const active=localSR.filter(s=>s.branch===b&&srActiveInMonth(s,month,year)&&!(s.status||'').toLowerCase().includes('resigned'));
     const resigned=localSR.filter(s=>s.branch===b&&(s.status||'').toLowerCase().includes('resigned'));
     return{active,resigned};
   };
+  // Real branch filter + name/ID search (item 2 of the Manage Staff UX
+  // review) — filterBranch existed before but was never actually wired to
+  // anything rendered; searchQuery is new.
+  const matchesSearch=(nameOrIdHolder)=>{
+    if(!searchQuery.trim())return true;
+    const q=searchQuery.trim().toLowerCase();
+    return (nameOrIdHolder?.canon||"").toLowerCase().includes(q)||(nameOrIdHolder?.id||"").toLowerCase().includes(q);
+  };
+  const visibleBranches=BRANCH_ORDER.filter(b=>filterBranch==="ALL"||b===filterBranch).filter(b=>{
+    if(!searchQuery.trim())return true;
+    const bm=localBM[b];
+    const {active,resigned}=allStaffForBranch(b);
+    const bmMatch=matchesSearch({canon:bm?.manager,id:bm?.managerId});
+    return bmMatch||active.some(matchesSearch)||resigned.some(matchesSearch);
+  });
 
   return <div className="modal-overlay">
     <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:900,maxHeight:"92vh",overflow:"auto"}}>
@@ -1456,18 +1613,36 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
       <div style={{padding:"14px 24px",borderBottom:"1px solid #E4EAF2",position:"sticky",top:0,background:"#fff",zIndex:10}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Manage Staff</h2>
-          {(saved||srSaved)&&<span style={{fontSize:12,color:"#00C896",fontWeight:700}}>Saved</span>}
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            {(saved||srSaved)&&<span style={{fontSize:12,color:"#00C896",fontWeight:700}}>Saved</span>}
+            <button className="btn btn-success" onClick={()=>setEditSR("new")} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>+ Add New SR</button>
+            <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px",fontSize:12}}>Close</button>
+          </div>
         </div>
-        <div style={{display:"flex",gap:6,alignItems:"center",marginTop:8}}>
+        {/* Help text moved up from the bottom of the page — this is the one
+            place both the name- and ID-editing gestures are explained. */}
+        <div style={{fontSize:11,color:"#8A96A8",marginTop:6}}>Click a name {EDIT_PENCIL} to edit it inline. Click an ID to edit or merge it. Changes to Type only apply to the SR Type month selected below.</div>
+        {/* Branch filter + search toolbar — filterBranch existed before but
+            was never wired to anything; this is the real control for it. */}
+        <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
+          <span style={{fontSize:11,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Branch</span>
+          <button onClick={()=>setFilterBranch("ALL")} style={{padding:"4px 10px",cursor:"pointer",borderRadius:6,fontWeight:700,fontSize:11,fontFamily:"Inter,sans-serif",background:filterBranch==="ALL"?"#1E6FDB":"#fff",color:filterBranch==="ALL"?"#fff":"#4A5568",border:filterBranch==="ALL"?"none":"1px solid #E4EAF2"}}>All</button>
+          {BRANCH_ORDER.map(b=><button key={b} onClick={()=>setFilterBranch(b)} style={{padding:"4px 10px",cursor:"pointer",borderRadius:6,fontWeight:700,fontSize:11,fontFamily:"Inter,sans-serif",background:filterBranch===b?"#0A1628":"#fff",color:filterBranch===b?"#fff":"#4A5568",border:filterBranch===b?"none":"1px solid #E4EAF2"}}>{b}</button>)}
+          <input className="input" placeholder="Search name or ID…" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} style={{fontSize:12,maxWidth:180,marginLeft:"auto"}}/>
+        </div>
+        {/* SR Type override — visually separated because it's the ONLY thing
+            this month/year selector affects (plus the HR past-month lock
+            below); it does not filter, sort or otherwise touch anything
+            else on this page. */}
+        <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10,background:"#FFF8E8",border:"1px solid #FBE3A8",borderRadius:8,padding:"7px 10px"}}>
+          <span style={{fontSize:11,fontWeight:700,color:"#92400E",whiteSpace:"nowrap"}}>SR Type override for:</span>
           <select className="input select" value={typeMonth} onChange={e=>setTypeMonth(parseInt(e.target.value))} style={{fontSize:12,padding:"4px 20px 4px 6px",width:88}}>
             {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
           </select>
           <select className="input select" value={typeYear} onChange={e=>setTypeYear(parseInt(e.target.value))} style={{fontSize:12,padding:"4px 20px 4px 6px",width:78}}>
             {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
           </select>
-          <div style={{flex:1}}/>
-          <button className="btn btn-success" onClick={()=>setEditSR("new")} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>+ Add New SR</button>
-          <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px",fontSize:12}}>Close</button>
+          <span style={{fontSize:10,color:"#92400E"}}>Only changes each SR's Type shown for this month{isHR?" and whether past months are locked":""} — nothing else.</span>
         </div>
       </div>
 
@@ -1480,7 +1655,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
           <div style={{fontWeight:700,fontSize:13,color:"#00C896",marginBottom:12}}>New Sales Representative</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10}}>
             <div>
-              <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Promoter ID</label>
+              <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>SR ID</label>
               <input className="input" placeholder="EM0311" value={newSR.id} onChange={e=>setNewSR(p=>({...p,id:e.target.value.toUpperCase()}))} style={{fontSize:12}}/>
             </div>
             <div>
@@ -1522,25 +1697,49 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
         </div>}
 
         {/* Branch-by-branch view */}
-        {BRANCH_ORDER.map(b=>{
-          const {active,resigned}=allStaffForBranch(b);
+        {visibleBranches.map(b=>{
+          const {active:activeAll,resigned:resignedAll}=allStaffForBranch(b);
+          const active=activeAll.filter(matchesSearch);
+          const resigned=resignedAll.filter(matchesSearch);
           const bm=localBM[b];
           return <div key={b} style={{marginBottom:20,border:"1px solid #E4EAF2",borderRadius:14,overflow:"hidden",boxShadow:"0 1px 3px rgba(10,22,40,.05)"}}>
             {/* Branch header */}
             <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"12px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
               <input value={bm?.name||branchMeta[b]?.name||b} onChange={e=>setLocalBM(p=>({...p,[b]:{...p[b],name:e.target.value}}))} onBlur={saveBM} readOnly={hrLocked} style={{fontWeight:800,fontSize:14,color:"#fff",border:"none",background:"transparent",padding:"2px 0",flex:1,minWidth:0}}/>
-              <div style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em",whiteSpace:"nowrap"}}>{active.length} SR{active.length!==1?"s":""}</div>
+              <div style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em",whiteSpace:"nowrap"}}>{activeAll.length} SR{activeAll.length!==1?"s":""}</div>
             </div>
 
-            {/* BM card */}
-            <div style={{padding:"14px 18px",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",display:"flex",alignItems:"center",gap:14,flexWrap:"wrap"}}>
-              <div style={{width:34,height:34,borderRadius:10,background:"#EFF6FF",color:"#1E6FDB",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:11,flexShrink:0}}>BM</div>
-              <div style={{flex:1,minWidth:160}}>
-                <input className="input" value={bm?.manager||""} onChange={e=>setLocalBM(p=>({...p,[b]:{...p[b],manager:e.target.value}}))} onBlur={saveBM} placeholder="Branch Manager Name" readOnly={hrLocked} style={{fontSize:13,fontWeight:700,border:"none",background:"transparent",padding:"2px 0",width:"100%"}}/>
-                <div style={{fontSize:11,color:"#8A96A8",marginTop:2}}>{bm?.mStatus||"No status set"}</div>
+            {/* BM card — identity fields (name/ID) get a subtle tinted panel,
+                separated by a divider from the current-state fields
+                (status) to their right (item 5). */}
+            <div style={{padding:"14px 18px",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",display:"flex",alignItems:"center",gap:0,flexWrap:"wrap"}}>
+              <div style={{width:34,height:34,borderRadius:10,background:"#EFF6FF",color:"#1E6FDB",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:11,flexShrink:0,marginRight:14}}>BM</div>
+              <div style={{flex:1,minWidth:160,display:"flex",alignItems:"stretch",gap:12,background:"#EEF2FA",borderRadius:8,padding:"6px 10px"}}>
+                <div style={{flex:1,minWidth:120}}>
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    <input className="input" value={bm?.manager||""} onChange={e=>setLocalBM(p=>({...p,[b]:{...p[b],manager:e.target.value}}))} onBlur={saveBM} placeholder="Branch Manager Name" readOnly={hrLocked} style={{fontSize:13,fontWeight:700,border:"none",background:"transparent",padding:"2px 0",width:"100%"}}/>
+                    {!hrLocked&&<span style={{color:"#8A96A8",flexShrink:0}}>{EDIT_PENCIL}</span>}
+                  </div>
+                  {bm?.manager&&(editBMId?.branch===b
+                    ?<div style={{display:"flex",flexDirection:"column",gap:2,marginTop:3}}>
+                      <input autoFocus className="input" style={{width:110,padding:"2px 6px",fontSize:10}} value={editBMId.value} onChange={e=>{setEditBMId(p=>({...p,value:e.target.value.toUpperCase()}));setBmIdError(null);}} onKeyDown={e=>{if(e.key==="Enter")trySaveBMId(b,editBMId.value);if(e.key==="Escape"){setEditBMId(null);setBmIdError(null);}}} placeholder="e.g. EM0360"/>
+                      <div style={{display:"flex",gap:4}}>
+                        <button onClick={()=>trySaveBMId(b,editBMId.value)} style={{fontSize:9,padding:"1px 6px",background:"#1E6FDB",color:"#fff",border:"none",borderRadius:4,cursor:"pointer"}}>Save</button>
+                        <button onClick={()=>{setEditBMId(null);setBmIdError(null);}} style={{fontSize:9,padding:"1px 6px",background:"none",border:"1px solid #E4EAF2",borderRadius:4,cursor:"pointer",color:"#8A96A8"}}>×</button>
+                      </div>
+                      {bmIdError&&<div style={{fontSize:9,color:"#DC2626"}}>{bmIdError}</div>}
+                    </div>
+                    :<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:bm?.managerId?"#8A96A8":"#DC2626",fontWeight:bm?.managerId?400:700,cursor:hrLocked?"default":"pointer",marginTop:1}} onClick={()=>{if(hrLocked)return;setEditBMId({branch:b,value:bm?.managerId||""});setBmIdError(null);}} title={hrLocked?undefined:"Click to set/edit Manager ID"}>{!hrLocked&&EDIT_PENCIL}{bm?.managerId||"⚠ Set Manager ID"}</div>)}
+                </div>
+                <div style={{width:1,background:"#D8E0EC",alignSelf:"stretch"}}/>
+                <div style={{minWidth:90,display:"flex",alignItems:"center"}}>
+                  <div style={{fontSize:11,color:"#8A96A8"}}>{bm?.mStatus||"No status set"}</div>
+                </div>
               </div>
-              {!isHR&&<AdjustBalanceWidget personId={`BM_${b}`} balance={rewardBalances?.[`BM_${b}`]?.balance||0} adjustBalance={adjustBalance}/>}
-              {bm?.manager&&<button className="btn" onClick={()=>setUpdatePerson({kind:"bm",branch:b,name:bm.manager,status:bm.mStatus})} disabled={hrLocked} style={{fontSize:11,padding:"6px 12px",opacity:hrLocked?.5:1}}>Update</button>}
+              <div style={{marginLeft:14}}>
+              {!isHR&&<AdjustBalanceWidget personId={`BM_${bm?.managerId||b}`} balance={rewardBalances?.[`BM_${bm?.managerId||b}`]?.balance||0} adjustBalance={adjustBalance}/>}
+              </div>
+              {bm?.manager&&<button className="btn" onClick={()=>setUpdatePerson({kind:"bm",branch:b,name:bm.manager,status:bm.mStatus})} disabled={hrLocked} style={{fontSize:11,padding:"6px 12px",marginLeft:8,opacity:hrLocked?.5:1,background:"#EFF6FF",color:"#1E6FDB",border:"1px solid #BFDBFE",borderRadius:8}}>Update</button>}
               {setShowStatusHistoryModal&&<button className="btn btn-ghost" onClick={()=>{setStatusModalPerson(`BM_${b}`);setShowStatusHistoryModal(true);}} style={{fontSize:11,padding:"6px 10px"}}>History</button>}
             </div>
 
@@ -1554,10 +1753,10 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
                 </tr></thead>
                 <tbody>{active.map((sr,i)=>(
                   <tr key={sr.id} style={{borderBottom:"1px solid #E4EAF2",background:i%2===0?"#fff":"#FBFCFE"}}>
-                    <td style={{padding:"8px",minWidth:150}}>
+                    <td style={{padding:"8px",minWidth:150,background:"#F4F6FB"}}>
                       {editSR?.id===sr.id
                         ?<input autoFocus className="input" style={{width:"100%",padding:"3px 7px",fontSize:12,fontWeight:700}} value={editSR.canon} onChange={e=>setEditSR(p=>({...p,canon:e.target.value.toUpperCase()}))} onBlur={async()=>{await updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}} onKeyDown={e=>{if(e.key==="Enter"){updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}if(e.key==="Escape")setEditSR(null);}}/>
-                        :<div style={{fontWeight:700,fontSize:12,color:"#0A1628",cursor:"pointer"}} onClick={()=>setEditSR({...sr})} title="Click to edit name">{sr.canon}</div>}
+                        :<div style={{display:"flex",alignItems:"center",gap:5,fontWeight:700,fontSize:12,color:"#0A1628",cursor:"pointer"}} onClick={()=>setEditSR({...sr})} title="Click to edit name"><span style={{color:"#8A96A8"}}>{EDIT_PENCIL}</span>{sr.canon}</div>}
                       {editSRId?.oldId===sr.id
                         ?<div style={{display:"flex",flexDirection:"column",gap:2,marginTop:3}}>
                           <input autoFocus className="input" style={{width:90,padding:"2px 6px",fontSize:10}} value={editSRId.value} onChange={e=>{setEditSRId(p=>({...p,value:e.target.value}));setSrIdError(null);}} onKeyDown={e=>{if(e.key==="Enter")trySaveSRId(sr.id,editSRId.value);if(e.key==="Escape"){setEditSRId(null);setSrIdError(null);}}}/>
@@ -1567,25 +1766,27 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
                           </div>
                           {srIdError&&<div style={{fontSize:9,color:"#DC2626"}}>{srIdError}</div>}
                         </div>
-                        :<div style={{fontSize:10,color:"#8A96A8",cursor:"pointer",marginTop:1}} onClick={()=>{setEditSRId({oldId:sr.id,value:sr.id});setSrIdError(null);}} title="Click to edit ID">{sr.id}</div>}
+                        :<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:sr.id?"#8A96A8":"#DC2626",fontWeight:sr.id?400:700,cursor:"pointer",marginTop:1}} onClick={()=>{setEditSRId({oldId:sr.id,value:sr.id||""});setSrIdError(null);}} title="Click to edit ID">{EDIT_PENCIL}{sr.id||"⚠ Set SR ID"}</div>}
                     </td>
                     <td style={{padding:"8px"}}><TypeTag type={getType(sr)}/></td>
                     <td style={{padding:"8px",color:"#4A5568",whiteSpace:"nowrap"}}>{sr.joinDate?sr.joinDate.replace(/(\d{4})-(\d{2})/,(f,y,m)=>["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m-1]+" "+y):"—"}</td>
                     <td style={{padding:"8px",color:"#0A1628",fontWeight:600,whiteSpace:"nowrap"}}>{sr.status||"—"}</td>
                     <td style={{padding:"8px"}}>{!isHR&&<AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/>}</td>
                     <td style={{padding:"8px",textAlign:"right",whiteSpace:"nowrap"}}>
-                      <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",marginRight:4,opacity:hrLocked?.5:1}}>Update</button>
-                      <button className="btn btn-danger" onClick={()=>removeSR(sr.id)} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",opacity:hrLocked?.5:1}}>Remove</button>
+                      <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",marginRight:4,opacity:hrLocked?.5:1,background:"#EFF6FF",color:"#1E6FDB",border:"1px solid #BFDBFE",borderRadius:6}}>Update</button>
+                      <button className="btn btn-danger" onClick={()=>removeSR(sr)} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",opacity:hrLocked?.5:1}}>Remove</button>
                     </td>
                   </tr>
                 ))}</tbody>
               </table>
             </div>}
 
-            {/* Resigned / inactive — always collapsed by default */}
+            {/* Resigned / inactive — always collapsed by default. Chevron
+                made bolder/button-like so the collapse control itself is
+                more discoverable, not just the count next to it. */}
             {resigned.length>0&&<div style={{borderTop:"1px solid #E4EAF2"}}>
-              <button onClick={()=>setExpandedResigned(p=>({...p,[b]:!p[b]}))} style={{width:"100%",textAlign:"left",padding:"9px 18px",background:"none",border:"none",cursor:"pointer",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.07em",display:"flex",alignItems:"center",gap:6}}>
-                <span style={{transform:expandedResigned[b]?"rotate(90deg)":"none",transition:"transform .15s",display:"inline-block"}}>›</span>
+              <button onClick={()=>setExpandedResigned(p=>({...p,[b]:!p[b]}))} style={{width:"100%",textAlign:"left",padding:"9px 18px",background:"none",border:"none",cursor:"pointer",fontSize:11,fontWeight:700,color:"#4A5568",textTransform:"uppercase",letterSpacing:"0.07em",display:"flex",alignItems:"center",gap:8}}>
+                <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:16,height:16,borderRadius:4,background:"#E4EAF2",color:"#4A5568",fontSize:11,transform:expandedResigned[b]?"rotate(90deg)":"none",transition:"transform .15s"}}>›</span>
                 Resigned / Inactive ({resigned.length})
               </button>
               {expandedResigned[b]&&<div style={{padding:"0 18px 14px",overflowX:"auto"}}>
@@ -1605,8 +1806,8 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
                       <td style={{padding:"7px 8px",color:"#B91C1C",whiteSpace:"nowrap"}}>{sr.resignDate?sr.resignDate.split("-").reverse().join("/"):"—"}</td>
                       <td style={{padding:"7px 8px",color:"#B91C1C"}}>{sr.status}</td>
                       <td style={{padding:"7px 8px",textAlign:"right",whiteSpace:"nowrap"}}>
-                        <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",marginRight:4,opacity:hrLocked?.5:1}}>Update</button>
-                        <button className="btn btn-danger" onClick={()=>removeSR(sr.id)} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",opacity:hrLocked?.5:1}}>Remove</button>
+                        <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",marginRight:4,opacity:hrLocked?.5:1,background:"#EFF6FF",color:"#1E6FDB",border:"1px solid #BFDBFE",borderRadius:6}}>Update</button>
+                        <button className="btn btn-danger" onClick={()=>removeSR(sr)} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",opacity:hrLocked?.5:1}}>Remove</button>
                       </td>
                     </tr>
                   ))}</tbody>
@@ -1617,7 +1818,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
             {active.length===0&&resigned.length===0&&<div style={{padding:"14px 18px",color:"#8A96A8",fontSize:12}}>No staff in this branch.</div>}
           </div>;
         })}
-        <p style={{fontSize:11,color:"#8A96A8",marginTop:4}}>Click SR name to edit inline. Type changes apply to selected month.</p>
+        {visibleBranches.length===0&&<div style={{padding:"24px",textAlign:"center",color:"#8A96A8",fontSize:13}}>No branches or staff match "{searchQuery}"{filterBranch!=="ALL"?` in ${filterBranch}`:""}.</div>}
       </div>
     </div>
     {updatePerson&&<StaffUpdatePanel person={updatePerson} branchMeta={branchMeta} year={year} month={month} isHR={isHR} onClose={()=>setUpdatePerson(null)} onSave={saveStaffUpdate}/>}
@@ -1659,6 +1860,19 @@ function StaffUpdatePanel({person,branchMeta,year,month,isHR=false,onClose,onSav
   })();
 
   const save=async()=>{
+    if(roleChanging){
+      const target=roleChoice==="bm"?`Branch Manager of ${branchMeta[newBranch]?.name||newBranch}`:"a regular Sales Rep";
+      const confirmed=confirm(
+        `Change ${currentName} to ${target}, effective ${effectiveFrom}?\n\n`+
+        `This WILL reset:\n`+
+        `• Employment status → Probation (P0 F0), starting fresh in the new role\n`+
+        `• Status history and reward-points history → start empty under the new role/ID\n\n`+
+        `This will NOT reset:\n`+
+        `• Their reward points balance — the current total carries over unchanged, only the history log resets\n\n`+
+        `This cannot be undone from here. Continue?`
+      );
+      if(!confirmed)return;
+    }
     setSaving(true);
     const status=statusMode==="continue"?"continue":buildStatus(statusBase,statusP,statusF);
     await onSave(person,{effectiveFrom,newRole:roleChoice,newBranch,newType,status});
@@ -1703,33 +1917,41 @@ function StaffUpdatePanel({person,branchMeta,year,month,isHR=false,onClose,onSav
 
         <div style={{background:"#F7F9FC",borderRadius:10,padding:14}}>
           <label style={{fontSize:10,fontWeight:700,color:"#4A5568",display:"block",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em"}}>Employment Status</label>
-          <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,cursor:"pointer"}}>
-            <input type="radio" name="empstatus" checked={statusMode==="continue"} onChange={()=>setStatusMode("continue")}/>
-            <span style={{fontSize:12,color:"#0A1628"}}>Continue current status ({currentStatus})</span>
-          </label>
-          <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:statusMode==="set"?8:0,cursor:"pointer"}}>
-            <input type="radio" name="empstatus" checked={statusMode==="set"} onChange={()=>setStatusMode("set")}/>
-            <span style={{fontSize:12,color:"#0A1628"}}>Set status</span>
-          </label>
-          {statusMode==="set"&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",paddingLeft:26}}>
-            <select className="input select" value={statusBase} onChange={e=>setStatusBase(e.target.value)} style={{width:"auto",minWidth:100,padding:"5px 22px 5px 8px",fontSize:12}}>
-              {availableStatusOptions.map(s=><option key={s} value={s}>{s}</option>)}
-            </select>
-            {!isHR&&statusBase!=="Confirmed"&&statusBase!=="Resigned"&&<>
-              <span style={{fontSize:11,color:"#8A96A8"}}>P</span>
-              <input type="number" min="0" className="input" value={statusP} onChange={e=>setStatusP(Math.max(0,parseInt(e.target.value)||0))} style={{width:44,padding:"5px 6px",fontSize:12,textAlign:"center"}}/>
-              <span style={{fontSize:11,color:"#8A96A8"}}>F</span>
-              <input type="number" min="0" className="input" value={statusF} onChange={e=>setStatusF(Math.max(0,parseInt(e.target.value)||0))} style={{width:44,padding:"5px 6px",fontSize:12,textAlign:"center"}}/>
-            </>}
-            {isHR&&statusBase!=="Confirmed"&&statusBase!=="Resigned"&&<span style={{fontSize:11,color:"#8A96A8"}}>P{statusP} F{statusF}</span>}
-          </div>}
-          {roleChanging&&<div style={{fontSize:10,color:"#8A96A8",marginTop:8}}>Tip: role changes like this usually start fresh — set status to Probation (P0 F0) for their new role, rather than carrying over their old one.</div>}
+          {roleChanging
+            ?<div style={{fontSize:11,color:"#B45309",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:6,padding:"6px 8px"}}>
+              A role change never carries employment/status history or reward-points history forward — this always starts fresh at Probation (P0 F0) in the new role, regardless of their status before. Their reward points <b>balance</b> is the one exception: the current total carries over unchanged.
+            </div>
+            :<>
+              <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,cursor:"pointer"}}>
+                <input type="radio" name="empstatus" checked={statusMode==="continue"} onChange={()=>setStatusMode("continue")}/>
+                <span style={{fontSize:12,color:"#0A1628"}}>Continue current status ({currentStatus})</span>
+              </label>
+              <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:statusMode==="set"?8:0,cursor:"pointer"}}>
+                <input type="radio" name="empstatus" checked={statusMode==="set"} onChange={()=>setStatusMode("set")}/>
+                <span style={{fontSize:12,color:"#0A1628"}}>Set status</span>
+              </label>
+              {statusMode==="set"&&<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",paddingLeft:26}}>
+                <select className="input select" value={statusBase} onChange={e=>setStatusBase(e.target.value)} style={{width:"auto",minWidth:100,padding:"5px 22px 5px 8px",fontSize:12}}>
+                  {availableStatusOptions.map(s=><option key={s} value={s}>{s}</option>)}
+                </select>
+                {!isHR&&statusBase!=="Confirmed"&&statusBase!=="Resigned"&&<>
+                  <span style={{fontSize:11,color:"#8A96A8"}}>P</span>
+                  <input type="number" min="0" className="input" value={statusP} onChange={e=>setStatusP(Math.max(0,parseInt(e.target.value)||0))} style={{width:44,padding:"5px 6px",fontSize:12,textAlign:"center"}}/>
+                  <span style={{fontSize:11,color:"#8A96A8"}}>F</span>
+                  <input type="number" min="0" className="input" value={statusF} onChange={e=>setStatusF(Math.max(0,parseInt(e.target.value)||0))} style={{width:44,padding:"5px 6px",fontSize:12,textAlign:"center"}}/>
+                </>}
+                {isHR&&statusBase!=="Confirmed"&&statusBase!=="Resigned"&&<span style={{fontSize:11,color:"#8A96A8"}}>P{statusP} F{statusF}</span>}
+              </div>}
+            </>
+          }
         </div>
       </div>
 
       <div style={{display:"flex",gap:8,justifyContent:"flex-end",padding:"14px 22px",borderTop:"1px solid #E4EAF2"}}>
         <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
-        <button className="btn btn-success" onClick={save} disabled={saving}>{saving?"Saving…":"Save Update"}</button>
+        {roleChanging
+          ?<button className="btn" onClick={save} disabled={saving} style={{background:"linear-gradient(135deg,#D97706,#F59E0B)",color:"#fff",padding:"9px 20px",borderRadius:8,fontSize:13,boxShadow:"0 2px 8px rgba(217,119,6,.30)"}}>{saving?"Saving…":"Save & Change Role"}</button>
+          :<button className="btn btn-success" onClick={save} disabled={saving}>{saving?"Saving…":"Save Update"}</button>}
       </div>
     </div>
   </div>;
@@ -2101,11 +2323,17 @@ function PdfDownloads({month,year,branch,allowDelete=false}){
 
 function StatusHistoryModal({srList,branchMeta,statusHistory,onClose,initialPerson,onDeleteStatusEntry}){
   const isBM=initialPerson&&initialPerson.startsWith("BM_");
-  const branchId=isBM?initialPerson.replace("BM_",""):null;
+  const managerId=isBM?initialPerson.replace("BM_",""):null;
+  // Legacy keys used the branch code directly (e.g. "BM_T5"); managerId keys
+  // (e.g. "BM_BM0007") won't match any branch code, so fall back to treating
+  // the suffix as a literal branch when no branchMeta entry has that managerId.
+  const bmBranches=isBM?Object.keys(branchMeta).filter(b=>branchMeta[b]?.managerId===managerId):[];
+  const branchId=isBM&&bmBranches.length===0?managerId:null;
+  const displayBranch=isBM?(bmBranches.length?bmBranches.join(", "):branchId):null;
   const person=isBM
-    ?{name:branchMeta[branchId]?.manager||branchId,role:`${branchId} — Branch Manager`}
+    ?{name:branchMeta[bmBranches[0]||branchId]?.manager||managerId,role:`${displayBranch} — Branch Manager`}
     :(()=>{const sr=srList.find(s=>s.id===initialPerson);return sr?{name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}:null;})();
-  const currentStatus=isBM?branchMeta[branchId]?.mStatus:srList.find(s=>s.id===initialPerson)?.status;
+  const currentStatus=isBM?branchMeta[bmBranches[0]||branchId]?.mStatus:srList.find(s=>s.id===initialPerson)?.status;
   const raw=statusHistory[initialPerson]||[];
   // Keep original indices for deletion, display reversed
   const history=raw.map((h,origIdx)=>({...h,origIdx})).reverse();
@@ -2146,9 +2374,15 @@ function StatusHistoryModal({srList,branchMeta,statusHistory,onClose,initialPers
 
 function PointsHistoryModal({srList,branchMeta,rewardBalances,rewardHistory,onClose,initialPerson,onDeletePointsEntry}){
   const isBM=initialPerson&&initialPerson.startsWith("BM_");
-  const branchId=isBM?initialPerson.replace("BM_",""):null;
+  const managerId=isBM?initialPerson.replace("BM_",""):null;
+  // Legacy keys used the branch code directly (e.g. "BM_T5"); managerId keys
+  // (e.g. "BM_BM0007") won't match any branch code, so fall back to treating
+  // the suffix as a literal branch when no branchMeta entry has that managerId.
+  const bmBranches=isBM?Object.keys(branchMeta).filter(b=>branchMeta[b]?.managerId===managerId):[];
+  const branchId=isBM&&bmBranches.length===0?managerId:null;
+  const displayBranch=isBM?(bmBranches.length?bmBranches.join(", "):branchId):null;
   const person=isBM
-    ?{name:branchMeta[branchId]?.manager||branchId,role:`${branchId} — Branch Manager`}
+    ?{name:branchMeta[bmBranches[0]||branchId]?.manager||managerId,role:`${displayBranch} — Branch Manager`}
     :(()=>{const sr=srList.find(s=>s.id===initialPerson);return sr?{name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}:null;})();
   const balance=rewardBalances[initialPerson]?.balance||0;
   const rawHistory=rewardHistory[initialPerson]||[];
@@ -2352,6 +2586,75 @@ export default function App(){
     });
   },[selMonth,selYear]);
 
+  // ── One-time BM reward-identity migration ────────────────────────────────
+  // managerId is a manually-entered field (set by Sophia/emaxhr, same ID
+  // format as SR ids) — this app never mints one on its own. When one person
+  // manages multiple branches (e.g. SUHAIDI at both T5 and ITCC) and Sophia
+  // has given them the same managerId on each branch, this merges any legacy
+  // `BM_<branch>`-keyed reward balance/points history for those branches into
+  // one shared record keyed `BM_<managerId>`, so their reward ranking doesn't
+  // show duplicate cards. Employment/status history is deliberately NEVER
+  // touched here — it always stays branch-scoped (`BM_<branch>`), even for a
+  // manager running multiple branches; that's a separate log per branch by
+  // design. Runs once on app load; safe no-op on repeat runs, and never
+  // deletes the old branch-keyed data — additive only.
+  useEffect(()=>{
+    (async()=>{
+      const [bmRaw,rbRaw,rhRaw]=await Promise.all([
+        loadData(BM_KEY),loadData("emax_v5_reward_balance"),loadData("emax_v5_reward_history"),
+      ]);
+      const bm={...DEFAULT_BRANCH_META,...(bmRaw||{})};
+      const branchesToProcess=Object.keys(bm).filter(b=>b!=="SDK");
+      // Merge legacy BM_<branch>-keyed reward balance/points history for
+      // branches that already share a (manually assigned) managerId.
+      const rb={...(rbRaw||{})},rh={...(rhRaw||{})};
+      let dataChanged=false;
+      const byManagerId={};
+      branchesToProcess.forEach(b=>{
+        const mid=bm[b]?.managerId;
+        if(!mid)return;
+        if(!byManagerId[mid])byManagerId[mid]=[];
+        byManagerId[mid].push(b);
+      });
+      Object.entries(byManagerId).forEach(([mid,branches])=>{
+        const newKey=`BM_${mid}`;
+        const legacyKeys=branches.map(b=>`BM_${b}`).filter(k=>k!==newKey);
+        const sourcesWithData=legacyKeys.filter(k=>rb[k]||(rh[k]&&rh[k].length));
+        if(sourcesWithData.length===0)return; // nothing legacy to merge
+        // Idempotency guard: if the new key already has a balance/history AND
+        // every legacy source's history entries are already represented there
+        // (by count), skip — this is already merged.
+        const existingRHCount=(rh[newKey]||[]).length;
+        const legacyRHCount=sourcesWithData.reduce((s,k)=>s+((rh[k]||[]).length),0);
+        const alreadyMerged=rb[newKey]!==undefined&&existingRHCount>=legacyRHCount;
+        if(alreadyMerged)return;
+        // Sum balances
+        const mergedBalance=sourcesWithData.reduce((s,k)=>s+((rb[k]?.balance)||0),(rb[newKey]?.balance)||0);
+        rb[newKey]={...(rb[newKey]||{}),balance:mergedBalance};
+        // Concat + tag + chronologically re-sort reward-points history
+        const branchByKey={};
+        branches.forEach(b=>{branchByKey[`BM_${b}`]=b;});
+        let merged=[...(rh[newKey]||[])];
+        sourcesWithData.forEach(k=>{
+          const branchTag=branchByKey[k];
+          (rh[k]||[]).forEach(entry=>{
+            merged.push(entry.sourceBranch?entry:{...entry,sourceBranch:branchTag});
+          });
+        });
+        merged.sort((a,b)=>new Date(a.date)-new Date(b.date));
+        rh[newKey]=merged;
+        dataChanged=true;
+      });
+      if(dataChanged){
+        await saveData("emax_v5_reward_balance",rb);
+        await saveData("emax_v5_reward_history",rh);
+        setRewardBalances(p=>({...p,...rb}));
+        setRewardHistory(p=>({...p,...rh}));
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
   const handleEdit=async(dateKey,srId,field,value)=>{
     const latest=(await loadData(recordsKey))||records;
     const nr={...latest};
@@ -2448,7 +2751,8 @@ export default function App(){
 
     // BM points + employment status P/F update
     const bmEarned=calcRewardPoints(branchPct,branchPct);
-    const bmKey=`BM_${branchId}`;
+    const bmManagerId=branchMeta[branchId]?.managerId||branchId;
+    const bmKey=`BM_${bmManagerId}`;
     const bmHist=historyUpdates[bmKey]||[];
     // Guard: don't double-credit BM if already credited this month
     const bmAlreadyCredited=bmHist.some(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
@@ -2467,7 +2771,7 @@ export default function App(){
         const newBranchMeta={...branchMeta,[branchId]:{...bmMeta,mStatus:newBMStatus}};
         setBranchMeta(newBranchMeta);
         await saveData(BM_KEY,newBranchMeta);
-        const bmStatusKey=`BM_${branchId}`;
+        const bmStatusKey=`BM_${branchId}`; // status/employment history is branch-scoped, not managerId-scoped
         const bmSHist=statusUpdates[bmStatusKey]||[];
         const bmNoteStr=bTarget>0
           ?`Auto-updated on lock: ${noteMonth} branch target ${bmHit?"hit":"missed"} (${branchPct.toFixed(1)}%)`
@@ -2539,7 +2843,8 @@ export default function App(){
     });
 
     // ── Reverse BM points and employment status ────────────────────────────
-    const bmKey=`BM_${branchId}`;
+    const bmManagerId=branchMeta[branchId]?.managerId||branchId;
+    const bmKey=`BM_${bmManagerId}`;
     const bmHist=(historyUpdates[bmKey]||[]);
     const bmLockCreditIdx=bmHist.findLastIndex(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
     if(bmLockCreditIdx>=0){
@@ -2550,7 +2855,8 @@ export default function App(){
       historyUpdates[bmKey]=bmHist.filter((_,i)=>i!==bmLockCreditIdx);
     }
 
-    const bmSHist=statusUpdates[bmKey]||[];
+    const bmStatusKey=`BM_${branchId}`; // status/employment history is branch-scoped, not managerId-scoped
+    const bmSHist=statusUpdates[bmStatusKey]||[];
     const bmLockIdx=bmSHist.findLastIndex(h=>h.note&&h.note.includes(`Auto-updated on lock: ${noteMonth}`));
     let revertedBMeta={...branchMeta};
     if(bmLockIdx>=0){
@@ -2563,7 +2869,7 @@ export default function App(){
         const wasHit=bmSHist[0].note&&bmSHist[0].note.includes("target hit");
         prevBMStatus=buildStatus(bps.base,wasHit?bps.p-1:bps.p,wasHit?bps.f:bps.f-1);
       }
-      statusUpdates[bmKey]=bmSHist.filter((_,i)=>i!==bmLockIdx);
+      statusUpdates[bmStatusKey]=bmSHist.filter((_,i)=>i!==bmLockIdx);
       revertedBMeta={...branchMeta,[branchId]:{...branchMeta[branchId],mStatus:prevBMStatus}};
       setBranchMeta(revertedBMeta);
       await saveData(BM_KEY,revertedBMeta);
@@ -3015,11 +3321,17 @@ export default function App(){
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {(()=>{
+            const bmByManagerId={};
+            BRANCH_ORDER.forEach(b=>{
+              const mid=branchMeta[b]?.managerId||b;
+              if(!bmByManagerId[mid])bmByManagerId[mid]={id:`BM_${mid}`,name:branchMeta[b]?.manager||b,role:"Branch Manager",branches:[]};
+              bmByManagerId[mid].branches.push(b);
+            });
             const allPeople=[
-              ...BRANCH_ORDER.map(b=>({id:`BM_${b}`,name:branchMeta[b]?.manager||b,role:"Branch Manager",branch:b})),
-              ...srList.filter(sr=>srVisibleInMonth(sr,selMonth,selYear)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
+              ...Object.values(bmByManagerId).map(p=>({...p,branch:p.branches.join(", ")})),
+              ...srList.filter(sr=>srVisibleInMonth(sr,selMonth,selYear)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch,branches:[sr.branch]})),
             ];
-            const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0,asOf:pointsAsOfFor(p.branch)})).sort((a,b)=>b.balance-a.balance);
+            const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0,asOf:pointsAsOfFor(p.branches[0])})).sort((a,b)=>b.balance-a.balance);
             const medals=["🥇","🥈","🥉"];
             return ranked.map((p,i)=>{
               const isTop=i<3;
@@ -3122,7 +3434,7 @@ export default function App(){
               return <div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
                   {bSRs.map(sr=><SRTable key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>)}
-                  <BMTable branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${selBranch}`]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>
+                  <BMTable branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${branchMeta[selBranch]?.managerId||selBranch}`]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>
                 </div>
                 <div style={{marginTop:22}}>
                   <div style={{fontWeight:800,fontSize:12,color:"#0A1628",marginBottom:10,paddingBottom:7,borderBottom:"1px solid #E4EAF2",textTransform:"uppercase",letterSpacing:"0.06em"}}>Daily AEON Profit Report</div>
@@ -3254,7 +3566,7 @@ export default function App(){
     </div>{/* end flex layout */}
 
     {showTargetModal&&<TargetModal targets={targets} setTargets={setTargets} srList={srList} branchMeta={branchMeta} onClose={()=>setShowTargetModal(false)} currentMonth={selMonth} currentYear={selYear} onSaveForMonth={async(t,m,y)=>{if(m===selMonth&&y===selYear){setTargets(t);handleSaveTargets(t);}else await saveData(`emax_v5_targets_${y}_${m}`,t);}}/>}
-    {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson} renameSRId={renameSRId}/>}
+    {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} setRewardBalances={setRewardBalances} rewardHistory={rewardHistory} setRewardHistory={setRewardHistory} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson} renameSRId={renameSRId}/>}
     {printBranch&&<PrintBranchReport branchId={printBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onClose={()=>setPrintBranch(null)} month={month} year={year} days={days}/>}
     {showPointsModal&&<PointsHistoryModal srList={srList} branchMeta={branchMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onDeletePointsEntry={deletePointsEntry} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
     {showStatusHistoryModal&&<StatusHistoryModal srList={srList} branchMeta={branchMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onDeleteStatusEntry={deleteStatusEntry} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}

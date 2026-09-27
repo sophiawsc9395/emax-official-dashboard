@@ -17,6 +17,7 @@ import {SRBMModal,TargetModal,DailyEntry} from "../../App.jsx";
 import { mergeOrderPermissions } from "../../auth/orderRoles.js";
 import { RTOSummaryInner, RTOLatePaymentTodoList } from "../../RTOSummary.jsx";
 import ExpectedProfitTable from "../../ExpectedProfitTable.jsx";
+import AttendanceTab from "../../AttendanceTab.jsx";
 
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -324,6 +325,7 @@ function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalanc
 
 function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewardBalance=0,pointsAsOf="",onStatusHistory}){
   const meta=branchMeta[branchId]||{},bSRs=srList.filter(s=>s.branch===branchId);
+  const managerId=meta.managerId||branchId;
   const target=targets?.bm?.[branchId]||0,bmBonus=targets?.bmBonus?.[branchId]||0,bmBasic=targets?.bmBasic?.[branchId]||0;
   const rows=days.map(d=>{
     const k=`${d}/${month}/${year}`,day=records[k]||{},bm=day[`BM_${branchId}`]||{};
@@ -664,11 +666,14 @@ function PdfDownloads({month,year,branch}){
 
 function StatusHistoryModal({srList,bMeta,statusHistory,onClose,initialPerson}){
   const isBM=initialPerson&&initialPerson.startsWith("BM_");
-  const branchId=isBM?initialPerson.replace("BM_",""):null;
+  const managerId=isBM?initialPerson.replace("BM_",""):null;
+  const bmBranches=isBM?Object.keys(bMeta).filter(b=>bMeta[b]?.managerId===managerId):[];
+  const branchId=isBM&&bmBranches.length===0?managerId:null;
+  const displayBranch=isBM?(bmBranches.length?bmBranches.join(", "):branchId):null;
   const person=isBM
-    ?{name:bMeta[branchId]?.manager||branchId,role:`${branchId} — Branch Manager`}
+    ?{name:bMeta[bmBranches[0]||branchId]?.manager||managerId,role:`${displayBranch} — Branch Manager`}
     :(()=>{const sr=srList.find(s=>s.id===initialPerson);return sr?{name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}:null;})();
-  const currentStatus=isBM?bMeta[branchId]?.mStatus:srList.find(s=>s.id===initialPerson)?.status;
+  const currentStatus=isBM?bMeta[bmBranches[0]||branchId]?.mStatus:srList.find(s=>s.id===initialPerson)?.status;
   const history=(statusHistory[initialPerson]||[]).slice().reverse();
 
   return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
@@ -704,9 +709,12 @@ function StatusHistoryModal({srList,bMeta,statusHistory,onClose,initialPerson}){
 
 function PointsHistoryModal({srList,bMeta,rewardBalances,rewardHistory,onClose,initialPerson}){
   const isBM=initialPerson&&initialPerson.startsWith("BM_");
-  const branchId=isBM?initialPerson.replace("BM_",""):null;
+  const managerId=isBM?initialPerson.replace("BM_",""):null;
+  const bmBranches=isBM?Object.keys(bMeta).filter(b=>bMeta[b]?.managerId===managerId):[];
+  const branchId=isBM&&bmBranches.length===0?managerId:null;
+  const displayBranch=isBM?(bmBranches.length?bmBranches.join(", "):branchId):null;
   const person=isBM
-    ?{name:bMeta[branchId]?.manager||branchId,role:`${branchId} — Branch Manager`}
+    ?{name:bMeta[bmBranches[0]||branchId]?.manager||managerId,role:`${displayBranch} — Branch Manager`}
     :(()=>{const sr=srList.find(s=>s.id===initialPerson);return sr?{name:sr.canon,role:`${sr.branch} — ${sr.type} SR`}:null;})();
   const balance=rewardBalances[initialPerson]?.balance||0;
   const rawHistory=rewardHistory[initialPerson]||[];
@@ -800,7 +808,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   const [selEndDay,setSelEndDay]=useState(daysInMonth(now.getMonth()+1,now.getFullYear()));
   const periodDays=days.filter(d=>d>=selStartDay&&d<=selEndDay);
   const [selBranch,setSelBranch]=useState(BRANCH_ORDER[0]);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto","todoRtoHR","orders"]:isKnockOff?["overview","report","daily","orders","dailySales","dailyPayment"]:["overview","todoPickup","todoRto","rankings","points","report","repair","rto","orders","dailySales","jclApplications","chaileaseApplications","stockProfit","stockWriteOff","warranty",...(elevateOrderAccess?["purchaseOrder","stockTransfer"]:[])];return allowed.includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto","todoRtoHR","orders","attendance"]:isKnockOff?["overview","report","daily","orders","dailySales","dailyPayment"]:["overview","todoPickup","todoRto","rankings","points","report","repair","rto","orders","dailySales","jclApplications","chaileaseApplications","stockProfit","stockWriteOff","warranty","attendance",...(elevateOrderAccess?["purchaseOrder","stockTransfer"]:[])];return allowed.includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   // Consolidated "To Do List" tab (Boon Theng/Sophia only) — same as the
   // one on App.jsx's dashboard, since this viewer (reached via
@@ -1121,6 +1129,16 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   // she no longer needs (or has) a reason to be on that page. She keeps
   // everything else here (Stock Write-off, Stock Profit, etc.).
   const isStockExecOnly=(currentEmail||"").toLowerCase()==="emaxstock@gmail.com";
+  // Attendance capability — see AttendanceTab.jsx for the full spec. Sophia
+  // gets full manage + Business Hours wherever she signs in (hr/boss/manager
+  // all allow her); emaxhr gets full manage (no Business Hours) via hr.html
+  // only; Boon Theng / Wingfei get cross-branch VIEW ONLY via boss.html or
+  // manager.html. Nobody else (e.g. emaxstock) sees the tab at all.
+  const attendanceEmail=(currentEmail||"").toLowerCase();
+  const isAttendanceSophia=attendanceEmail==="sophiawsc9395@gmail.com";
+  const isAttendanceHR=isHR&&attendanceEmail==="emaxhr@gmail.com";
+  const isAttendanceCrossViewer=["boontheng2004@gmail.com","wingfeii@gmail.com"].includes(attendanceEmail);
+  const attendanceRole=isAttendanceSophia?"full-sophia":isAttendanceHR?"full-hr":isAttendanceCrossViewer?"view-cross":null;
   const SIDEBAR_STRUCTURE=isHR
     ?[
       {id:"overview",label:"Overview"},
@@ -1131,6 +1149,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {id:"rto",label:"RTO Summary"},
       {id:"todoRtoHR",label:"RTO Payment Reminder To-Do"},
       {id:"orders",label:"Order Tracking"},
+      ...(attendanceRole?[{id:"attendance",label:"Attendance"}]:[]),
     ]
     :isKnockOff
     ?[
@@ -1169,6 +1188,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       ]},
       {id:"stockProfit",label:"Stock Profit Checker"},
       ...(elevateOrderAccess?[{id:"stockTransfer",label:"Stock Transfer"}]:[]),
+      ...(attendanceRole?[{id:"attendance",label:"Attendance"}]:[]),
     ];
   const [expandedGroups,setExpandedGroups]=useState(()=>{
     const initial={};
@@ -1261,8 +1281,14 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {(()=>{
+            const bmByManagerId={};
+            BRANCH_ORDER.forEach(b=>{
+              const mid=bMeta[b]?.managerId||b;
+              if(!bmByManagerId[mid])bmByManagerId[mid]={id:`BM_${mid}`,name:bMeta[b]?.manager||b,role:"Branch Manager",branches:[]};
+              bmByManagerId[mid].branches.push(b);
+            });
             const allPeople=[
-              ...BRANCH_ORDER.map(b=>({id:`BM_${b}`,name:bMeta[b]?.manager||b,role:"Branch Manager",branch:b})),
+              ...Object.values(bmByManagerId).map(p=>({...p,branch:p.branches.join(", ")})),
               ...srList.filter(sr=>srVisibleInMonth(sr,selMonth,selYear)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
             ];
             const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0})).sort((a,b)=>b.balance-a.balance);
@@ -1361,7 +1387,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
           return <div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
               {bSRs.map(sr=><SRCard key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} month={month} year={year} days={days} bMeta={bMeta} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOf} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>)}
-              <BMCard branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={bMeta} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${selBranch}`]?.balance||0} pointsAsOf={pointsAsOf} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>
+              <BMCard branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={bMeta} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${bMeta[selBranch]?.managerId||selBranch}`]?.balance||0} pointsAsOf={pointsAsOf} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>
             </div>
             <div style={{marginTop:16}}><PdfDownloads month={month} year={year} branch={selBranch}/></div>
           </div>;
@@ -1418,6 +1444,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {tab==="purchaseOrder"&&elevateOrderAccess&&<div className="fade-in"><PurchaseOrderTab branchMeta={bMeta} isAdmin={elevateOrderAccess} email={currentEmail}/></div>}
       {tab==="warranty"&&!isStockExecOnly&&<div className="fade-in"><WarrantyTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
       {tab==="stockWriteOff"&&<div className="fade-in"><StockWriteOffTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com","emaxstock@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
+      {tab==="attendance"&&attendanceRole&&<div className="fade-in"><AttendanceTab branchMeta={bMeta} srList={srList} isAdmin={attendanceRole==="full-sophia"||attendanceRole==="full-hr"} canManageHours={attendanceRole==="full-sophia"} allowBranchSwitch={attendanceRole==="view-cross"} email={currentEmail}/></div>}
       {tab==="dailyPayment"&&isKnockOff&&<div className="fade-in"><DailyPaymentTab email={currentEmail}/></div>}
     </div>{/* end main content */}
 

@@ -889,8 +889,10 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
     {hist.claimSentDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Claim Sent Out to Merchant Date: {fDate(hist.claimSentDate)}</div>}
     {hist.consignmentNo&&<div style={{marginBottom:2,color:C.textMid}}>Consignment Note No.: {hist.consignmentNo}</div>}
     {hist.stockTransferNo&&<div style={{marginBottom:2,color:C.textMid}}>Stock Transfer No.: {hist.stockTransferNo}</div>}
-    {hist.knockOffDate&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off: {fDate(hist.knockOffDate)}</div>}
-    {hist.knockOffAmount&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Knock-off Amount: {fRM(hist.knockOffAmount)}</div>}
+    {hist.knockOffDate&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Claim Released — Knock-off: {fDate(hist.knockOffDate)}</div>}
+    {hist.knockOffAmount&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>Claim Released — Knock-off Amount: {fRM(hist.knockOffAmount)}</div>}
+    {hist.firstInstallmentKnockOffDate&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>First Monthly Installment Knock-off: {fDate(hist.firstInstallmentKnockOffDate)}</div>}
+    {hist.firstInstallmentKnockOffAmount&&<div style={{marginBottom:2,color:C.textMid,fontWeight:600}}>First Monthly Installment Knock-off Amount: {fRM(hist.firstInstallmentKnockOffAmount)}</div>}
     {hist.shortPayment&&<div style={{marginBottom:2,color:"#DC2626",fontWeight:700}}>Short Payment — Balance Payment Needed</div>}
     {hist.collectionChecked!==undefined&&<div style={{marginBottom:3,fontSize:10,color:C.textMid}}>{order.orderType!=="cash"&&<>{hist.collectionChecked?"Done":"Not done"} Phone Collection · </>}{hist.paymentChecked?"Done":"Not done"} Payment verified</div>}
     {hist.upfrontPaymentDate&&(order.orderType==="cash"?hist.monthlyInstallment:hist.paymentProofAmount)&&<div style={{marginBottom:2,color:C.navy,fontWeight:600,display:"flex",alignItems:"center",gap:6}}>
@@ -1936,7 +1938,19 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
         </div>
         <div style={{fontSize:11,color:C.textLight,marginTop:3}}>{order.customerName} · {order.branch} · {order.salesAgentName||order.salesAgentId||"—"}{order.invoiceNo?` · Invoice: ${order.invoiceNo}`:""}</div>
       </div>
-      {isSuperAdminOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>{!order.cancelled&&order.step!==14&&<DBtn onClick={()=>{const reason=prompt("Reason for cancelling this order (optional):")||"";if(!confirm("Cancel this order? It will move out of active tracking and won't appear in any reports."))return;onUpdate({...order,cancelled:true,cancelledReason:reason||undefined,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Order Cancelled",cancelledReason:reason||undefined}]});}}>{Ic.x} Cancel Order</DBtn>}<DBtn onClick={onDelete}>{Ic.trash} Delete</DBtn></div>}
+      {isSuperAdminOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",alignItems:"center",gap:6}}>
+        <GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>
+        {/* Cancel Order — reversible (Reactivate brings it right back), so it
+            stays a mild amber "warning" treatment, distinct from Delete
+            below. Deliberately NOT the same red DBtn as Delete anymore —
+            the two used to look like equally-weighted variants of the same
+            action, which is exactly what made them easy to mix up. */}
+        {!order.cancelled&&order.step!==14&&<DBtn onClick={()=>{const reason=prompt("Reason for cancelling this order (optional):")||"";if(!confirm("Cancel this order? It will move out of active tracking and won't appear in any reports."))return;onUpdate({...order,cancelled:true,cancelledReason:reason||undefined,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Order Cancelled",cancelledReason:reason||undefined}]});}} style={{color:"#B45309",border:"1px solid rgba(180,83,9,.35)"}}>{Ic.x} Cancel Order</DBtn>}
+        {/* Visual gap + divider before Delete, so it doesn't sit flush next
+            to Cancel Order as if it were just another variant of it. */}
+        <div style={{width:1,alignSelf:"stretch",background:C.border,margin:"0 4px"}}/>
+        <button onClick={onDelete} title="Permanently deletes this order and its entire history — cannot be undone" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"7px 14px",background:"#991B1B",color:"#fff",border:"1px solid #7F1D1D",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif",boxShadow:"0 1px 4px rgba(153,27,27,.4)"}}>{Ic.trash} Delete Permanently</button>
+      </div>}
       {!isSuperAdminOrder&&canEditOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>{canAdminBilling&&!order.cancelled&&order.step!==14&&<DBtn onClick={()=>{const reason=prompt("Reason for cancelling this order (optional):")||"";if(!confirm("Cancel this order? It will move out of active tracking and won't appear in any reports."))return;onUpdate({...order,cancelled:true,cancelledReason:reason||undefined,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Order Cancelled",cancelledReason:reason||undefined}]});}}>{Ic.x} Cancel Order</DBtn>}</div>}
     </div>
 
@@ -2599,7 +2613,7 @@ function BulkKnockOffInstallment({orders,onSave,onClose}){
               step:14,
               stepDates:{...(o.stepDates||{}),14:{date:nowDate(),time:nowTime()}},
               history:[
-                {step:o.step,date:nowDate(),time:nowTime(),note:"First Monthly Installment Knocked Off (bulk)",firstInstallmentKnockOffDate:date},
+                {step:o.step,date:nowDate(),time:nowTime(),note:"First Monthly Installment Knocked Off (bulk)",firstInstallmentKnockOffDate:date,firstInstallmentKnockOffAmount:parseFloat(o.monthlyInstallment)||0},
                 {step:14,date:nowDate(),time:nowTime(),note:"Completed and archived (automatic, following First Monthly Installment knock-off)"}
               ]
             }));
@@ -3319,7 +3333,16 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     return true;
   };
   const deleteOrder=async id=>{
-    if(!confirm("Delete this order?"))return;
+    const confirmed=confirm(
+      `Permanently delete this order?\n\n`+
+      `This WILL:\n`+
+      `• Remove the order and its entire tracking history — every step, note, and uploaded file reference on it\n\n`+
+      `This is different from Cancel Order:\n`+
+      `• Cancel Order keeps the order (just marks it cancelled) and can be reversed with Reactivate\n`+
+      `• Delete erases it completely — there is no Reactivate for a deleted order\n\n`+
+      `This cannot be undone. Continue?`
+    );
+    if(!confirmed)return;
     const result=await apiDeleteOrder(id);
     if(!result?.ok){alert("Delete failed. Please try again.");return;}
     setOrders(p=>p.filter(x=>x.id!==id));
