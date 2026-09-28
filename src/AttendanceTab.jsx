@@ -146,12 +146,26 @@ const MANUAL_ROSTER_ONLY_BRANCHES=["HQ"];
 // lookup module for this one narrow case).
 const DIRECTOR_EXCLUDED_NAMES=["MAX SIEW","EC"];
 const isDirectorExcluded=name=>DIRECTOR_EXCLUDED_NAMES.includes((name||"").trim().toUpperCase());
+// Resigned SR/BM staff are removed from the CURRENT/future roster — same
+// treatment as director-exclusion above — but, per Sophia's correction ("Do
+// not remove resignee past month attendance record"), a resigned person
+// still shows for any month where they already have recorded attendance
+// data. That history carve-out mirrors the deactivated-extra-staff pattern
+// below (personHasDataInMonth), so it's applied in combinedRoster where
+// `attendance` is in scope; rosterFor itself stays a pure, attendance-free
+// snapshot (director-exclusion only, unconditional, no history exception).
+// Status is read straight off the same fields App.jsx's Manage Staff panel
+// already writes: `status` on an SR record and `mStatus` on a
+// branchMeta/BM record, both free-text strings (e.g. "Resigned",
+// "Confirmed (P5 F0)") checked the same case-insensitive-substring way
+// App.jsx itself checks them.
+const isResignedStatus=status=>(status||"").toLowerCase().includes("resigned");
 function rosterFor(branch,meta,srList){
   if(MANUAL_ROSTER_ONLY_BRANCHES.includes(branch))return[];
   const m=meta[branch]||{};
   const people=[];
-  if(m.manager&&!isDirectorExcluded(m.manager))people.push({id:`BM_${branch}`,name:m.manager,role:"Branch Manager",branch,alsoManages:otherBranchesManagedBy(branch,meta)});
-  srList.filter(s=>s.branch===branch&&!isDirectorExcluded(s.canon)).forEach(s=>people.push({id:s.id,name:s.canon,role:`${s.type} SR`,branch}));
+  if(m.manager&&!isDirectorExcluded(m.manager))people.push({id:`BM_${branch}`,name:m.manager,role:"Branch Manager",branch,alsoManages:otherBranchesManagedBy(branch,meta),mStatus:m.mStatus});
+  srList.filter(s=>s.branch===branch&&!isDirectorExcluded(s.canon)).forEach(s=>people.push({id:s.id,name:s.canon,role:`${s.type} SR`,branch,status:s.status}));
   return people;
 }
 // Attendance-only staff (added via "Add Staff") can be deactivated instead
@@ -171,7 +185,11 @@ const personHasDataInMonth=(person,attendance)=>!!(attendance[person.id]&&Object
 // `isExtra:true` here so callers can offer edit/deactivate controls only
 // on the ones that support it (never on real SR/BM roster entries).
 function combinedRoster(branch,meta,srList,extraStaff,attendance={},showInactive=false){
-  const base=rosterFor(branch,meta,srList);
+  const base=rosterFor(branch,meta,srList)
+    .filter(p=>{
+      const resignedStatus=p.role==="Branch Manager"?p.mStatus:p.status;
+      return!isResignedStatus(resignedStatus)||showInactive||personHasDataInMonth(p,attendance);
+    });
   const extras=(extraStaff[branch]||[])
     .filter(p=>isActiveStaff(p)||showInactive||personHasDataInMonth(p,attendance))
     .map(p=>({...p,isExtra:true}));
