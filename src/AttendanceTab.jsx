@@ -899,7 +899,6 @@ function BranchView({year,month,meta,srList,attendance,hours,extraStaff,allowBra
     {allowBranchSwitch
       ?<div style={{marginBottom:16}}><BranchTabs value={branch} onChange={setBranch} meta={meta}/></div>
       :null}
-    <div style={{fontSize:10.5,color:C.textLight,marginBottom:12}}>Click a card to see the exact clock-in/out (or leave) emaxhr recorded for every day.</div>
     {roster.length===0?<div style={{...card,padding:24,textAlign:"center",fontSize:12,color:C.textLight}}>No attendance records yet for {meta[branch]?.name||branch}.</div>:
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:14}}>
       {roster.map(person=>{
