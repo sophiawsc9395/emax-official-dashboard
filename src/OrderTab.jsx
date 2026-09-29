@@ -717,6 +717,15 @@ function CancelRequestBox({order,onUpdate,email}){
 // works from the moment the box first appears, before it's copied into a
 // proper history entry on acceptance.
 function CancellationFormLink({file}){
+  return<PendingFileLink file={file} label="Cancellation Form"/>;
+}
+// Generic version of the above — resolves any {name,path} file ref stored
+// outside of a history entry's own `files` map (which Timeline's main
+// renderEntry already resolves via signOrderFiles) into a signed, clickable
+// link. Used for the Purchase Proof uploaded via the "Mark as Purchased"
+// modal, which is stored as a plain field on the history entry (hist.
+// purchaseProof), not inside hist.files.
+function PendingFileLink({file,label}){
   const[url,setUrl]=useState(file.url||null);
   useEffect(()=>{
     if(file.url||!file.path)return;
@@ -724,8 +733,8 @@ function CancellationFormLink({file}){
     signFileUrl(file.path).then(u=>{if(live&&u)setUrl(u);});
     return()=>{live=false;};
   },[file.path,file.url]);
-  return url?<a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>{Ic.download} Cancellation Form: {file.name}</a>
-    :<span style={{fontSize:11,color:C.textLight}}>Cancellation Form: {file.name} (loading…)</span>;
+  return url?<a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>{Ic.download} {label}: {file.name}</a>
+    :<span style={{fontSize:11,color:C.textLight}}>{label}: {file.name} (loading…)</span>;
 }
 function PhoneModelField({order,onUpdate}){
   const [editing,setEditing]=useState(false);
@@ -875,14 +884,32 @@ function Timeline({order,isAdmin,canManageTracking,onUpdate,orderPermissions,ema
     await onUpdate({...order,step:newStep,history:remainingHistory});
   };
   let lastPh=null;
+  // Sophia-only visibility of WHO approved a "Proceed to purchase" decision
+  // (from PurchaseOrderTab's approver flow — Sophia or Boon Theng). The
+  // approver's email is baked directly into hist.note as plain text at
+  // write-time (no separate hist.by/approver field), e.g. "Proceed to
+  // purchase — sophiawsc9395@gmail.com, follow lowest quote" or "...:
+  // <remark>". This is a display-only mask — the stored note text is left
+  // untouched — so every viewer except Sophia sees "Approver" in its place;
+  // Sophia still sees the real email. Only this specific approval-line
+  // prefix is touched; unrelated identity mentions elsewhere in the
+  // timeline (e.g. "Supplier quotes submitted by …", "Purchaser: …") are
+  // not affected.
+  const isSophiaViewerTL=(email||"").toLowerCase()===SOPHIA_EMAIL;
+  const maskApprovalNote=note=>{
+    if(typeof note!=="string"||!note.startsWith("Proceed to purchase — "))return note;
+    if(isSophiaViewerTL)return note;
+    return note.replace(/^(Proceed to purchase — )[^\s,:]+/,"$1Approver");
+  };
   const renderEntry=(hist,histIdx,s,isLatest)=><div style={{marginTop:4,background:C.surface,borderRadius:7,padding:"6px 10px",border:`1px solid ${C.border}`,fontSize:11,color:C.textMid,position:"relative"}}>
     {isTrueSuperAdminTL&&hist._rowId&&<button onClick={()=>deleteHistoryEntry(hist._rowId)} title="Remove this log entry" style={{position:"absolute",top:5,right:5,background:"none",border:"none",cursor:"pointer",color:"#DC2626",padding:2,fontSize:13,lineHeight:1,fontWeight:700}}>×</button>}
     {hist.date&&<div style={{marginBottom:3,fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.04em"}}>{isLatest?"Latest — ":""}{fDT(hist.date,hist.time)}</div>}
     {hist.reversedFrom&&<div style={{marginBottom:3,fontSize:12,fontWeight:700,color:"#DC2626"}}>Agreement Issue</div>}
-    {hist.note&&<div style={{marginBottom:2,color:C.textMid}}>{hist.note}</div>}
+    {hist.note&&<div style={{marginBottom:2,color:C.textMid}}>{maskApprovalNote(hist.note)}</div>}
     {hist.orderDate&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Order Date: {fDate(hist.orderDate)}{hist.supplierName?` · ${hist.supplierName}`:""}</div>}
     {hist.poNumber&&<div style={{marginBottom:2,color:C.textMid}}>PO Number: {hist.poNumber}</div>}
     {isAdmin&&hist.purchaserName&&<div style={{marginBottom:2,color:C.textMid}}>Purchaser: {hist.purchaserName}</div>}
+    {hist.purchaseProof&&<div style={{marginBottom:2,marginTop:2}}><PendingFileLink file={hist.purchaseProof} label="Purchase Proof"/></div>}
     {hist.cancelledDate&&<div style={{marginBottom:2,color:"#DC2626",fontWeight:700}}>Supplier Cancelled — {fDate(hist.cancelledDate)}{hist.reversedTo?` · Returned to ${getStep(hist.reversedTo)?.label||"New Order Request"}`:""}</div>}
     {hist.remark&&<div style={{marginBottom:2,color:C.textMid}}>Remark: {hist.remark}</div>}
     {hist.invoiceNo&&<div style={{marginBottom:2,color:C.navy,fontWeight:600}}>Invoice: {hist.invoiceNo}</div>}

@@ -522,10 +522,11 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
    uses, so a failed save rolls the whole batch back and surfaces the usual
    red banner — nothing is ever left looking saved when it silently
    wasn't). Purely additive — the grid (HRFillInView) is untouched. ────── */
-function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours,extraStaff,onAddStaff,branch,setBranch}){
+function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours,extraStaff,onAddStaff,onEditStaff,branch,setBranch}){
   const roster=combinedRoster(branch,meta,srList,extraStaff,attendance,false);
   const roleOptions=[...new Set(roster.map(p=>p.role).filter(Boolean))];
   const[adding,setAdding]=useState(false);
+  const[editingStaff,setEditingStaff]=useState(null);
   const days=daysInMonth(year,month);
   const dayList=Array.from({length:days},(_,i)=>i+1);
   const [day,setDay]=useState(1);
@@ -654,8 +655,11 @@ function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours
               else statusEl=<span style={{color:C.green,fontWeight:700}}>On time</span>;
               return<tr key={person.id} style={{background:isChanged?"#EFF6FF":"transparent"}}>
                 <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,color:C.text,fontWeight:700}}>
-                  {person.name}
-                  {person.isExtra&&!isActiveStaff(person)?<span style={{marginLeft:5,fontSize:8.5,fontWeight:700,color:C.textLight,background:C.surface,border:`1px solid ${C.border}`,borderRadius:4,padding:"1px 5px",textTransform:"uppercase"}}>Inactive</span>:null}
+                  <div style={{display:"flex",alignItems:"center",gap:5}}>
+                    {person.name}
+                    {person.isExtra&&<button onClick={()=>setEditingStaff(person)} title="Edit name/role" style={{background:"transparent",border:"none",color:C.textLight,cursor:"pointer",padding:2,display:"flex"}}>{Ic.edit}</button>}
+                    {person.isExtra&&!isActiveStaff(person)?<span style={{fontSize:8.5,fontWeight:700,color:C.textLight,background:C.surface,border:`1px solid ${C.border}`,borderRadius:4,padding:"1px 5px",textTransform:"uppercase"}}>Inactive</span>:null}
+                  </div>
                   <div style={{fontSize:9.5,fontWeight:400,color:C.textLight}}>{person.role}</div>
                 </td>
                 <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}>
@@ -680,6 +684,7 @@ function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours
     <DayLegend/>
 
     {adding&&<AddStaffModal branch={branch} meta={meta} existingNames={roster.map(p=>p.name.trim().toLowerCase())} roleOptions={roleOptions} onAdd={p=>onAddStaff(branch,p)} onClose={()=>setAdding(false)}/>}
+    {editingStaff&&<EditStaffModal person={editingStaff} meta={meta} roleOptions={roleOptions} onSave={updates=>onEditStaff(branch,editingStaff.id,updates)} onClose={()=>setEditingStaff(null)}/>}
   </div>;
 }
 
@@ -1072,7 +1077,7 @@ export default function AttendanceTab({branchMeta={},srList=[],isAdmin=false,can
 
     {isAdmin?<>
       {sub==="hours"&&canManageHours&&<BusinessHoursView year={year} month={month} meta={meta} srList={srList} attendance={attendance} hours={hours} setHours={setHours} extraStaff={extraStaff} onAddStaff={addStaff} onEditStaff={editStaff} onSetStaffActive={setStaffActive} onRemoveStaff={removeStaffHard}/>}
-      {sub==="list"&&<HRFillInListView year={year} month={month} meta={meta} srList={srList} attendance={attendance} setAttendance={setAttendance} hours={hours} extraStaff={extraStaff} onAddStaff={addStaff} branch={effectiveBranch} setBranch={setBranch}/>}
+      {sub==="list"&&<HRFillInListView year={year} month={month} meta={meta} srList={srList} attendance={attendance} setAttendance={setAttendance} hours={hours} extraStaff={extraStaff} onAddStaff={addStaff} onEditStaff={editStaff} branch={effectiveBranch} setBranch={setBranch}/>}
       {sub==="table"&&<HRFillInView daysReadOnly year={year} month={month} meta={meta} srList={srList} attendance={attendance} setAttendance={setAttendance} hours={hours} extraStaff={extraStaff} onEditStaff={editStaff} branch={effectiveBranch} setBranch={setBranch}/>}
       {sub==="summary"&&<AttendanceSummaryTable year={year} month={month} meta={meta} srList={srList} attendance={attendance} hours={hours} extraStaff={extraStaff} onEditStaff={editStaff} branch={effectiveBranch} setBranch={setBranch}/>}
     </>:viewCross?<>
