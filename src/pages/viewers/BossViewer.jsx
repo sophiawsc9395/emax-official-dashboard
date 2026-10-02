@@ -10,7 +10,7 @@ import WarrantyTab from "../../WarrantyTab.jsx";
 import StockWriteOffTab from "../../StockWriteOffTab.jsx";
 import ChaileaseTab from "../../ChaileaseTab.jsx";
 import PurchaseOrderTab from "../../PurchaseOrderTab.jsx";
-import DailyPaymentTab from "../../DailyPaymentTab.jsx";
+import DailyPaymentTab, {COMPANIES as DAILY_PAYMENT_COMPANIES, keyFor as dailyPaymentKeyFor} from "../../DailyPaymentTab.jsx";
 import StockProfitTab from "../../StockProfitTab.jsx";
 import StockTransferTab from "../../StockTransferTab.jsx";
 import {SRBMModal,TargetModal,DailyEntry} from "../../App.jsx";
@@ -944,6 +944,34 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
     });
   },[elevateOrderAccess,isKnockOff]);
 
+  // Sidebar badge on Daily Payment — same logic as App.jsx: a count, not
+  // just a dot, of every item needing someone's attention ("pending",
+  // "rejected", or "requested"), tracked per company too, so once inside
+  // the page each company tab can show its own count instead of just the
+  // page-wide total. Checked once on load, then kept live via a Supabase
+  // Realtime subscription scoped to these specific storage keys. Only
+  // relevant for isKnockOff (the only role that sees Daily Payment here),
+  // so it's skipped entirely otherwise.
+  const [pendingDailyPaymentByCompany,setPendingDailyPaymentByCompany]=useState({});
+  useEffect(()=>{
+    if(!isKnockOff)return;
+    const dailyPaymentKeys=DAILY_PAYMENT_COMPANIES.map(c=>dailyPaymentKeyFor(c.key));
+    const checkPending=async()=>{
+      const results=await Promise.all(DAILY_PAYMENT_COMPANIES.map(async c=>{
+        const entries=await loadData(dailyPaymentKeyFor(c.key));
+        const count=Array.isArray(entries)?entries.filter(e=>["pending","rejected","requested"].includes(e.status)).length:0;
+        return[c.key,count];
+      }));
+      setPendingDailyPaymentByCompany(Object.fromEntries(results));
+    };
+    checkPending();
+    const channel=supabase.channel("daily-payment-notify-bossviewer")
+      .on("postgres_changes",{event:"*",schema:"public",table:"app_storage",filter:`key=in.(${dailyPaymentKeys.join(",")})`},checkPending)
+      .subscribe();
+    return()=>{supabase.removeChannel(channel);};
+  },[isKnockOff]);
+  const pendingDailyPaymentCount=Object.values(pendingDailyPaymentByCompany).reduce((a,b)=>a+b,0);
+
   useEffect(()=>{
     setLoading(true);setRecords({});
     setSelStartDay(1);setSelEndDay(daysInMonth(selMonth,selYear));
@@ -1150,6 +1178,9 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   const isAttendanceHR=isHR&&attendanceEmail==="emaxhr@gmail.com";
   const isAttendanceCrossViewer=["boontheng2004@gmail.com","wingfeii@gmail.com"].includes(attendanceEmail);
   const attendanceRole=isAttendanceSophia?"full-sophia":isAttendanceHR?"full-hr":isAttendanceCrossViewer?"view-cross":null;
+  // "All Branch" pill (see AttendanceTab.jsx canViewAllBranch) — Sophia and
+  // the two cross-branch viewers only, never emaxhr.
+  const canViewAllBranchAttendance=isAttendanceSophia||isAttendanceCrossViewer;
   const SIDEBAR_STRUCTURE=isHR
     ?[
       {id:"overview",label:"Overview"},
@@ -1456,8 +1487,8 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {tab==="purchaseOrder"&&elevateOrderAccess&&<div className="fade-in"><PurchaseOrderTab branchMeta={bMeta} isAdmin={elevateOrderAccess} email={currentEmail}/></div>}
       {tab==="warranty"&&!isStockExecOnly&&<div className="fade-in"><WarrantyTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
       {tab==="stockWriteOff"&&<div className="fade-in"><StockWriteOffTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com","emaxstock@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
-      {tab==="attendance"&&attendanceRole&&<div className="fade-in"><AttendanceTab branchMeta={bMeta} srList={srList} isAdmin={attendanceRole==="full-sophia"||attendanceRole==="full-hr"} canManageHours={attendanceRole==="full-sophia"} allowBranchSwitch={attendanceRole==="view-cross"} email={currentEmail}/></div>}
-      {tab==="dailyPayment"&&isKnockOff&&<div className="fade-in"><DailyPaymentTab email={currentEmail}/></div>}
+      {tab==="attendance"&&attendanceRole&&<div className="fade-in"><AttendanceTab branchMeta={bMeta} srList={srList} isAdmin={attendanceRole==="full-sophia"||attendanceRole==="full-hr"} canManageHours={attendanceRole==="full-sophia"} allowBranchSwitch={attendanceRole==="view-cross"} canViewAllBranch={canViewAllBranchAttendance} email={currentEmail}/></div>}
+      {tab==="dailyPayment"&&isKnockOff&&<div className="fade-in"><DailyPaymentTab email={currentEmail} pendingByCompany={pendingDailyPaymentByCompany}/></div>}
     </div>{/* end main content */}
 
       {/* SIDEBAR — right side, collapsible */}
@@ -1470,12 +1501,13 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
           {SIDEBAR_STRUCTURE.map(item=>{
             if(!item.children)return(
               <button key={item.id} onClick={()=>{setTab(item.id);setSidebarOpen(false);}} style={{
-                display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+                display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
                 border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
                 background:tab===item.id?"rgba(255,255,255,.1)":"transparent",color:tab===item.id?"#fff":"rgba(255,255,255,.45)",
                 transition:"background .15s",
               }}>
-                {item.label}
+                <span>{item.label}</span>
+                {item.id==="dailyPayment"&&pendingDailyPaymentCount>0&&<span style={{minWidth:16,height:16,padding:"0 4px",borderRadius:8,background:"#DC2626",color:"#fff",fontSize:9.5,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,lineHeight:1}}>{pendingDailyPaymentCount}</span>}
               </button>
             );
             const isOpen=!!expandedGroups[item.group];

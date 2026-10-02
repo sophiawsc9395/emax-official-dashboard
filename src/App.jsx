@@ -3486,7 +3486,7 @@ export default function App(){
       {tab==="dailyPayment"&&<DailyPaymentTab email={currentEmail} pendingByCompany={pendingDailyPaymentByCompany}/>}
       {tab==="stockProfit"&&<StockProfitTab email={currentEmail}/>}
       {tab==="stockTransfer"&&<StockTransferTab canCreate={true} branchMeta={branchMeta} email={currentEmail}/>}
-      {tab==="attendance"&&<div className="fade-in"><AttendanceTab branchMeta={branchMeta} srList={srList} isAdmin={true} canManageHours={true} allowBranchSwitch={true} email={currentEmail}/></div>}
+      {tab==="attendance"&&<div className="fade-in"><AttendanceTab branchMeta={branchMeta} srList={srList} isAdmin={true} canManageHours={true} allowBranchSwitch={true} canViewAllBranch={true} email={currentEmail}/></div>}
 
       </div>{/* end main content */}
 

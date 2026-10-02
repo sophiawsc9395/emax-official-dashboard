@@ -639,6 +639,58 @@ function PickupReminderVoiceBox({order,onUpdate,email}){
   </div>;
 }
 
+// Popup for a BRANCH viewer (isAdmin=false, userBranch set) listing every
+// order of theirs sitting at Arrived Branch (step 5) for 7+ days with no
+// Billing Request submitted yet — the same threshold as the "Arrived
+// Branch, Not Yet Billed" / billing_request_overdue alerts above, just
+// surfaced directly to the branch instead of (only) HR/Boon Theng/Sophia.
+// All qualifying orders are shown together (not one-at-a-time) so the
+// branch can see the full count up front; each row has its own inline
+// reason textarea and Submit button, answered "one by one" within this
+// single list. A "Close" button lets the branch defer for now — it is a
+// snooze, not a dismissal: OrderTab resets the dismissal whenever the
+// branch navigates to a different view (see billingDelayDismissed /
+// useEffect on `view` in OrderTab), and switching away from the Orders
+// tab and back unmounts/remounts OrderTab entirely, which also clears it.
+// Once order.billingDelayReason is set (see submitBillingDelayReason
+// below) that order drops out of the list for good, even if billing is
+// still not requested later — a one-time prompt per order, not a
+// recurring nag; Close only defers the orders NOT yet answered.
+function BillingDelayReasonModal({orders,branchMeta,onSubmit,onClose}){
+  const[texts,setTexts]=useState({});
+  const[savingId,setSavingId]=useState(null);
+  return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{...card,width:"90%",maxWidth:520,maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
+      <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
+        <div>
+          <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.alertCircle} Billing Request Overdue</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:3}}>You have {orders.length} order{orders.length===1?"":"s"} overdue — please fill in a reason for each</div>
+        </div>
+        <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14,flexShrink:0}}>×</button>
+      </div>
+      <div style={{padding:18,overflowY:"auto",flex:1}}>
+        {orders.map((order,i)=>{
+          const days=daysSince(order.stepDates?.[5]?.date);
+          const text=texts[order.id]||"";
+          const saving=savingId===order.id;
+          const canSubmit=text.trim().length>0&&!saving;
+          return<div key={order.id} style={{padding:14,borderRadius:10,border:`1px solid ${C.border}`,background:C.surface,marginBottom:i===orders.length-1?0:12}}>
+            <div style={{fontSize:12,color:C.textMid,marginBottom:10,lineHeight:1.5}}>
+              <b>{order.phoneModel||"—"}</b>{order.customerName?` — ${order.customerName}`:""} arrived at this branch {days} day{days===1?"":"s"} ago and a Billing Request still hasn't been submitted.
+            </div>
+            <L req>Reason for billing delay</L>
+            <TX value={text} onChange={e=>setTexts(p=>({...p,[order.id]:e.target.value}))} rows={3} placeholder="e.g. Customer hasn't come to collect/pay yet…" style={{width:"100%",boxSizing:"border-box",resize:"none"}}/>
+            <PBtn disabled={!canSubmit} onClick={async()=>{if(!canSubmit)return;setSavingId(order.id);await onSubmit(order,text.trim());setSavingId(null);setTexts(p=>{const n={...p};delete n[order.id];return n;});}} style={{width:"100%",justifyContent:"center",marginTop:10}}>{saving?"Saving…":"Submit Reason"}</PBtn>
+          </div>;
+        })}
+      </div>
+      <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end"}}>
+        <GBtn onClick={onClose}>Close — I'll fill in next time</GBtn>
+      </div>
+    </div>
+  </div>;
+}
+
 // One row inside the "Arrived Branch, Not Yet Billed" alert block — same
 // info as any other alert row, plus an inline upload control (or an
 // "Uploaded" status) for the pickup reminder recording, so acting on it
@@ -3461,16 +3513,48 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   },[alertableOrders,userBranch,isSuperAdminOrder,orderPermissions]);
   const alertsByOrderId=useMemo(()=>{const m={};alerts.forEach(a=>{if(!m[a.orderId])m[a.orderId]=a;});return m;},[alerts]);
 
+  // "Why hasn't billing been requested" popup — branch viewers only
+  // (isAdmin=false with a userBranch; every branch-viewer page passes
+  // exactly that, with no email at all — see BranchKBViewer.jsx etc.), for
+  // every order of theirs sitting at step 5 (Arrived Branch) 7+ days with
+  // no reason recorded yet. Sourced from alertableOrders (same
+  // branch-visible set the alerts above use) so a pickup-branch order
+  // counts too, same as the existing "Arrived Branch, Not Yet Billed"
+  // alert. All qualifying orders show together in one list (not one at a
+  // time) — see BillingDelayReasonModal. The branch can Close the popup to
+  // defer it, but that's only a snooze: billingDelayDismissed resets to
+  // false whenever `view` changes (nav to list/detail/form within Orders),
+  // and switching away from the Orders tab and back remounts OrderTab
+  // entirely, which clears it too — so it reappears on navigation as long
+  // as any order here hasn't been answered.
+  const billingDelayPendingOrders=useMemo(()=>{
+    if(isAdmin||!userBranch)return[];
+    return alertableOrders.filter(o=>{
+      if(o.step!==5||o.billingDelayReason)return false;
+      const days=daysSince(o.stepDates?.[5]?.date);
+      return days!==null&&days>=7;
+    });
+  },[alertableOrders,isAdmin,userBranch]);
+  const[billingDelayDismissed,setBillingDelayDismissed]=useState(false);
+  useEffect(()=>{setBillingDelayDismissed(false);},[view]);
+  const submitBillingDelayReason=async(order,text)=>{
+    const d=nowDate(),t=nowTime();
+    await patchOrderNoNav({...order,billingDelayReason:{text,date:d,time:t,branch:order.branch},
+      history:[...(order.history||[]),{step:5,date:d,time:t,note:`Reason for billing delay: ${text} — submitted by ${order.branch} branch`,skipStepDate:true,billingDelayReason:true}]});
+  };
+  const billingDelayModal=(billingDelayPendingOrders.length>0&&!billingDelayDismissed)?<BillingDelayReasonModal orders={billingDelayPendingOrders} branchMeta={branchMeta} onSubmit={submitBillingDelayReason} onClose={()=>setBillingDelayDismissed(true)}/>:null;
+
   if(loading)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading orders…</div>;
 
   if(view==="detail"&&selected){
     const live=detailCache[selected.id];
-    if(!live)return<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading order…</div>;
-    return<><OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} orderPermissions={orderPermissions} userBranch={userBranch} email={email} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
+    if(!live)return<>{billingDelayModal}<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading order…</div></>;
+    return<>{billingDelayModal}<OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} orderPermissions={orderPermissions} userBranch={userBranch} email={email} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
   }
-  if(view==="form")return<OrderForm order={editOrder} orders={orders} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} orderPermissions={orderPermissions} email={email} onDirtyChange={d=>{formDirtyRef.current=d;}} onSave={async o=>{await saveOrder(o);formDirtyRef.current=false;setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/>;
+  if(view==="form")return<>{billingDelayModal}<OrderForm order={editOrder} orders={orders} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} orderPermissions={orderPermissions} email={email} onDirtyChange={d=>{formDirtyRef.current=d;}} onSave={async o=>{await saveOrder(o);formDirtyRef.current=false;setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/></>;
 
   return<div className="fade-in">
+    {billingDelayModal}
     {showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}
     {showBulkDispatch&&<BulkDispatch orders={orders} onSave={bulkSave} onClose={()=>setShowBulkDispatch(false)}/>}
     {showBulkAgreementReceived&&<BulkAgreementReceived orders={orders} onSave={bulkSave} onClose={()=>setShowBulkAgreementReceived(false)}/>}
