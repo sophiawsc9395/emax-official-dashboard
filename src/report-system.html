@@ -170,6 +170,12 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
+    // ── Restricted mode: when embedded for a limited-access user (e.g. the
+    // Daily Financial Report tab inside order.html), the parent passes
+    // ?restricted=1&company=...&section=... to lock this page to a single
+    // company with no tab-switching and a single visible section.
+    const _params = new URLSearchParams(location.search);
+    const RESTRICT = _params.get('restricted')==='1' ? {company: _params.get('company'), section: _params.get('section')} : null;
     // ── window.storage API, bridged to the parent app's real shared
     // storage via postMessage (this file is a standalone page running in
     // an iframe, with no direct access to the parent's Supabase
@@ -431,6 +437,7 @@ function showToast(msg){
 // just no longer appear as separate clickable tabs.
 const MERGED_AWAY = new Set(['emax','spoonfork','espacex','miniImpianBank']);
 function renderTabs(){
+  if(RESTRICT) return; // single company, no switching UI needed
   const tabs = document.getElementById('tabs');
   tabs.innerHTML = '';
   Object.keys(COMPANIES).forEach(key=>{
@@ -444,6 +451,7 @@ function renderTabs(){
 }
 
 async function switchCompany(key){
+  if(RESTRICT && key !== RESTRICT.company) return; // defense in depth — no tab exists to trigger this anyway
   currentCompany = key;
   renderTabs();
   if(COMPANIES[key].isLog){
@@ -728,6 +736,11 @@ function renderMain(){
   }
 
   cfg.sections.forEach(sec=>{
+    // Restricted mode hides every section except the one allowed — the
+    // underlying currentData.sections[sec] for hidden sections is left
+    // completely untouched (not blanked/reconstructed), so it round-trips
+    // back on save exactly as loaded.
+    if(RESTRICT && RESTRICT.section && sec !== RESTRICT.section) return;
     if(sec==='stock') main.appendChild(renderStockCard());
     else if(sec==='rto') main.appendChild(renderRtoCard());
     else if(sec==='salesReport') main.appendChild(renderSalesReportCard());
@@ -1859,6 +1872,10 @@ document.getElementById('saveBtn').onclick = saveReport;
 // ---------- Init ----------
 (async function init(){
   renderTabs();
+  if(RESTRICT){
+    await switchCompany(RESTRICT.company);
+    return;
+  }
   const allDates = (await Promise.all(COMPANIES.merged.mergedCompanies.map(c=>listReportDates(c)))).flat();
   const latest = allDates.length ? allDates.sort().reverse()[0] : new Date().toISOString().slice(0,10);
   await loadMergedReport(latest);

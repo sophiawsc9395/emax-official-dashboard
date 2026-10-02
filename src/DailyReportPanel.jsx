@@ -4,8 +4,22 @@ import { loadData, saveData } from "./storage/index.js";
 // Full HTML string of the report system — loaded at runtime
 const REPORT_HTML_URL = new URL('./report-system.html', import.meta.url).href;
 
-export default function DailyReportPanel({ onClose }) {
+export default function DailyReportPanel({ onClose, restrictTo }) {
   const iframeRef = useRef(null);
+
+  // When restrictTo is set ({company, section}), the iframe is pointed at
+  // report-system.html with restricted-mode query params, which hides every
+  // other company and section inside that standalone page. When it's not
+  // set (Sophia's own usage), the iframe loads the plain unrestricted URL.
+  const reportSrc = (() => {
+    const url = new URL(REPORT_HTML_URL);
+    if (restrictTo) {
+      url.searchParams.set('restricted', '1');
+      url.searchParams.set('company', restrictTo.company);
+      url.searchParams.set('section', restrictTo.section);
+    }
+    return url.href;
+  })();
 
   // The report system runs as a standalone HTML file inside an iframe, in
   // isolation from the rest of this app — it has no access to the Supabase
@@ -82,7 +96,7 @@ export default function DailyReportPanel({ onClose }) {
       {/* Iframe */}
       <iframe
         ref={iframeRef}
-        src={REPORT_HTML_URL}
+        src={reportSrc}
         style={{ flex:1, border:"none", width:"100%" }}
         title="Daily Financial Report"
       />

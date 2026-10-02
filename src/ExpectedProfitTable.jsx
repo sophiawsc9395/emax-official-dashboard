@@ -2,6 +2,12 @@ import {useState,useEffect,useMemo,Fragment} from "react";
 import {listOrders} from "./storage/ordersApi.js";
 
 const STEP_LABELS={1:"New Order Request",2:"Ordered",3:"Arrived HQ",4:"Dispatched to Branch",5:"Arrived Branch"};
+// Reason (billing-delay reason) can only ever exist once an order has
+// reached Arrived Branch — steps before that (Ordered, Arrived HQ,
+// Dispatched to Branch) never have one, so the column is hidden there
+// instead of showing an always-"—" column. Shown for Arrived Branch (5)
+// and anything after it.
+const showReasonCol=(step)=>step>=5;
 const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
 const fDate=(d)=>{if(!d)return"—";const dt=new Date(d);if(isNaN(dt))return"—";return dt.toLocaleDateString("en-GB",{day:"2-digit",month:"2-digit",year:"numeric"});};
 const signed=(n)=>n>=0?"+"+fRM(n):fRM(Math.abs(n));
@@ -258,7 +264,7 @@ export default function ExpectedProfitTable({branchMeta,onOrderClick}){
                           <th style={{...TH({textAlign:"left",background:"#F1F3F7",color:"#5A6472",fontSize:9}),paddingLeft:38}}>Device / Branch</th>
                           <th style={{...TH({background:"#F1F3F7",color:"#5A6472",fontSize:9})}}>Reached Step On</th>
                           <th style={{...TH({background:"#F1F3F7",color:"#5A6472",fontSize:9})}}>Days Waiting</th>
-                          <th style={{...TH({textAlign:"left",background:"#F1F3F7",color:"#5A6472",fontSize:9})}}>Reason</th>
+                          {showReasonCol(s)&&<th style={{...TH({textAlign:"left",background:"#F1F3F7",color:"#5A6472",fontSize:9})}}>Reason</th>}
                           <th style={{...TH({background:"#F1F3F7",color:"#5A6472",fontSize:9})}}>Expected Profit</th>
                         </tr></thead>
                         <tbody>
@@ -272,9 +278,9 @@ export default function ExpectedProfitTable({branchMeta,onOrderClick}){
                               {o.daysWaiting===null?<span style={{color:"#8A96A8"}}>—</span>:
                                 <span style={{fontWeight:700,color:waitColor(o.daysWaiting)}}>{o.daysWaiting} day{o.daysWaiting===1?"":"s"}{o.daysWaiting>=7&&" ⚠"}</span>}
                             </td>
-                            <td style={{...TD({textAlign:"left"}),maxWidth:220}}>
+                            {showReasonCol(s)&&<td style={{...TD({textAlign:"left"}),maxWidth:220}}>
                               {o.billingDelayReason?.text?<span style={{color:"#4A5568"}}>{o.billingDelayReason.text}</span>:<span style={{color:"#8A96A8"}}>—</span>}
-                            </td>
+                            </td>}
                             <td style={{...TD(),textAlign:"right",color:"#4A5568",fontWeight:600}}>{signed(o.expectedProfit)}</td>
                           </tr>)}
                         </tbody>
@@ -334,10 +340,10 @@ export default function ExpectedProfitTable({branchMeta,onOrderClick}){
                     <div className="ept-stat-label">Days Waiting</div>
                     <div style={{fontSize:12,marginTop:1,fontWeight:700,color:waitColor(o.daysWaiting)}}>{o.daysWaiting===null?"—":`${o.daysWaiting} day${o.daysWaiting===1?"":"s"}${o.daysWaiting>=7?" ⚠":""}`}</div>
                   </div>
-                  <div>
+                  {showReasonCol(s)&&<div>
                     <div className="ept-stat-label">Reason</div>
                     <div style={{fontSize:12,color:"#4A5568",marginTop:1}}>{o.billingDelayReason?.text||"—"}</div>
-                  </div>
+                  </div>}
                   <div>
                     <div className="ept-stat-label">Expected Profit</div>
                     <div style={{fontSize:13,fontWeight:700,color:"#0A1628",marginTop:1}}>{signed(o.expectedProfit)}</div>

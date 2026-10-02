@@ -6,6 +6,7 @@ import PurchaseOrderTab from './PurchaseOrderTab.jsx'
 import StockTransferTab from './StockTransferTab.jsx'
 import WarrantyTab from './WarrantyTab.jsx'
 import StockWriteOffTab from './StockWriteOffTab.jsx'
+import DailyReportPanel from './DailyReportPanel.jsx'
 import AuthGate from './auth/AuthGate.jsx'
 import { mergeOrderPermissions, ORDER_USER_ROLES, getDailySalesAccess } from './auth/orderRoles.js'
 import { supabase, loadData } from './storage/index.js'
@@ -88,7 +89,7 @@ function OrderOnlyApp(){
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTab, setPageTabRaw] = useState(() => {
     const h = window.location.hash.replace('#', '')
-    return ['orders', 'dailySales', 'purchaseOrder', 'stockTransfer', 'warranty', 'stockWriteOff'].includes(h) ? h : 'orders'
+    return ['orders', 'dailySales', 'purchaseOrder', 'stockTransfer', 'warranty', 'stockWriteOff', 'dailyFinancialReport'].includes(h) ? h : 'orders'
   })
   const setPageTab = (t) => { setPageTabRaw(t); window.location.hash = t }
 
@@ -135,6 +136,12 @@ function OrderOnlyApp(){
   // being pulled from that page.
   const canSeeStockWriteOff = isSuperAdminForPO || email === "emaxstock@gmail.com"
   const canSeeWarranty = isSuperAdminForPO
+  // Narrow to this exact email only — do NOT broaden to isSuperAdminForPO:
+  // Sophia already has full, unrestricted Daily Financial Report access via
+  // her own dashboard (App.jsx), so she doesn't need this restricted tab
+  // here too. Same precedent as excluding emaxknockoff above — a dedicated
+  // login gets its own dedicated access, not a redundant second way in.
+  const canSeeDailyFinancialReport = email === "emaxpurchase@gmail.com"
 
   return (
     <div style={{ minHeight:"100vh", background:"#F7F9FC", fontFamily:"Inter,-apple-system,sans-serif" }}>
@@ -162,7 +169,7 @@ function OrderOnlyApp(){
         {/* MAIN CONTENT */}
         <div style={{ flex:1, minWidth:0, padding:"20px", maxWidth:1180 }}>
           <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-            {[["orders","Order Tracking"],...(canSeeDailySales?[["dailySales","Daily Sales Report"]]:[]),...(canSeePurchaseOrder?[["purchaseOrder","Purchase Order"]]:[]),...(canSeeStockTransfer?[["stockTransfer","Stock Transfer"]]:[]),...(canSeeWarranty?[["warranty","Warranty"]]:[]),...(canSeeStockWriteOff?[["stockWriteOff","Stock Write-off"]]:[])].map(([id,label])=>(
+            {[["orders","Order Tracking"],...(canSeeDailySales?[["dailySales","Daily Sales Report"]]:[]),...(canSeePurchaseOrder?[["purchaseOrder","Purchase Order"]]:[]),...(canSeeStockTransfer?[["stockTransfer","Stock Transfer"]]:[]),...(canSeeWarranty?[["warranty","Warranty"]]:[]),...(canSeeStockWriteOff?[["stockWriteOff","Stock Write-off"]]:[]),...(canSeeDailyFinancialReport?[["dailyFinancialReport","Daily Financial Report"]]:[])].map(([id,label])=>(
               <button key={id} onClick={()=>setPageTab(id)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${pageTab===id?"#0A1628":"#E4EAF2"}`,background:pageTab===id?"#0A1628":"#fff",color:pageTab===id?"#fff":"#4A5568",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{label}</button>
             ))}
           </div>
@@ -175,6 +182,7 @@ function OrderOnlyApp(){
           {canSeeStockTransfer && pageTab==="stockTransfer" && <StockTransferTab canCreate={true} branchMeta={branchMeta} email={email} />}
           {canSeeWarranty && pageTab==="warranty" && <WarrantyTab branchMeta={branchMeta} isAdmin={true} email={email} />}
           {canSeeStockWriteOff && pageTab==="stockWriteOff" && <StockWriteOffTab branchMeta={branchMeta} isAdmin={true} email={email} />}
+          {canSeeDailyFinancialReport && pageTab==="dailyFinancialReport" && <DailyReportPanel restrictTo={{company:'emax', section:'supplier'}} onClose={()=>setPageTab('orders')} />}
         </div>
 
         {/* SIDEBAR — right side, collapsible, same treatment as the main dashboard's */}
