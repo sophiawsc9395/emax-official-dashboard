@@ -295,9 +295,11 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
           </div>
           :<div style={{marginTop:8,display:"flex",gap:8}}>
             {isSophia&&e.status==="pending"&&<PBtn onClick={()=>{setCompletingId(e.id);setRefNoInput("");}}>Mark Completed</PBtn>}
+            {isSophia&&company!=="emax"&&e.status==="pending"&&<PBtn onClick={()=>markPaid(e.id)} style={{background:`linear-gradient(135deg,#6D28D9,#8B5CF6)`}}>Mark Paid</PBtn>}
             {isSophia&&e.status==="pending"&&<GBtn onClick={()=>{setRejectingId(e.id);setRejectReasonInput("");}} style={{color:"#DC2626",borderColor:"#FECACA"}}>Reject</GBtn>}
             {!isSophia&&e.status==="completed"&&<PBtn onClick={()=>markPrinted(e.id)}>Mark Printed</PBtn>}
             {isSophia&&company!=="emax"&&e.status==="completed"&&<PBtn onClick={()=>markPaid(e.id)} style={{background:`linear-gradient(135deg,#6D28D9,#8B5CF6)`}}>Mark Paid</PBtn>}
+            {isSophia&&company!=="emax"&&e.status==="paid"&&<PBtn onClick={()=>{setCompletingId(e.id);setRefNoInput("");}}>Mark Completed</PBtn>}
             {!isSophia&&needsUploadFromKnockOff&&<PBtn onClick={()=>{setFulfillingId(e.id);setFulfillFile(null);}}>{e.status==="rejected"?"Re-upload":"Upload File"}</PBtn>}
           </div>}
       </div>
