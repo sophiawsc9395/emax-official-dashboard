@@ -3328,35 +3328,61 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   },[]);
 
   // Live updates — whenever anyone (any branch, any device) changes an order
-  // or its history, everyone viewing this page picks it up automatically,
-  // no manual refresh needed. Debounced slightly so a burst of changes (e.g.
-  // a bulk action touching many orders) doesn't refetch on every single row.
+  // or its history, everyone viewing this page picks it up automatically, no
+  // manual refresh needed.
+  //
+  // IMPORTANT: this used to call refreshList() (a full, unpaginated
+  // `SELECT *` over the whole orders table) on every single insert/update/
+  // delete, for every browser with this page open, debounced by only
+  // 400ms. That meant one person editing one order caused every other open
+  // browser (every branch, HQ, everyone) to re-download and re-render the
+  // ENTIRE order list — repeatedly, all day — which was the dominant cause
+  // of the reported "Order page lag." Now it patches only the ONE changed
+  // order into the existing in-memory list via a single-row getOrder(id)
+  // fetch — never a full refetch from this handler.
   const selectedRef=useRef(selected);
   useEffect(()=>{selectedRef.current=selected;},[selected]);
+  // Mirrors the exact branch-scoping listOrders() applies server-side (see
+  // ordersApi.js) — used so a just-patched-in order from Realtime never
+  // shows up for a branch viewer who wouldn't have gotten it from their own
+  // initial load.
+  const branchScopeMatches=useCallback(header=>!userBranch||header.branch===userBranch||(header.pickUpBranch===userBranch&&header.step>=4),[userBranch]);
   useEffect(()=>{
-    let refreshTimer=null;
-    const scheduleRefresh=()=>{
-      clearTimeout(refreshTimer);
-      refreshTimer=setTimeout(()=>{refreshList();},400);
+    const patchOneOrder=async id=>{
+      const header=await getOrder(id);
+      if(!header)return; // row no longer exists (a near-simultaneous delete) — the DELETE event below removes it
+      if(!branchScopeMatches(header)){
+        setOrders(p=>p.some(x=>x.id===header.id)?p.filter(x=>x.id!==header.id):p);
+        return;
+      }
+      setOrders(p=>p.some(x=>x.id===header.id)?p.map(x=>x.id===header.id?header:x):[header,...p]);
     };
     const channel=supabase.channel("orders-live")
       .on("postgres_changes",{event:"*",schema:"public",table:"orders"},payload=>{
-        scheduleRefresh();
         const changedOrderId=payload.new?.id||payload.old?.id;
+        if(changedOrderId){
+          if(payload.eventType==="DELETE")setOrders(p=>p.filter(x=>x.id!==changedOrderId));
+          else patchOneOrder(changedOrderId).catch(()=>{});
+        }
         if(changedOrderId&&selectedRef.current&&String(changedOrderId)===String(selectedRef.current.id)){
           hydrateOrder(changedOrderId).catch(()=>{});
         }
       })
       .on("postgres_changes",{event:"*",schema:"public",table:"order_history"},payload=>{
-        scheduleRefresh();
+        // No list-wide patch needed here: every history write is always
+        // paired with an `orders` header upsert in the same reconcile()
+        // call (see ordersApi.js) — lastHistoryDate/time, stepDates, etc.
+        // are all denormalized onto the header row, so the `orders` table
+        // subscription above already catches this change's list-visible
+        // effects. This branch only needs to refresh the open Detail page.
         const changedOrderId=payload.new?.order_id||payload.old?.order_id;
         if(changedOrderId&&selectedRef.current&&String(changedOrderId)===String(selectedRef.current.id)){
           hydrateOrder(changedOrderId).catch(()=>{});
         }
       })
       .subscribe();
-    return()=>{clearTimeout(refreshTimer);supabase.removeChannel(channel);};
-  },[refreshList,hydrateOrder]);
+    return()=>{supabase.removeChannel(channel);};
+  },[branchScopeMatches,hydrateOrder]);
 
   // o = full order object (header fields + its complete, already-appended history array).
   // Diffs against what we last knew about this one order and writes ONLY the new
