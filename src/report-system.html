@@ -1764,8 +1764,7 @@ function buildPhotoHTML(){
 // export Mini Impian as two separate photos (one per branch) instead of
 // one combined image.
 function buildMiniImpianBranchPhotoHTML(branchKey, branchLabel){
-  const cfg = COMPANIES[currentCompany];
-  let inner = `<h2 style="margin:0 0 4px;font-size:19px;">${cfg.name} — ${branchLabel}</h2>`;
+  let inner = `<h2 style="margin:0 0 4px;font-size:19px;">MINI IMPIAN - ${branchLabel.toUpperCase()}</h2>`;
   inner += `<div style="color:#666;font-size:13px;margin-bottom:14px;">Date: ${currentData.date}</div>`;
   const sr = currentData.sections.salesReport[branchKey];
   const srTotal = num(sr.cash)+num(sr.card)+num(sr.qr);
@@ -1931,6 +1930,12 @@ document.getElementById('saveBtn').onclick = saveReport;
 (async function init(){
   renderTabs();
   if(RESTRICT){
+    // emaxpurchase's view (restricted to the Supplier section) only fills
+    // and saves the report — no photo export for this scoped-down view.
+    if(RESTRICT.section==='supplier'){
+      const photoBtnEl = document.getElementById('photoBtn');
+      if(photoBtnEl) photoBtnEl.style.display = 'none';
+    }
     await switchCompany(RESTRICT.company);
     return;
   }
