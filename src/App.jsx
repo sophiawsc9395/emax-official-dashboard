@@ -1250,12 +1250,16 @@ function AdjustBalanceWidget({personId,balance,adjustBalance}){
   const [amount,setAmount]=useState("");
   const [note,setNote]=useState("");
   const [mode,setMode]=useState("add"); // "add" | "subtract"
+  const [submitting,setSubmitting]=useState(false);
   const popRef=useRef(null);
 
   const submit=async()=>{
+    if(submitting)return; // guard against a double-click firing this twice before the first write finishes, which was crediting/debiting the same entry twice
     const n=Math.abs(Number(amount)||0);
     if(n===0||!note.trim()){return;}
+    setSubmitting(true);
     await adjustBalance(personId,mode==="add"?n:-n,note.trim());
+    setSubmitting(false);
     setAmount("");setNote("");setOpen(false);
   };
 
@@ -1283,8 +1287,8 @@ function AdjustBalanceWidget({personId,balance,adjustBalance}){
       </div>
       <input type="number" min="0" className="input" placeholder="Points amount" value={amount} onChange={e=>setAmount(e.target.value)} style={{fontSize:12,marginBottom:6}}/>
       <input type="text" className="input" placeholder="Reason / description (required)" value={note} onChange={e=>setNote(e.target.value)} style={{fontSize:12,marginBottom:8}}/>
-      <button onClick={submit} disabled={!amount||!note.trim()} style={{width:"100%",padding:"7px 0",fontSize:12,fontWeight:700,border:"none",borderRadius:6,background:(!amount||!note.trim())?"#E4EAF2":"#0A1628",color:(!amount||!note.trim())?"#8A96A8":"#fff",cursor:(!amount||!note.trim())?"not-allowed":"pointer",fontFamily:"Inter,sans-serif"}}>
-        Confirm {mode==="add"?"+":"−"}{amount||0} pts
+      <button onClick={submit} disabled={!amount||!note.trim()||submitting} style={{width:"100%",padding:"7px 0",fontSize:12,fontWeight:700,border:"none",borderRadius:6,background:(!amount||!note.trim()||submitting)?"#E4EAF2":"#0A1628",color:(!amount||!note.trim()||submitting)?"#8A96A8":"#fff",cursor:(!amount||!note.trim()||submitting)?"not-allowed":"pointer",fontFamily:"Inter,sans-serif"}}>
+        {submitting?"Saving…":`Confirm ${mode==="add"?"+":"−"}${amount||0} pts`}
       </button>
     </div>}
   </div>;
@@ -2449,6 +2453,11 @@ export default function App(){
   useEffect(()=>{supabase.auth.getSession().then(({data})=>setCurrentEmail(data?.session?.user?.email||null));},[]);
   // Month/year selection — default to current month
   const now = new Date();
+  // In-flight guard for lockBranchMonth — keyed by `${branchId}_${monthKeyStr}`,
+  // prevents a fast double-click from crediting the same month's SR + BM
+  // reward points twice (the component's own locked-state only updates once
+  // the whole async lock finishes, which is too late to block a second click).
+  const lockInFlightRef = useRef({});
   const [selMonth,setSelMonth]     = useState(now.getMonth()+1);
   const [selYear,setSelYear]       = useState(now.getFullYear());
   const month = selMonth;
@@ -2608,19 +2617,30 @@ export default function App(){
   // show duplicate cards. Employment/status history is deliberately NEVER
   // touched here — it always stays branch-scoped (`BM_<branch>`), even for a
   // manager running multiple branches; that's a separate log per branch by
-  // design. Runs once on app load; safe no-op on repeat runs, and never
-  // deletes the old branch-keyed data — additive only.
+  // design. Never deletes the old branch-keyed data — additive only.
+  //
+  // Each legacy source key is merged into its new key AT MOST ONCE EVER,
+  // tracked permanently in "emax_v5_reward_merge_log" ({legacyKey:newKey}).
+  // This used to instead compare entry COUNTS (new-key count vs legacy
+  // count) to decide "already merged" — but deleting a duplicate/incorrect
+  // entry from the merged (new) key lowers that count, which made this
+  // effect think the merge was incomplete and re-run it on the next page
+  // load, re-appending every legacy entry and resurrecting the one just
+  // deleted. The merge log fixes that: once a legacy key has contributed
+  // its entries, it's recorded as done and never re-merged, no matter what
+  // happens to the new key afterwards.
   useEffect(()=>{
     (async()=>{
-      const [bmRaw,rbRaw,rhRaw]=await Promise.all([
-        loadData(BM_KEY),loadData("emax_v5_reward_balance"),loadData("emax_v5_reward_history"),
+      const [bmRaw,rbRaw,rhRaw,mergeLogRaw]=await Promise.all([
+        loadData(BM_KEY),loadData("emax_v5_reward_balance"),loadData("emax_v5_reward_history"),loadData("emax_v5_reward_merge_log"),
       ]);
       const bm={...DEFAULT_BRANCH_META,...(bmRaw||{})};
       const branchesToProcess=Object.keys(bm).filter(b=>b!=="SDK");
       // Merge legacy BM_<branch>-keyed reward balance/points history for
       // branches that already share a (manually assigned) managerId.
       const rb={...(rbRaw||{})},rh={...(rhRaw||{})};
-      let dataChanged=false;
+      const mergeLog={...(mergeLogRaw||{})};
+      let dataChanged=false,logChanged=false;
       const byManagerId={};
       branchesToProcess.forEach(b=>{
         const mid=bm[b]?.managerId;
@@ -2631,15 +2651,9 @@ export default function App(){
       Object.entries(byManagerId).forEach(([mid,branches])=>{
         const newKey=`BM_${mid}`;
         const legacyKeys=branches.map(b=>`BM_${b}`).filter(k=>k!==newKey);
-        const sourcesWithData=legacyKeys.filter(k=>rb[k]||(rh[k]&&rh[k].length));
-        if(sourcesWithData.length===0)return; // nothing legacy to merge
-        // Idempotency guard: if the new key already has a balance/history AND
-        // every legacy source's history entries are already represented there
-        // (by count), skip — this is already merged.
-        const existingRHCount=(rh[newKey]||[]).length;
-        const legacyRHCount=sourcesWithData.reduce((s,k)=>s+((rh[k]||[]).length),0);
-        const alreadyMerged=rb[newKey]!==undefined&&existingRHCount>=legacyRHCount;
-        if(alreadyMerged)return;
+        // Only legacy keys never recorded as merged, and that actually hold data.
+        const sourcesWithData=legacyKeys.filter(k=>!mergeLog[k]&&(rb[k]||(rh[k]&&rh[k].length)));
+        if(sourcesWithData.length===0)return; // nothing new to merge
         // Sum balances
         const mergedBalance=sourcesWithData.reduce((s,k)=>s+((rb[k]?.balance)||0),(rb[newKey]?.balance)||0);
         rb[newKey]={...(rb[newKey]||{}),balance:mergedBalance};
@@ -2652,6 +2666,8 @@ export default function App(){
           (rh[k]||[]).forEach(entry=>{
             merged.push(entry.sourceBranch?entry:{...entry,sourceBranch:branchTag});
           });
+          mergeLog[k]=newKey;
+          logChanged=true;
         });
         merged.sort((a,b)=>new Date(a.date)-new Date(b.date));
         rh[newKey]=merged;
@@ -2662,6 +2678,9 @@ export default function App(){
         await saveData("emax_v5_reward_history",rh);
         setRewardBalances(p=>({...p,...rb}));
         setRewardHistory(p=>({...p,...rh}));
+      }
+      if(logChanged){
+        await saveData("emax_v5_reward_merge_log",mergeLog);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2712,6 +2731,13 @@ export default function App(){
   // Resigned SRs only appear in the month they resigned (and all months before)
   const lockBranchMonth=async(branchId)=>{
     if(isBranchLocked(branchId)){alert("This branch's "+selMonth+"/"+selYear+" report is already locked.");return;}
+    // Guard against a double-click (or a second click while the first save is
+    // still in flight) crediting the same month's SR + BM reward points twice —
+    // the state-driven isBranchLocked() check above only updates after this
+    // whole async function finishes, so a fast second click could slip past it.
+    if(lockInFlightRef.current[`${branchId}_${monthKeyStr}`])return;
+    lockInFlightRef.current[`${branchId}_${monthKeyStr}`]=true;
+    try{
     const bSRs=srList.filter(s=>s.branch===branchId&&!(s.status||'').toLowerCase().includes('resigned'));
     const bTarget=targets?.bm?.[branchId]||0,bTotal=fullMonthBranchTotals[branchId]?.total||0;
     const branchPct=pctN(bTotal,bTarget);
@@ -2730,8 +2756,11 @@ export default function App(){
       const srTotal=wi+ae,srPct=pctN(srTotal,srTarget);
       const earned=calcRewardPoints(srPct,branchPct);
       const hist=historyUpdates[sr.id]||[];
-      // Guard: don't double-credit if this month already has a credit entry
-      const alreadyCredited=hist.some(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
+      // Guard: don't double-credit if this month already has a credit entry.
+      // Checked against the "performance" note specifically (not just the
+      // month prefix) so it can't be fooled by a same-month Ranker bonus
+      // entry, which also starts with the month name.
+      const alreadyCredited=hist.some(h=>h.type==="credit"&&h.note&&h.note.startsWith(`${noteMonth} performance`));
       if(!alreadyCredited){
         const cur=updates[sr.id]||{balance:0,asOf:""};
         updates[sr.id]={...cur,balance:(cur.balance||0)+earned};
@@ -2766,8 +2795,10 @@ export default function App(){
     const bmManagerId=branchMeta[branchId]?.managerId||branchId;
     const bmKey=`BM_${bmManagerId}`;
     const bmHist=historyUpdates[bmKey]||[];
-    // Guard: don't double-credit BM if already credited this month
-    const bmAlreadyCredited=bmHist.some(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
+    // Guard: don't double-credit BM if already credited this month (see the
+    // SR guard above for why this checks the specific "branch performance"
+    // note rather than just the month prefix)
+    const bmAlreadyCredited=bmHist.some(h=>h.type==="credit"&&h.note&&h.note.startsWith(`${noteMonth} branch performance`));
     if(!bmAlreadyCredited){
       const curBM=updates[bmKey]||{balance:0,asOf:""};
       updates[bmKey]={...curBM,balance:(curBM.balance||0)+bmEarned};
@@ -2804,7 +2835,180 @@ export default function App(){
     setLockedMonths(newLocked);
     await saveData("emax_v5_locked_months",newLocked);
     alert(`${branchId} — ${selMonth}/${selYear} locked. Reward points credited and employment status updated.`);
+    }finally{
+      delete lockInFlightRef.current[`${branchId}_${monthKeyStr}`];
+    }
   };
+
+  // ─── Lock ALL branches at once + credit Top 1/2/3 Ranker bonus ─────────
+  // Per Sophia: the "Lock Month" button should lock every branch in one
+  // click (not one branch at a time), so from October 2026 onward it can
+  // also safely award the Top 1/2/3 Ranker bonus right away — the ranking
+  // it's based on (Branch Manager / Online SR / Offline SR) compares every
+  // branch against each other, so it's only correct once every branch's
+  // final figures are in.
+  //
+  // Branches already locked this month are left alone (no re-crediting of
+  // their SR/BM performance points), but their figures still count toward
+  // the Top 1/2/3 ranking — a branch shouldn't be excluded from "who's top"
+  // just because it happened to get locked earlier. Bonus amounts: #1 =
+  // 3,000 pts, #2 = 2,000 pts, #3 = 1,000 pts, each guarded so a repeat
+  // click never credits the same rank twice for the same month.
+  const RANKER_BONUS_POINTS=[3000,2000,1000];
+  const lockAllBranchesAndCreditPoints=async()=>{
+    if(lockInFlightRef.current[`ALL_${monthKeyStr}`])return;
+    lockInFlightRef.current[`ALL_${monthKeyStr}`]=true;
+    try{
+      const MONTHS_FULL=["January","February","March","April","May","June","July","August","September","October","November","December"];
+      const noteMonth=`${MONTHS_FULL[selMonth-1]} ${selYear}`;
+      const nextMonth=selMonth===12?1:selMonth+1;
+      const nextYear=selMonth===12?selYear+1:selYear;
+
+      const rewardBalAcc={...rewardBalances};
+      const rewardHistAcc={...rewardHistory};
+      const statusAcc={...statusHistory};
+      const bmMetaAcc=JSON.parse(JSON.stringify(branchMeta));
+      const lockedAcc={...lockedMonths,[monthKeyStr]:{...(lockedMonths[monthKeyStr]||{})}};
+      const postLockSnap={};
+      let updatedSRList=[...srList];
+      const branchStats={}; // branchId -> {bTotal,bTarget,branchPct}
+      const srStats={};     // sr.id -> {srTotal,srTarget,srPct}
+      let anyNewLock=false;
+
+      BRANCH_ORDER.forEach(branchId=>{
+        const bTarget=targets?.bm?.[branchId]||0,bTotal=fullMonthBranchTotals[branchId]?.total||0;
+        const branchPct=pctN(bTotal,bTarget);
+        branchStats[branchId]={bTotal,bTarget,branchPct};
+
+        // Always compute each SR's figures (needed for ranking even on an
+        // already-locked branch), but only credit/update status if this
+        // specific branch hasn't been locked yet this month.
+        const alreadyLocked=isBranchLocked(branchId);
+        updatedSRList=updatedSRList.map(sr=>{
+          if(sr.branch!==branchId)return sr;
+          const srTarget=targets?.sr?.[sr.id]?.target||0;
+          let wi=0,ae=0;
+          days.forEach(d=>{const k=`${d}/${selMonth}/${selYear}`;wi+=(records[k]?.[sr.id]?.walkin||0);ae+=(records[k]?.[sr.id]?.aeon||0);});
+          const srTotal=wi+ae,srPct=pctN(srTotal,srTarget);
+          srStats[sr.id]={srTotal,srTarget,srPct};
+          if(alreadyLocked)return sr;
+          const earned=calcRewardPoints(srPct,branchPct);
+          const hist=rewardHistAcc[sr.id]||[];
+          const alreadyCredited=hist.some(h=>h.type==="credit"&&h.note&&h.note.startsWith(`${noteMonth} performance`));
+          if(!alreadyCredited){
+            const cur=rewardBalAcc[sr.id]||{balance:0,asOf:""};
+            rewardBalAcc[sr.id]={...cur,balance:(cur.balance||0)+earned};
+            rewardHistAcc[sr.id]=[...hist,{date:new Date().toISOString(),type:"credit",amount:earned,note:`${noteMonth} performance (${srPct.toFixed(1)}%)`}];
+          }
+          const ps=parseStatus(sr.status);
+          if(ps.base==="Director"||ps.base==="Resigned")return sr;
+          const hit=srTarget>0&&srTotal>=srTarget;
+          const newStatus=buildStatus(ps.base,hit?ps.p+1:ps.p,hit?ps.f:ps.f+1);
+          const sHist=statusAcc[sr.id]||[];
+          const noteStr=srTarget>0
+            ?`Auto-updated on lock: ${noteMonth} personal target ${hit?"hit":"missed"} (${srPct.toFixed(1)}%)`
+            :`Auto-updated on lock: ${noteMonth} (no target set — counted as missed)`;
+          statusAcc[sr.id]=[...sHist,{date:new Date().toISOString(),status:newStatus,note:noteStr}];
+          return{...sr,status:newStatus};
+        });
+
+        if(alreadyLocked)return;
+
+        const bmEarned=calcRewardPoints(branchPct,branchPct);
+        const bmManagerId=bmMetaAcc[branchId]?.managerId||branchId;
+        const bmKey=`BM_${bmManagerId}`;
+        const bmHist=rewardHistAcc[bmKey]||[];
+        const bmAlreadyCredited=bmHist.some(h=>h.type==="credit"&&h.note&&h.note.startsWith(`${noteMonth} branch performance`));
+        if(!bmAlreadyCredited){
+          const curBM=rewardBalAcc[bmKey]||{balance:0,asOf:""};
+          rewardBalAcc[bmKey]={...curBM,balance:(curBM.balance||0)+bmEarned};
+          rewardHistAcc[bmKey]=[...bmHist,{date:new Date().toISOString(),type:"credit",amount:bmEarned,note:`${noteMonth} branch performance (${branchPct.toFixed(1)}%)`}];
+        }
+
+        const bmMeta=bmMetaAcc[branchId]||{};
+        const bps=parseStatus(bmMeta.mStatus);
+        if(bps.base!=="Director"&&bps.base!=="Resigned"){
+          const bmHit=bTarget>0&&bTotal>=bTarget;
+          const newBMStatus=buildStatus(bps.base,bmHit?bps.p+1:bps.p,bmHit?bps.f:bps.f+1);
+          bmMetaAcc[branchId]={...bmMeta,mStatus:newBMStatus};
+          const bmStatusKey=`BM_${branchId}`;
+          const bmSHist=statusAcc[bmStatusKey]||[];
+          const bmNoteStr=bTarget>0
+            ?`Auto-updated on lock: ${noteMonth} branch target ${bmHit?"hit":"missed"} (${branchPct.toFixed(1)}%)`
+            :`Auto-updated on lock: ${noteMonth} (no branch target set — counted as missed)`;
+          statusAcc[bmStatusKey]=[...bmSHist,{date:new Date().toISOString(),status:newBMStatus,note:bmNoteStr}];
+        }
+
+        lockedAcc[monthKeyStr][branchId]=true;
+        anyNewLock=true;
+      });
+
+      // ── Top 1/2/3 Ranker bonus — October 2026 onward only ──────────────
+      // Compares the SAME three categories shown on the Rankings tab
+      // (Branch Manager / Online SR / Offline SR), using this month's full
+      // figures (not the Rankings tab's own partial/"published-up-to" view,
+      // since this runs once the month is being finalized), and only
+      // branches/SRs that actually have a target set — ranking a 0%-vs-0%
+      // tie among people with no target isn't a real "Top 3".
+      const isOctOnward=(selYear>2026)||(selYear===2026&&selMonth>=10);
+      let rankerAwarded=false;
+      if(isOctOnward){
+        const awardRanker=(personKey,rank)=>{
+          const hist=rewardHistAcc[personKey]||[];
+          const noteText=`${noteMonth} #${rank+1} Ranker`;
+          const already=hist.some(h=>h.type==="credit"&&h.note===noteText);
+          if(already)return;
+          const cur=rewardBalAcc[personKey]||{balance:0,asOf:""};
+          rewardBalAcc[personKey]={...cur,balance:(cur.balance||0)+RANKER_BONUS_POINTS[rank]};
+          rewardHistAcc[personKey]=[...hist,{date:new Date().toISOString(),type:"credit",amount:RANKER_BONUS_POINTS[rank],note:noteText}];
+          rankerAwarded=true;
+        };
+
+        const bmTop3=BRANCH_ORDER
+          .filter(b=>(targets?.bm?.[b]||0)>0)
+          .map(b=>({branchId:b,pct:branchStats[b]?.branchPct||0}))
+          .sort((a,b)=>b.pct-a.pct)
+          .slice(0,3);
+        bmTop3.forEach((row,i)=>{
+          const mid=bmMetaAcc[row.branchId]?.managerId||row.branchId;
+          awardRanker(`BM_${mid}`,i);
+        });
+
+        const srTop3For=(type)=>updatedSRList
+          .filter(s=>s.type===type&&srVisibleInMonth(s,selMonth,selYear)&&(targets?.sr?.[s.id]?.target||0)>0)
+          .map(s=>({srId:s.id,pct:srStats[s.id]?.srPct||0}))
+          .sort((a,b)=>b.pct-a.pct)
+          .slice(0,3);
+        srTop3For("Online").forEach((row,i)=>awardRanker(row.srId,i));
+        srTop3For("Offline").forEach((row,i)=>awardRanker(row.srId,i));
+      }
+
+      if(!anyNewLock&&!rankerAwarded){
+        alert(`All branches for ${selMonth}/${selYear} are already locked, and no new Ranker bonus to credit.`);
+        return;
+      }
+
+      setSrList(updatedSRList);
+      await saveData(SR_KEY,updatedSRList);
+      updatedSRList.forEach(sr=>{postLockSnap[sr.id]={status:sr.status,active:true};});
+      BRANCH_ORDER.forEach(b=>{if(bmMetaAcc[b]?.mStatus)postLockSnap[`BM_${b}`]={status:bmMetaAcc[b].mStatus};});
+      await saveData(`emax_v5_status_${nextYear}_${nextMonth}`,postLockSnap);
+      setBranchMeta(bmMetaAcc);
+      await saveData(BM_KEY,bmMetaAcc);
+      setRewardBalances(rewardBalAcc);
+      await saveData("emax_v5_reward_balance",rewardBalAcc);
+      setRewardHistory(rewardHistAcc);
+      await saveData("emax_v5_reward_history",rewardHistAcc);
+      setStatusHistory(statusAcc);
+      await saveData("emax_v5_status_history",statusAcc);
+      setLockedMonths(lockedAcc);
+      await saveData("emax_v5_locked_months",lockedAcc);
+      alert(`${selMonth}/${selYear} locked for all branches. Reward points credited${isOctOnward?" (including Top 1/2/3 Ranker bonus)":""} and employment status updated.`);
+    }finally{
+      delete lockInFlightRef.current[`ALL_${monthKeyStr}`];
+    }
+  };
+
   const unlockBranchMonth=async(branchId)=>{
     if(!isBranchLocked(branchId)){alert("This branch's "+selMonth+"/"+selYear+" report is not locked.");return;}
     if(!confirm(`Unlock ${branchId} for ${selMonth}/${selYear}? Points and employment status changes from this lock will be reversed.`))return;
@@ -2819,9 +3023,11 @@ export default function App(){
     const revertedSRList=srList.map(sr=>{
       if(sr.branch!==branchId)return sr;
 
-      // Reverse reward points — remove the credit entry entirely so re-lock can credit cleanly
+      // Reverse reward points — remove the credit entry entirely so re-lock can credit cleanly.
+      // Matched on the specific "performance" note so this can't pick up a
+      // same-month Ranker bonus entry instead (both start with the month name).
       const hist=(historyUpdates[sr.id]||[]);
-      const lockCreditIdx=hist.findLastIndex(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
+      const lockCreditIdx=hist.findLastIndex(h=>h.type==="credit"&&h.note&&h.note.startsWith(`${noteMonth} performance`));
       if(lockCreditIdx>=0){
         const amt=hist[lockCreditIdx].amount||0;
         const cur=updates[sr.id]||{balance:0};
@@ -2858,7 +3064,7 @@ export default function App(){
     const bmManagerId=branchMeta[branchId]?.managerId||branchId;
     const bmKey=`BM_${bmManagerId}`;
     const bmHist=(historyUpdates[bmKey]||[]);
-    const bmLockCreditIdx=bmHist.findLastIndex(h=>h.type==="credit"&&h.note&&h.note.startsWith(noteMonth));
+    const bmLockCreditIdx=bmHist.findLastIndex(h=>h.type==="credit"&&h.note&&h.note.startsWith(`${noteMonth} branch performance`));
     if(bmLockCreditIdx>=0){
       const amt=bmHist[bmLockCreditIdx].amount||0;
       const curBM=updates[bmKey]||{balance:0};
@@ -3395,12 +3601,15 @@ export default function App(){
               </button>
             ))}
           </div>
-          {selBranch!=="ALL"&&<div style={{display:"flex",gap:8}}>
-            {isBranchLocked(selBranch)
-              ? <button className="btn btn-ghost" onClick={()=>unlockBranchMonth(selBranch)} style={{fontSize:11,color:"#F0354B",borderColor:"#F0354B22",background:"#FFF5F5"}}>Locked — Click to Unlock</button>
-              : <button className="btn btn-ghost" onClick={()=>{if(confirm(`Lock ${selBranch} for ${selMonth}/${selYear}? This credits all SR + BM reward points and updates employment status.`))lockBranchMonth(selBranch);}} style={{fontSize:11}}>Lock Month &amp; Credit Points</button>}
-            <button className="btn btn-primary" onClick={()=>setPrintBranch(selBranch)} style={{fontSize:11}}>Download {selBranch} Report</button>
-          </div>}
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {selBranch!=="ALL"&&isBranchLocked(selBranch)&&
+              <button className="btn btn-ghost" onClick={()=>unlockBranchMonth(selBranch)} style={{fontSize:11,color:"#F0354B",borderColor:"#F0354B22",background:"#FFF5F5"}}>Locked — Click to Unlock</button>}
+            <button className="btn btn-ghost" onClick={()=>{
+              const octOnward=(selYear>2026)||(selYear===2026&&selMonth>=10);
+              if(confirm(`Lock ALL branches for ${selMonth}/${selYear}? This credits every branch's SR + BM reward points${octOnward?", plus the Top 1/2/3 Ranker bonus,":""} and updates employment status.`))lockAllBranchesAndCreditPoints();
+            }} style={{fontSize:11}}>Lock Month (All Branches) &amp; Credit Points</button>
+            {selBranch!=="ALL"&&<button className="btn btn-primary" onClick={()=>setPrintBranch(selBranch)} style={{fontSize:11}}>Download {selBranch} Report</button>}
+          </div>
         </div>
         {selBranch==="ALL"
           ? <div>
