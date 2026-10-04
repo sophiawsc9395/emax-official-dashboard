@@ -2297,8 +2297,26 @@ function PdfDownloads({month,year,branch,allowDelete=false}){
   const refresh=()=>{
     loadData("emax_v5_pdf_index").then(idx=>{
       const list=Array.isArray(idx)?idx:[];
-      Promise.all(list.map(k=>loadData(k).then(p=>({key:k,pdf:p})))).then(entries=>{
+      // The key itself already encodes branch/date
+      // (emax_v5_pdf_<BRANCH>_<DD>_<MM>_<YYYY>_<timestamp>) — filter on
+      // that FIRST so this only fetches the handful of PDFs that actually
+      // belong to this month/branch, instead of downloading every PDF
+      // ever uploaded (each one's full base64 content) just to throw most
+      // of them away afterward. That full-index download was the main
+      // reason the Monthly Report page lagged every time the month or
+      // branch was switched.
+      const matching=list.filter(k=>{
+        const m=k.match(/^emax_v5_pdf_([A-Za-z0-9]+)_(\d{1,2})_(\d{1,2})_(\d{4})_\d+$/);
+        if(!m)return true; // unrecognized key shape — fall back to loading it, same as before
+        const[,kBranch,,kMonth,kYear]=m;
+        if(parseInt(kMonth)!==month||parseInt(kYear)!==year)return false;
+        if(branch&&kBranch!==branch)return false;
+        return true;
+      });
+      Promise.all(matching.map(k=>loadData(k).then(p=>({key:k,pdf:p})))).then(entries=>{
         const valid=entries.filter(e=>e.pdf&&e.pdf.date&&e.pdf.b64);
+        // Defensive re-check against the real date/branch inside the PDF
+        // itself (covers the "unrecognized key shape" fallback above).
         let filtered=valid.filter(e=>{const parts=e.pdf.date.split("/");return parseInt(parts[1])===month&&parseInt(parts[2])===year;});
         if(branch)filtered=filtered.filter(e=>e.pdf.branch===branch);
         const seen=new Set();
@@ -2540,6 +2558,64 @@ export default function App(){
   const summaryRef = useRef();
 
 
+  // ── Global (month-independent) reward/status data — loaded ONCE ─────────
+  // emax_v5_reward_balance / _reward_history / _locked_months /
+  // _status_history aren't scoped per month (they cover every month's
+  // history at once, so reward_history in particular is one of the
+  // largest blobs in the app). The month-switch effect below used to
+  // re-fetch all four of these every single time Previous/Next Month was
+  // clicked, even though nothing about them is month-specific — that was
+  // the main reason switching months felt "very very lag". Every place
+  // that changes this data (locking a month, adjusting a balance, deleting
+  // a points entry, etc.) already updates this same local state directly
+  // via its own setRewardBalances/setRewardHistory/etc. call right after
+  // saving, so loading it once here and never refetching it stays correct.
+  useEffect(()=>{
+    Promise.all([
+      loadData("emax_v5_reward_balance"),
+      loadData("emax_v5_locked_months"),
+      loadData("emax_v5_reward_history"),
+      loadData("emax_v5_status_history"),
+    ]).then(([rb,lm,rh,sh])=>{
+      setRewardBalances(rb||{});
+      setLockedMonths(lm||{});
+      setRewardHistory(rh||{});
+      setStatusHistory(sh||{});
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
+  // ── Auto-remove AEON PDF reports older than 2 months ─────────────────────
+  // Per Sophia — keeps the uploaded-PDF index from growing forever (it was
+  // also the main cause of the Monthly Report page's lag, see
+  // PdfDownloads above). Runs once each time this dashboard loads. A PDF's
+  // branch/date is parsed straight from its storage key
+  // (emax_v5_pdf_<BRANCH>_<DD>_<MM>_<YYYY>_<timestamp>); anything whose
+  // month is 2 or more months before the current month is deleted — so at
+  // any given time the current month and the previous month are kept.
+  // A key that doesn't match the expected shape is left alone rather than
+  // risk deleting something it can't actually identify.
+  useEffect(()=>{
+    (async()=>{
+      const idx=await loadData("emax_v5_pdf_index");
+      const list=Array.isArray(idx)?idx:[];
+      if(list.length===0)return;
+      const now=new Date();
+      const curYM=now.getFullYear()*12+(now.getMonth()+1);
+      const toDelete=[],toKeep=[];
+      list.forEach(k=>{
+        const m=k.match(/^emax_v5_pdf_([A-Za-z0-9]+)_(\d{1,2})_(\d{1,2})_(\d{4})_\d+$/);
+        if(!m){toKeep.push(k);return;}
+        const kYM=parseInt(m[4])*12+parseInt(m[3]);
+        if(curYM-kYM>=2)toDelete.push(k);else toKeep.push(k);
+      });
+      if(toDelete.length===0)return;
+      await Promise.all(toDelete.map(k=>saveData(k,null)));
+      await saveData("emax_v5_pdf_index",toKeep);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+
   useEffect(()=>{
     setLoading(true);
     setRecords({});
@@ -2552,7 +2628,7 @@ export default function App(){
     const prevTargetKey=`emax_v5_targets_${prevY}_${prevM}`;
     const publishKey=`emax_v5_published_${selYear}_${selMonth}`;
     const typeKey=`emax_v5_sr_types_${selYear}_${selMonth}`;
-    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData(snapKey),loadData("emax_v5_reward_balance"),loadData("emax_v5_locked_months"),loadData("emax_v5_reward_history"),loadData("emax_v5_status_history"),loadData(publishKey),loadData(typeKey)]).then(([r,t,tPrev,srData,bmData,snap,rb,lm,rh,sh,pub,srTypes])=>{
+    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData(snapKey),loadData(publishKey),loadData(typeKey)]).then(([r,t,tPrev,srData,bmData,snap,pub,srTypes])=>{
       setRecords(r||{});
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
       // Overlay historical status snapshot if viewing a past month
@@ -2597,10 +2673,6 @@ export default function App(){
         mergedMeta.SDK={name:DEFAULT_BRANCH_META.SDK?.name};
         setBranchMeta(mergedMeta);
       }
-      setRewardBalances(rb||{});
-      setLockedMonths(lm||{});
-      setRewardHistory(rh||{});
-      setStatusHistory(sh||{});
       setPublishedUntil(pub||null);
       setSrTypeOverrides(srTypes||{});
       setLoading(false);
@@ -2874,6 +2946,7 @@ export default function App(){
       const branchStats={}; // branchId -> {bTotal,bTarget,branchPct}
       const srStats={};     // sr.id -> {srTotal,srTarget,srPct}
       let anyNewLock=false;
+      let anyPointsCredited=false;
 
       BRANCH_ORDER.forEach(branchId=>{
         const bTarget=targets?.bm?.[branchId]||0,bTotal=fullMonthBranchTotals[branchId]?.total||0;
@@ -2881,8 +2954,19 @@ export default function App(){
         branchStats[branchId]={bTotal,bTarget,branchPct};
 
         // Always compute each SR's figures (needed for ranking even on an
-        // already-locked branch), but only credit/update status if this
-        // specific branch hasn't been locked yet this month.
+        // already-locked branch).
+        //
+        // Points credit and employment-status P/F update are deliberately
+        // on TWO SEPARATE guards here, not one:
+        //  - Points credit is guarded only by its own note (did THIS month
+        //    already get a "performance" credit entry) — so if the Reset
+        //    All to Opening Balance button wiped that entry, re-clicking
+        //    Lock Month correctly re-credits it even though the branch was
+        //    already locked before.
+        //  - Employment status P/F is guarded by alreadyLocked (branch
+        //    locked before, at all) and ONLY runs on a branch's first-ever
+        //    lock — so re-locking after a points reset never touches
+        //    employment history a second time (no double P/F tally).
         const alreadyLocked=isBranchLocked(branchId);
         updatedSRList=updatedSRList.map(sr=>{
           if(sr.branch!==branchId)return sr;
@@ -2891,7 +2975,7 @@ export default function App(){
           days.forEach(d=>{const k=`${d}/${selMonth}/${selYear}`;wi+=(records[k]?.[sr.id]?.walkin||0);ae+=(records[k]?.[sr.id]?.aeon||0);});
           const srTotal=wi+ae,srPct=pctN(srTotal,srTarget);
           srStats[sr.id]={srTotal,srTarget,srPct};
-          if(alreadyLocked)return sr;
+
           const earned=calcRewardPoints(srPct,branchPct);
           const hist=rewardHistAcc[sr.id]||[];
           const alreadyCredited=hist.some(h=>h.type==="credit"&&h.note&&h.note.startsWith(`${noteMonth} performance`));
@@ -2899,7 +2983,10 @@ export default function App(){
             const cur=rewardBalAcc[sr.id]||{balance:0,asOf:""};
             rewardBalAcc[sr.id]={...cur,balance:(cur.balance||0)+earned};
             rewardHistAcc[sr.id]=[...hist,{date:new Date().toISOString(),type:"credit",amount:earned,note:`${noteMonth} performance (${srPct.toFixed(1)}%)`}];
+            anyPointsCredited=true;
           }
+
+          if(alreadyLocked)return sr; // employment status already set on first lock — never touch it again
           const ps=parseStatus(sr.status);
           if(ps.base==="Director"||ps.base==="Resigned")return sr;
           const hit=srTarget>0&&srTotal>=srTarget;
@@ -2912,8 +2999,6 @@ export default function App(){
           return{...sr,status:newStatus};
         });
 
-        if(alreadyLocked)return;
-
         const bmEarned=calcRewardPoints(branchPct,branchPct);
         const bmManagerId=bmMetaAcc[branchId]?.managerId||branchId;
         const bmKey=`BM_${bmManagerId}`;
@@ -2923,7 +3008,10 @@ export default function App(){
           const curBM=rewardBalAcc[bmKey]||{balance:0,asOf:""};
           rewardBalAcc[bmKey]={...curBM,balance:(curBM.balance||0)+bmEarned};
           rewardHistAcc[bmKey]=[...bmHist,{date:new Date().toISOString(),type:"credit",amount:bmEarned,note:`${noteMonth} branch performance (${branchPct.toFixed(1)}%)`}];
+          anyPointsCredited=true;
         }
+
+        if(alreadyLocked)return; // employment status + lock flag already set — nothing left to do for this branch
 
         const bmMeta=bmMetaAcc[branchId]||{};
         const bps=parseStatus(bmMeta.mStatus);
@@ -2983,8 +3071,8 @@ export default function App(){
         srTop3For("Offline").forEach((row,i)=>awardRanker(row.srId,i));
       }
 
-      if(!anyNewLock&&!rankerAwarded){
-        alert(`All branches for ${selMonth}/${selYear} are already locked, and no new Ranker bonus to credit.`);
+      if(!anyNewLock&&!rankerAwarded&&!anyPointsCredited){
+        alert(`All branches for ${selMonth}/${selYear} are already locked, with nothing new to credit.`);
         return;
       }
 
@@ -3003,7 +3091,7 @@ export default function App(){
       await saveData("emax_v5_status_history",statusAcc);
       setLockedMonths(lockedAcc);
       await saveData("emax_v5_locked_months",lockedAcc);
-      alert(`${selMonth}/${selYear} locked for all branches. Reward points credited${isOctOnward?" (including Top 1/2/3 Ranker bonus)":""} and employment status updated.`);
+      alert(`${selMonth}/${selYear} — reward points credited${isOctOnward?" (including Top 1/2/3 Ranker bonus)":""}. Employment status was only updated for branches locked for the first time just now — already-locked branches keep their existing employment history untouched.`);
     }finally{
       delete lockInFlightRef.current[`ALL_${monthKeyStr}`];
     }
@@ -3157,6 +3245,121 @@ export default function App(){
     setRewardHistory(newHist);
     await saveData("emax_v5_reward_history",newHist);
   };
+
+  // Per Sophia: wipe every SR's and BM's reward points history back down to
+  // just their "Opening balance as at 31/05/2026" line (stored as
+  // type:"adjustment", note:"Manual balance adjustment" — the modal only
+  // renames it for display, see PointsHistoryModal), dropping every credit/
+  // adjustment/Ranker-bonus entry added since, including the duplicate
+  // entries from the earlier merge bug. Balance is recomputed from whatever
+  // survives (normally just that one opening entry, so balance == its
+  // amount; 0 for anyone who never had an opening-balance entry at all).
+  const resetAllRewardHistoryToOpeningBalance=async()=>{
+    const keepEntry=h=>h.type==="adjustment"&&h.note==="Manual balance adjustment";
+    const newHist={},newBal={};
+    Object.keys(rewardHistory).forEach(personId=>{
+      const kept=(rewardHistory[personId]||[]).filter(keepEntry);
+      newHist[personId]=kept;
+      newBal[personId]={...(rewardBalances[personId]||{}),balance:kept.reduce((s,h)=>s+(h.amount||0),0)};
+    });
+    // Cover anyone who has a balance entry but no history entry too
+    Object.keys(rewardBalances).forEach(personId=>{
+      if(newBal[personId])return;
+      newHist[personId]=[];
+      newBal[personId]={...rewardBalances[personId],balance:0};
+    });
+    setRewardHistory(newHist);
+    await saveData("emax_v5_reward_history",newHist);
+    setRewardBalances(newBal);
+    await saveData("emax_v5_reward_balance",newBal);
+    alert("Done — every reward points history is reset to just the Opening Balance entry (or 0 for anyone without one).");
+  };
+
+  // Lets Sophia download every SR's and BM's full reward points history as
+  // a CSV before using the reset button above, since that reset is
+  // permanent and can't be recovered from here.
+  const resolveRewardPersonLabel=(personId)=>{
+    if(personId.startsWith("BM_")){
+      const mid=personId.slice(3);
+      const branches=BRANCH_ORDER.filter(b=>(branchMeta[b]?.managerId||b)===mid);
+      const name=branchMeta[branches[0]]?.manager||mid;
+      return{name,role:"Branch Manager",branch:branches.join(", ")||mid};
+    }
+    const sr=srList.find(s=>s.id===personId);
+    if(sr)return{name:sr.canon,role:`${sr.type} SR`,branch:sr.branch};
+    return{name:personId,role:"",branch:""};
+  };
+  const downloadRewardHistoryBackup=()=>{
+    const rows=[["Person ID","Name","Role","Branch","Current Balance","Date","Type","Amount","Note"]];
+    const allIds=new Set([...Object.keys(rewardHistory),...Object.keys(rewardBalances)]);
+    Array.from(allIds).sort().forEach(personId=>{
+      const{name,role,branch}=resolveRewardPersonLabel(personId);
+      const balance=rewardBalances[personId]?.balance||0;
+      const hist=rewardHistory[personId]||[];
+      if(hist.length===0){
+        rows.push([personId,name,role,branch,balance,"","","",""]);
+      } else {
+        hist.forEach(h=>{
+          rows.push([personId,name,role,branch,balance,new Date(h.date).toLocaleString("en-MY"),h.type||"",h.amount||0,h.note||""]);
+        });
+      }
+    });
+    const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`reward_points_backup_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+  };
+
+  // Employment status history is a SEPARATE record from reward points
+  // (statusHistory, keyed "BM_<branchId>" for managers — branch-scoped, not
+  // managerId-scoped, unlike reward points) and the Reset All to Opening
+  // Balance button above never touches it. Still, per Sophia, offering a
+  // download of it too right next to that reset button so she has a backup
+  // of both before touching anything.
+  const resolveEmploymentPersonLabel=(personId)=>{
+    if(personId.startsWith("BM_")){
+      const branchId=personId.slice(3);
+      return{name:branchMeta[branchId]?.manager||branchId,role:"Branch Manager",branch:branchId};
+    }
+    const sr=srList.find(s=>s.id===personId);
+    if(sr)return{name:sr.canon,role:`${sr.type} SR`,branch:sr.branch};
+    return{name:personId,role:"",branch:""};
+  };
+  const downloadEmploymentHistoryBackup=()=>{
+    const rows=[["Person ID","Name","Role","Branch","Current Status","Date","Status Recorded","Note"]];
+    const allIds=new Set(Object.keys(statusHistory));
+    srList.forEach(sr=>allIds.add(sr.id));
+    BRANCH_ORDER.forEach(b=>allIds.add(`BM_${b}`));
+    Array.from(allIds).sort().forEach(personId=>{
+      const{name,role,branch}=resolveEmploymentPersonLabel(personId);
+      const currentStatus=personId.startsWith("BM_")
+        ?(branchMeta[personId.slice(3)]?.mStatus||"")
+        :(srList.find(s=>s.id===personId)?.status||"");
+      const hist=statusHistory[personId]||[];
+      if(hist.length===0){
+        rows.push([personId,name,role,branch,currentStatus,"","",""]);
+      } else {
+        hist.forEach(h=>{
+          rows.push([personId,name,role,branch,currentStatus,new Date(h.date).toLocaleString("en-MY"),h.status||"",h.note||""]);
+        });
+      }
+    });
+    const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`employment_history_backup_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+  };
+
   // Renames an SR's ID everywhere this dashboard itself tracks it by ID —
   // the SR list, their points balance, points history, status history, and
   // their daily sales records (Monthly Report / Overview / Rankings data)
@@ -3541,8 +3744,13 @@ export default function App(){
 
       {/* REWARD POINT RANKING */}
       {tab==="points"&&<div className="fade-in">
-        <div style={{marginBottom:14}}>
+        <div style={{marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
           <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>🏆 Reward Point Ranking</h2>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <button className="btn btn-ghost" onClick={downloadRewardHistoryBackup} style={{fontSize:11,color:"#1E6FDB",borderColor:"#BFDBFE",background:"#EFF6FF"}}>Download Reward Points Backup (CSV)</button>
+            <button className="btn btn-ghost" onClick={downloadEmploymentHistoryBackup} style={{fontSize:11,color:"#1E6FDB",borderColor:"#BFDBFE",background:"#EFF6FF"}}>Download Employment History Backup (CSV)</button>
+            <button className="btn btn-ghost" onClick={()=>{if(confirm("Reset EVERYONE's reward points history back to just their Opening Balance as at 31/05/2026 (or 0 if they don't have one)? Every credit, Ranker bonus and manual adjustment since then will be permanently removed. This cannot be undone. Make sure you've downloaded a backup first.\n\nThis ONLY touches reward points — your Monthly Report, daily sales records, targets, locked-month status and employment (P/F) history are completely untouched."))resetAllRewardHistoryToOpeningBalance();}} style={{fontSize:11,color:"#F0354B",borderColor:"#F0354B22",background:"#FFF5F5"}}>Reset All to Opening Balance</button>
+          </div>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           {(()=>{
