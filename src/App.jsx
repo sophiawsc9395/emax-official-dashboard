@@ -3246,37 +3246,8 @@ export default function App(){
     await saveData("emax_v5_reward_history",newHist);
   };
 
-  // Per Sophia: wipe every SR's and BM's reward points history back down to
-  // just their "Opening balance as at 31/05/2026" line (stored as
-  // type:"adjustment", note:"Manual balance adjustment" — the modal only
-  // renames it for display, see PointsHistoryModal), dropping every credit/
-  // adjustment/Ranker-bonus entry added since, including the duplicate
-  // entries from the earlier merge bug. Balance is recomputed from whatever
-  // survives (normally just that one opening entry, so balance == its
-  // amount; 0 for anyone who never had an opening-balance entry at all).
-  const resetAllRewardHistoryToOpeningBalance=async()=>{
-    const keepEntry=h=>h.type==="adjustment"&&h.note==="Manual balance adjustment";
-    const newHist={},newBal={};
-    Object.keys(rewardHistory).forEach(personId=>{
-      const kept=(rewardHistory[personId]||[]).filter(keepEntry);
-      newHist[personId]=kept;
-      newBal[personId]={...(rewardBalances[personId]||{}),balance:kept.reduce((s,h)=>s+(h.amount||0),0)};
-    });
-    // Cover anyone who has a balance entry but no history entry too
-    Object.keys(rewardBalances).forEach(personId=>{
-      if(newBal[personId])return;
-      newHist[personId]=[];
-      newBal[personId]={...rewardBalances[personId],balance:0};
-    });
-    setRewardHistory(newHist);
-    await saveData("emax_v5_reward_history",newHist);
-    setRewardBalances(newBal);
-    await saveData("emax_v5_reward_balance",newBal);
-    alert("Done — every reward points history is reset to just the Opening Balance entry (or 0 for anyone without one).");
-  };
-
   // Lets Sophia download every SR's and BM's full reward points history as
-  // a CSV before using the reset button above, since that reset is
+  // a CSV as a safety backup, since resets are
   // permanent and can't be recovered from here.
   const resolveRewardPersonLabel=(personId)=>{
     if(personId.startsWith("BM_")){
@@ -3749,7 +3720,6 @@ export default function App(){
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
             <button className="btn btn-ghost" onClick={downloadRewardHistoryBackup} style={{fontSize:11,color:"#1E6FDB",borderColor:"#BFDBFE",background:"#EFF6FF"}}>Download Reward Points Backup (CSV)</button>
             <button className="btn btn-ghost" onClick={downloadEmploymentHistoryBackup} style={{fontSize:11,color:"#1E6FDB",borderColor:"#BFDBFE",background:"#EFF6FF"}}>Download Employment History Backup (CSV)</button>
-            <button className="btn btn-ghost" onClick={()=>{if(confirm("Reset EVERYONE's reward points history back to just their Opening Balance as at 31/05/2026 (or 0 if they don't have one)? Every credit, Ranker bonus and manual adjustment since then will be permanently removed. This cannot be undone. Make sure you've downloaded a backup first.\n\nThis ONLY touches reward points — your Monthly Report, daily sales records, targets, locked-month status and employment (P/F) history are completely untouched."))resetAllRewardHistoryToOpeningBalance();}} style={{fontSize:11,color:"#F0354B",borderColor:"#F0354B22",background:"#FFF5F5"}}>Reset All to Opening Balance</button>
           </div>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
