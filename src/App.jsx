@@ -3031,14 +3031,14 @@ export default function App(){
         anyNewLock=true;
       });
 
-      // ── Top 1/2/3 Ranker bonus — October 2026 onward only ──────────────
+      // ── Top 1/2/3 Ranker bonus — June 2026 onward ──────────────
       // Compares the SAME three categories shown on the Rankings tab
       // (Branch Manager / Online SR / Offline SR), using this month's full
       // figures (not the Rankings tab's own partial/"published-up-to" view,
       // since this runs once the month is being finalized), and only
       // branches/SRs that actually have a target set — ranking a 0%-vs-0%
       // tie among people with no target isn't a real "Top 3".
-      const isOctOnward=(selYear>2026)||(selYear===2026&&selMonth>=10);
+      const isOctOnward=(selYear>2026)||(selYear===2026&&selMonth>=6); // ranker bonus applies from June 2026 onward (name kept from earlier Oct-2026 rule)
       let rankerAwarded=false;
       if(isOctOnward){
         const awardRanker=(personKey,rank)=>{
@@ -3813,7 +3813,7 @@ export default function App(){
             {selBranch!=="ALL"&&isBranchLocked(selBranch)&&
               <button className="btn btn-ghost" onClick={()=>unlockBranchMonth(selBranch)} style={{fontSize:11,color:"#F0354B",borderColor:"#F0354B22",background:"#FFF5F5"}}>Locked — Click to Unlock</button>}
             <button className="btn btn-ghost" onClick={()=>{
-              const octOnward=(selYear>2026)||(selYear===2026&&selMonth>=10);
+              const octOnward=(selYear>2026)||(selYear===2026&&selMonth>=6);
               if(confirm(`Lock ALL branches for ${selMonth}/${selYear}? This credits every branch's SR + BM reward points${octOnward?", plus the Top 1/2/3 Ranker bonus,":""} and updates employment status.`))lockAllBranchesAndCreditPoints();
             }} style={{fontSize:11}}>Lock Month (All Branches) &amp; Credit Points</button>
             {selBranch!=="ALL"&&<button className="btn btn-primary" onClick={()=>setPrintBranch(selBranch)} style={{fontSize:11}}>Download {selBranch} Report</button>}
