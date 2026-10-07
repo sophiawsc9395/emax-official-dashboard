@@ -19,11 +19,10 @@
  * shows up for the approver, and a remark the approver leaves shows up for
  * Purchase, without either of them needing to refresh.
  *
- * Two fixed daily deadlines (Mon–Fri), one on Saturday, none on Sunday:
- *   Session 1 — due by 12:00pm.
- *   Session 2 — due by 5:30pm (weekdays only, not Saturday).
- * Nothing is due on Sunday — anything from Saturday afternoon onward
- * through Sunday rolls into Monday's Session 1. This only governs when a
+ * Deadline depends on creation time (see getOpenSessionFrom): created
+ * yesterday 4:30pm-today 8:30am -> due 12:00pm; today 8:30am-4:30pm -> due
+ * 5:30pm; Friday 4:30pm-Saturday 10:00am -> due Saturday 12:30pm; Saturday
+ * 10:00am-Monday 8:30am -> due Monday 12:00pm. This only governs when a
  * New Request becomes overdue for having quotes submitted — once
  * submitted, the deadline no longer applies.
  */
@@ -44,26 +43,29 @@ const nowTime=()=>new Date().toTimeString().slice(0,5);
 const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
 const localDateStr=d=>{const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0");return`${y}-${m}-${dd}`;};
 
-// Same weekend-aware boundary walk as before: Sunday has no sessions at
-// all, Saturday only has Session 1 (no 5:30pm session), every other day
-// has both. Walks forward from the given timestamp and returns the first
-// valid deadline at or after it.
+// Deadline for a New Request depends on WHEN it was created (Mon-Fri 8:30am-
+// 5:30pm office hours, Saturday 8:30am-12:30pm, Sunday closed):
+//   Yesterday 4:30pm -> today 8:30am ........ due today 12:00pm
+//   Today 8:30am -> today 4:30pm ............ due today 5:30pm
+//   Friday 4:30pm -> Saturday 10:00am ....... due Saturday 12:30pm
+//   Saturday 10:00am -> Monday 8:30am ....... due Monday 12:00pm
+// (Mon-Thu after 4:30pm rolls to the next day's 12:00pm; Friday after 4:30pm
+// goes to Saturday 12:30pm.)
 function getOpenSessionFrom(ts){
-  const base=new Date(ts);base.setHours(0,0,0,0);
-  const boundaries=[];
-  for(let offset=0;offset<=9;offset++){
-    const day=new Date(base);day.setDate(day.getDate()+offset);
-    const wd=day.getDay(); // 0=Sun..6=Sat
-    if(wd===0)continue;
-    const s1=new Date(day);s1.setHours(12,0,0,0);
-    boundaries.push({session:1,deadline:s1});
-    if(wd!==6){
-      const s2=new Date(day);s2.setHours(17,30,0,0);
-      boundaries.push({session:2,deadline:s2});
-    }
+  const t=new Date(ts);
+  const wd=t.getDay(); // 0=Sun..6=Sat
+  const mins=t.getHours()*60+t.getMinutes();
+  const at=(dayOffset,h,m)=>{const d=new Date(t);d.setHours(0,0,0,0);d.setDate(d.getDate()+dayOffset);d.setHours(h,m,0,0);return d;};
+  const R=(session,deadline)=>({session,deadline});
+  if(wd===0) return R(1,at(1,12,0));                       // Sunday -> Monday 12:00pm
+  if(wd===6){                                              // Saturday
+    if(mins<10*60) return R(1,at(0,12,30));                // before 10:00am -> Sat 12:30pm
+    return R(1,at(2,12,0));                                // 10:00am on -> Monday 12:00pm
   }
-  boundaries.sort((a,b)=>a.deadline-b.deadline);
-  return boundaries.find(b=>ts<=b.deadline)||boundaries[boundaries.length-1];
+  if(mins<8*60+30) return R(1,at(0,12,0));                 // before 8:30am -> today 12:00pm
+  if(mins<16*60+30) return R(2,at(0,17,30));               // 8:30am-4:30pm -> today 5:30pm
+  if(wd===5) return R(1,at(1,12,30));                      // Friday 4:30pm on -> Sat 12:30pm
+  return R(1,at(1,12,0));                                  // Mon-Thu 4:30pm on -> tomorrow 12:00pm
 }
 function overdueDuration(deadline){
   const totalMinutes=Math.floor((new Date()-deadline)/60000);

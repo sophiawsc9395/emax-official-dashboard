@@ -36,7 +36,7 @@
  * Storage (Supabase-backed via storage/index.js loadData/saveData, same
  * key-value convention as the rest of the app):
  *   emax_v5_attendance_${year}_${month}  — {personId:{day:entry}}
- *   emax_v5_business_hours               — {branchCode:{start,end}}
+ *   emax_v5_business_hours               — {branchCode:{start,end,satStart?,satEnd?}}
  *   emax_v5_attendance_extra_staff       — {branchCode:[{id,name,role,branch}]}
  */
 import {useState,useEffect,useMemo,Fragment} from "react";
@@ -102,7 +102,19 @@ const hidesPayout=(b,meta)=>isEntityBranch(b,meta)||NO_PAYOUT_BRANCHES.includes(
 const ATTENDANCE_HOURS_KEY="emax_v5_business_hours";
 const ATTENDANCE_EXTRA_STAFF_KEY="emax_v5_attendance_extra_staff";
 const attendanceKeyFor=(year,month)=>`emax_v5_attendance_${year}_${month}`;
-const seedBusinessHours=()=>Object.fromEntries(BRANCHES.map(b=>[b,{start:"09:30",end:"18:30"}]));
+// EMAX HQ keeps its own office hours: Mon-Fri 08:30-17:30, Saturday
+// 08:30-12:30 (satStart/satEnd override the normal start/end on Saturdays
+// only). Every other branch stays 09:30-18:30 with no Saturday override.
+const HQ_DEFAULT_HOURS={start:"08:30",end:"17:30",satStart:"08:30",satEnd:"12:30"};
+const seedBusinessHours=()=>Object.fromEntries(BRANCHES.map(b=>[b,b==="HQ"?{...HQ_DEFAULT_HOURS}:{start:"09:30",end:"18:30"}]));
+// Effective hours for one specific calendar day — Saturday uses the branch's
+// satStart/satEnd when set, every other day uses start/end.
+function resolveHours(h,year,month,day){
+  if(!h)return h;
+  if(h.satEnd&&new Date(year,month-1,day).getDay()===6)return{start:h.satStart||h.start,end:h.satEnd};
+  return{start:h.start,end:h.end};
+}
+const hoursLabel=h=>h&&h.satEnd?`Mon–Fri ${h.start} – ${h.end} · Sat ${h.satStart||h.start} – ${h.satEnd}`:`${h.start} – ${h.end}`;
 
 const [FIRST_YEAR,FIRST_MONTH]=[2026,10]; // October 2026 — data starts here, month picker won't go earlier
 const MONTH_NAMES=["","January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -223,7 +235,7 @@ function monthStatsFor(personId,attendance,hours,year,month){
   const days=daysInMonth(year,month);
   let present=0,late=0,earlyOut=0,issues=0,notFilled=0,leaveDays=0;
   for(let d=1;d<=days;d++){
-    const st=dayStatus(attendance[personId]?.[d],hours);
+    const st=dayStatus(attendance[personId]?.[d],resolveHours(hours,year,month,d));
     if(!st.filled){notFilled++;continue;}
     if(st.isLeave){
       if(HALF_DAY_LEAVE_CODES.includes(st.leaveCode)){leaveDays+=0.5;present+=0.5;}
@@ -489,7 +501,7 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
   return<div>
     <div style={{marginBottom:14}}><BranchTabs value={branch} onChange={setBranch} meta={meta} allowAllBranch={allowAllBranch}/></div>
     <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
-      <div style={{fontSize:11,color:C.textLight}}>{isAll?"All branches — each row is graded against its OWN branch's Business Hours (shown in the group headers below).":isEntityBranch(branch,meta)?"No lateness rule shown for outlets by default.":<>Business Hours: <b style={{color:C.text}}>{branchHours.start} – {branchHours.end}</b></>}</div>
+      <div style={{fontSize:11,color:C.textLight}}>{isAll?"All branches — each row is graded against its OWN branch's Business Hours (shown in the group headers below).":isEntityBranch(branch,meta)?"No lateness rule shown for outlets by default.":<>Business Hours: <b style={{color:C.text}}>{hoursLabel(branchHours)}</b></>}</div>
       <div style={{flex:1}}/>
       <label style={{display:"flex",alignItems:"center",gap:5,fontSize:11,color:C.textMid,cursor:"pointer"}}>
         <input type="checkbox" checked={showInactive} onChange={e=>setShowInactive(e.target.checked)}/>
@@ -515,7 +527,7 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
             return<Fragment key={g.branch}>
               {isAll&&<tr>
                 <td colSpan={1+dayList.length+1+(showPayoutCol?1:0)} style={{padding:"6px 10px",background:C.surface,borderBottom:`1px solid ${C.border}`,borderTop:`2px solid ${C.border}`,fontSize:10.5,fontWeight:800,color:C.navy,position:"sticky",left:0}}>
-                  {meta[g.branch]?.name||g.branch}{isEntityBranch(g.branch,meta)?"":<span style={{fontWeight:600,color:C.textLight}}> · {groupHours.start} – {groupHours.end}</span>}
+                  {meta[g.branch]?.name||g.branch}{isEntityBranch(g.branch,meta)?"":<span style={{fontWeight:600,color:C.textLight}}> · {hoursLabel(groupHours)}</span>}
                 </td>
               </tr>}
               {g.roster.map((person,ri)=>{
@@ -535,7 +547,7 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
                   </td>
                   {dayList.map(d=>{
                     const entry=attendance[person.id]?.[d];
-                    const st=dayStatus(entry,groupHours);
+                    const st=dayStatus(entry,resolveHours(groupHours,year,month,d));
                     let bg=rowBg,fg=C.textLight,label="·";
                     if(st.filled&&st.isLeave){const m=leaveMeta(st.leaveCode);bg=m.color+"18";fg=m.color;label=st.leaveCode;}
                     else if(st.filled&&st.isIssue){bg="#FEF2F2";fg=C.red;label="!";}
@@ -558,7 +570,7 @@ function HRFillInView({year,month,meta,srList,attendance,setAttendance,hours,ext
     </div>}
     <DayLegend/>
 
-    {!cellsLocked&&editing&&<DayEditModal person={editing.person} day={editing.day} monthLabel={monthLabel} entry={attendance[editing.person.id]?.[editing.day]} hours={hoursFor(editing.person,hours)}
+    {!cellsLocked&&editing&&<DayEditModal person={editing.person} day={editing.day} monthLabel={monthLabel} entry={attendance[editing.person.id]?.[editing.day]} hours={resolveHours(hoursFor(editing.person,hours),year,month,editing.day)}
       onSave={(day,entry)=>saveDay(editing.person.id,day,entry)} onClose={()=>setEditing(null)}/>}
     {!readOnly&&editingStaff&&<EditStaffModal person={editingStaff} meta={meta} roleOptions={roleOptions} onSave={updates=>onEditStaff(editingStaff.branch,editingStaff.id,updates)} onClose={()=>setEditingStaff(null)}/>}
   </div>;
@@ -711,7 +723,7 @@ function HRFillInListView({year,month,meta,srList,attendance,setAttendance,hours
               // the in-progress draft if it's ready, otherwise whatever's
               // already saved, so a half-filled row doesn't just show blank.
               const previewEntry=newEntry!==undefined?newEntry:(attendance[person.id]?.[day]||null);
-              const st=dayStatus(previewEntry,branchHours);
+              const st=dayStatus(previewEntry,resolveHours(branchHours,year,month,day));
               let statusEl;
               if(!st.filled)statusEl=<span style={{color:C.textLight}}>Not filled</span>;
               else if(st.isLeave)statusEl=<span style={{color:leaveMeta(st.leaveCode).color,fontWeight:700}}>{st.leaveLabel}</span>;
@@ -797,6 +809,10 @@ function BusinessHoursView({year,month,meta,srList=[],attendance={},hours,setHou
         <div><L>Clock In</L><I type="time" value={draft[b]?.start||"09:30"} onChange={e=>setDraft(p=>({...p,[b]:{...p[b],start:e.target.value}}))}/></div>
         <div><L>Clock Out</L><I type="time" value={draft[b]?.end||"18:30"} onChange={e=>setDraft(p=>({...p,[b]:{...p[b],end:e.target.value}}))}/></div>
       </div>
+      {b==="HQ"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:8}}>
+        <div><L>Saturday Clock In</L><I type="time" value={draft[b]?.satStart||""} onChange={e=>setDraft(p=>({...p,[b]:{...p[b],satStart:e.target.value}}))}/></div>
+        <div><L>Saturday Clock Out</L><I type="time" value={draft[b]?.satEnd??""} onChange={e=>setDraft(p=>({...p,[b]:{...p[b],satEnd:e.target.value}}))}/></div>
+      </div>}
       {staffList.length>0&&<div style={{marginTop:4,paddingTop:10,borderTop:`1px dashed ${C.border}`,display:"flex",flexDirection:"column",gap:7}}>
         <div style={{fontSize:9,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:"0.05em"}}>Attendance-only staff</div>
         {staffList.map(s=>{
@@ -951,7 +967,7 @@ function PersonAttendanceDetailModal({person,meta,year,month,attendance,hours,on
           <tbody>
             {dayList.map(d=>{
               const entry=attendance[person.id]?.[d];
-              const st=dayStatus(entry,hours);
+              const st=dayStatus(entry,resolveHours(hours,year,month,d));
               let statusEl;
               if(!st.filled)statusEl=<span style={{color:C.textLight}}>Not filled</span>;
               else if(st.isLeave)statusEl=<span style={{color:leaveMeta(st.leaveCode).color,fontWeight:700}}>{st.leaveLabel}</span>;
@@ -1053,7 +1069,11 @@ export default function AttendanceTab({branchMeta={},srList=[],isAdmin=false,can
     let cancelled=false;
     Promise.all([loadData(ATTENDANCE_HOURS_KEY),loadData(ATTENDANCE_EXTRA_STAFF_KEY)]).then(([h,es])=>{
       if(cancelled)return;
-      setHours_({...seedBusinessHours(),...(h||{})});
+      const merged={...seedBusinessHours(),...(h||{})};
+      // HQ: apply the Mon-Fri 8:30-5:30 / Sat 8:30-12:30 hours unless a Saturday
+      // value has ever been saved for it (satEnd undefined = never migrated).
+      if(!h||!h.HQ||h.HQ.satEnd===undefined)merged.HQ={...HQ_DEFAULT_HOURS};
+      setHours_(merged);
       setExtraStaff_(es||{});
       setLoadingBase(false);
     });
