@@ -16,7 +16,6 @@ import {loadData,saveData,supabase} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl} from "./storage/ordersApi.js";
 
 export const STOCK_WRITEOFF_KEY="emax_v5_stock_writeoff";
-const STOCK_EMAIL="emaxstock@gmail.com";
 
 const STEPS=[
   {step:1,label:"New Write Off",color:"#1D4ED8",bg:"#EFF6FF"},
@@ -203,7 +202,7 @@ function AdminStepActionsInner({app,email,onAdvance}){
   const [transferFile,setTransferFile]=useState(null);
   const [transferNo,setTransferNo]=useState("");
   const [saving,setSaving]=useState(false);
-  const canUploadStockTransfer=["sophiawsc9395@gmail.com","boontheng2004@gmail.com",STOCK_EMAIL].includes((email||"").toLowerCase());
+  const canUploadStockTransfer=["sophiawsc9395@gmail.com","boontheng2004@gmail.com","emaxwarranty@gmail.com"].includes((email||"").toLowerCase());
 
   if(app.step===1)return<div>
     <div style={{fontSize:12,color:C.textMid,marginBottom:10}}>Upload the Stock Transfer File before this can be marked received at HQ.</div>
@@ -369,7 +368,7 @@ export default function StockWriteOffTab({branchMeta={},isAdmin,userBranch,email
     setView("list");setSelectedId(null);
   };
 
-  const canEditDelete=["sophiawsc9395@gmail.com","boontheng2004@gmail.com","emaxwarranty@gmail.com","emaxstock@gmail.com"].includes((email||"").toLowerCase());
+  const canEditDelete=["sophiawsc9395@gmail.com","boontheng2004@gmail.com","emaxwarranty@gmail.com"].includes((email||"").toLowerCase());
   const selectedApp=apps.find(a=>a.id===selectedId);
 
   if(view==="form")return<WriteOffForm branchMeta={branchMeta} userBranch={userBranch} editingApp={editingApp} onSaved={save} onCancel={()=>{setView(editingApp?"detail":"list");setEditingApp(null);}}/>;

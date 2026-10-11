@@ -1219,7 +1219,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {id:"rto",label:"RTO Summary"},
       {group:"purchasing",label:"Purchasing",children:[
         {id:"orders",label:"Order Tracking"},
-        {id:"stockWriteOff",label:"Stock Write-off"},
+        ...(isStockExecOnly?[]:[{id:"stockWriteOff",label:"Stock Write-off"}]),
         ...(isStockExecOnly?[]:[{id:"warranty",label:"Warranty"}]),
         ...(elevateOrderAccess?[{id:"purchaseOrder",label:"Purchase Order"}]:[]),
       ]},
@@ -1486,7 +1486,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {elevateOrderAccess&&tab==="stockTransfer"&&<div className="fade-in"><StockTransferTab canCreate={true} branchMeta={bMeta} email={currentEmail}/></div>}
       {tab==="purchaseOrder"&&elevateOrderAccess&&<div className="fade-in"><PurchaseOrderTab branchMeta={bMeta} isAdmin={elevateOrderAccess} email={currentEmail}/></div>}
       {tab==="warranty"&&!isStockExecOnly&&<div className="fade-in"><WarrantyTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
-      {tab==="stockWriteOff"&&<div className="fade-in"><StockWriteOffTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com","emaxstock@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
+      {tab==="stockWriteOff"&&!isStockExecOnly&&<div className="fade-in"><StockWriteOffTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
       {tab==="attendance"&&attendanceRole&&<div className="fade-in"><AttendanceTab branchMeta={bMeta} srList={srList} isAdmin={attendanceRole==="full-sophia"||attendanceRole==="full-hr"} canManageHours={attendanceRole==="full-sophia"} allowBranchSwitch={attendanceRole==="view-cross"} canViewAllBranch={canViewAllBranchAttendance} email={currentEmail}/></div>}
       {tab==="dailyPayment"&&isKnockOff&&<div className="fade-in"><DailyPaymentTab email={currentEmail} pendingByCompany={pendingDailyPaymentByCompany}/></div>}
     </div>{/* end main content */}

@@ -134,7 +134,7 @@ function OrderOnlyApp(){
   // Stock Transfer File on that page and emaxwarranty confirms receipt —
   // so she's been removed from Warranty specifically, per her access
   // being pulled from that page.
-  const canSeeStockWriteOff = isSuperAdminForPO || email === "emaxstock@gmail.com"
+  const canSeeStockWriteOff = isSuperAdminForPO
   const canSeeWarranty = isSuperAdminForPO
   // Narrow to this exact email only — do NOT broaden to isSuperAdminForPO:
   // Sophia already has full, unrestricted Daily Financial Report access via
