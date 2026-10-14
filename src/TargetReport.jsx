@@ -146,40 +146,35 @@ export function TargetReportStrip({ target, actual, tiers }) {
 export function BranchBreakdownRow({ rows, colSpan, title }) {
   const th = (e = {}) => ({ padding: "7px 14px", fontSize: 9.5, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right", background: "#EEF2F8", whiteSpace: "nowrap", ...e });
   const td = (e = {}) => ({ padding: "8px 14px", fontSize: 12, whiteSpace: "nowrap", borderBottom: "1px solid rgba(228,234,242,.7)", ...e });
+  const YES = "#00C896", NO = "#F0354B";
   return (
     <tr>
       <td colSpan={colSpan} style={{ padding: 0, background: "#F3F6FB", borderBottom: `1px solid ${BORDER}` }}>
         <div style={{ padding: "10px 16px 14px 28px" }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Target Report · {title}</div>
           <div style={{ overflowX: "auto", background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 8 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 640 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
               <thead><tr>
-                <th style={th({ textAlign: "left" })}>Name</th><th style={th({ textAlign: "left" })}>Role</th>
+                <th style={th({ textAlign: "left" })}>Name</th><th style={th({ textAlign: "left" })}>Achievement</th><th style={th({ textAlign: "left" })}>Role</th>
                 <th style={th()}>Profit Target</th><th style={th()}>Actual Profit</th><th style={th()}>Balance</th>
-                <th style={th()}>Achievement</th><th style={th({ textAlign: "center" })}>Status</th>
               </tr></thead>
               <tbody>
-                {rows.length === 0 && <tr><td colSpan={7} style={td({ textAlign: "center", color: "#8A96A8" })}>No data</td></tr>}
+                {rows.length === 0 && <tr><td colSpan={6} style={td({ textAlign: "center", color: "#8A96A8" })}>No data</td></tr>}
                 {rows.map((p, i) => {
-                  const hasT = p.target > 0, ok = hasT && p.actual >= p.target, cc = ok ? OV_YES : OV_NO, pc = pctOf(p.actual, p.target);
+                  const hasT = p.target > 0, ok = hasT && p.actual >= p.target, cc = ok ? YES : NO, pc = pctOf(p.actual, p.target);
                   return (
                     <tr key={p.key} style={{ background: p.bm ? "#FAFBFD" : i % 2 ? SURFACE : "#fff" }}>
                       <td style={td({ textAlign: "left", fontWeight: p.bm ? 800 : 600, color: NAVY })}>{p.name}</td>
+                      <td style={td({ minWidth: 170 })}>
+                        {hasT ? <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <div style={{ width: 80, height: 6, background: BORDER, borderRadius: 99, overflow: "hidden" }}><div style={{ width: `${Math.min(pc, 100)}%`, height: "100%", background: cc }} /></div>
+                          <b style={{ color: cc, fontSize: 12 }}>{pc.toFixed(1)}%</b>
+                        </div> : <span style={{ color: "#8A96A8" }}>No target</span>}
+                      </td>
                       <td style={td({ textAlign: "left", color: MUTED, fontSize: 11 })}>{p.role}</td>
                       <td style={td({ textAlign: "right", color: "#4A5568" })}>{hasT ? rm(p.target) : "—"}</td>
                       <td style={td({ textAlign: "right", color: NAVY, fontWeight: 600 })}>{rm(p.actual)}</td>
-                      <td style={td({ textAlign: "right", color: cc, fontWeight: 600 })}>{hasT ? `${ok ? "+" : "-"}${rm(Math.abs(p.actual - p.target))}` : "—"}</td>
-                      <td style={td({ minWidth: 150 })}>
-                        {hasT ? <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
-                          <div style={{ width: 70, height: 6, background: BORDER, borderRadius: 99, overflow: "hidden" }}><div style={{ width: `${Math.min(pc, 100)}%`, height: "100%", background: cc }} /></div>
-                          <b style={{ color: cc, width: 52, textAlign: "right" }}>{pc.toFixed(1)}%</b>
-                        </div> : <div style={{ textAlign: "right", color: "#8A96A8" }}>—</div>}
-                      </td>
-                      <td style={td({ textAlign: "center" })}>
-                        {hasT
-                          ? <span style={{ fontSize: 10.5, fontWeight: 700, color: cc, background: cc + "18", borderRadius: 99, padding: "2px 10px" }}>{ok ? "Achieved" : "Not achieved"}</span>
-                          : <span style={{ fontSize: 10.5, color: "#8A96A8" }}>No target</span>}
-                      </td>
+                      <td style={td({ textAlign: "right", color: "#4A5568" })}>{hasT ? `${ok ? "+" : ""}${rm(p.actual - p.target)}` : "—"}</td>
                     </tr>
                   );
                 })}

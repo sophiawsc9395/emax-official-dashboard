@@ -3839,7 +3839,7 @@ export default function App(){
                   branchPct={branchPct} bTarget={bTarget} bTotal={bTotal} pointsAsOf={pointsAsOfFor(selBranch)}
                   pointsBalance={rewardBalances[`BM_${selMgrId}`]?.balance||0}
                   tiers={computeSRTiers({p:branchPct,branchPct,calcBonus:calcAchievementBonus,calcPoints:calcRewardPoints,role:"bm"})}/>
-                <SRPerformanceHeading view={reportSrView} onView={setReportSrView} subtitle={reportSrView==="att"?`${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][month-1]} ${year} attendance`:`${bSRs.length} sales reps · ranked by achievement`}/>
+                <SRPerformanceHeading view={reportSrView} onView={setReportSrView} subtitle={reportSrView==="att"?`${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][month-1]} ${year} attendance`:`${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][month-1]} ${year} sales`}/>
                 {reportSrView==="att"?<BranchAttendanceCards branchMeta={branchMeta} srList={srList.filter(s=>s.branch===selBranch)} branchId={selBranch} year={year} month={month} canEdit={true}/>:
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
                   {bSRs.map(sr=><SRTable key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>)}

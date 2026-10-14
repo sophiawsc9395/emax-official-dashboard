@@ -1396,7 +1396,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
               branchPct={branchPct} bTarget={bTarget} bTotal={bTot} pointsAsOf={pointsAsOf}
               pointsBalance={rewardBalances[`BM_${selMgrId}`]?.balance||0}
               tiers={computeSRTiers({p:branchPct,branchPct,calcBonus:calcAchievementBonus,calcPoints:calcRewardPoints,role:"bm"})}/>
-            <SRPerformanceHeading view={reportSrView} onView={setReportSrView} subtitle={reportSrView==="att"?`${MONTHS[month-1]} ${year} attendance`:`${bSRs.length} sales reps · ranked by achievement`}/>
+            <SRPerformanceHeading view={reportSrView} onView={setReportSrView} subtitle={reportSrView==="att"?`${MONTHS[month-1]} ${year} attendance`:`${MONTHS[month-1]} ${year} sales`}/>
             {reportSrView==="att"?<BranchAttendanceCards branchMeta={bMeta} srList={srList.filter(s=>s.branch===selBranch)} branchId={selBranch} year={year} month={month} canEdit={attendanceRole==="full-sophia"||attendanceRole==="full-hr"}/>:
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
               {bSRs.map(sr=><SRCard key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} month={month} year={year} days={days} bMeta={bMeta} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOf} onEdit={canEditReport?handleReportEdit:undefined} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>)}

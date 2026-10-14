@@ -721,7 +721,7 @@ export default function App(){
         </div>
         <div>
           <div style={{fontSize:15,fontWeight:800,color:"#0A1628"}}>SR Performance</div>
-          <div style={{fontSize:11.5,color:"#8A96A8"}}>{srView==="att"?`${MONTHS[month-1]} ${year} attendance`:`${srList.filter(sr=>srVisibleInMonth(sr,month,year)).length} sales reps · ranked by achievement`}</div>
+          <div style={{fontSize:11.5,color:"#8A96A8"}}>{srView==="att"?`${MONTHS[month-1]} ${year} attendance`:`${MONTHS[month-1]} ${year} sales`}</div>
         </div>
       </div>
       <div style={{display:"inline-flex",border:"1px solid #E4EAF2",borderRadius:9,overflow:"hidden",background:"#fff"}}>
