@@ -67,10 +67,10 @@ export function computeSRTiers({ p, branchPct, calcBonus, calcPoints, role = "sr
 }
 
 const TIER_BAR = "linear-gradient(90deg,#162B52,#2F5597)";
-function TierCol({ title, t }) {
+function TierCol({ title, t, white }) {
   const on = t.n > 0;
   return (
-    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "9px 12px" }}>
+    <div style={{ background: white ? "#fff" : SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "9px 12px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
           <span style={{ fontSize: 9, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: ".08em" }}>{title}</span>
@@ -94,8 +94,8 @@ function TierPanel({ tiers, side }) {
     // wide layout (hero card): Bonus and Points next to each other, stacking when narrow
     return (
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-        <div style={{ flex: "1 1 320px", minWidth: 0, display: "flex", flexDirection: "column" }}><TierCol title="Bonus" t={tiers.bonus} /></div>
-        <div style={{ flex: "1 1 320px", minWidth: 0, display: "flex", flexDirection: "column" }}><TierCol title="Points" t={tiers.points} /></div>
+        <div style={{ flex: "1 1 320px", minWidth: 0, display: "flex", flexDirection: "column" }}><TierCol title="Bonus" t={tiers.bonus} white /></div>
+        <div style={{ flex: "1 1 320px", minWidth: 0, display: "flex", flexDirection: "column" }}><TierCol title="Points" t={tiers.points} white /></div>
       </div>
     );
   }
@@ -291,7 +291,7 @@ export function BranchHeroCard({ name, bmName, mStatus, onHistory, branchPct, bT
       <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
         {box("Walk in", rm(bTotal.wi), NAVY)}
         {box("Invoice", rm(bTotal.ae), NAVY)}
-        {box(met ? "Target met" : "Balance to hit", hasT ? (met ? "Achieved" : rm(bal)) : "—", hasT ? (met ? "#0B7A54" : RED) : MUTED)}
+        {box(met ? "Over target by" : "Balance to hit", hasT ? rm(met ? bTotal.total - bTarget : bal) : "—", hasT ? (met ? "#0B7A54" : RED) : MUTED)}
       </div>
       {tiers && <div style={{ marginTop: 12 }}><TierPanel tiers={tiers} side /></div>}
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${BORDER}`, fontSize: 11, color: MUTED }}>
