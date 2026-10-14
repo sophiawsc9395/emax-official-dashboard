@@ -197,7 +197,7 @@ function TypeTag({type}){return <span style={{background:type==="Online"?"#EFF6F
 function AchBadge({profit,target,size="sm",binary}){
   if(!target)return <span style={{color:"#8A96A8"}}>—</span>;
   const p=pctN(profit,target),c=binary?(profit>=target?"#00C896":"#F0354B"):achColor(profit,target),bg=binary?(profit>=target?"#00C89612":"#F0354B12"):achBg(profit,target);
-  return <span style={{background:bg,color:c,padding:"2px 10px",borderRadius:20,fontSize:size==="md"?12:size==="xs"?10:11,fontWeight:700}}>{p.toFixed(2)}%</span>;
+  return <span style={{background:bg,color:c,padding:"2px 10px",borderRadius:20,fontSize:size==="md"?12:size==="xs"?11:11,fontWeight:700}}>{p.toFixed(2)}%</span>;
 }
 function ProgressBar({pct,color,h=5}){
   return <div style={{height:h,background:"#E4EAF2",borderRadius:h,overflow:"hidden"}}>
