@@ -66,24 +66,31 @@ export function computeSRTiers({ p, branchPct, calcBonus, calcPoints, role = "sr
   return { bonus, points };
 }
 
-function TierCard({ title, t }) {
+const TIER_BAR = "linear-gradient(90deg,#5B8DEF,#9CC0FF)";
+function TierCol({ title, t }) {
   const on = t.n > 0;
   return (
-    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "9px 11px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: ".08em" }}>{title}</span>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 8px", borderRadius: 99, background: on ? NAVY : BORDER, color: on ? "#fff" : MUTED, whiteSpace: "nowrap" }}>{on ? `Tier ${t.n}` : "Not reached"}</span>
-        </div>
-        <span style={{ fontSize: 15, fontWeight: 800, color: on ? NAVY : "#8A96A8", whiteSpace: "nowrap" }}>{t.cur}</span>
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 6 }}>
+        <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,.6)", textTransform: "uppercase", letterSpacing: ".08em" }}>{title}</span>
+        <span style={{ fontSize: 9, fontWeight: 700, color: on ? "#9CC0FF" : "rgba(255,255,255,.5)", whiteSpace: "nowrap" }}>{on ? `Tier ${t.n}` : "Not reached"}</span>
       </div>
-      <div style={{ height: 7, background: BORDER, borderRadius: 99, overflow: "hidden", margin: "8px 0 5px" }}>
-        <div style={{ width: t.prog + "%", height: "100%", background: "linear-gradient(90deg,#162B52,#2F5597)", borderRadius: 99 }} />
+      <div style={{ fontSize: 11.5, fontWeight: 700, color: on ? "#fff" : "rgba(255,255,255,.55)", whiteSpace: "nowrap" }}>{t.cur}</div>
+      <div style={{ height: 5, background: "rgba(255,255,255,.14)", borderRadius: 99, overflow: "hidden", margin: "6px 0 5px" }}>
+        <div style={{ width: t.prog + "%", height: "100%", background: TIER_BAR, borderRadius: 99 }} />
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 10, color: MUTED }}>
-        <span>{t.label}</span>
-        <span style={{ whiteSpace: "nowrap" }}>{t.max ? "Max" : <>Next tier <b style={{ color: NAVY }}>{t.next}</b></>}</span>
-      </div>
+      <div style={{ fontSize: 9, color: "rgba(255,255,255,.6)", lineHeight: 1.35 }}>{t.label}</div>
+      <div style={{ fontSize: 9, color: "rgba(255,255,255,.6)", marginTop: 1 }}>{t.max ? "Max" : <>Next <b style={{ color: "#fff" }}>{t.next}</b></>}</div>
+    </div>
+  );
+}
+
+function TierPanel({ tiers }) {
+  return (
+    <div style={{ background: "linear-gradient(135deg,#0A1628,#162B52)", borderRadius: 8, padding: "10px 12px", display: "flex", gap: 14 }}>
+      <TierCol title="Bonus" t={tiers.bonus} />
+      <div style={{ width: 1, background: "rgba(255,255,255,.14)" }} />
+      <TierCol title="Points" t={tiers.points} />
     </div>
   );
 }
@@ -108,9 +115,7 @@ export function TargetReportBlock({ target, actual, tiers }) {
         <i style={{ width: 8, height: 8, borderRadius: 99, background: color, display: "inline-block", flexShrink: 0 }} />
         Profit achievement rate · <b style={{ color }}>{met ? "Target achieved" : "Not achieved yet"}</b>
       </div>
-      {tiers && <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
-        <TierCard title="Bonus" t={tiers.bonus} /><TierCard title="Points" t={tiers.points} />
-      </div>}
+      {tiers && <div style={{ marginTop: 10 }}><TierPanel tiers={tiers} /></div>}
     </div>
   );
 }
