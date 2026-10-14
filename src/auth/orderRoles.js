@@ -42,7 +42,10 @@ export const ORDER_ROLE_DEFS = {
   billing: {
     adminSteps: [7, 9, 11, 12, 13],
     visibleSteps: [6, 7, 8, 9, 10, 11, 12, 13],
-    reports: ["agreementReceived", "claim", "knockoff", "collectionOverdue"],
+    // Knock-off report set added so emaxbilling can download the same reports
+    // as the Knock-off role; "firstInstallmentKnockoff" is also what grants
+    // verify / flag-short-payment access in Daily Sales Report.
+    reports: ["agreementReceived", "claim", "knockoff", "collectionOverdue", "upfront", "firstInstallment", "firstInstallmentKnockoff", "upfront1Knockoff", "cashKnockoff"],
   },
   // Sees every step from Billing Request through Claim Released. Can
   // directly complete Step 13 (Claim Released) — this is where Knock-off

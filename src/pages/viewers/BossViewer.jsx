@@ -780,7 +780,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
     nr[dateKey][srId][field]=value;
     setRecords(nr);await saveData(rk,nr);
   };
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto","todoRtoHR","orders","attendance"]:isKnockOff?["overview","report","daily","orders","dailySales","dailyPayment"]:["overview","todoPickup","todoRto","rankings","points","report","repair","rto","orders","dailySales","jclApplications","chaileaseApplications","stockProfit","stockWriteOff","warranty","attendance",...(elevateOrderAccess?["purchaseOrder","stockTransfer"]:[])];return allowed.includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto","todoRtoHR","orders","attendance","daily","dailyPayment"]:isKnockOff?["overview","report","daily","orders","dailySales","dailyPayment"]:["overview","todoPickup","todoRto","rankings","points","report","repair","rto","orders","dailySales","jclApplications","chaileaseApplications","stockProfit","stockWriteOff","warranty","attendance",...(elevateOrderAccess?["purchaseOrder","stockTransfer"]:[])];return allowed.includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   // Consolidated "To Do List" tab (Boon Theng/Sophia only) — same as the
   // one on App.jsx's dashboard, since this viewer (reached via
@@ -915,7 +915,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   // so it's skipped entirely otherwise.
   const [pendingDailyPaymentByCompany,setPendingDailyPaymentByCompany]=useState({});
   useEffect(()=>{
-    if(!isKnockOff)return;
+    if(!isKnockOff&&!isHR)return;
     const dailyPaymentKeys=DAILY_PAYMENT_COMPANIES.map(c=>dailyPaymentKeyFor(c.key));
     const checkPending=async()=>{
       const results=await Promise.all(DAILY_PAYMENT_COMPANIES.map(async c=>{
@@ -930,7 +930,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       .on("postgres_changes",{event:"*",schema:"public",table:"app_storage",filter:`key=in.(${dailyPaymentKeys.join(",")})`},checkPending)
       .subscribe();
     return()=>{supabase.removeChannel(channel);};
-  },[isKnockOff]);
+  },[isKnockOff,isHR]);
   const pendingDailyPaymentCount=Object.values(pendingDailyPaymentByCompany).reduce((a,b)=>a+b,0);
 
   useEffect(()=>{
@@ -1138,7 +1138,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   const isAttendanceSophia=attendanceEmail==="sophiawsc9395@gmail.com";
   const isAttendanceHR=isHR&&attendanceEmail==="emaxhr@gmail.com";
   const isAttendanceCrossViewer=["boontheng2004@gmail.com","wingfeii@gmail.com"].includes(attendanceEmail);
-  const canEditReport=isKnockOff||isAttendanceSophia;
+  const canEditReport=isKnockOff||isAttendanceSophia||isAttendanceHR;
   const attendanceRole=isAttendanceSophia?"full-sophia":isAttendanceHR?"full-hr":isAttendanceCrossViewer?"view-cross":null;
   // "All Branch" pill (see AttendanceTab.jsx canViewAllBranch) — Sophia and
   // the two cross-branch viewers only, never emaxhr.
@@ -1153,6 +1153,8 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {id:"rto",label:"RTO Summary"},
       {id:"todoRtoHR",label:"RTO Payment Reminder To-Do"},
       {id:"orders",label:"Order Tracking"},
+      {id:"daily",label:"Daily Entry"},
+      {id:"dailyPayment",label:"Daily Payment"},
       ...(attendanceRole&&attendanceRole!=="view-cross"?[{id:"attendance",label:"Attendance"}]:[]),
     ]
     :isKnockOff
@@ -1325,7 +1327,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       </div>}
 
       {/* DAILY ENTRY — Knock-off role gets full admin access here */}
-      {tab==="daily"&&isKnockOff&&<DailyEntry records={records} setRecords={setRecords} srList={srList} branchMeta={bMeta} month={selMonth} year={selYear} days={days} recordsKey={`emax_v5_records_${selYear}_${selMonth}`}/>}
+      {tab==="daily"&&(isKnockOff||isHR)&&<DailyEntry records={records} setRecords={setRecords} srList={srList} branchMeta={bMeta} month={selMonth} year={selYear} days={days} recordsKey={`emax_v5_records_${selYear}_${selMonth}`}/>}
 
       {/* MONTHLY REPORT */}
       {tab==="report"&&<div className="fade-in">
@@ -1458,7 +1460,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {tab==="warranty"&&!isStockExecOnly&&<div className="fade-in"><WarrantyTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
       {tab==="stockWriteOff"&&!isStockExecOnly&&<div className="fade-in"><StockWriteOffTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
       {tab==="attendance"&&attendanceRole&&attendanceRole!=="view-cross"&&<div className="fade-in"><AttendanceTab branchMeta={bMeta} srList={srList} isAdmin={attendanceRole==="full-sophia"||attendanceRole==="full-hr"} canManageHours={attendanceRole==="full-sophia"} allowBranchSwitch={attendanceRole==="view-cross"} canViewAllBranch={canViewAllBranchAttendance} email={currentEmail}/></div>}
-      {tab==="dailyPayment"&&isKnockOff&&<div className="fade-in"><DailyPaymentTab email={currentEmail} pendingByCompany={pendingDailyPaymentByCompany}/></div>}
+      {tab==="dailyPayment"&&(isKnockOff||isHR)&&<div className="fade-in"><DailyPaymentTab email={currentEmail} pendingByCompany={pendingDailyPaymentByCompany}/></div>}
     </div>{/* end main content */}
 
       {/* SIDEBAR — right side, collapsible */}
@@ -1524,7 +1526,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
             <div style={{width:"100%",height:1,background:"rgba(255,255,255,.08)",margin:"10px 0"}}/>
           </>}
 
-          {isKnockOff&&<>
+          {(isKnockOff||isAttendanceHR)&&<>
             <button onClick={async()=>{
               const d=new Date();
               const ldd=lastDataDay||d.getDate();

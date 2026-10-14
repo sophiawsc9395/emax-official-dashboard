@@ -511,9 +511,9 @@ export default function WarrantyTab({branchMeta={},isAdmin,userBranch,email=null
     </div>
 
     <div className="wty-desktop" style={{...card,padding:0,overflow:"hidden"}}>
-      <div style={{display:"flex",alignItems:"center",padding:"9px 16px",background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
+      <div style={{display:"flex",alignItems:"center",gap:20,padding:"9px 16px",background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
         <div style={{flex:2}}>Device Name</div>
-        <div style={{width:90}}>Branch</div>
+        <div style={{width:130}}>Branch</div>
         <div style={{flex:1,minWidth:150}}>Step</div>
         <div style={{width:90,textAlign:"right"}}>Updated</div>
       </div>
@@ -521,12 +521,12 @@ export default function WarrantyTab({branchMeta={},isAdmin,userBranch,email=null
         ?<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>Loading…</div>
         :visible.length===0
         ?<div style={{padding:40,textAlign:"center",color:C.textLight,fontSize:13}}>No warranty requests match.</div>
-        :visible.map((a,i)=><div key={a.id} onClick={()=>{setView("detail");setSelectedId(a.id);}} style={{padding:"10px 16px",background:i%2===0?C.white:C.surface,borderTop:i>0?`1px solid ${C.border}`:"none",cursor:"pointer",display:"flex",alignItems:"center"}}>
+        :visible.map((a,i)=><div key={a.id} onClick={()=>{setView("detail");setSelectedId(a.id);}} style={{padding:"10px 16px",background:i%2===0?C.white:C.surface,borderTop:i>0?`1px solid ${C.border}`:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:20}}>
           <div style={{flex:2,minWidth:0}}>
             <div style={{fontWeight:700,fontSize:12,color:C.text,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.deviceName}</div>
             <div style={{fontSize:10,color:C.textLight,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.customerName} · IMEI {a.imei}</div>
           </div>
-          <div style={{width:90,fontSize:11,fontWeight:700,color:C.textMid}}>{branchMeta[a.branch]?.name||a.branch}</div>
+          <div style={{width:130,fontSize:11,fontWeight:700,color:C.textMid}}>{branchMeta[a.branch]?.name||a.branch}</div>
           <div style={{flex:1,minWidth:150}}><StepBadge step={a.step}/></div>
           <div style={{width:90,textAlign:"right",fontSize:10,color:C.textLight,whiteSpace:"nowrap"}}>{fDate(a.requestDate)}</div>
         </div>)}
