@@ -70,11 +70,11 @@ const TIER_BAR = "linear-gradient(90deg,#162B52,#2F5597)";
 function TierCol({ title, t }) {
   const on = t.n > 0;
   return (
-    <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderLeft: "4px solid #162B52", borderRadius: 8, padding: "8px 10px" }}>
+    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "9px 12px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
           <span style={{ fontSize: 9, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: ".08em" }}>{title}</span>
-          <span style={{ fontSize: 9, fontWeight: 700, color: on ? "#162B52" : "#8A96A8", whiteSpace: "nowrap" }}>{on ? `Tier ${t.n}` : "Not reached"}</span>
+          <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 8px", borderRadius: 99, background: on ? "#162B52" : BORDER, color: on ? "#fff" : "#6B7686", whiteSpace: "nowrap" }}>{on ? `Tier ${t.n}` : "Not reached"}</span>
         </div>
         <span style={{ fontSize: 10, fontWeight: 700, color: on ? NAVY : "#8A96A8", whiteSpace: "nowrap" }}>{t.cur}</span>
       </div>
