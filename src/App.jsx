@@ -3,7 +3,7 @@
 // Enterprise Analytics Platform
 // ============================================================
 import { useState, useEffect, useMemo, useRef, Fragment } from "react";
-import { TargetReportStrip, computeSRTiers, SRCardHeader, BMCardHeader, BranchBreakdownRow, buildBranchBreakdown } from "./TargetReport.jsx";
+import { TargetReportStrip, computeSRTiers, SRCardHeader, BMCardHeader, BranchBreakdownRow, buildBranchBreakdown, BranchHeroCard, SRPerformanceHeading } from "./TargetReport.jsx";
 import { loadData, saveData, supabase } from "./storage/index.js";
 import { listOrders, listStockRequestOrders, reconcile } from "./storage/ordersApi.js";
 import { listCustomers, getPaymentsForCustomers } from "./storage/rtoApi.js";
@@ -21,7 +21,7 @@ import StockTransferTab from "./StockTransferTab.jsx";
 import DailyReportPanel from "./DailyReportPanel.jsx";
 import WarrantyTab from "./WarrantyTab.jsx";
 import StockWriteOffTab from "./StockWriteOffTab.jsx";
-import AttendanceTab from "./AttendanceTab.jsx";
+import AttendanceTab, { BranchAttendanceCards } from "./AttendanceTab.jsx";
 
 const T = {
   navy:"#0A1628", navyMid:"#0F2040", navyLight:"#162B52",
@@ -2475,6 +2475,7 @@ export default function App(){
   const [statusModalPerson,setStatusModalPerson] = useState(null);
   const [pointsModalPerson,setPointsModalPerson] = useState(null);
   const [selBranch,setSelBranch]   = useState("KM");
+  const [reportSrView,setReportSrView] = useState("sales");
   const [selStartDay,setSelStartDay] = useState(1);
   const [selEndDay,setSelEndDay]   = useState(()=>daysInMonth(new Date().getMonth()+1,new Date().getFullYear()));
   const periodDays = days.filter(d=>d>=selStartDay&&d<=selEndDay);
@@ -3830,11 +3831,20 @@ export default function App(){
               const bSRs=srList.filter(s=>s.branch===selBranch&&srVisibleInMonth(s,month,year));
               const bTarget=targets?.bm?.[selBranch]||0,bTotal=fullMonthBranchTotals[selBranch]?.total||0;
               const branchPct=pctN(bTotal,bTarget);
+              const selMeta=branchMeta[selBranch]||{};
+              const selMgrId=selMeta.managerId||selBranch;
               return <div>
+                <BranchHeroCard name={selMeta.name||selBranch} bmName={selMeta.manager} mStatus={selMeta.mStatus}
+                  onHistory={()=>{setStatusModalPerson(`BM_${selBranch}`);setShowStatusHistoryModal(true);}}
+                  branchPct={branchPct} bTarget={bTarget} bTotal={bTotal} pointsAsOf={pointsAsOfFor(selBranch)}
+                  pointsBalance={rewardBalances[`BM_${selMgrId}`]?.balance||0}
+                  tiers={computeSRTiers({p:branchPct,branchPct,calcBonus:calcAchievementBonus,calcPoints:calcRewardPoints,role:"bm"})}/>
+                <SRPerformanceHeading view={reportSrView} onView={setReportSrView} subtitle={reportSrView==="att"?`${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][month-1]} ${year} attendance`:`${bSRs.length} sales reps · ranked by achievement`}/>
+                {reportSrView==="att"?<BranchAttendanceCards branchMeta={branchMeta} srList={srList.filter(s=>s.branch===selBranch)} branchId={selBranch} year={year} month={month} canEdit={true}/>:
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
                   {bSRs.map(sr=><SRTable key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>)}
                   <BMTable branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${branchMeta[selBranch]?.managerId||selBranch}`]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>
-                </div>
+                </div>}
                 <div style={{marginTop:22}}>
                   <div style={{fontWeight:800,fontSize:12,color:"#0A1628",marginBottom:10,paddingBottom:7,borderBottom:"1px solid #E4EAF2",textTransform:"uppercase",letterSpacing:"0.06em"}}>Daily AEON Profit Report</div>
                   <UploadPanel records={records} setRecords={setRecords} srList={srList} defaultBranch={selBranch} recordsKey={recordsKey}/>

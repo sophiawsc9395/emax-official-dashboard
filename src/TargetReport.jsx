@@ -216,7 +216,7 @@ export function buildBranchBreakdown({ branchId, branchMeta, srList, targets, re
 /* ── Person card header (shared by SR and BM cards) ─────────────────────
  * Name + "Role · Branch" on the left, status chip + Pass/Fail below,
  * History button on the right. */
-function PersonHeader({ name, sub, status, onHistory }) {
+export function PersonHeader({ name, sub, status, onHistory }) {
   const raw = status || "";
   const baseM = raw.match(/^(Training|Probation|Confirmed|Director|Resigned)/i);
   const base = baseM ? baseM[1].charAt(0).toUpperCase() + baseM[1].slice(1).toLowerCase() : "Probation";
@@ -300,4 +300,26 @@ export function BranchHeroCard({ name, bmName, mStatus, onHistory, branchPct, bT
       </div>
     </div>
   );
+}
+
+/* "SR Performance" heading with the By Sales / By Attendance toggle at its
+   right — same markup the Branch pages use, shared so the Monthly Report
+   views match them. */
+export function SRPerformanceHeading({subtitle,view,onView}){
+  return<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",marginBottom:16}}>
+    <div style={{display:"flex",alignItems:"center",gap:10}}>
+      <div style={{width:30,height:30,borderRadius:9,background:"#0A16281A",color:"#0A1628",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div>
+        <div style={{fontSize:15,fontWeight:800,color:"#0A1628"}}>SR Performance</div>
+        <div style={{fontSize:11.5,color:"#8A96A8"}}>{subtitle}</div>
+      </div>
+    </div>
+    <div style={{display:"inline-flex",border:"1px solid #E4EAF2",borderRadius:9,overflow:"hidden",background:"#fff"}}>
+      {[["sales","By Sales"],["att","By Attendance"]].map(([k,l])=>(
+        <button key={k} onClick={()=>onView(k)} style={{border:"none",cursor:"pointer",padding:"7px 14px",fontSize:12,fontWeight:700,fontFamily:"inherit",background:view===k?"#162B52":"#fff",color:view===k?"#fff":"#5A6472"}}>{l}</button>
+      ))}
+    </div>
+  </div>;
 }

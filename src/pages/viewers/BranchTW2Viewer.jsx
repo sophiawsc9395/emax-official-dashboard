@@ -12,7 +12,7 @@ import StockWriteOffTab from "../../StockWriteOffTab.jsx";
 import ChaileaseTab from "../../ChaileaseTab.jsx";
 import StockProfitTab from "../../StockProfitTab.jsx";
 import StockTransferTab from "../../StockTransferTab.jsx";
-import AttendanceTab from "../../AttendanceTab.jsx";
+import {BranchAttendanceCards} from "../../AttendanceTab.jsx";
 const DIRECTOR_EXCLUDED_NAMES=["MAX SIEW","EC","SIEW WING FEI","WING FEI","KHOR BOON THENG","BOON THENG"];
 const isDirectorExcluded=name=>DIRECTOR_EXCLUDED_NAMES.includes((name||"").trim().toUpperCase());
 
@@ -395,7 +395,7 @@ export default function App(){
   const [allSRList,setAllSRList]=useState(DEFAULT_SR); // all branches, for company-wide ranking
   const [bMeta,setBMeta]=useState(DEFAULT_BRANCH_META);
   const [loading,setLoading]=useState(true);
-  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications","chaileaseApplications","stockProfit","stockTransfer","warranty","stockWriteOff","attendance"].includes(h)?h:"overview";});
+  const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");return ["overview","rankings","points","report","orders","repair","dailySales","jclApplications","chaileaseApplications","stockProfit","stockTransfer","warranty","stockWriteOff"].includes(h)?h:"overview";});
   const SIDEBAR_STRUCTURE=[
     {id:"overview",label:"Performance"},
     {group:"ranking",label:"Ranking",children:[
@@ -412,7 +412,6 @@ export default function App(){
     {id:"stockWriteOff",label:"Stock Write-off"},
     {id:"stockProfit",label:"Stock Profit Checker"},
     {id:"stockTransfer",label:"Stock Transfer"},
-    {id:"attendance",label:"Attendance"},
   ];
   const [expandedGroups,setExpandedGroups]=useState(()=>{
     const initial={};
@@ -427,6 +426,7 @@ export default function App(){
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   const [sidebarOpen,setSidebarOpen]=useState(false);
   const [isMobile,setIsMobile]=useState(typeof window!=="undefined"&&window.innerWidth<=760);
+  const [srView,setSrView]=useState("sales");
   useEffect(()=>{const onResize=()=>setIsMobile(window.innerWidth<=760);window.addEventListener("resize",onResize);return()=>window.removeEventListener("resize",onResize);},[]);
   const [rewardBalances,setRewardBalances]=useState({});
   const [rewardHistory,setRewardHistory]=useState({});
@@ -655,7 +655,6 @@ export default function App(){
       {tab==="chaileaseApplications"&&<div className="fade-in"><ChaileaseTab branchMeta={bMeta} isAdmin={false} userBranch={BRANCH_ID} srList={srList}/></div>}
       {tab==="stockProfit"&&<div className="fade-in"><StockProfitTab/></div>}
       {tab==="stockTransfer"&&<div className="fade-in"><StockTransferTab canCreate={false} userBranch={BRANCH_ID} branchMeta={bMeta}/></div>}
-      {tab==="attendance"&&<div className="fade-in"><AttendanceTab branchMeta={bMeta} srList={allSRList} isAdmin={false} allowBranchSwitch={false} userBranch={BRANCH_ID}/></div>}
       {tab==="rankings"&&<div className="fade-in" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:20}}>
         <RankingTable title="Branch Manager Ranking" rows={bmRankRows} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
         <RankingTable title="Online SR Ranking — Company" rows={srRankRows.filter(r=>r.type==="Online")} showBonus showPoints branchMeta={bMeta} period={rankingPeriod}/>
@@ -715,15 +714,23 @@ export default function App(){
         tiers={computeSRTiers({p:branchPct,branchPct,calcBonus:calcAchievementBonus,calcPoints:calcRewardPoints,role:"bm"})}/>
 
       {/* SR Cards */}
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",marginBottom:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
         <div style={{width:30,height:30,borderRadius:9,background:"#0A16281A",color:"#0A1628",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         </div>
         <div>
           <div style={{fontSize:15,fontWeight:800,color:"#0A1628"}}>SR Performance</div>
-          <div style={{fontSize:11.5,color:"#8A96A8"}}>{srList.filter(sr=>srVisibleInMonth(sr,month,year)).length} sales reps · ranked by achievement</div>
+          <div style={{fontSize:11.5,color:"#8A96A8"}}>{srView==="att"?`${MONTHS[month-1]} ${year} attendance`:`${srList.filter(sr=>srVisibleInMonth(sr,month,year)).length} sales reps · ranked by achievement`}</div>
         </div>
       </div>
+      <div style={{display:"inline-flex",border:"1px solid #E4EAF2",borderRadius:9,overflow:"hidden",background:"#fff"}}>
+        {[["sales","By Sales"],["att","By Attendance"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setSrView(k)} style={{border:"none",cursor:"pointer",padding:"7px 14px",fontSize:12,fontWeight:700,fontFamily:"inherit",background:srView===k?"#162B52":"#fff",color:srView===k?"#fff":"#5A6472"}}>{l}</button>
+        ))}
+      </div>
+      </div>
+      {srView==="att"?<BranchAttendanceCards branchMeta={bMeta} srList={srList} branchId={BRANCH_ID} year={year} month={month}/>:
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:isMobile?12:16,alignItems:"start"}}>
         {srList.filter(sr=>srVisibleInMonth(sr,month,year)).sort((a,b)=>pctN(srTotals[b.id]?.total||0,targets?.sr?.[b.id]?.target||0)-pctN(srTotals[a.id]?.total||0,targets?.sr?.[a.id]?.target||0)).map(sr=>{
   const target=targets?.sr?.[sr.id]?.target||0,bonus=targets?.sr?.[sr.id]?.bonus||0;
@@ -877,7 +884,7 @@ export default function App(){
             </div>
           </div>;
         })()}
-      </div>
+      </div>}
 
       <PdfDownloads month={month} year={year}/>
       </div>}{/* end overview tab */}

@@ -41,6 +41,7 @@
  */
 import {useState,useEffect,useMemo,Fragment} from "react";
 import { createPortal } from "react-dom";
+import { PersonHeader } from "./TargetReport.jsx";
 import {loadData,saveData} from "./storage/index.js";
 
 /* ── Design tokens — same constants every other tab file in this project
@@ -1034,6 +1035,119 @@ function BranchView({year,month,meta,srList,attendance,hours,extraStaff,allowBra
       })}
     </div>}
     {viewing&&<PersonAttendanceDetailModal person={viewing} meta={meta} year={year} month={month} attendance={attendance} hours={hoursFor(viewing,hours)} onClose={()=>setViewing(null)}/>}
+  </div>;
+}
+
+
+/* ── Branch pages: attendance cards for the SR Performance "By Attendance" view ──
+   One card per person in the same style as the SR sales cards: navy header, a
+   payout ring + counts, then the full day-by-day table (no inner scrolling). */
+export function BranchAttendanceCards({branchMeta={},srList=[],branchId,year,month,canEdit=false}){
+  const meta=useMemo(()=>({...ENTITY_BRANCH_META,...branchMeta}),[branchMeta]);
+  const[hours,setHours_]=useState(seedBusinessHours());
+  const[extraStaff,setExtraStaff_]=useState({});
+  const[attendance,setAttendance_]=useState({});
+  const[loading,setLoading]=useState(true);
+  const[editing,setEditing]=useState(null);
+  const saveDayCard=(personId,day,entry)=>{
+    const prev=attendance;
+    const personRec={...(prev[personId]||{})};
+    if(entry===null)delete personRec[day];else personRec[day]=entry;
+    const next={...prev,[personId]:personRec};
+    setAttendance_(next);
+    saveData(attendanceKeyFor(year,month),next).then(res=>{if(res&&res.ok===false)throw res.error||new Error("save failed");}).catch(err=>{console.error("BranchAttendanceCards: save failed",err);setAttendance_(prev);alert("Could not save attendance. Please try again.");});
+  };
+  useEffect(()=>{
+    let cancelled=false;
+    Promise.all([loadData(ATTENDANCE_HOURS_KEY),loadData(ATTENDANCE_EXTRA_STAFF_KEY)]).then(([h,es])=>{
+      if(cancelled)return;
+      const merged={...seedBusinessHours(),...(h||{})};
+      if(!h||!h.HQ||h.HQ.satEnd===undefined)merged.HQ={...HQ_DEFAULT_HOURS};
+      setHours_(merged);setExtraStaff_(es||{});
+    });
+    return()=>{cancelled=true;};
+  },[]);
+  useEffect(()=>{
+    let cancelled=false;setLoading(true);
+    loadData(attendanceKeyFor(year,month)).then(a=>{if(cancelled)return;setAttendance_(a||{});setLoading(false);});
+    return()=>{cancelled=true;};
+  },[year,month]);
+
+  const roster=useMemo(()=>{
+    const r=rosterForSelection(branchId,meta,srList,extraStaff,attendance,false);
+    const isBM=p=>/manager/i.test(p.role||"");
+    return [...r.filter(isBM),...r.filter(p=>!isBM(p))];
+  },[branchId,meta,srList,extraStaff,attendance]);
+
+  if(loading)return<div style={{...card,padding:24,textAlign:"center",fontSize:12,color:C.textLight}}>Loading attendance…</div>;
+  if(roster.length===0)return<div style={{...card,padding:24,textAlign:"center",fontSize:12,color:C.textLight}}>No attendance records yet for {meta[branchId]?.name||branchId}.</div>;
+  const days=daysInMonth(year,month);
+  const dayList=Array.from({length:days},(_,i)=>i+1);
+  const thS={textAlign:"left",padding:"7px 8px",color:C.textLight,fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",background:C.surface,borderBottom:`1px solid ${C.border}`};
+  return<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:16,alignItems:"start"}}>
+    {roster.map(person=>{
+      const personHours=hoursFor(person,hours);
+      const entity=hidesPayout(person.branch,meta);
+      const stats=monthStatsFor(person.id,attendance,personHours,year,month);
+      const pct=payoutPctFor(stats.issues);
+      const ok=pct===100,ringColor=ok?"#00C896":"#F0354B";
+      const isBM=/manager/i.test(person.role||"");
+      const sr=isBM?null:srList.find(s=>s.id===person.id);
+      const status=isBM?meta[person.branch]?.mStatus:sr?.status;
+      const size=84,stroke=9,r=(size-stroke)/2,circ=2*Math.PI*r;
+      return<div key={person.id} style={{border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden",background:"#fff",boxShadow:"0 1px 4px rgba(10,22,40,.05)"}}>
+        <PersonHeader name={person.name} sub={`${person.role} · ${meta[person.branch]?.name||person.branch}`} status={status}/>
+        <div style={{padding:"12px 14px",background:C.surface}}>
+          <div style={{background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px"}}>
+            <div style={{fontSize:9,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.1em"}}>Attendance Report · {MONTH_NAMES[month]} {year}</div>
+            <div style={{display:"flex",gap:12,alignItems:"center",marginTop:8}}>
+              {!entity&&<div style={{position:"relative",width:size,height:size,flexShrink:0}}>
+                <svg width={size} height={size} style={{transform:"rotate(-90deg)"}}>
+                  <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.border} strokeWidth={stroke}/>
+                  <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={ringColor} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={circ*(1-pct/100)}/>
+                </svg>
+                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:15,color:C.navy}}>{pct}%</div>
+              </div>}
+              <div style={{flex:1,fontSize:11,minWidth:0}}>
+                {[["Present",stats.present,C.navy],["Late",stats.late,stats.late?"#F0354B":C.navy],["Early out",stats.earlyOut,stats.earlyOut?"#F0354B":C.navy],["Leave / off",stats.leaveDays,C.navy],["Not filled",stats.notFilled,C.textLight]].map(([l,v,c])=>
+                  <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"2.5px 0",borderBottom:`1px solid ${C.surface}`}}><span style={{color:"#5A6472"}}>{l}</span><b style={{color:c}}>{v}</b></div>)}
+              </div>
+            </div>
+            {!entity&&<div style={{marginTop:8,fontSize:10,color:"#5A6472",display:"flex",alignItems:"center",gap:6}}>
+              <i style={{width:8,height:8,borderRadius:99,background:ringColor,display:"inline-block",flexShrink:0}}/>
+              Commission payout · <b style={{color:ringColor}}>{ok?"Full payout":`${stats.issues} issue${stats.issues===1?"":"s"} this month`}</b>
+            </div>}
+          </div>
+          <div style={{background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,marginTop:8,overflow:"hidden"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+              <thead><tr><th style={{...thS,width:34}}>Day</th><th style={thS}>Clock In</th><th style={thS}>Clock Out</th><th style={{...thS,textAlign:"right"}}>Status</th></tr></thead>
+              <tbody>
+                {dayList.map((d,i)=>{
+                  const entry=attendance[person.id]?.[d];
+                  const st=dayStatus(entry,resolveHours(personHours,year,month,d));
+                  let statusEl;
+                  if(!st.filled)statusEl=<span style={{color:C.textLight}}>Not filled</span>;
+                  else if(st.isLeave)statusEl=<span style={{color:"#5A6472",fontWeight:700}}>{st.leaveLabel}</span>;
+                  else if(st.isLate&&st.isEarlyOut)statusEl=<span style={{color:"#F0354B",fontWeight:700}}>Late {fmtMinutes(st.lateBy)} + Early Out {fmtMinutes(st.earlyBy)}</span>;
+                  else if(st.isLate)statusEl=<span style={{color:"#F0354B",fontWeight:700}}>Late by {fmtMinutes(st.lateBy)}</span>;
+                  else if(st.isEarlyOut)statusEl=<span style={{color:"#F0354B",fontWeight:700}}>Early Out by {fmtMinutes(st.earlyBy)}</span>;
+                  else statusEl=<span style={{color:"#0B7A54",fontWeight:700}}>On time</span>;
+                  const cell={padding:"5px 8px",borderBottom:`1px solid ${C.surface}`,color:C.textMid,whiteSpace:"nowrap"};
+                  return<tr key={d} onClick={canEdit?()=>setEditing({person,day:d}):undefined} style={{background:i%2?C.surface:"#fff",cursor:canEdit?"pointer":"default"}}>
+                    <td style={{...cell,color:C.text,fontWeight:700}}>{d}</td>
+                    <td style={cell}>{st.filled&&!st.isLeave?entry.in:"—"}</td>
+                    <td style={cell}>{st.filled&&!st.isLeave?(entry.out||"—"):"—"}</td>
+                    <td style={{...cell,textAlign:"right"}}>{statusEl}</td>
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>;
+    })}
+    {canEdit&&editing&&<DayEditModal person={editing.person} day={editing.day} monthLabel={`${MONTH_NAMES[month]} ${year}`} entry={attendance[editing.person.id]?.[editing.day]} hours={resolveHours(hoursFor(editing.person,hours),year,month,editing.day)}
+      onSave={(day,entry)=>saveDayCard(editing.person.id,day,entry)} onClose={()=>setEditing(null)}/>}
   </div>;
 }
 

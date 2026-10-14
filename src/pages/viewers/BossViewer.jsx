@@ -1,6 +1,6 @@
 // EMAX NETWORK — Boss Viewer (All Branches, Read-Only)
 import { useState, useEffect, useMemo, useRef, Fragment } from "react";
-import { TargetReportStrip, computeSRTiers, SRCardHeader, BMCardHeader, BranchBreakdownRow, buildBranchBreakdown } from "../../TargetReport.jsx";
+import { TargetReportStrip, computeSRTiers, SRCardHeader, BMCardHeader, BranchBreakdownRow, buildBranchBreakdown, BranchHeroCard, SRPerformanceHeading } from "../../TargetReport.jsx";
 import { loadData, saveData, supabase } from "../../storage/index.js";
 import { listCustomers, getPaymentsForCustomers } from "../../storage/rtoApi.js";
 import { listOrders, reconcile } from "../../storage/ordersApi.js";
@@ -18,7 +18,7 @@ import {SRBMModal,TargetModal,DailyEntry} from "../../App.jsx";
 import { mergeOrderPermissions } from "../../auth/orderRoles.js";
 import { RTOSummaryInner, RTOLatePaymentTodoList } from "../../RTOSummary.jsx";
 import ExpectedProfitTable from "../../ExpectedProfitTable.jsx";
-import AttendanceTab from "../../AttendanceTab.jsx";
+import AttendanceTab, { BranchAttendanceCards } from "../../AttendanceTab.jsx";
 
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -211,7 +211,20 @@ function RankMedal({rank}){
   return <span style={{fontWeight:700,color:"#8A96A8"}}>#{rank}</span>;
 }
 
-function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalance=0,pointsAsOf="",onStatusHistory}){
+function EC({value,onSave,color="#4A5568"}){
+  const [editing,setEditing]=useState(false);
+  const [val,setVal]=useState("");
+  const commit=()=>{onSave(isNaN(parseFloat(val))?0:parseFloat(val));setEditing(false);};
+  if(editing)return <td style={{padding:"2px 6px",background:"#FFFBEB",textAlign:"right"}}>
+    <input autoFocus type="number" value={val} step="0.01" onChange={e=>setVal(e.target.value)} onBlur={commit}
+      onKeyDown={e=>{if(e.key==="Enter")commit();if(e.key==="Escape")setEditing(false);}}
+      style={{width:80,padding:"3px 8px",border:"1.5px solid #F5A623",borderRadius:6,fontSize:11,outline:"none",fontFamily:"'Inter',sans-serif",textAlign:"right"}}/></td>;
+  return <td onClick={()=>{setVal(value!==0?value:"");setEditing(true);}} title="Click to edit"
+    style={{padding:"4px 12px",textAlign:"right",cursor:"pointer",color:value>0?color:value<0?"#F0354B":"#E4EAF2",fontWeight:value!==0?600:400,fontSize:11,whiteSpace:"nowrap"}}>
+    {value!==0?f2(value):"—"}</td>;
+}
+
+function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalance=0,pointsAsOf="",onStatusHistory,onEdit}){
   const target=targets?.sr?.[sr.id]?.target||0,bonus=targets?.sr?.[sr.id]?.bonus||0;
   const rows=days.map(d=>{const k=`${d}/${month}/${year}`,v=records[k]?.[sr.id]||{};return{day:d,wi:v.walkin||0,ae:v.aeon||0};});
   const tWI=rows.reduce((s,r)=>s+r.wi,0),tAE=rows.reduce((s,r)=>s+r.ae,0),total=tWI+tAE;
@@ -233,8 +246,9 @@ function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalanc
         const rt=wi+ae;
         return <tr key={day} className="shine-row" style={{borderBottom:"1px solid rgba(228,234,242,.8)",background:day%2===0?"#fff":"#F7F9FC"}}>
           <td style={{padding:"4px 8px",color:"#4A5568",fontWeight:600,textAlign:"center",fontSize:11,borderRight:"1px solid rgba(228,234,242,.6)"}}>{day}/{month}</td>
+          {onEdit?<><EC value={wi} onSave={v=>onEdit(`${day}/${month}/${year}`,sr.id,"walkin",v)}/><EC value={ae} onSave={v=>onEdit(`${day}/${month}/${year}`,sr.id,"aeon",v)}/></>:<>
           <td style={{padding:"4px 12px",textAlign:"right",fontSize:11,color:wi!==0?"#4A5568":"#E4EAF2",fontWeight:wi!==0?500:300}}>{wi!==0?f2(wi):"—"}</td>
-          <td style={{padding:"4px 12px",textAlign:"right",fontSize:11,color:ae!==0?"#4A5568":"#E4EAF2",fontWeight:ae!==0?500:300}}>{ae!==0?f2(ae):"—"}</td>
+          <td style={{padding:"4px 12px",textAlign:"right",fontSize:11,color:ae!==0?"#4A5568":"#E4EAF2",fontWeight:ae!==0?500:300}}>{ae!==0?f2(ae):"—"}</td></>}
           <td style={{padding:"4px 12px",textAlign:"right",fontWeight:rt!==0?600:300,fontSize:11,color:rt>0?"#0A1628":rt<0?"#F0354B":"#E4EAF2"}}>{rt!==0?f2(rt):"—"}</td>
         </tr>;
       })}</tbody>
@@ -302,7 +316,7 @@ function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalanc
   </div>;
 }
 
-function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewardBalance=0,pointsAsOf="",onStatusHistory}){
+function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewardBalance=0,pointsAsOf="",onStatusHistory,onEdit}){
   const meta=branchMeta[branchId]||{},bSRs=srList.filter(s=>s.branch===branchId);
   const managerId=meta.managerId||branchId;
   const target=targets?.bm?.[branchId]||0,bmBonus=targets?.bmBonus?.[branchId]||0,bmBasic=targets?.bmBasic?.[branchId]||0;
@@ -332,7 +346,7 @@ function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewa
         const rt=wi+ae+ua;
         return <tr key={day} className="shine-row" style={{borderBottom:"1px solid rgba(228,234,242,.8)",background:day%2===0?"#fff":"#F7F9FC"}}>
           <td style={{padding:"4px 8px",color:"#4A5568",fontWeight:600,textAlign:"center",fontSize:11,borderRight:"1px solid rgba(228,234,242,.6)"}}>{day}/{month}</td>
-          <td style={{padding:"4px 10px",textAlign:"right",fontSize:11,color:ua<0?"#F0354B":"#8A96A8"}}>{ua!==0?f2(ua):"—"}</td>
+          {onEdit?<EC value={ua} color="#8A96A8" onSave={v=>onEdit(`${day}/${month}/${year}`,`BM_${branchId}`,"unalloc",v)}/>:<td style={{padding:"4px 10px",textAlign:"right",fontSize:11,color:ua<0?"#F0354B":"#8A96A8"}}>{ua!==0?f2(ua):"—"}</td>}
           <td style={{padding:"4px 10px",textAlign:"right",fontSize:11,color:wi!==0?"#4A5568":"#E4EAF2",fontWeight:wi!==0?500:300}}>{wi!==0?f2(wi):"—"}</td>
           <td style={{padding:"4px 10px",textAlign:"right",fontSize:11,color:ae!==0?"#4A5568":"#E4EAF2",fontWeight:ae!==0?500:300}}>{ae!==0?f2(ae):"—"}</td>
           <td style={{padding:"4px 10px",textAlign:"right",fontWeight:rt!==0?600:300,fontSize:11,color:rt>0?"#0A1628":rt<0?"#F0354B":"#E4EAF2"}}>{rt!==0?f2(rt):"—"}</td>
@@ -756,6 +770,16 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   const [selEndDay,setSelEndDay]=useState(daysInMonth(now.getMonth()+1,now.getFullYear()));
   const periodDays=days.filter(d=>d>=selStartDay&&d<=selEndDay);
   const [selBranch,setSelBranch]=useState(BRANCH_ORDER[0]);
+  const [reportSrView,setReportSrView]=useState("sales");
+  const handleReportEdit=async(dateKey,srId,field,value)=>{
+    const rk=`emax_v5_records_${selYear}_${selMonth}`;
+    const latest=(await loadData(rk))||records;
+    const nr={...latest};
+    if(!nr[dateKey])nr[dateKey]={};
+    if(!nr[dateKey][srId])nr[dateKey][srId]={walkin:0,aeon:0,unalloc:0,repair:0};
+    nr[dateKey][srId][field]=value;
+    setRecords(nr);await saveData(rk,nr);
+  };
   const [tab,setTabRaw]=useState(()=>{const h=window.location.hash.replace("#","");const allowed=isHR?["overview","rankings","points","report","repair","rto","todoRtoHR","orders","attendance"]:isKnockOff?["overview","report","daily","orders","dailySales","dailyPayment"]:["overview","todoPickup","todoRto","rankings","points","report","repair","rto","orders","dailySales","jclApplications","chaileaseApplications","stockProfit","stockWriteOff","warranty","attendance",...(elevateOrderAccess?["purchaseOrder","stockTransfer"]:[])];return allowed.includes(h)?h:"overview";});
   const setTab=(t)=>{setTabRaw(t);window.location.hash=t;};
   // Consolidated "To Do List" tab (Boon Theng/Sophia only) — same as the
@@ -1114,6 +1138,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
   const isAttendanceSophia=attendanceEmail==="sophiawsc9395@gmail.com";
   const isAttendanceHR=isHR&&attendanceEmail==="emaxhr@gmail.com";
   const isAttendanceCrossViewer=["boontheng2004@gmail.com","wingfeii@gmail.com"].includes(attendanceEmail);
+  const canEditReport=isKnockOff||isAttendanceSophia;
   const attendanceRole=isAttendanceSophia?"full-sophia":isAttendanceHR?"full-hr":isAttendanceCrossViewer?"view-cross":null;
   // "All Branch" pill (see AttendanceTab.jsx canViewAllBranch) — Sophia and
   // the two cross-branch viewers only, never emaxhr.
@@ -1128,7 +1153,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {id:"rto",label:"RTO Summary"},
       {id:"todoRtoHR",label:"RTO Payment Reminder To-Do"},
       {id:"orders",label:"Order Tracking"},
-      ...(attendanceRole?[{id:"attendance",label:"Attendance"}]:[]),
+      ...(attendanceRole&&attendanceRole!=="view-cross"?[{id:"attendance",label:"Attendance"}]:[]),
     ]
     :isKnockOff
     ?[
@@ -1167,7 +1192,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       ]},
       {id:"stockProfit",label:"Stock Profit Checker"},
       ...(elevateOrderAccess?[{id:"stockTransfer",label:"Stock Transfer"}]:[]),
-      ...(attendanceRole?[{id:"attendance",label:"Attendance"}]:[]),
+      ...(attendanceRole&&attendanceRole!=="view-cross"?[{id:"attendance",label:"Attendance"}]:[]),
     ];
   const [expandedGroups,setExpandedGroups]=useState(()=>{
     const initial={};
@@ -1363,11 +1388,20 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
           const bTarget=targets?.bm?.[selBranch]||0;
           const bTot=BRANCH_ORDER.includes(selBranch)?fullMonthBranchTotals[selBranch]?.total||0:0;
           const branchPct=pctN(bTot,bTarget);
+          const selMeta=bMeta[selBranch]||{};
+          const selMgrId=selMeta.managerId||selBranch;
           return <div>
+            <BranchHeroCard name={selMeta.name||selBranch} bmName={selMeta.manager} mStatus={selMeta.mStatus}
+              onHistory={()=>{setStatusModalPerson(`BM_${selBranch}`);setShowStatusHistoryModal(true);}}
+              branchPct={branchPct} bTarget={bTarget} bTotal={bTot} pointsAsOf={pointsAsOf}
+              pointsBalance={rewardBalances[`BM_${selMgrId}`]?.balance||0}
+              tiers={computeSRTiers({p:branchPct,branchPct,calcBonus:calcAchievementBonus,calcPoints:calcRewardPoints,role:"bm"})}/>
+            <SRPerformanceHeading view={reportSrView} onView={setReportSrView} subtitle={reportSrView==="att"?`${MONTHS[month-1]} ${year} attendance`:`${bSRs.length} sales reps · ranked by achievement`}/>
+            {reportSrView==="att"?<BranchAttendanceCards branchMeta={bMeta} srList={srList.filter(s=>s.branch===selBranch)} branchId={selBranch} year={year} month={month} canEdit={attendanceRole==="full-sophia"||attendanceRole==="full-hr"}/>:
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
-              {bSRs.map(sr=><SRCard key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} month={month} year={year} days={days} bMeta={bMeta} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOf} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>)}
-              <BMCard branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={bMeta} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${bMeta[selBranch]?.managerId||selBranch}`]?.balance||0} pointsAsOf={pointsAsOf} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>
-            </div>
+              {bSRs.map(sr=><SRCard key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} month={month} year={year} days={days} bMeta={bMeta} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOf} onEdit={canEditReport?handleReportEdit:undefined} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>)}
+              <BMCard branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={bMeta} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${bMeta[selBranch]?.managerId||selBranch}`]?.balance||0} pointsAsOf={pointsAsOf} onEdit={canEditReport?handleReportEdit:undefined} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>
+            </div>}
             <div style={{marginTop:16}}><PdfDownloads month={month} year={year} branch={selBranch}/></div>
           </div>;
         })()}
@@ -1423,7 +1457,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {tab==="purchaseOrder"&&elevateOrderAccess&&<div className="fade-in"><PurchaseOrderTab branchMeta={bMeta} isAdmin={elevateOrderAccess} email={currentEmail}/></div>}
       {tab==="warranty"&&!isStockExecOnly&&<div className="fade-in"><WarrantyTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
       {tab==="stockWriteOff"&&!isStockExecOnly&&<div className="fade-in"><StockWriteOffTab branchMeta={bMeta} isAdmin={elevateOrderAccess||["sophiawsc9395@gmail.com","emaxwarranty@gmail.com"].includes((currentEmail||"").toLowerCase())} email={currentEmail}/></div>}
-      {tab==="attendance"&&attendanceRole&&<div className="fade-in"><AttendanceTab branchMeta={bMeta} srList={srList} isAdmin={attendanceRole==="full-sophia"||attendanceRole==="full-hr"} canManageHours={attendanceRole==="full-sophia"} allowBranchSwitch={attendanceRole==="view-cross"} canViewAllBranch={canViewAllBranchAttendance} email={currentEmail}/></div>}
+      {tab==="attendance"&&attendanceRole&&attendanceRole!=="view-cross"&&<div className="fade-in"><AttendanceTab branchMeta={bMeta} srList={srList} isAdmin={attendanceRole==="full-sophia"||attendanceRole==="full-hr"} canManageHours={attendanceRole==="full-sophia"} allowBranchSwitch={attendanceRole==="view-cross"} canViewAllBranch={canViewAllBranchAttendance} email={currentEmail}/></div>}
       {tab==="dailyPayment"&&isKnockOff&&<div className="fade-in"><DailyPaymentTab email={currentEmail} pendingByCompany={pendingDailyPaymentByCompany}/></div>}
     </div>{/* end main content */}
 
