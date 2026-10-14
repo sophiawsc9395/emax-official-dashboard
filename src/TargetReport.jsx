@@ -145,7 +145,7 @@ export function TargetReportStrip({ target, actual, tiers }) {
 /* ── Overview: expanded table list for one branch ─────────────────────── */
 export function BranchBreakdownRow({ rows, colSpan, title }) {
   const th = (e = {}) => ({ padding: "7px 14px", fontSize: 9.5, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "right", background: "#EEF2F8", whiteSpace: "nowrap", ...e });
-  const td = (e = {}) => ({ padding: "8px 14px", fontSize: 12, whiteSpace: "nowrap", borderBottom: "1px solid rgba(228,234,242,.7)", ...e });
+  const td = (e = {}) => ({ padding: "8px 14px", fontSize: 12, whiteSpace: "nowrap", borderBottom: "1px solid rgba(228,234,242,.7)", textAlign: "right", color: "#4A5568", ...e });
   const YES = "#00C896", NO = "#F0354B";
   return (
     <tr>
@@ -155,26 +155,28 @@ export function BranchBreakdownRow({ rows, colSpan, title }) {
           <div style={{ overflowX: "auto", background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 8 }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
               <thead><tr>
-                <th style={th({ textAlign: "left" })}>Name</th><th style={th({ textAlign: "left" })}>Achievement</th><th style={th({ textAlign: "left" })}>Role</th>
-                <th style={th()}>Profit Target</th><th style={th()}>Actual Profit</th><th style={th()}>Balance</th>
+                <th style={th({ textAlign: "left" })}>Name</th><th style={th()}>Achievement</th><th style={th()}>Total Profit</th>
+                <th style={th()}>Walk In</th><th style={th()}>Invoice</th><th style={th()}>Balance</th><th style={th()}>Monthly Target</th>
               </tr></thead>
               <tbody>
-                {rows.length === 0 && <tr><td colSpan={6} style={td({ textAlign: "center", color: "#8A96A8" })}>No data</td></tr>}
+                {rows.length === 0 && <tr><td colSpan={7} style={td({ textAlign: "center", color: "#8A96A8" })}>No data</td></tr>}
                 {rows.map((p, i) => {
                   const hasT = p.target > 0, ok = hasT && p.actual >= p.target, cc = ok ? YES : NO, pc = pctOf(p.actual, p.target);
+                  const bal = p.actual - p.target;
                   return (
                     <tr key={p.key} style={{ background: p.bm ? "#FAFBFD" : i % 2 ? SURFACE : "#fff" }}>
-                      <td style={td({ textAlign: "left", fontWeight: p.bm ? 800 : 600, color: NAVY })}>{p.name}</td>
-                      <td style={td({ minWidth: 170 })}>
-                        {hasT ? <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div style={{ width: 80, height: 6, background: BORDER, borderRadius: 99, overflow: "hidden" }}><div style={{ width: `${Math.min(pc, 100)}%`, height: "100%", background: cc }} /></div>
-                          <b style={{ color: cc, fontSize: 12 }}>{pc.toFixed(1)}%</b>
-                        </div> : <span style={{ color: "#8A96A8" }}>No target</span>}
+                      <td style={td({ textAlign: "left", fontSize: 11, fontWeight: p.bm ? 700 : 600, color: NAVY })}>
+                        {p.name}
+                        <div style={{ fontSize: 10, fontWeight: 400, color: MUTED, marginTop: 1 }}>{p.role}</div>
                       </td>
-                      <td style={td({ textAlign: "left", color: MUTED, fontSize: 11 })}>{p.role}</td>
-                      <td style={td({ textAlign: "right", color: "#4A5568" })}>{hasT ? rm(p.target) : "—"}</td>
-                      <td style={td({ textAlign: "right", color: NAVY, fontWeight: 600 })}>{rm(p.actual)}</td>
-                      <td style={td({ textAlign: "right", color: "#4A5568" })}>{hasT ? `${ok ? "+" : ""}${rm(p.actual - p.target)}` : "—"}</td>
+                      <td style={td()}>
+                        {hasT ? <span style={{ background: cc + "12", color: cc, padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700 }}>{pc.toFixed(2)}%</span> : <span style={{ color: "#8A96A8" }}>—</span>}
+                      </td>
+                      <td style={td()}>{p.actual > 0 ? rm(p.actual) : "—"}</td>
+                      <td style={td()}>{p.wi ? rm(p.wi) : "—"}</td>
+                      <td style={td()}>{p.ae > 0 ? rm(p.ae) : "—"}</td>
+                      <td style={td()}>{hasT ? `${bal >= 0 ? "+" : ""}${rm(Math.abs(bal))}` : "—"}</td>
+                      <td style={td()}>{hasT ? rm(p.target) : "—"}</td>
                     </tr>
                   );
                 })}
@@ -192,19 +194,21 @@ export function BranchBreakdownRow({ rows, colSpan, title }) {
  * for the period) first, then every visible SR ranked by achievement.
  */
 export function buildBranchBreakdown({ branchId, branchMeta, srList, targets, records, month, year, startDay, endDay, bmTotal, isVisible }) {
-  const sum = (id) => {
-    let t = 0;
+  const parts = (id) => {
+    let wi = 0, ae = 0;
     for (let d = startDay; d <= endDay; d++) {
       const v = records?.[`${d}/${month}/${year}`]?.[id] || {};
-      t += (v.walkin || 0) + (v.aeon || 0);
+      wi += v.walkin || 0; ae += v.aeon || 0;
     }
-    return t;
+    return { wi, ae };
   };
+  const sum = (id) => { const x = parts(id); return x.wi + x.ae; };
   const srs = srList
     .filter((s) => s.branch === branchId && (!isVisible || isVisible(s)))
-    .map((s) => ({ key: s.id, name: s.canon, role: `${s.type} SR`, target: targets?.sr?.[s.id]?.target || 0, actual: sum(s.id) }))
+    .map((s) => ({ key: s.id, name: s.canon, role: `${s.type} SR`, target: targets?.sr?.[s.id]?.target || 0, actual: sum(s.id), ...parts(s.id) }))
     .sort((a, b) => pctOf(b.actual, b.target) - pctOf(a.actual, a.target));
-  const bm = { key: `BM_${branchId}`, name: branchMeta?.[branchId]?.manager || "Branch Manager", role: "Branch Manager", target: targets?.bm?.[branchId] || 0, actual: bmTotal || 0, bm: true };
+  const bmParts = [`BM_${branchId}`, ...srList.filter((s) => s.branch === branchId && (!isVisible || isVisible(s))).map((s) => s.id)].map(parts);
+  const bm = { key: `BM_${branchId}`, name: branchMeta?.[branchId]?.manager || "Branch Manager", role: "Branch Manager", target: targets?.bm?.[branchId] || 0, actual: bmTotal || 0, wi: bmParts.reduce((t, x) => t + x.wi, 0), ae: bmParts.reduce((t, x) => t + x.ae, 0), bm: true };
   return [bm, ...srs];
 }
 
