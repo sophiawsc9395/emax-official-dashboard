@@ -2,7 +2,7 @@
 // Change BRANCH_ID below for each branch link
 // KM | T1 | TW2 | TW1 | LD | KB | T5 | ITCC | TENOM | HQ
 import { useState, useEffect, useMemo } from "react";
-import { TargetReportStrip } from "../../TargetReport.jsx";
+import { TargetReportStrip, computeSRTiers, SRCardHeader } from "../../TargetReport.jsx";
 import { loadData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
@@ -815,21 +815,8 @@ export default function App(){
   const achBonus=calcAchievementBonus(p),points=calcRewardPoints(p,branchPct);
   const thS={padding:"6px 12px",fontSize:10,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",whiteSpace:"nowrap"};
   return <div key={sr.id} style={{border:"1px solid #E4EAF2",borderRadius:14,overflow:"hidden",background:"#fff",boxShadow:"0 2px 8px rgba(10,22,40,.06)"}}>
-    <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"14px 16px"}}>
-      <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>EMAX NETWORK SDN BHD</div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:5,gap:8}}>
-        <span style={{fontWeight:800,fontSize:15,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sr.canon}</span>
-        <span style={{flexShrink:0}}><TypeTag type={sr.type}/></span>
-      </div>
-    </div>
-    <div style={{padding:"7px 16px",background:"#0F2040",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
-      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-        <StatusTag status={sr.status}/>
-        <button onClick={()=>{setStatusModalPerson(sr.id);setShowStatusHistoryModal(true);}} style={{fontSize:9,fontWeight:700,padding:"2px 6px",borderRadius:4,border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:"rgba(255,255,255,.45)",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>History</button>
-      </div>
-      <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}}>{(bMeta[sr.branch]?.name||sr.branch).toUpperCase()}</span>
-    </div>
-    <TargetReportStrip target={target} actual={total}/>
+    <SRCardHeader sr={sr} branchName={(bMeta[sr.branch]?.name||sr.branch).toUpperCase()} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>
+    <TargetReportStrip target={target} actual={total} tiers={computeSRTiers({p,branchPct,calcBonus:calcAchievementBonus,calcPoints:calcRewardPoints})}/>
     <table style={{width:"100%",borderCollapse:"collapse"}}>
       <thead><tr>
         <th style={{...thS,textAlign:"center",width:48}}>Date</th>
@@ -905,31 +892,6 @@ export default function App(){
         <span style={{color:"#5A6472",flex:1,minWidth:0}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
         <span style={{fontSize:11,color:"#4A5568",whiteSpace:"nowrap",flexShrink:0}}>{(rewardBalances[sr.id]?.balance||0).toLocaleString()} pts</span>
       </div>
-
-      {/* Compact tier progress — same blue/violet cards as the Branch Manager's incentive strip, only shown when at least one tier is active */}
-      {((branchPct>=120&&p>=100)||(branchPct>=100&&p>=110))&&(()=>{
-        const bTier=branchPct>=120&&p>=100?Math.floor((branchPct-120)/10)+1:null;
-        const bNextPct=bTier?120+bTier*10:null;
-        const bMax=bNextPct>200;
-        const pts=calcRewardPoints(p,branchPct);
-        const TIERS=[[110,500],[120,1000],[130,1500],[140,2000],[150,3000],[160,4500],[170,6000],[180,7500],[190,9000],[200,12000]];
-        const pTierIdx=branchPct>=100&&p>=110?TIERS.reduce((acc,[t],i)=>p>=t?i:acc,-1):-1;
-        const pNext=pTierIdx>=0?TIERS[pTierIdx+1]:null;
-        return <div style={{display:"flex",flexDirection:"column",gap:6,marginTop:6}}>
-          {bTier&&<div style={{background:"linear-gradient(135deg,#EFF6FF,#DBEAFE)",borderRadius:9,padding:"9px 11px",border:"1px solid #93C5FD"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span style={{fontSize:10.5,color:"#1E3A8A",fontWeight:600}}>Bonus Tier {bTier}{!bMax?` → next at ${bNextPct}%`:" (max)"}</span>
-              <span style={{fontSize:11.5,fontWeight:700,color:"#1D4ED8"}}>{!bMax?fRM(calcAchievementBonus(bNextPct,"sr")):"Max"}</span>
-            </div>
-          </div>}
-          {pTierIdx>=0&&<div style={{background:"linear-gradient(135deg,#F5F0FF,#EDE4FF)",borderRadius:9,padding:"9px 11px",border:"1px solid #C4B5FD"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <span style={{fontSize:10.5,color:"#5B21B6",fontWeight:600}}>Points Tier {pTierIdx+1}{pNext?` → next at ${pNext[0]}%`:" (max)"}</span>
-              <span style={{fontSize:11.5,fontWeight:700,color:"#6D28D9"}}>{pNext?pNext[1].toLocaleString()+" pts":"Max"}</span>
-            </div>
-          </div>}
-        </div>;
-      })()}
 
     </div>
   </div>;

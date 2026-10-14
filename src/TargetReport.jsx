@@ -34,7 +34,61 @@ function Donut({ pct, color, size = 92, stroke = 10 }) {
   );
 }
 
-export function TargetReportBlock({ target, actual }) {
+const fmtRM = (n) => "RM " + Number(n || 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const PT_TIERS = [[110, 500], [120, 1000], [130, 1500], [140, 2000], [150, 3000], [160, 4500], [170, 6000], [180, 7500], [190, 9000], [200, 12000]];
+const clamp01 = (x) => Math.max(0, Math.min(100, x));
+
+/** Bonus + Points tier state for one SR, from the existing bonus rules. */
+export function computeSRTiers({ p, branchPct, calcBonus, calcPoints, role = "sr" }) {
+  // Branch Achievement Bonus: branch >=120% AND personal >=100%, +1 tier per 10% of branch achievement
+  const bOn = branchPct >= 120 && p >= 100;
+  const bN = bOn ? Math.floor((branchPct - 120) / 10) + 1 : 0;
+  const bMax = bOn && 120 + bN * 10 > 200;
+  const bFrom = bOn ? 120 + (bN - 1) * 10 : 0, bAt = bOn ? 120 + bN * 10 : 120;
+  const bonus = {
+    n: bN, max: bMax, cur: fmtRM(bOn ? calcBonus(branchPct, role) : 0),
+    next: bMax || !bOn && false ? "" : fmtRM(calcBonus(bAt, role)),
+    prog: bMax ? 100 : bOn ? clamp01(((branchPct - bFrom) / (bAt - bFrom)) * 100) : clamp01((branchPct / 120) * 100),
+    label: bMax ? "Highest tier reached" : bOn ? `Branch ${bFrom}% → ${bAt}%` : p >= 100 ? "Needs branch at 120%" : "Needs branch 120% + personal 100%",
+  };
+  // Reward points: branch >=100% AND personal >=110%, one tier per 10% personal
+  const pOn = branchPct >= 100 && p >= 110;
+  const idx = pOn ? PT_TIERS.reduce((a, [th], i) => (p >= th ? i : a), -1) : -1;
+  const nxt = idx >= 0 ? PT_TIERS[idx + 1] : PT_TIERS[0];
+  const pMax = pOn && !PT_TIERS[idx + 1];
+  const pFrom = idx >= 0 ? PT_TIERS[idx][0] : 0;
+  const points = {
+    n: idx >= 0 ? idx + 1 : 0, max: pMax, cur: (pOn ? calcPoints(p, branchPct) : 0).toLocaleString() + " pts",
+    next: pMax ? "" : nxt[1].toLocaleString() + " pts",
+    prog: pMax ? 100 : idx >= 0 ? clamp01(((p - pFrom) / (nxt[0] - pFrom)) * 100) : clamp01((p / 110) * 100),
+    label: pMax ? "Highest tier reached" : pOn ? `Personal ${pFrom}% → ${nxt[0]}%` : branchPct < 100 ? "Needs branch at 100%" : "Needs personal 110%",
+  };
+  return { bonus, points };
+}
+
+function TierCard({ title, t }) {
+  const on = t.n > 0;
+  return (
+    <div style={{ background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "9px 11px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: ".08em" }}>{title}</span>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 8px", borderRadius: 99, background: on ? NAVY : BORDER, color: on ? "#fff" : MUTED, whiteSpace: "nowrap" }}>{on ? `Tier ${t.n}` : "Not reached"}</span>
+        </div>
+        <span style={{ fontSize: 15, fontWeight: 800, color: on ? NAVY : "#8A96A8", whiteSpace: "nowrap" }}>{t.cur}</span>
+      </div>
+      <div style={{ height: 7, background: BORDER, borderRadius: 99, overflow: "hidden", margin: "8px 0 5px" }}>
+        <div style={{ width: t.prog + "%", height: "100%", background: "linear-gradient(90deg,#162B52,#2F5597)", borderRadius: 99 }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 10, color: MUTED }}>
+        <span>{t.label}</span>
+        <span style={{ whiteSpace: "nowrap" }}>{t.max ? "Max" : <>Next tier <b style={{ color: NAVY }}>{t.next}</b></>}</span>
+      </div>
+    </div>
+  );
+}
+
+export function TargetReportBlock({ target, actual, tiers }) {
   if (!(target > 0)) return null;
   const pct = pctOf(actual, target), met = actual >= target, color = met ? GREEN : RED;
   return (
@@ -54,16 +108,19 @@ export function TargetReportBlock({ target, actual }) {
         <i style={{ width: 8, height: 8, borderRadius: 99, background: color, display: "inline-block", flexShrink: 0 }} />
         Profit achievement rate · <b style={{ color }}>{met ? "Target achieved" : "Not achieved yet"}</b>
       </div>
+      {tiers && <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+        <TierCard title="Bonus" t={tiers.bonus} /><TierCard title="Points" t={tiers.points} />
+      </div>}
     </div>
   );
 }
 
 /** Convenience wrapper: the block with the padded strip it sits in at the top of a card. */
-export function TargetReportStrip({ target, actual }) {
+export function TargetReportStrip({ target, actual, tiers }) {
   if (!(target > 0)) return null;
   return (
     <div style={{ padding: "12px 14px 2px", background: SURFACE, borderBottom: `1px solid ${BORDER}` }}>
-      <TargetReportBlock target={target} actual={actual} />
+      <TargetReportBlock target={target} actual={actual} tiers={tiers} />
     </div>
   );
 }
@@ -137,4 +194,39 @@ export function buildBranchBreakdown({ branchId, branchMeta, srList, targets, re
     .sort((a, b) => pctOf(b.actual, b.target) - pctOf(a.actual, a.target));
   const bm = { key: `BM_${branchId}`, name: branchMeta?.[branchId]?.manager || "Branch Manager", role: "Branch Manager", target: targets?.bm?.[branchId] || 0, actual: bmTotal || 0, bm: true };
   return [bm, ...srs];
+}
+
+/* ── Person card header (shared by SR and BM cards) ─────────────────────
+ * Name + "Role · Branch" on the left, status chip + Pass/Fail below,
+ * History button on the right. */
+function PersonHeader({ name, sub, status, onHistory }) {
+  const raw = status || "";
+  const baseM = raw.match(/^(Training|Probation|Confirmed|Director|Resigned)/i);
+  const base = baseM ? baseM[1].charAt(0).toUpperCase() + baseM[1].slice(1).toLowerCase() : "Probation";
+  const nf = raw.match(/P(\d+)\s*F(\d+)/i);
+  const pm = raw.match(/Passed\s+(\d+)/i), fm = raw.match(/Failed\s+(\d+)/i);
+  const pass = nf ? +nf[1] : pm ? +pm[1] : 0, fail = nf ? +nf[2] : fm ? +fm[1] : 0;
+  const showPF = base !== "Director" && base !== "Resigned";
+  const chip = { Confirmed: ["#E6F7F0", "#0B7A54"], Probation: ["#FEF3C7", "#92600A"], Training: ["#E0ECFF", "#1D4ED8"], Director: ["#EDE9FE", "#5B21B6"], Resigned: ["#FDE8EA", "#B42335"] }[base];
+  return (
+    <div style={{ background: "linear-gradient(135deg,#0A1628,#162B52)", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
+        <div style={{ fontSize: 10.5, color: "rgba(255,255,255,.55)", marginTop: 2 }}>{sub}</div>
+        <div style={{ display: "flex", gap: 7, alignItems: "center", marginTop: 7 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 99, background: chip[0], color: chip[1] }}>{base}</span>
+          {showPF && <span style={{ fontSize: 10.5, color: "rgba(255,255,255,.75)", fontWeight: 600 }}>Pass {pass} · Fail {fail}</span>}
+        </div>
+      </div>
+      {onHistory && <button onClick={onHistory} style={{ fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,.3)", background: "transparent", color: "rgba(255,255,255,.8)", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>History</button>}
+    </div>
+  );
+}
+
+export function SRCardHeader({ sr, branchName, onStatusHistory }) {
+  return <PersonHeader name={sr.canon} sub={`${sr.type} SR · ${branchName}`} status={sr.status} onHistory={onStatusHistory ? () => onStatusHistory(sr.id) : null} />;
+}
+
+export function BMCardHeader({ name, branchName, status, onHistory }) {
+  return <PersonHeader name={name} sub={`Branch Manager · ${branchName}`} status={status} onHistory={onHistory} />;
 }
