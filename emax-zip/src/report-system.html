@@ -1,0 +1,2073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emax Group — Daily Financial Report</title>
+<style>
+  :root{
+    --navy:#1C2333;
+    --navy-2:#2A3350;
+    --cream:#F6F4EE;
+    --card:#FFFFFF;
+    --blue-head:#C9D9F0;
+    --amber:#0A1628;
+    --amber-dark:#162B52;
+    --yellow:#FFD500;
+    --ink:#20242E;
+    --muted:#6B7280;
+    --border:#E4E1D6;
+    --danger:#D64545;
+    --good:#2E8B57;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:var(--cream); color:var(--ink);
+  }
+  header{
+    background:var(--navy); color:#fff; padding:18px 16px 14px;
+    position:sticky; top:0; z-index:20;
+  }
+  header h1{
+    margin:0; font-size:18px; letter-spacing:0.2px; font-weight:700;
+  }
+  header .sub{color:#AEB6CC; font-size:12px; margin-top:2px;}
+  .tabs{
+    display:flex; gap:8px; padding:12px 12px 0; overflow-x:auto; background:var(--navy);
+    -ms-overflow-style:none; scrollbar-width:none;
+  }
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab-btn{
+    flex:0 0 auto; padding:9px 14px; border-radius:10px 10px 0 0; border:none;
+    background:var(--navy-2); color:#C7CEDE; font-weight:600; font-size:13px; cursor:pointer;
+    white-space:nowrap;
+  }
+  .tab-btn.active{background:var(--cream); color:var(--navy);}
+  main{padding:14px; max-width:720px; margin:0 auto 90px;}
+  .topbar{
+    display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap;
+  }
+  .topbar label{font-size:12px; color:var(--muted); font-weight:600; display:block; margin-bottom:3px;}
+  .topbar input[type=date], .topbar input[type=time]{
+    padding:8px 10px; border-radius:8px; border:1px solid var(--border); font-size:14px; background:#fff;
+  }
+  .card{
+    background:var(--card); border-radius:12px; margin-bottom:14px; overflow:hidden;
+    border:1px solid var(--border); box-shadow:0 1px 2px rgba(0,0,0,0.03);
+  }
+  .card-head{
+    background:var(--blue-head); padding:10px 14px; font-weight:700; font-size:13.5px;
+    display:flex; justify-content:space-between; align-items:center; color:var(--navy);
+  }
+  .row-list{padding:6px 10px;}
+  .row-item{
+    display:flex; gap:6px; align-items:center; padding:6px 2px; border-bottom:1px solid #F0EEE6;
+  }
+  .row-item:last-child{border-bottom:none;}
+  .row-item input[type=text]{
+    flex:1 1 auto; min-width:0; border:none; background:transparent; font-size:13.5px; padding:6px 4px;
+    border-bottom:1px dashed transparent;
+  }
+  .row-item input[type=text]:focus{outline:none; border-bottom:1px dashed var(--amber);}
+  .row-item .amt-wrap{display:flex; align-items:center; gap:2px; flex:0 0 auto;}
+  .row-item .amt-wrap span{font-size:12px; color:var(--muted);}
+  .row-item input[type=number]{
+    width:100px; text-align:right; border:none; background:#FAF9F5; border-radius:6px; padding:6px 8px;
+    font-size:13.5px; font-variant-numeric:tabular-nums;
+  }
+  .row-item input[type=number]:focus{outline:1.5px solid var(--amber);}
+  .row-item .del{
+    background:none; border:none; color:var(--danger); font-size:16px; cursor:pointer; padding:2px 6px;
+    flex:0 0 auto;
+  }
+  .add-row-btn{
+    margin:8px 10px 10px; padding:7px 12px; border-radius:8px; border:1px dashed #B9B6A8;
+    background:transparent; color:var(--navy-2); font-size:12.5px; font-weight:600; cursor:pointer;
+  }
+  .total-row{
+    background:var(--amber); color:#fff; display:flex; justify-content:space-between;
+    padding:9px 14px; font-weight:700; font-size:13.5px;
+  }
+  .total-row span.tval{font-variant-numeric:tabular-nums;}
+  .fixed-fields{padding:8px 12px 12px;}
+  .field{margin-bottom:8px;}
+  .field label{display:block; font-size:12px; color:var(--muted); font-weight:600; margin-bottom:3px;}
+  .field input{
+    width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--border); font-size:14px;
+    font-variant-numeric:tabular-nums;
+  }
+  .field-row{display:flex; gap:8px;}
+  .field-row .field{flex:1;}
+  .stock-row{
+    display:grid; grid-template-columns:1fr 100px 100px 24px; gap:8px; align-items:center; padding:7px 4px;
+    border-bottom:1px solid #F0EEE6;
+  }
+  .stock-row:last-child{border-bottom:none;}
+  .stock-row input[type=text]{border:none; background:transparent; font-size:13px; padding:5px 2px;}
+  .stock-row input[type=number]{
+    border:none; background:#FAF9F5; border-radius:6px; padding:6px 8px; font-size:12.5px; text-align:right;
+  }
+  .stock-head{
+    display:grid; grid-template-columns:1fr 100px 100px 24px; gap:8px; padding:4px 12px 6px; font-size:9.5px;
+    color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.2px; line-height:1.2;
+  }
+  /* Mini Impian Playground/Other: Item | Unit Price | Qty | Amount | delete */
+  .stock-row.mi-other, .stock-head.mi-other{ grid-template-columns:1fr 70px 52px 80px 26px; }
+    .stock-row.mi-other input[readonly]{ background:#F0EEE6; color:#555; }
+  .save-bar{
+    position:fixed; bottom:0; left:0; right:0; background:#fff; border-top:2px solid var(--border);
+    padding:10px 14px; display:flex; gap:8px; z-index:9999;
+    box-shadow:0 -2px 12px rgba(0,0,0,.08);
+  }
+  .btn{
+    flex:1; padding:12px; border-radius:10px; border:none; font-weight:700; font-size:14px; cursor:pointer;
+  }
+  .btn-primary{background:var(--yellow); color:var(--navy);}
+  .btn-secondary{background:var(--navy); color:#fff;}
+  .history{
+    padding:10px 12px 12px;
+  }
+  .history summary{cursor:pointer; font-weight:600; font-size:13px; color:var(--navy-2); padding:6px 0;}
+  summary{ list-style:none; }
+  summary::-webkit-details-marker{ display:none; }
+  .hist-item{
+    display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom:1px solid #F0EEE6;
+    font-size:13px;
+  }
+  .hist-item button{
+    border:1px solid var(--border); background:#fff; border-radius:7px; padding:5px 10px; font-size:12px; cursor:pointer;
+  }
+  .toast{
+    position:fixed; top:14px; left:50%; transform:translateX(-50%); background:var(--navy); color:#fff;
+    padding:9px 16px; border-radius:20px; font-size:13px; z-index:99; opacity:0; transition:opacity .25s;
+    pointer-events:none;
+  }
+  .toast.show{opacity:1;}
+  .month-picker{margin-bottom:12px;}
+  .month-picker label{font-size:12px; color:var(--muted); font-weight:600; display:block; margin-bottom:3px;}
+  .month-picker input{padding:8px 10px; border-radius:8px; border:1px solid var(--border); font-size:14px;}
+  .empty-hint{font-size:12px; color:var(--muted); padding:8px 12px;}
+  .copy-btn{
+    background:none; border:1px solid var(--border); color:var(--navy-2); font-size:11.5px; font-weight:600;
+    padding:5px 9px; border-radius:7px; cursor:pointer;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Emax Group — Daily Financial Report</h1>
+  <div class="sub">Key in daily figures for each company · saved automatically</div>
+  <div class="tabs" id="tabs"></div>
+</header>
+
+<main id="main"></main>
+
+<div class="save-bar">
+  <button class="btn btn-secondary" id="photoBtn">Save as Photo</button>
+  <button class="btn btn-primary" id="saveBtn">Save Report</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+    // ── Restricted mode: when embedded for a limited-access user (e.g. the
+    // Daily Financial Report tab inside order.html), the parent passes
+    // ?restricted=1&company=...&section=... to lock this page to a single
+    // company with no tab-switching and a single visible section.
+    const _params = new URLSearchParams(location.search);
+    const RESTRICT = _params.get('restricted')==='1' ? {company: _params.get('company'), section: _params.get('section')} : null;
+    // ── window.storage API, bridged to the parent app's real shared
+    // storage via postMessage (this file is a standalone page running in
+    // an iframe, with no direct access to the parent's Supabase
+    // connection or credentials) ──────────────────────────────────────
+    let _reqCounter = 0;
+    const _pending = {};
+    window.addEventListener('message', (e) => {
+      const msg = e.data;
+      if (!msg || msg.source !== 'emax-report-storage-result') return;
+      const resolver = _pending[msg.requestId];
+      if (resolver) { delete _pending[msg.requestId]; resolver(msg.result); }
+    });
+    function _bridgeRequest(action, payload) {
+      return new Promise((resolve) => {
+        const requestId = 'r' + (++_reqCounter) + '_' + Date.now();
+        _pending[requestId] = resolve;
+        // Don't hang forever if the parent never responds for some reason
+        setTimeout(() => { if (_pending[requestId]) { delete _pending[requestId]; resolve(null); } }, 10000);
+        window.parent.postMessage({ source: 'emax-report-storage', action, requestId, ...payload }, '*');
+      });
+    }
+    window.storage = {
+      get: async (key) => {
+        try { return await _bridgeRequest('get', { key }); } catch(e) { return null; }
+      },
+      set: async (key, value) => {
+        try { return await _bridgeRequest('set', { key, value }); } catch(e) { return null; }
+      },
+      delete: async (key) => {
+        try { return await _bridgeRequest('delete', { key }); } catch(e) { return null; }
+      },
+      list: async (prefix) => {
+        try { return await _bridgeRequest('list', { prefix }); } catch(e) { return { keys: [], prefix }; }
+      }
+    };
+    // ──────────────────────────────────────────────────────────────────
+
+const STORAGE_SHARED = true; // shared so the whole team sees the same reports
+
+const COMPANIES = {
+  merged: {
+    name: 'EMAX + Spoon & Fork + Espace X + Mini Impian',
+    shortLabel: 'Combined',
+    hasTime: true,
+    isMerged: true,
+    mergedCompanies: ['spoonfork','espacex','miniImpianBank','emax']
+  },
+  emax: {
+    name: 'EMAX NETWORK SDN BHD',
+    shortLabel: 'Emax',
+    hasTime: true,
+    sections: ['bank','stock','aeon','jcl','chailease','rto','supplier','customer']
+  },
+  spoonfork: {
+    name: 'SPOON & FORK SDN BHD',
+    shortLabel: 'Spoon & Fork',
+    hasTime: true,
+    sections: ['bank']
+  },
+  espacex: {
+    name: 'ESPACE X SDN BHD',
+    shortLabel: 'Espace X (Bank)',
+    hasTime: true,
+    sections: ['bank']
+  },
+  dojo: {
+    name: 'DOJO',
+    shortLabel: 'Dojo (Sales)',
+    hasTime: false,
+    sections: ['salesReport','summary'],
+    photoSections: ['salesReport']
+  },
+  espaceSales: {
+    name: 'ESPACE X — DAILY SALES ANALYSIS',
+    shortLabel: 'Espace X (Sales)',
+    hasTime: false,
+    sections: ['salesReport','playground','activateGame','other']
+  },
+  miniImpianBank: {
+    name: 'MINI IMPIAN',
+    shortLabel: 'Mini Impian (Bank)',
+    hasTime: true,
+    sections: ['bank']
+  },
+  miniImpianSales: {
+    name: 'MINI IMPIAN — DAILY SALES ANALYSIS',
+    shortLabel: 'Mini Impian (Sales)',
+    hasTime: false,
+    sections: ['salesReport','playground','other']
+  }
+};
+
+const QTY_SECTIONS = new Set(['playground','activateGame','other']);
+
+const SECTION_TITLES = {
+  bank:'Bank Balance', stock:'Stock Balance', aeon:'AEON (Unclaimed)',
+  jcl:'JCL (Unclaimed)', chailease:'Chailease (Unclaimed)', rto:'Rent-to-Own (RTO)', supplier:'Supplier', customer:'Customer',
+  salesReport:'Daily Sales Report', summary:'Summary', playground:'Children Playground',
+  activateGame:'Activate Game', other:'Other', rtoCare:'RTO Customers'
+};
+
+function defaultRows(company, section){
+  if(section==='bank'){
+    if(company==='emax') return [
+      {label:'Public Bank',amount:''},{label:'Agro',amount:''},
+      {label:'RHB',amount:''},{label:'RHB (AEON 1st Payment)',amount:''}
+    ];
+    if(company==='spoonfork') return [
+      {label:'Public Bank',amount:''},{label:'Maybank',amount:''},
+      {label:'Alliance Bank',amount:''},{label:'Cash In Hand (Pending Transfer to PBB)',amount:''}
+    ];
+    if(company==='espacex') return [
+      {label:'Maybank',amount:''},{label:'Cash In Hand (Pending Transfer to PBB)',amount:''}
+    ];
+    if(company==='miniImpianBank') return [
+      {label:'Public Bank',amount:''},
+      {label:'Cash in Hand -SDK (PENDING TRANSFER TO PBB)',amount:''},
+      {label:'Cash in Hand -TAWAU (PENDING TRANSFER TO PBB)',amount:''}
+    ];
+  }
+  if(section==='aeon') return [{label:'',amount:''}];
+  if(section==='jcl') return [{label:'',amount:''}];
+  if(section==='chailease') return [{label:'',amount:''}];
+  if(section==='supplier') return [{label:'Xianfeng',amount:''},{label:'E-Century',amount:''}];
+  if(section==='customer') return [{label:'',amount:''}];
+  return [];
+}
+
+function defaultQtyRowsFor(section){
+  if(section==='playground') return [
+    {label:'Socks',qty:'',amount:''},{label:'Daily Pass',qty:'',amount:''},
+    {label:'10 Entries Pass',qty:'',amount:''},{label:'6 Entries Pass',qty:'',amount:''},
+    {label:'Redemption',qty:'',amount:''}
+  ];
+  if(section==='activateGame') return [
+    {label:'Extra Hour',qty:'',amount:''},{label:'(Weekend/SH) One Time Pass',qty:'',amount:''},
+    {label:'(Weekday) One Time Pass',qty:'',amount:''},{label:'10 Entries Pass',qty:'',amount:''},
+    {label:'5 Entries Pass',qty:'',amount:''},{label:'Redemption',qty:'',amount:''}
+  ];
+  if(section==='other') return [{label:'Google Review (Free Socks)',qty:'',amount:''}];
+  return [{label:'',qty:'',amount:''}];
+}
+// Mini Impian Sales' "Other" section starts with these 5 default items per
+// branch, but Sophia can add / remove items. Unit price is entry-only: it
+// drives Amount = Qty x Unit Price and is never shown in the saved photo.
+const MINI_IMPIAN_OTHER_ITEMS = ['Minuman Kotak','Minuman Tin','Mineral Water (S)','Mineral Water (B)','Dutch Lady'];
+function isMiniImpianOther(sec,company){ return company==='miniImpianSales' && sec==='other'; }
+function isMiniImpianUnitPriceSection(sec,company){ return company==='miniImpianSales' && (sec==='playground'||sec==='other'); }
+function miniImpianOtherRows(){
+  return MINI_IMPIAN_OTHER_ITEMS.map(label=>({label, qty:'', amount:'', unitPrice:''}));
+}
+// Reports saved before the editable list only had the single (now removed)
+// Google Review row, or the fixed 4-5 drinks — upgrade only the untouched
+// single-row legacy case so any rows Sophia added are never overwritten.
+function upgradeLegacyMiniImpianOther(rows){
+  if(!Array.isArray(rows)||rows.length===0) return miniImpianOtherRows();
+  if(rows.length===1 && rows[0].label==='Google Review (Free Socks)' && !rows[0].qty && !rows[0].amount) return miniImpianOtherRows();
+  return rows;
+}
+function defaultQtyRows(section,company){
+  if(company==='miniImpianSales'){
+    const mk=()=>isMiniImpianOther(section,company)?miniImpianOtherRows():defaultQtyRowsFor(section).map(r=>({...r}));
+    return { sandakan: mk(), tawau: mk() };
+  }
+  return defaultQtyRowsFor(section);
+}
+
+function defaultSalesReport(company){
+  if(company==='miniImpianSales') return { sandakan:{cash:'',card:'',qr:''}, tawau:{cash:'',card:'',qr:''} };
+  return { cash:'', card:'', qr:'' };
+}
+
+function defaultSummaryData(){
+  return {
+    cashSalesTotal:'', cashSalesDiscount:'',
+    surcharge:'',
+    grabFoodSst:'',
+    foodPandaSst:'',
+    sst:'',
+    aisolove:''
+  };
+}
+
+function defaultStockRows(){
+  return ['CKS','KM','TW2','HQ','ITCC','KB','LD','TW1','SUSPENSE','T1','TENOM']
+    .map(b=>({branch:b, category:'', total:''}));
+}
+
+function defaultRto(){
+  return {
+    contractValue:'', deviceDTP:'', expectedProfit:'', collectedPayment:'',
+    pendingMonths:[{month:'',count:'',amount:''}],
+    nextMonthAmount:'', nextMonthLabel:''
+  };
+}
+
+function migratePendingMonths(d){
+  if(!d.pendingMonths){
+    d.pendingMonths=[{month:d.pendingMonth||'',count:d.pendingCount||'',amount:d.pendingAmount||''}];
+    delete d.pendingMonth; delete d.pendingCount; delete d.pendingAmount;
+  }
+  return d;
+}
+
+const RTO_CARE_FIELDS = [
+  {key:'agent', label:'Agent', type:'text'},
+  {key:'memberId', label:'Emax Member ID', type:'text'},
+  {key:'customerName', label:'Customer Name', type:'text'},
+  {key:'branch', label:'Branch', type:'text'},
+  {key:'contactNumber', label:'Contact Number', type:'text'},
+  {key:'salesInvoiceDate', label:'Sales Invoice Date', type:'date'},
+  {key:'tenure', label:'Tenure (months)', type:'number'},
+  {key:'fp', label:'FP (RM)', type:'number'},
+  {key:'branchProfit', label:'Branch Profit (RM)', type:'number'},
+  {key:'ag', label:'AG (RM)', type:'number'},
+  {key:'sf', label:'SF (RM)', type:'number'},
+  {key:'cost', label:'Cost (RM)', type:'number'},
+  {key:'monthlyInstallment', label:'Monthly Installment (RM)', type:'number'},
+  {key:'totalContractValue', label:'Total Contract Value (RM)', type:'number'},
+  {key:'paymentReceived', label:'Payment Received (RM)', type:'number'},
+  {key:'autoDebitStartDate', label:'Auto Debit Start Date', type:'date'},
+];
+
+function defaultRtoCareRecord(){
+  const rec = { schedule:[] };
+  RTO_CARE_FIELDS.forEach(f=>{ rec[f.key] = ''; });
+  return rec;
+}
+
+function ordinal(n){
+  const s=['th','st','nd','rd'], v=n%100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
+}
+
+function blankReport(company){
+  const r = { date:new Date().toISOString().slice(0,10), time:'', sections:{} };
+  const cfg = COMPANIES[company];
+  cfg.sections.forEach(sec=>{
+    if(sec==='stock') r.sections.stock = defaultStockRows();
+    else if(sec==='rto') r.sections.rto = defaultRto();
+    else if(sec==='salesReport') r.sections.salesReport = defaultSalesReport(company);
+    else if(sec==='summary') r.sections.summary = defaultSummaryData();
+    else if(sec==='rtoCare') r.sections.rtoCare = [defaultRtoCareRecord()];
+    else if(QTY_SECTIONS.has(sec)) r.sections[sec] = defaultQtyRows(sec,company);
+    else r.sections[sec] = defaultRows(company, sec);
+  });
+  return r;
+}
+
+function blankFailedLog(){
+  return { month:new Date().toISOString().slice(0,7), rows:[{name:'',contact:'',amount:''}] };
+}
+
+let currentCompany = 'merged';
+let refreshSummaryFn = null;
+let currentData = blankReport('emax');
+let currentFailed = blankFailedLog();
+let mergedDataByCompany = null; // {emax:{...},spoonfork:{...},espacex:{...},miniImpianBank:{...}} when in merged mode, else null
+
+function num(v){ const n = parseFloat(v); return isNaN(n)?0:n; }
+function fmt(n){ return n.toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function storageKeyReport(company, date){ return `report:${company}:${date}`; }
+function storageKeyFailed(month){ return `failed:${month}`; }
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+// ---------- Tabs ----------
+// EMAX, Spoon & Fork, Espace X, Mini Impian (Bank) are merged into the
+// single "Combined" tab below — their own COMPANIES entries stay intact
+// (still used internally: storage keys, defaults, section configs), they
+// just no longer appear as separate clickable tabs.
+const MERGED_AWAY = new Set(['emax','spoonfork','espacex','miniImpianBank']);
+function renderTabs(){
+  if(RESTRICT) return; // single company, no switching UI needed
+  const tabs = document.getElementById('tabs');
+  tabs.innerHTML = '';
+  Object.keys(COMPANIES).forEach(key=>{
+    if(MERGED_AWAY.has(key))return;
+    const b = document.createElement('button');
+    b.className = 'tab-btn' + (key===currentCompany?' active':'');
+    b.textContent = COMPANIES[key].shortLabel;
+    b.onclick = ()=>{ switchCompany(key); };
+    tabs.appendChild(b);
+  });
+}
+
+async function switchCompany(key){
+  if(RESTRICT && key !== RESTRICT.company) return; // defense in depth — no tab exists to trigger this anyway
+  currentCompany = key;
+  renderTabs();
+  if(COMPANIES[key].isLog){
+    const months = await listFailedMonths();
+    await loadFailedLog(months.length ? months[0] : new Date().toISOString().slice(0,7));
+  } else if(COMPANIES[key].isMerged){
+    // Most recent date across ANY of the 4 merged companies — a date only
+    // needs one of them saved to count as "the latest", since they don't
+    // all necessarily get filled in at exactly the same moment.
+    const allDates = (await Promise.all(COMPANIES[key].mergedCompanies.map(c=>listReportDates(c)))).flat();
+    const latest = allDates.length ? allDates.sort().reverse()[0] : new Date().toISOString().slice(0,10);
+    await loadMergedReport(latest);
+  } else {
+    const dates = await listReportDates(key);
+    await loadReport(key, dates.length ? dates[0] : new Date().toISOString().slice(0,10));
+  }
+}
+
+// ---------- Load / Save ----------
+// Repairs a loaded/carried-forward record if any section ended up either
+// completely empty (zero rows — should never happen, every section has
+// at least one default row) or, for sections that are supposed to have
+// meaningful, non-blank default labels (Bank, Supplier, Stock), every
+// row's label/branch blank. Neither is a legitimate state — it's a sign
+// the underlying saved data itself got corrupted at some point (e.g.
+// saved while an earlier bug had the page showing broken/empty data),
+// and carrying that forward faithfully just perpetuates the corruption.
+// Restores the company's real defaults for just the affected section,
+// not the whole record.
+function repairBlankDefaultSections(company,d){
+  const emptyOrAllBlank=(arr,key)=>!arr||!arr.length||arr.every(r=>!r[key]);
+  if(emptyOrAllBlank(d.sections?.bank,"label"))
+    d.sections.bank = defaultRows(company,"bank");
+  if(!d.sections?.aeon?.length)
+    d.sections.aeon = defaultRows(company,"aeon");
+  if(!d.sections?.jcl?.length)
+    d.sections.jcl = defaultRows(company,"jcl");
+  if(emptyOrAllBlank(d.sections?.supplier,"label"))
+    d.sections.supplier = defaultRows(company,"supplier");
+  if(emptyOrAllBlank(d.sections?.chailease,"label"))
+    d.sections.chailease = defaultRows(company,"chailease");
+  if(!d.sections?.customer?.length)
+    d.sections.customer = defaultRows(company,"customer");
+  if(emptyOrAllBlank(d.sections?.stock,"branch"))
+    d.sections.stock = defaultStockRows();
+  if(COMPANIES[company]?.sections?.includes("salesReport") && (!d.sections?.salesReport || typeof d.sections.salesReport!=="object"))
+    d.sections.salesReport = defaultSalesReport(company);
+  ["playground","activateGame","other"].forEach(sec=>{
+    if(!COMPANIES[company]?.sections?.includes(sec))return;
+    const val=d.sections?.[sec];
+    const isValidShape=company==="miniImpianSales"
+      ?(val&&typeof val==="object"&&Array.isArray(val.sandakan)&&Array.isArray(val.tawau))
+      :Array.isArray(val);
+    if(!isValidShape)d.sections[sec]=defaultQtyRows(sec,company);
+    // Older saved Mini Impian reports only had the single Google Review row
+    // in "Other" — bring them up to the fixed 5-item list, keeping any
+    // qty/amount already entered for items that exist.
+    if(isMiniImpianOther(sec,company)){
+      d.sections[sec].sandakan=upgradeLegacyMiniImpianOther(d.sections[sec].sandakan);
+      d.sections[sec].tawau=upgradeLegacyMiniImpianOther(d.sections[sec].tawau);
+    }
+  });
+  return d;
+}
+
+async function loadSingleCompanyData(company,date){
+  try{
+    const res = await window.storage.get(storageKeyReport(company, date), STORAGE_SHARED);
+    if(res && res.value){
+      const d = JSON.parse(res.value);
+      if(d.sections && d.sections.rto) migratePendingMonths(d.sections.rto);
+      d.date = date;
+      return repairBlankDefaultSections(company,d);
+    }
+  }catch(e){}
+  const d = blankReport(company);
+  d.date = date;
+  await autoFillLabelsFromLastRecord(company,date,d);
+  return repairBlankDefaultSections(company,d);
+}
+
+async function loadReport(company, date){
+  currentData = await loadSingleCompanyData(company,date);
+  renderMain();
+}
+
+async function loadMergedReport(date){
+  const cfg = COMPANIES.merged;
+  mergedDataByCompany = {};
+  await Promise.all(cfg.mergedCompanies.map(async c=>{
+    mergedDataByCompany[c] = await loadSingleCompanyData(c,date);
+  }));
+  currentData = { date }; // holds the shared date/time for the topbar only — not a real report
+  renderMain();
+}
+
+async function autoFillLabelsFromLastRecord(company,date,targetData){
+  const dates=await listReportDates(company);
+  const priorDate=dates.find(d=>d<date);
+  if(!priorDate)return;
+  let yData=null;
+  try{
+    const res=await window.storage.get(storageKeyReport(company,priorDate),STORAGE_SHARED);
+    yData=res&&res.value?JSON.parse(res.value):null;
+  }catch(e){ return; }
+  if(!yData||!yData.sections) return;
+  if(yData.sections.bank && Array.isArray(yData.sections.bank))
+    targetData.sections.bank = yData.sections.bank.map(r=>({label:r.label,amount:''}));
+  if(yData.sections.aeon && Array.isArray(yData.sections.aeon))
+    targetData.sections.aeon = yData.sections.aeon.map(r=>({label:r.label,amount:''}));
+  if(yData.sections.jcl && Array.isArray(yData.sections.jcl))
+    targetData.sections.jcl = yData.sections.jcl.map(r=>({label:r.label,amount:''}));
+  // Chailease was missing from this carry-forward entirely — every new day
+  // silently reset back to a single blank row instead of keeping
+  // yesterday's row labels, unlike every other section here.
+  if(yData.sections.chailease && Array.isArray(yData.sections.chailease))
+    targetData.sections.chailease = yData.sections.chailease.map(r=>({label:r.label,amount:''}));
+  if(yData.sections.supplier && Array.isArray(yData.sections.supplier))
+    targetData.sections.supplier = yData.sections.supplier.map(r=>({label:r.label,amount:''}));
+  // Customer carries its actual amount forward too, not just the row
+  // label — this section's numbers tend to hold steady day to day rather
+  // than reset to zero, so starting from yesterday's real value is more
+  // useful than starting blank.
+  if(yData.sections.customer && Array.isArray(yData.sections.customer))
+    targetData.sections.customer = yData.sections.customer.map(r=>({label:r.label,amount:r.amount||''}));
+  if(yData.sections.rto){
+    const yr = yData.sections.rto;
+    if(yr.pendingMonth&&!yr.pendingMonths)
+      yr.pendingMonths=[{month:yr.pendingMonth,count:yr.pendingCount||'',amount:''}];
+    // Rent-to-Own carries its actual amounts and counts forward too, same
+    // reasoning as Customer above — these are running totals that barely
+    // move day to day, so yesterday's real figures are a far more useful
+    // starting point than blank fields someone has to re-key from scratch.
+    targetData.sections.rto = {
+      contractValue:yr.contractValue||'', deviceDTP:yr.deviceDTP||'', expectedProfit:yr.expectedProfit||'', collectedPayment:yr.collectedPayment||'',
+      pendingMonths:(yr.pendingMonths||[{month:'',count:'',amount:''}]).map(pm=>({month:pm.month,count:pm.count||'',amount:pm.amount||''})),
+      nextMonthLabel:yr.nextMonthLabel||'', nextMonthAmount:yr.nextMonthAmount||''
+    };
+  }
+  // Qty-based sections (Children Playground, Activate Game, Other) — same
+  // "carry the row structure forward, blank the numbers" idea as above,
+  // just with qty blanked alongside amount. Mini Impian Sales specifically
+  // splits these per branch (sandakan/tawau, each its own row list), while
+  // every other company using these sections keeps one flat row list.
+  // unitPrice (Mini Impian "Other" items) carries forward too — it's a
+  // standing price, not a daily figure, so it shouldn't need re-keying.
+  const blankQtyRow=r=>({label:r.label,qty:'',amount:'',...(r.unitPrice!==undefined?{unitPrice:r.unitPrice}:{})});
+  ['playground','activateGame','other'].forEach(sec=>{
+    const yVal=yData.sections[sec];
+    if(!yVal)return;
+    if(Array.isArray(yVal)){
+      targetData.sections[sec]=yVal.map(blankQtyRow);
+    }else if(typeof yVal==='object'){
+      const out={};
+      Object.keys(yVal).forEach(branch=>{
+        if(Array.isArray(yVal[branch]))out[branch]=yVal[branch].map(blankQtyRow);
+      });
+      if(Object.keys(out).length)targetData.sections[sec]=out;
+    }
+  });
+}
+
+async function saveReport(){
+  const company = currentCompany;
+  if(COMPANIES[company].isLog){ return saveFailed(); }
+  if(COMPANIES[company].isMerged){ return saveMergedReport(); }
+  try{
+    const res = await window.storage.set(storageKeyReport(company, currentData.date), JSON.stringify(currentData), STORAGE_SHARED);
+    if(res) showToast('Saved ✓ ' + currentData.date);
+    else showToast('Save failed, try again');
+  }catch(e){ showToast('Save failed: '+e.message); }
+}
+
+async function saveMergedReport(){
+  const cfg = COMPANIES.merged;
+  let allOk = true;
+  for(const c of cfg.mergedCompanies){
+    try{
+      const res = await window.storage.set(storageKeyReport(c, mergedDataByCompany[c].date), JSON.stringify(mergedDataByCompany[c]), STORAGE_SHARED);
+      if(!res) allOk = false;
+    }catch(e){ allOk = false; }
+  }
+  showToast(allOk ? 'Saved ✓ ' + mergedDataByCompany[cfg.mergedCompanies[0]].date + ' (all 4)' : 'Some companies failed to save — try again');
+}
+
+async function loadFailedLog(month){
+  try{
+    const res = await window.storage.get(storageKeyFailed(month), STORAGE_SHARED);
+    currentFailed = res && res.value ? JSON.parse(res.value) : blankFailedLog();
+    currentFailed.month = month;
+  }catch(e){
+    currentFailed = blankFailedLog();
+    currentFailed.month = month;
+  }
+  renderMain();
+}
+
+async function saveFailed(){
+  try{
+    const res = await window.storage.set(storageKeyFailed(currentFailed.month), JSON.stringify(currentFailed), STORAGE_SHARED);
+    if(res){ showToast('Saved ✓ '+currentFailed.month); renderMain(); }
+    else showToast('Save failed, try again');
+  }catch(e){ showToast('Save failed: '+e.message); }
+}
+
+async function listReportDates(company){
+  try{
+    const res = await window.storage.list(`report:${company}:`, STORAGE_SHARED);
+    if(!res || !res.keys) return [];
+    return res.keys.map(k=>k.split(':')[2]).sort().reverse();
+  }catch(e){ return []; }
+}
+
+// ---------- Rendering ----------
+function renderMain(){
+  const main = document.getElementById('main');
+  main.innerHTML = '';
+  refreshSummaryFn = null;
+
+  if(COMPANIES[currentCompany].isMerged){
+    try{
+      renderMergedMain(main);
+    }catch(err){
+      console.error('renderMergedMain failed:',err);
+      main.innerHTML = `<div style="padding:30px;text-align:center;color:#B91C1C;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;">
+        <div style="font-weight:700;margin-bottom:6px;">Something went wrong showing the Combined tab.</div>
+        <div style="font-size:13px;color:#7F1D1D;">${escapeHtml(err.message||String(err))}</div>
+        <button onclick="renderMain()" style="margin-top:14px;margin-right:8px;background:#fff;color:#0A1628;border:1.5px solid #0A1628;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit;">Try Again</button>
+        <button onclick="window.location.reload()" style="margin-top:14px;margin-right:8px;background:#0A1628;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit;">Reload Page</button>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid #FECACA;font-size:12px;color:#7F1D1D;">
+          Or work on one company at a time while this gets fixed:
+          <div style="margin-top:8px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
+            ${COMPANIES.merged.mergedCompanies.map(c=>`<button onclick="switchCompany('${c}')" style="background:#fff;color:#B91C1C;border:1px solid #FECACA;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;font-family:inherit;">${COMPANIES[c].shortLabel}</button>`).join('')}
+          </div>
+        </div>
+      </div>`;
+    }
+    return;
+  }
+
+  // Mini Impian Sales renders two side-by-side columns — give it roughly
+  // double the width so each column is as comfortable as Espace X's single
+  // column, instead of squeezing two columns into the same 720px.
+  main.style.maxWidth = currentCompany==='miniImpianSales' ? '1200px' : '';
+
+  if(COMPANIES[currentCompany].isLog){
+    renderFailedUI(main);
+    return;
+  }
+
+  const cfg = COMPANIES[currentCompany];
+  // Same defensive repair as the merged view - a company's saved record
+  // can end up without its sections object entirely.
+  if(!currentData || typeof currentData !== 'object') currentData = {date:new Date().toISOString().slice(0,10),sections:{}};
+  if(!currentData.sections || typeof currentData.sections !== 'object') currentData.sections = {};
+
+  // topbar: date/time
+  const topbar = document.createElement('div');
+  topbar.className = 'topbar';
+  topbar.innerHTML = `
+    <div><label>Date</label><input type="date" id="dateInput" value="${currentData.date}"></div>
+    ${cfg.hasTime ? `<div><label>Time</label><input type="time" id="timeInput" value="${currentData.time||''}"></div>` : ''}
+  `;
+  main.appendChild(topbar);
+  document.getElementById('dateInput').onchange = async (e)=>{
+    await loadReport(currentCompany, e.target.value);
+  };
+  if(cfg.hasTime){
+    document.getElementById('timeInput').oninput = (e)=>{ currentData.time = e.target.value; };
+  }
+
+  if(currentCompany==='miniImpianSales'){
+    const branches = [{key:'sandakan',label:'Sandakan Branch'},{key:'tawau',label:'Tawau Branch'}];
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;';
+    branches.forEach((b,bi)=>{
+      const col = document.createElement('div');
+      col.style.cssText = bi===0 ? 'border-right:1px solid var(--border,#E4EAF2);padding-right:24px;' : '';
+      const heading = document.createElement('div');
+      heading.style.cssText = 'font-weight:800;font-size:15px;color:var(--navy,#0A1628);margin-bottom:10px;';
+      heading.textContent = b.label;
+      col.appendChild(heading);
+      cfg.sections.forEach(sec=>{
+        if(sec==='salesReport') col.appendChild(renderSalesReportCard(currentData.sections.salesReport[b.key], '_'+b.key));
+        else if(QTY_SECTIONS.has(sec)) col.appendChild(renderQtyListCard(sec, currentData.sections[sec][b.key]));
+      });
+      col.appendChild(renderMiniImpianTallyCard(b.key));
+      grid.appendChild(col);
+    });
+    main.appendChild(grid);
+    return;
+  }
+
+  cfg.sections.forEach(sec=>{
+    // Restricted mode hides every section except the one allowed — the
+    // underlying currentData.sections[sec] for hidden sections is left
+    // completely untouched (not blanked/reconstructed), so it round-trips
+    // back on save exactly as loaded.
+    if(RESTRICT && RESTRICT.section && sec !== RESTRICT.section) return;
+    if(sec==='stock') main.appendChild(renderStockCard());
+    else if(sec==='rto') main.appendChild(renderRtoCard());
+    else if(sec==='salesReport') main.appendChild(renderSalesReportCard());
+    else if(sec==='summary') main.appendChild(renderSummaryCard());
+    else if(sec==='rtoCare') main.appendChild(renderRtoCareCard());
+    else if(QTY_SECTIONS.has(sec)) main.appendChild(renderQtyListCard(sec));
+    else main.appendChild(renderListCard(sec));
+  });
+}
+
+// Renders all 4 merged companies in one view. Reuses every existing
+// per-section render function completely unchanged — each one reads the
+// global currentCompany/currentData, so this temporarily points those at
+// one company at a time while building that company's block, then moves
+// to the next. Add-row/delete buttons inside those render functions call
+// renderMain() by name; since renderMain() checks isMerged and delegates
+// back here, those buttons correctly refresh the whole combined view
+// instead of trying to render a single company.
+function renderMergedMain(main){
+  main.style.maxWidth = '';
+  const cfg = COMPANIES.merged;
+  const sharedDate = mergedDataByCompany[cfg.mergedCompanies[0]].date;
+
+  const topbar = document.createElement('div');
+  topbar.className = 'topbar';
+  topbar.innerHTML = `
+    <div><label>Date</label><input type="date" id="dateInput" value="${sharedDate}"></div>
+    <div><label>Time</label><input type="time" id="timeInput" value="${mergedDataByCompany.emax.time||''}"></div>
+  `;
+  main.appendChild(topbar);
+  document.getElementById('dateInput').onchange = async (e)=>{
+    await loadMergedReport(e.target.value);
+  };
+  document.getElementById('timeInput').oninput = (e)=>{
+    // Shared across all 4 — they're normally filled in at the same time,
+    // so one Time field avoids retyping the same value 4 times.
+    cfg.mergedCompanies.forEach(c=>{ mergedDataByCompany[c].time = e.target.value; });
+  };
+
+  const savedCompany = currentCompany, savedData = currentData;
+  cfg.mergedCompanies.forEach(c=>{
+    const heading = document.createElement('div');
+    heading.style.cssText = 'font-weight:800;font-size:15px;color:var(--navy,#0A1628);margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #C9D9F0;';
+    if(main.children.length<=1) heading.style.marginTop = '10px'; // first company, less top gap right under the topbar
+    heading.textContent = COMPANIES[c].name;
+    main.appendChild(heading);
+
+    currentCompany = c;
+    currentData = mergedDataByCompany[c];
+    // Defensive: repair the whole sections object if it's missing or the
+    // wrong type, since a company record can end up without it entirely
+    // (not just with an individual section missing/wrong-shaped) — this
+    // was the actual root cause of the Combined tab going blank.
+    if(!currentData || typeof currentData !== 'object') currentData = {date:'',sections:{}};
+    if(!currentData.sections || typeof currentData.sections !== 'object') currentData.sections = {};
+    mergedDataByCompany[c] = currentData;
+    COMPANIES[c].sections.forEach(sec=>{
+      if(sec==='stock') main.appendChild(renderStockCard());
+      else if(sec==='rto') main.appendChild(renderRtoCard());
+      else main.appendChild(renderListCard(sec));
+    });
+  });
+  currentCompany = savedCompany;
+  currentData = savedData;
+}
+
+function renderListCard(sec){
+  const card = document.createElement('div');
+  card.className = 'card';
+  // Defensive: if this section's data is missing or the wrong shape (e.g.
+  // corrupted/legacy data), repair it in place to an empty array rather
+  // than letting the crash take down the whole page.
+  if(!Array.isArray(currentData.sections[sec])) currentData.sections[sec] = [];
+  const rows = currentData.sections[sec];
+  rows.forEach(r=>{ if(r.label==null)r.label=''; if(r.amount==null)r.amount=''; });
+  const total = rows.reduce((s,r)=>s+num(r.amount),0);
+
+  card.innerHTML = `<div class="card-head"><span>${SECTION_TITLES[sec]}</span></div>`;
+  const list = document.createElement('div');
+  list.className = 'row-list';
+  rows.forEach((r,i)=>{
+    const item = document.createElement('div');
+    item.className = 'row-item';
+    item.innerHTML = `
+      <input type="text" placeholder="Label" value="${escapeHtml(r.label)}">
+      <div class="amt-wrap"><span>RM</span><input type="number" step="0.01" value="${r.amount}"></div>
+      <button class="del">✕</button>
+    `;
+    const [labelInput, , amtWrap] = item.children;
+    const amtInput = item.querySelector('input[type=number]');
+    labelInput.oninput = e=>{ rows[i].label = e.target.value; };
+    amtInput.oninput = e=>{ rows[i].amount = e.target.value; updateTotal(card, rows); };
+    item.querySelector('.del').onclick = ()=>{ rows.splice(i,1); renderMain(); };
+    list.appendChild(item);
+  });
+  card.appendChild(list);
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-row-btn';
+  addBtn.textContent = '+ Add row';
+  addBtn.onclick = ()=>{ rows.push({label:'',amount:''}); renderMain(); };
+  card.appendChild(addBtn);
+
+  const totalRow = document.createElement('div');
+  totalRow.className = 'total-row';
+  totalRow.innerHTML = `<span>TOTAL</span><span class="tval">RM ${fmt(total)}</span>`;
+  card.appendChild(totalRow);
+
+  return card;
+}
+
+function updateTotal(card, rows){
+  const total = rows.reduce((s,r)=>s+num(r.amount),0);
+  card.querySelector('.tval').textContent = 'RM ' + fmt(total);
+}
+
+function renderQtyRowsInto(container, rows, onTotalChange){
+  const head = document.createElement('div');
+  head.className = 'stock-head';
+  head.innerHTML = `<span>Item</span><span>Qty</span><span>Amount</span><span></span>`;
+  container.appendChild(head);
+
+  rows.forEach((r,i)=>{
+    const item = document.createElement('div');
+    item.className = 'stock-row';
+    item.innerHTML = `
+      <input type="text" value="${escapeHtml(r.label)}" placeholder="Item">
+      <input type="number" value="${r.qty}">
+      <input type="number" step="0.01" value="${r.amount}">
+      <button class="del">✕</button>
+    `;
+    const inputs = item.querySelectorAll('input');
+    inputs[0].oninput = e=>{ rows[i].label = e.target.value; };
+    inputs[1].oninput = e=>{ rows[i].qty = e.target.value; };
+    inputs[2].oninput = e=>{ rows[i].amount = e.target.value; onTotalChange(); };
+    item.querySelector('.del').onclick = ()=>{ rows.splice(i,1); renderMain(); };
+    container.appendChild(item);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-row-btn';
+  addBtn.textContent = '+ Add item';
+  addBtn.onclick = ()=>{ rows.push({label:'',qty:'',amount:''}); renderMain(); };
+  container.appendChild(addBtn);
+}
+
+// Mini Impian Playground + Other: Unit Price column. When a unit price is
+// entered, Amount = Qty x Unit Price (read-only, live); with no unit price
+// the Amount stays manually editable (e.g. Redemption). Rows can be added and
+// removed; labels and unit prices carry forward to the next day.
+function renderMiniImpianUnitPriceRowsInto(container, rows, onTotalChange){
+  const head = document.createElement('div');
+  head.className = 'stock-head mi-other';
+  head.innerHTML = `<span>Item</span><span>Unit Price</span><span>Qty</span><span>Amount</span><span></span>`;
+  container.appendChild(head);
+
+  rows.forEach((r,i)=>{
+    const item = document.createElement('div');
+    item.className = 'stock-row mi-other';
+    item.innerHTML = `
+      <input type="text" value="${escapeHtml(r.label)}" placeholder="Item">
+      <input type="number" step="0.01" min="0" placeholder="0.00" value="${r.unitPrice??''}">
+      <input type="number" min="0" value="${r.qty}">
+      <input type="number" step="0.01" value="${r.amount}">
+      <button class="del">✕</button>
+    `;
+    const inputs = item.querySelectorAll('input');
+    const syncAmountLock = ()=>{
+      const hasPrice = String(r.unitPrice??'').trim()!=='';
+      inputs[3].readOnly = hasPrice;
+      inputs[3].tabIndex = hasPrice ? -1 : 0;
+    };
+    const recalc = ()=>{
+      const hasPrice = String(r.unitPrice??'').trim()!=='';
+      if(hasPrice){
+        const hasQty = String(r.qty).trim()!=='';
+        r.amount = hasQty ? String(Math.round(num(r.qty)*num(r.unitPrice)*100)/100) : '';
+        inputs[3].value = r.amount;
+      }
+      syncAmountLock();
+      onTotalChange();
+    };
+    syncAmountLock();
+    inputs[0].oninput = e=>{ r.label = e.target.value; };
+    inputs[1].oninput = e=>{ r.unitPrice = e.target.value; recalc(); };
+    inputs[2].oninput = e=>{ r.qty = e.target.value; recalc(); };
+    inputs[3].oninput = e=>{ r.amount = e.target.value; onTotalChange(); };
+    item.querySelector('.del').onclick = ()=>{ rows.splice(i,1); renderMain(); };
+    container.appendChild(item);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-row-btn';
+  addBtn.textContent = '+ Add item';
+  addBtn.onclick = ()=>{ rows.push({label:'',qty:'',amount:'',unitPrice:''}); renderMain(); };
+  container.appendChild(addBtn);
+}
+
+function renderQtyListCard(sec, data){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<div class="card-head"><span>${SECTION_TITLES[sec]}</span></div>`;
+
+  const rows = data || currentData.sections[sec];
+  if(isMiniImpianUnitPriceSection(sec,currentCompany)) renderMiniImpianUnitPriceRowsInto(card, rows, ()=>updateQtyTotal(card, rows));
+  else renderQtyRowsInto(card, rows, ()=>updateQtyTotal(card, rows));
+
+  const total = rows.reduce((s,r)=>s+num(r.amount),0);
+  const totalRow = document.createElement('div');
+  totalRow.className = 'total-row';
+  totalRow.innerHTML = `<span>TOTAL</span><span class="tval">RM ${fmt(total)}</span>`;
+  card.appendChild(totalRow);
+
+  return card;
+}
+
+// Mini Impian: Playground total + Other total must equal that branch's
+// Daily Sales Report TOTAL SALES (cash + card + QR). Shows both figures and
+// either a green "Tallied" or the exact RM difference, updating live.
+function miniImpianTallyFigures(branchKey){
+  const sum=rows=>(Array.isArray(rows)?rows:[]).reduce((s,r)=>s+num(r.amount),0);
+  const pg=sum(currentData.sections.playground?.[branchKey]);
+  const ot=sum(currentData.sections.other?.[branchKey]);
+  const sr=currentData.sections.salesReport?.[branchKey]||{};
+  const sales=num(sr.cash)+num(sr.card)+num(sr.qr);
+  const items=Math.round((pg+ot)*100)/100;
+  const diff=Math.round((items-sales)*100)/100;
+  return {pg,ot,items,sales,diff};
+}
+function renderMiniImpianTallyCard(branchKey){
+  const card=document.createElement('div');
+  card.className='card mi-tally';
+  card.dataset.branch=branchKey;
+  card.innerHTML=`<div class="card-head"><span>Playground + Other Total</span></div>
+    <div class="total-row"><span>PLAYGROUND + OTHER</span><span class="mi-items">RM 0.00</span></div>
+    <div class="total-row"><span>TOTAL SALES (Daily Sales Report)</span><span class="mi-sales">RM 0.00</span></div>
+    <div class="mi-status" style="padding:8px 14px;font-weight:700;font-size:13px;"></div>`;
+  refreshMiniImpianTally(card);
+  return card;
+}
+function refreshMiniImpianTally(card){
+  const f=miniImpianTallyFigures(card.dataset.branch);
+  card.querySelector('.mi-items').textContent='RM '+fmt(f.items);
+  card.querySelector('.mi-sales').textContent='RM '+fmt(f.sales);
+  const st=card.querySelector('.mi-status');
+  if(f.diff===0){ st.textContent='✓ Tallied'; st.style.color='#1B7F3B'; }
+  else { st.textContent='✗ Not tallied — '+(f.diff>0?'items exceed sales':'sales exceed items')+' by RM '+fmt(Math.abs(f.diff)); st.style.color='#C62828'; }
+}
+function refreshAllMiniImpianTallies(){
+  document.querySelectorAll('.mi-tally').forEach(refreshMiniImpianTally);
+}
+
+function updateQtyTotal(card, rows){
+  refreshAllMiniImpianTallies();
+  const total = rows.reduce((s,r)=>s+num(r.amount),0);
+  card.querySelector('.tval').textContent = 'RM ' + fmt(total);
+}
+
+function renderStockCard(){
+  const card = document.createElement('div');
+  card.className = 'card';
+  if(!Array.isArray(currentData.sections.stock)) currentData.sections.stock = [];
+  const rows = currentData.sections.stock;
+  rows.forEach(r=>{ if(r.branch==null)r.branch=''; if(r.category==null)r.category=''; if(r.total==null)r.total=''; });
+  card.innerHTML = `<div class="card-head"><span>Stock Balance</span></div>`;
+  const head = document.createElement('div');
+  head.className = 'stock-head';
+  head.innerHTML = `<span>Branch</span><span>TV/Laptop/HP/Tablet</span><span>Total</span><span></span>`;
+  card.appendChild(head);
+
+  rows.forEach((r,i)=>{
+    const item = document.createElement('div');
+    item.className = 'stock-row';
+    item.innerHTML = `
+      <input type="text" value="${escapeHtml(r.branch)}">
+      <input type="number" step="0.01" value="${r.category}">
+      <input type="number" step="0.01" value="${r.total}">
+      <button class="del">✕</button>
+    `;
+    const inputs = item.querySelectorAll('input');
+    inputs[0].oninput = e=>{ rows[i].branch = e.target.value; };
+    inputs[1].oninput = e=>{ rows[i].category = e.target.value; updateStockTotal(card, rows); };
+    inputs[2].oninput = e=>{ rows[i].total = e.target.value; updateStockTotal(card, rows); };
+    item.querySelector('.del').onclick = ()=>{ rows.splice(i,1); renderMain(); };
+    card.appendChild(item);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-row-btn';
+  addBtn.textContent = '+ Add branch';
+  addBtn.onclick = ()=>{ rows.push({branch:'',category:'',total:''}); renderMain(); };
+  card.appendChild(addBtn);
+
+  const catTotal = rows.reduce((s,r)=>s+num(r.category),0);
+  const grandTotal = rows.reduce((s,r)=>s+num(r.total),0);
+  const totalRow = document.createElement('div');
+  totalRow.className = 'total-row';
+  totalRow.innerHTML = `<span>TOTAL</span><span class="tval">RM ${fmt(catTotal)} · RM ${fmt(grandTotal)}</span>`;
+  card.appendChild(totalRow);
+
+  return card;
+}
+
+function updateStockTotal(card, rows){
+  const catTotal = rows.reduce((s,r)=>s+num(r.category),0);
+  const grandTotal = rows.reduce((s,r)=>s+num(r.total),0);
+  card.querySelector('.tval').textContent = `RM ${fmt(catTotal)} · RM ${fmt(grandTotal)}`;
+}
+
+function renderRtoCard(){
+  const card = document.createElement('div');
+  card.className = 'card';
+  // Defensive: repair the rto object in place if it's missing or any of
+  // its fields are the wrong type, so malformed/legacy data can't throw
+  // and blank the page.
+  if(!currentData.sections.rto || typeof currentData.sections.rto !== 'object') currentData.sections.rto = {};
+  const d = currentData.sections.rto;
+  ['contractValue','deviceDTP','expectedProfit','collectedPayment','nextMonthLabel','nextMonthAmount'].forEach(k=>{ if(d[k]==null)d[k]=''; });
+  if(!Array.isArray(d.pendingMonths)||d.pendingMonths.length===0) d.pendingMonths=[{month:'',count:'',amount:''}];
+  d.pendingMonths.forEach(pm=>{ if(pm.month==null)pm.month=''; if(pm.count==null)pm.count=''; if(pm.amount==null)pm.amount=''; });
+  migratePendingMonths(currentData.sections.rto);
+  card.innerHTML = `<div class="card-head"><span>Rent-to-Own (RTO)</span></div>`;
+  const ff = document.createElement('div');
+  ff.className = 'fixed-fields';
+  ff.innerHTML = `
+    <div class="field"><label>Total Contract Value (RM)</label><input type="number" step="0.01" id="rto_contractValue" value="${d.contractValue}"></div>
+    <div class="field"><label>Device DTP (RM)</label><input type="number" step="0.01" id="rto_deviceDTP" value="${d.deviceDTP}"></div>
+    <div class="field"><label>Expected Total Profit (auto: Contract − DTP)</label><input type="text" disabled id="rto_expectedProfit" value=""></div>
+    <div class="field"><label>Collected Payment (RM)</label><input type="number" step="0.01" id="rto_collectedPayment" value="${d.collectedPayment}"></div>
+    <div class="field"><label>Balance to Receive (auto)</label><input type="text" disabled id="rto_balance" value=""></div>
+    <div class="field-row">
+      <div class="field"><label>Next Month Collection — Label</label><input type="text" id="rto_nextMonthLabel" value="${escapeHtml(d.nextMonthLabel)}" placeholder="e.g. July 2026"></div>
+      <div class="field"><label>Amount (RM)</label><input type="number" step="0.01" id="rto_nextMonthAmount" value="${d.nextMonthAmount}"></div>
+    </div>
+  `;
+  card.appendChild(ff);
+
+  const pendingHdr = document.createElement('div');
+  pendingHdr.style.cssText = 'font-weight:700;font-size:12.5px;color:#2A3350;margin:12px 0 6px;display:flex;justify-content:space-between;align-items:center;padding:0 2px;';
+  pendingHdr.innerHTML = '<span>Pending Collection Months</span><button id="addPendingBtn" style="background:#0A1628;color:#fff;border:none;border-radius:5px;padding:3px 10px;font-size:11px;font-family:inherit;cursor:pointer;">+ Add Month</button>';
+  card.appendChild(pendingHdr);
+  const pendingList = document.createElement('div');
+  card.appendChild(pendingList);
+
+  function renderPendingRows(){
+    pendingList.innerHTML='';
+    d.pendingMonths.forEach((pm,i)=>{
+      const row=document.createElement('div');
+      row.style.cssText='display:grid;grid-template-columns:2fr 1fr 2fr auto;gap:6px;align-items:end;margin-bottom:7px;background:#F7F9FC;border:1px solid #E4EAF2;border-radius:7px;padding:8px;';
+      row.innerHTML=`
+        <div><label style="font-size:10px;color:#8A96A8;display:block;margin-bottom:3px;">Month</label><input type="text" placeholder="e.g. June 2026" value="${escapeHtml(pm.month)}" style="width:100%;padding:6px 8px;border:1px solid #D1D5DB;border-radius:5px;font-size:12px;font-family:inherit;box-sizing:border-box;"></div>
+        <div><label style="font-size:10px;color:#8A96A8;display:block;margin-bottom:3px;">Count</label><input type="number" value="${pm.count}" style="width:100%;padding:6px 8px;border:1px solid #D1D5DB;border-radius:5px;font-size:12px;font-family:inherit;box-sizing:border-box;"></div>
+        <div><label style="font-size:10px;color:#8A96A8;display:block;margin-bottom:3px;">Amount (RM)</label><input type="number" step="0.01" value="${pm.amount}" style="width:100%;padding:6px 8px;border:1px solid #D1D5DB;border-radius:5px;font-size:12px;font-family:inherit;box-sizing:border-box;"></div>
+        <button style="background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA;border-radius:5px;padding:6px 8px;font-size:11px;cursor:pointer;font-family:inherit;" ${d.pendingMonths.length<=1?'disabled':''}>✕</button>`;
+      const[mIn,cIn,aIn,delBtn]=row.querySelectorAll('input,button');
+      mIn.oninput=e=>{pm.month=e.target.value;};
+      cIn.oninput=e=>{pm.count=e.target.value;};
+      aIn.oninput=e=>{pm.amount=e.target.value;};
+      delBtn.onclick=()=>{if(d.pendingMonths.length>1){d.pendingMonths.splice(i,1);renderPendingRows();}};
+      pendingList.appendChild(row);
+    });
+  }
+  renderPendingRows();
+  pendingHdr.querySelector('#addPendingBtn').onclick=()=>{d.pendingMonths.push({month:'',count:'',amount:''});renderPendingRows();};
+
+  function bind(id,key){ const el=ff.querySelector('#'+id); if(el) el.oninput=e=>{d[key]=e.target.value;calcAutos();}; }
+  ['contractValue','deviceDTP','collectedPayment'].forEach(k=>bind('rto_'+k,k));
+  bind('rto_nextMonthLabel','nextMonthLabel'); bind('rto_nextMonthAmount','nextMonthAmount');
+
+  function calcAutos(){
+    const profit=num(d.contractValue)-num(d.deviceDTP);
+    const bal=num(d.contractValue)-num(d.collectedPayment);
+    ff.querySelector('#rto_expectedProfit').value='RM '+fmt(profit);
+    ff.querySelector('#rto_balance').value='RM '+fmt(bal);
+    d.expectedProfit=String(profit);
+  }
+  calcAutos();
+  return card;
+}
+
+function renderSalesReportCard(data, idSuffix){
+  const d = data || currentData.sections.salesReport;
+  const suf = idSuffix || '';
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<div class="card-head"><span>Daily Sales Report</span></div>`;
+
+  const ff = document.createElement('div');
+  ff.className = 'fixed-fields';
+  ff.innerHTML = `
+    <div class="field"><label>Cash (RM)</label><input type="number" step="0.01" id="sr_cash${suf}" value="${d.cash}"></div>
+    <div class="field"><label>Credit/Debit Card (RM)</label><input type="number" step="0.01" id="sr_card${suf}" value="${d.card}"></div>
+    <div class="field"><label>QR Payment (RM)</label><input type="number" step="0.01" id="sr_qr${suf}" value="${d.qr}"></div>
+    ${currentCompany==='dojo'?`
+    <div class="field"><label>GrabFood (RM)</label><input type="number" step="0.01" id="sr_grabfood${suf}" value="${d.grabfood||''}"></div>
+    <div class="field"><label>FoodPanda (RM)</label><input type="number" step="0.01" id="sr_foodpanda${suf}" value="${d.foodpanda||''}"></div>
+    `:''}
+  `;
+  card.appendChild(ff);
+
+  const srKeys = currentCompany==='dojo' ? ['cash','card','qr','grabfood','foodpanda'] : ['cash','card','qr'];
+  srKeys.forEach(k=>{
+    const el = ff.querySelector('#sr_'+k+suf);
+    if(el) el.oninput = e=>{
+      d[k] = e.target.value;
+      updateTotalSales();
+      refreshAllMiniImpianTallies();
+      if(refreshSummaryFn) refreshSummaryFn();
+    };
+  });
+
+  const totalRow = document.createElement('div');
+  totalRow.className = 'total-row';
+  totalRow.innerHTML = `<span>TOTAL SALES</span><span class="tval">RM 0.00</span>`;
+  card.appendChild(totalRow);
+
+  function updateTotalSales(){
+    const base = num(d.cash)+num(d.card)+num(d.qr);
+    const delivery = currentCompany==='dojo' ? num(d.grabfood)+num(d.foodpanda) : 0;
+    totalRow.querySelector('.tval').textContent = 'RM ' + fmt(base+delivery);
+  }
+  updateTotalSales();
+
+  return card;
+}
+
+function renderSummaryCard(){
+  const card = document.createElement('div');
+  card.className = 'card';
+  const d = currentData.sections.summary;
+  card.innerHTML = `<div class="card-head"><span>Summary</span></div>`;
+  const ff = document.createElement('div');
+  ff.className = 'fixed-fields';
+  ff.innerHTML = `
+    <div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:2px 0 6px;">Cash Sales</div>
+    <div class="field-row">
+      <div class="field"><label>Total Sales (RM)</label><input type="number" step="0.01" id="sum_cashTotal" value="${d.cashSalesTotal}"></div>
+      <div class="field"><label>Discount (RM)</label><input type="number" step="0.01" id="sum_cashDiscount" value="${d.cashSalesDiscount}"></div>
+    </div>
+    <div class="field"><label>Net Sales (auto)</label><input type="text" disabled id="sum_cashNet"></div>
+
+    <div class="field" style="margin-top:14px;"><label>Surcharge (RM)</label><input type="number" step="0.01" id="sum_surcharge" value="${d.surcharge}"></div>
+
+    <div class="field-row">
+      <div class="field"><label>GrabFood Total Sales (auto — from Daily Sales Report)</label><input type="text" disabled id="sum_grabTotalDisplay"></div>
+      <div class="field"><label>SST (RM)</label><input type="number" step="0.01" id="sum_grabSst" value="${d.grabFoodSst}"></div>
+    </div>
+    <div class="field"><label>GrabFood Sales (Auto)</label><input type="text" disabled id="sum_grabNet"></div>
+
+    <div class="field-row">
+      <div class="field"><label>FoodPanda Total Sales (auto — from Daily Sales Report)</label><input type="text" disabled id="sum_fpTotalDisplay"></div>
+      <div class="field"><label>SST (RM)</label><input type="number" step="0.01" id="sum_fpSst" value="${d.foodPandaSst}"></div>
+    </div>
+    <div class="field"><label>FoodPanda Sales (Auto)</label><input type="text" disabled id="sum_fpNet"></div>
+
+    <div class="field" style="margin-top:14px;"><label>SST (RM)</label><input type="number" step="0.01" id="sum_sst" value="${d.sst}"></div>
+
+    <div style="font-weight:700;font-size:12.5px;color:var(--navy-2);margin:14px 0 6px;">Aisolove</div>
+    <div class="field"><label>Amount (RM)</label><input type="number" step="0.01" id="sum_aisolove" value="${d.aisolove}"></div>
+
+    <div class="field" style="margin-top:14px;"><label>Autocount Sales (auto — Net Sales − GrabFood Sales − FoodPanda Sales − Surcharge − SST)</label><input type="text" disabled id="sum_autocount"></div>
+  `;
+  card.appendChild(ff);
+
+  function bind(id, key){ ff.querySelector('#'+id).oninput = e=>{ d[key] = e.target.value; updateSummary(); }; }
+  bind('sum_cashTotal','cashSalesTotal'); bind('sum_cashDiscount','cashSalesDiscount');
+  bind('sum_surcharge','surcharge');
+  bind('sum_grabSst','grabFoodSst');
+  bind('sum_fpSst','foodPandaSst');
+  bind('sum_sst','sst');
+  bind('sum_aisolove','aisolove');
+
+  const totalRow = document.createElement('div');
+  totalRow.className = 'total-row';
+  totalRow.innerHTML = `<span>TOTAL</span><span class="tval">RM 0.00</span>`;
+  card.appendChild(totalRow);
+
+  function updateSummary(){
+    const sr = currentData.sections.salesReport || {};
+    const grabTotal = currentCompany==='dojo' ? (num(sr.grabfood)||0) : 0;
+    const fpTotal = currentCompany==='dojo' ? (num(sr.foodpanda)||0) : 0;
+    ff.querySelector('#sum_grabTotalDisplay').value = 'RM ' + fmt(grabTotal);
+    ff.querySelector('#sum_fpTotalDisplay').value = 'RM ' + fmt(fpTotal);
+    const cashNet = num(d.cashSalesTotal) - num(d.cashSalesDiscount);
+    const grabNet = grabTotal - num(d.grabFoodSst);
+    const fpNet = fpTotal - num(d.foodPandaSst);
+    ff.querySelector('#sum_cashNet').value = 'RM ' + fmt(cashNet);
+    ff.querySelector('#sum_grabNet').value = 'RM ' + fmt(grabNet);
+    ff.querySelector('#sum_fpNet').value = 'RM ' + fmt(fpNet);
+    const autocountSales = cashNet - grabNet - fpNet - num(d.surcharge) - num(d.sst);
+    ff.querySelector('#sum_autocount').value = 'RM ' + fmt(autocountSales);
+    const total = cashNet + num(d.surcharge) + grabNet + fpNet + num(d.sst) + num(d.aisolove);
+    totalRow.querySelector('.tval').textContent = 'RM ' + fmt(total);
+  }
+  updateSummary();
+  refreshSummaryFn = updateSummary;
+
+  return card;
+}
+
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+function installmentStatus(s){
+  if(s.paidDate) return 'Paid';
+  if(s.dueDate && s.dueDate < todayISO()) return 'Late';
+  if(s.dueDate) return 'Upcoming';
+  return '-';
+}
+
+function statusColor(status){
+  if(status==='Paid') return '#2E8B57';
+  if(status==='Late') return '#D64545';
+  if(status==='Upcoming') return '#C97E00';
+  return '#999';
+}
+
+function addMonthsISO(dateStr, months){
+  if(!dateStr) return '';
+  const d = new Date(dateStr+'T00:00:00');
+  d.setMonth(d.getMonth()+months);
+  return d.toISOString().slice(0,10);
+}
+
+function renderRtoCareCard(){
+  const wrap = document.createElement('div');
+  const records = currentData.sections.rtoCare;
+
+  wrap.appendChild(renderPaymentMonitor(records));
+
+  const header = document.createElement('div');
+  header.className = 'card-head';
+  header.style.marginBottom = '10px';
+  header.innerHTML = `<span>RTO Customers</span>`;
+  wrap.appendChild(header);
+
+  records.forEach((rec, i)=>{
+    wrap.appendChild(renderRtoCareRecord(rec, i, records));
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-row-btn';
+  addBtn.textContent = '+ Add Customer';
+  addBtn.style.margin = '0 0 14px';
+  addBtn.onclick = ()=>{ records.push(defaultRtoCareRecord()); renderMain(); };
+  wrap.appendChild(addBtn);
+
+  const totalContract = records.reduce((s,r)=>s+num(r.totalContractValue),0);
+  const totalOutstanding = records.reduce((s,r)=>s+(num(r.totalContractValue)-num(r.paymentReceived)),0);
+  const summaryRow = document.createElement('div');
+  summaryRow.className = 'card';
+  summaryRow.innerHTML = `<div class="total-row" style="border-radius:12px;">
+    <span>${records.length} Customer${records.length===1?'':'s'} · Total Contract</span>
+    <span>RM ${fmt(totalContract)} &nbsp;|&nbsp; Outstanding RM ${fmt(totalOutstanding)}</span>
+  </div>`;
+  wrap.appendChild(summaryRow);
+
+  return wrap;
+}
+
+function renderPaymentMonitor(records){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<div class="card-head"><span>Payment Monitor — unpaid installments</span></div>`;
+
+  let items = [];
+  records.forEach((rec, ri)=>{
+    (rec.schedule||[]).forEach((s, si)=>{
+      if(!s.paidDate){ items.push({rec, ri, s, si}); }
+    });
+  });
+  items.sort((a,b)=> (a.s.dueDate||'9999').localeCompare(b.s.dueDate||'9999'));
+
+  if(items.length===0){
+    const empty = document.createElement('div');
+    empty.className = 'empty-hint';
+    empty.textContent = 'No unpaid installments — all caught up, or no schedules generated yet.';
+    card.appendChild(empty);
+    return card;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'row-list';
+  items.forEach(({rec, s, si})=>{
+    const status = installmentStatus(s);
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 2px;border-bottom:1px solid #F0EEE6;flex-wrap:wrap;';
+    row.innerHTML = `
+      <div style="flex:1.4;min-width:120px;">
+        <div style="font-weight:600;font-size:13px;">${escapeHtml(rec.customerName)||'Unnamed'}</div>
+        <div style="font-size:11.5px;color:var(--muted);">${escapeHtml(rec.branch)||''} · ${escapeHtml(s.label)||''} · Due ${s.dueDate||'—'}</div>
+      </div>
+      <span style="font-size:11px;font-weight:700;color:${statusColor(status)};flex:0 0 auto;min-width:52px;">${status}</span>
+      <input type="date" style="flex:0 0 auto;border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:12.5px;" value="${s.paidDate||''}" title="Mark paid date">
+      <button style="flex:0 0 auto;background:var(--good);color:#fff;border:none;border-radius:7px;padding:6px 10px;font-size:11.5px;font-weight:600;cursor:pointer;">Mark Paid Today</button>
+    `;
+    const dateInput = row.querySelector('input[type=date]');
+    dateInput.onchange = e=>{ s.paidDate = e.target.value; renderMain(); };
+    row.querySelector('button').onclick = ()=>{ s.paidDate = todayISO(); renderMain(); };
+    list.appendChild(row);
+  });
+  card.appendChild(list);
+  return card;
+}
+
+function renderRtoCareRecord(rec, index, records){
+  const card = document.createElement('details');
+  card.className = 'card';
+  card.style.marginBottom = '12px';
+  card.open = !rec.customerName;
+
+  const outstanding = num(rec.totalContractValue) - num(rec.paymentReceived);
+  const breakeven = num(rec.monthlyInstallment) > 0 ? (num(rec.cost) / num(rec.monthlyInstallment)) : 0;
+
+  const summary = document.createElement('summary');
+  summary.style.cssText = 'background:#C9D9F0;color:#1C2333;padding:10px 14px;font-weight:700;font-size:13.5px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;list-style:none;flex-wrap:wrap;';
+  const nextUnpaid = (rec.schedule||[]).find(s=>!s.paidDate);
+  const nextStatus = nextUnpaid ? installmentStatus(nextUnpaid) : null;
+  summary.innerHTML = `
+    <span class="rc-title">${escapeHtml(rec.customerName)||'New Customer'} ${rec.branch?('· '+escapeHtml(rec.branch)):''}</span>
+    <span style="display:flex;gap:10px;align-items:center;">
+      ${nextUnpaid ? `<span class="rc-next" style="font-size:11px;font-weight:700;color:${statusColor(nextStatus)};">${escapeHtml(nextUnpaid.label)} due ${nextUnpaid.dueDate||'—'} · ${nextStatus}</span>` : `<span class="rc-next" style="font-size:11px;font-weight:700;color:#2E8B57;">All paid</span>`}
+      <span class="rc-outstanding">RM ${fmt(outstanding)}</span>
+    </span>
+  `;
+  card.appendChild(summary);
+
+  const ff = document.createElement('div');
+  ff.className = 'fixed-fields';
+
+  let fieldsHtml = '';
+  for(let i=0;i<RTO_CARE_FIELDS.length;i+=2){
+    const f1 = RTO_CARE_FIELDS[i], f2 = RTO_CARE_FIELDS[i+1];
+    fieldsHtml += `<div class="field-row">
+      <div class="field"><label>${f1.label}</label><input type="${f1.type}" ${f1.type==='number'?'step="0.01"':''} id="rc_${index}_${f1.key}" value="${f1.type==='text'||f1.type==='date' ? escapeHtml(rec[f1.key]) : rec[f1.key]}"></div>
+      ${f2 ? `<div class="field"><label>${f2.label}</label><input type="${f2.type}" ${f2.type==='number'?'step="0.01"':''} id="rc_${index}_${f2.key}" value="${f2.type==='text'||f2.type==='date' ? escapeHtml(rec[f2.key]) : rec[f2.key]}"></div>` : '<div class="field"></div>'}
+    </div>`;
+  }
+  fieldsHtml += `
+    <div class="field-row">
+      <div class="field"><label>Outstanding (auto)</label><input type="text" disabled id="rc_${index}_outstanding"></div>
+      <div class="field"><label>Breakeven — months (auto)</label><input type="text" disabled id="rc_${index}_breakeven"></div>
+    </div>
+  `;
+  ff.innerHTML = fieldsHtml;
+  card.appendChild(ff);
+
+  RTO_CARE_FIELDS.forEach(f=>{
+    ff.querySelector(`#rc_${index}_${f.key}`).oninput = e=>{
+      rec[f.key] = e.target.value;
+      updateRecordCalc();
+      if(f.key==='customerName' || f.key==='branch'){
+        summary.querySelector('.rc-title').textContent = `${rec.customerName||'New Customer'} ${rec.branch?('· '+rec.branch):''}`;
+      }
+    };
+  });
+
+  function updateRecordCalc(){
+    const out = num(rec.totalContractValue) - num(rec.paymentReceived);
+    const be = num(rec.monthlyInstallment) > 0 ? (num(rec.cost) / num(rec.monthlyInstallment)) : 0;
+    ff.querySelector(`#rc_${index}_outstanding`).value = 'RM ' + fmt(out);
+    ff.querySelector(`#rc_${index}_breakeven`).value = be ? be.toFixed(2) + ' months' : '-';
+    summary.querySelector('.rc-outstanding').textContent = 'RM ' + fmt(out);
+  }
+  updateRecordCalc();
+
+  // Payment / due date schedule
+  const schedWrap = document.createElement('div');
+  schedWrap.style.padding = '4px 14px 12px';
+  const schedTitleRow = document.createElement('div');
+  schedTitleRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin:10px 0 6px;';
+  schedTitleRow.innerHTML = `<span style="font-weight:700;font-size:12.5px;color:var(--navy-2);">Monthly Payment Schedule</span>`;
+  schedWrap.appendChild(schedTitleRow);
+
+  const genBtn = document.createElement('button');
+  genBtn.className = 'add-row-btn';
+  genBtn.style.margin = '0 0 8px';
+  genBtn.textContent = rec.schedule.length ? '↻ Regenerate from Tenure' : '+ Generate Schedule from Tenure';
+  genBtn.onclick = ()=>{
+    const months = parseInt(rec.tenure, 10) || 0;
+    if(months <= 0){ showToast('Set Tenure (months) first'); return; }
+    const existing = rec.schedule || [];
+    const newSchedule = [];
+    for(let n=1;n<=months;n++){
+      const prev = existing[n-1];
+      const dueDate = rec.autoDebitStartDate ? addMonthsISO(rec.autoDebitStartDate, n-1) : (prev ? prev.dueDate : '');
+      newSchedule.push({ label: ordinal(n), dueDate, paidDate: prev ? prev.paidDate : '' });
+    }
+    rec.schedule = newSchedule;
+    renderMain();
+  };
+  schedWrap.appendChild(genBtn);
+
+  const schedHead = document.createElement('div');
+  schedHead.style.cssText = 'display:flex;gap:6px;padding:2px 2px;font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;';
+  schedHead.innerHTML = `<span style="flex:0 0 44px;">#</span><span style="flex:1;">Due Date</span><span style="flex:1;">Paid Date</span><span style="flex:0 0 50px;">Status</span><span style="flex:0 0 20px;"></span>`;
+  schedWrap.appendChild(schedHead);
+
+  const schedList = document.createElement('div');
+  rec.schedule.forEach((s, si)=>{
+    const status = installmentStatus(s);
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;padding:5px 2px;border-bottom:1px solid #F0EEE6;';
+    row.innerHTML = `
+      <input type="text" style="flex:0 0 44px;border:none;background:transparent;font-size:12px;padding:4px 2px;" value="${escapeHtml(s.label)}" placeholder="1st">
+      <input type="date" style="flex:1;border:none;background:#FAF9F5;border-radius:6px;padding:5px 6px;font-size:11.5px;" value="${s.dueDate||''}">
+      <input type="date" style="flex:1;border:none;background:#FAF9F5;border-radius:6px;padding:5px 6px;font-size:11.5px;" value="${s.paidDate||''}">
+      <span style="flex:0 0 50px;font-size:10.5px;font-weight:700;color:${statusColor(status)};">${status}</span>
+      <button class="del" style="flex:0 0 20px;">✕</button>
+    `;
+    const inputs = row.querySelectorAll('input');
+    inputs[0].oninput = e=>{ s.label = e.target.value; };
+    inputs[1].onchange = e=>{ s.dueDate = e.target.value; renderMain(); };
+    inputs[2].onchange = e=>{ s.paidDate = e.target.value; renderMain(); };
+    row.querySelector('.del').onclick = ()=>{ rec.schedule.splice(si,1); renderMain(); };
+    schedList.appendChild(row);
+  });
+  schedWrap.appendChild(schedList);
+
+  const addSchedBtn = document.createElement('button');
+  addSchedBtn.className = 'add-row-btn';
+  addSchedBtn.textContent = '+ Add single row';
+  addSchedBtn.onclick = ()=>{
+    rec.schedule.push({label: ordinal(rec.schedule.length+1), dueDate:'', paidDate:''});
+    renderMain();
+  };
+  schedWrap.appendChild(addSchedBtn);
+  card.appendChild(schedWrap);
+
+  const delBtn = document.createElement('button');
+  delBtn.textContent = 'Delete Customer';
+  delBtn.style.cssText = 'margin:0 14px 14px;padding:8px 12px;border-radius:8px;border:1px solid var(--danger);background:#fff;color:var(--danger);font-size:12.5px;font-weight:600;cursor:pointer;';
+  delBtn.onclick = ()=>{ records.splice(index,1); if(records.length===0) records.push(defaultRtoCareRecord()); renderMain(); };
+  card.appendChild(delBtn);
+
+  return card;
+}
+
+async function listFailedMonths(){
+  try{
+    const res = await window.storage.list('failed:', STORAGE_SHARED);
+    if(!res || !res.keys) return [];
+    return res.keys.map(k=>k.split(':')[1]).sort().reverse();
+  }catch(e){ return []; }
+}
+
+// ---------- Failed payments log ----------
+async function renderFailedUI(main){
+  const mp = document.createElement('div');
+  mp.className = 'month-picker';
+  mp.innerHTML = `<label>Month</label><input type="month" id="monthInput" value="${currentFailed.month}">`;
+  main.appendChild(mp);
+  document.getElementById('monthInput').onchange = async (e)=>{ await loadFailedLog(e.target.value); };
+
+  const months = await listFailedMonths();
+  if(months.length){
+    const chips = document.createElement('div');
+    chips.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin:-6px 0 14px;';
+    months.forEach(m=>{
+      const b = document.createElement('button');
+      b.textContent = m;
+      const active = m === currentFailed.month;
+      b.style.cssText = `padding:6px 11px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid ${active?'#0A1628':'#E4E1D6'};background:${active?'#0A1628':'#fff'};color:${active?'#fff':'#2A3350'};`;
+      b.onclick = ()=>loadFailedLog(m);
+      chips.appendChild(b);
+    });
+    main.appendChild(chips);
+  }
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<div class="card-head"><span>Failed Payment (RTO) — ${currentFailed.month}</span></div>`;
+  const list = document.createElement('div');
+  list.className = 'row-list';
+
+  currentFailed.rows.forEach((r,i)=>{
+    const item = document.createElement('div');
+    item.className = 'row-item';
+    item.innerHTML = `
+      <input type="text" placeholder="Customer name" value="${escapeHtml(r.name)}" style="flex:1.3">
+      <input type="text" placeholder="Contact" value="${escapeHtml(r.contact)}" style="flex:1; max-width:110px">
+      <div class="amt-wrap"><span>RM</span><input type="number" step="0.01" value="${r.amount}"></div>
+      <button class="del">✕</button>
+    `;
+    const inputs = item.querySelectorAll('input');
+    inputs[0].oninput = e=>{ r.name = e.target.value; };
+    inputs[1].oninput = e=>{ r.contact = e.target.value; };
+    inputs[2].oninput = e=>{ r.amount = e.target.value; updateFailedTotal(card); };
+    item.querySelector('.del').onclick = ()=>{ currentFailed.rows.splice(i,1); renderMain(); };
+    list.appendChild(item);
+  });
+  card.appendChild(list);
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'add-row-btn';
+  addBtn.textContent = '+ Add customer';
+  addBtn.onclick = ()=>{ currentFailed.rows.push({name:'',contact:'',amount:''}); renderMain(); };
+  card.appendChild(addBtn);
+
+  const total = currentFailed.rows.reduce((s,r)=>s+num(r.amount),0);
+  const totalRow = document.createElement('div');
+  totalRow.className = 'total-row';
+  totalRow.innerHTML = `<span>TOTAL</span><span class="tval">RM ${fmt(total)}</span>`;
+  card.appendChild(totalRow);
+
+  main.appendChild(card);
+}
+
+function updateFailedTotal(card){
+  const total = currentFailed.rows.reduce((s,r)=>s+num(r.amount),0);
+  card.querySelector('.tval').textContent = 'RM ' + fmt(total);
+}
+
+// ---------- Copy as text ----------
+function escapeHtml(str){
+  return (str||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+// ---------- Save as photo ----------
+function photoSectionTable(title, rows, totalLabel, totalValue){
+  let html = `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+  html += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">${title}</div>`;
+  rows.forEach(r=>{
+    if(!r.label && !r.amount) return;
+    html += `<div style="display:flex;justify-content:space-between;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:14px;">
+      <span>${escapeHtml(r.label)||'&nbsp;'}</span><span style="font-weight:600;">RM ${fmt(num(r.amount))}</span></div>`;
+  });
+  html += `<div style="display:flex;justify-content:space-between;padding:8px 14px;background:#0A1628;color:#fff;font-weight:700;font-size:14px;">
+    <span>${totalLabel}</span><span>RM ${fmt(totalValue)}</span></div>`;
+  html += `</div>`;
+  return html;
+}
+
+// Item/Qty/Amount table, matching Espace X's own export format exactly —
+// used standalone (not nested) so the Mini Impian per-branch column builder
+// can call it directly.
+function qtySectionHtmlStandalone(title, rows, skipNoAmount){
+  let html = `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+  html += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">${title}</div>`;
+  html += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:10.5px;text-transform:uppercase;padding:6px 14px;color:#555;">
+    <span style="flex:1.6;">Item</span>
+    <span style="flex:0.5;text-align:right;">Qty</span>
+    <span style="flex:0.8;text-align:right;">Amount</span>
+  </div>`;
+  let t=0;
+  rows.forEach(r=>{
+    if(!r.label) return;
+    if(skipNoAmount && !num(r.amount)) return;
+    html += `<div style="display:flex;align-items:center;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:13.5px;">
+      <span style="flex:1.6;">${escapeHtml(r.label)}</span>
+      <span style="flex:0.5;text-align:right;">${r.qty||'-'}</span>
+      <span style="flex:0.8;text-align:right;font-weight:600;">RM ${fmt(num(r.amount))}</span>
+    </div>`;
+    t+=num(r.amount);
+  });
+  html += `<div style="display:flex;justify-content:space-between;padding:8px 14px;background:#0A1628;color:#fff;font-weight:700;font-size:14px;">
+    <span>TOTAL</span><span>RM ${fmt(t)}</span></div></div>`;
+  return html;
+}
+
+// One shared section title spanning the full width, with short per-branch
+// sub-headers underneath in side-by-side columns — avoids repeating the full
+// section title in each column (which wraps awkwardly in a narrow column).
+function photoBranchPairTable(sectionTitle, branches, totalLabel){
+  let cols = '';
+  branches.forEach((b,i)=>{
+    let rowsHtml = '';
+    b.rows.forEach(r=>{
+      if(!r.label && !r.amount) return;
+      rowsHtml += `<div style="display:flex;justify-content:space-between;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:14px;">
+        <span>${escapeHtml(r.label)||'&nbsp;'}</span><span style="font-weight:600;">RM ${fmt(num(r.amount))}</span></div>`;
+    });
+    cols += `<div style="flex:1;min-width:0;${i>0?'border-left:1px solid #ddd;':''}">
+      <div style="padding:7px 14px;font-weight:700;font-size:13px;color:#1C2333;background:#E4EDFA;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${b.label}</div>
+      ${rowsHtml}
+      <div style="display:flex;justify-content:space-between;padding:8px 14px;background:#0A1628;color:#fff;font-weight:700;font-size:13.5px;">
+        <span>${totalLabel}</span><span>RM ${fmt(b.total)}</span></div>
+    </div>`;
+  });
+  return `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">
+    <div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">${sectionTitle}</div>
+    <div style="display:flex;">${cols}</div>
+  </div>`;
+}
+
+function buildPhotoHTML(){
+  let inner = '';
+  if(COMPANIES[currentCompany].isLog){
+    inner += `<h2 style="margin:0 0 4px;font-size:19px;">FAILED PAYMENT (RTO)</h2>`;
+    inner += `<div style="color:#666;font-size:13px;margin-bottom:14px;">Month: ${currentFailed.month}</div>`;
+    inner += `<div style="border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+    inner += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:12px;padding:8px 14px;">
+      <span style="flex:1.4;">NAME</span><span style="flex:1;">CONTACT</span><span style="flex:0.8;text-align:right;">AMT</span></div>`;
+    currentFailed.rows.forEach(r=>{
+      if(!r.name && !r.amount) return;
+      inner += `<div style="display:flex;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:13.5px;">
+        <span style="flex:1.4;">${escapeHtml(r.name)}</span><span style="flex:1;">${escapeHtml(r.contact)}</span>
+        <span style="flex:0.8;text-align:right;font-weight:600;">${fmt(num(r.amount))}</span></div>`;
+    });
+    const total = currentFailed.rows.reduce((s,r)=>s+num(r.amount),0);
+    inner += `<div style="display:flex;justify-content:flex-end;padding:8px 14px;background:#0A1628;color:#fff;font-weight:700;">RM ${fmt(total)}</div>`;
+    inner += `</div>`;
+  } else {
+    const cfg = COMPANIES[currentCompany];
+    inner += `<h2 style="margin:0 0 4px;font-size:19px;">${cfg.name}</h2>`;
+    inner += `<div style="color:#666;font-size:13px;margin-bottom:14px;">${cfg.hasTime?('Time: '+(currentData.time||'-')+' &middot; '):''}Date: ${currentData.date}</div>`;
+
+    if(currentCompany==='miniImpianSales'){
+      // Two complete, independent reports side by side — each built exactly
+      // like Espace X's own simple single-branch export, just fed that
+      // branch's own data, rather than splitting each section across columns.
+      function buildBranchColumn(branchKey, branchLabel){
+        const sr = currentData.sections.salesReport[branchKey];
+        const srTotal = num(sr.cash)+num(sr.card)+num(sr.qr);
+        let html = `<div style="font-weight:800;font-size:15px;color:#0A1628;margin-bottom:8px;">${branchLabel}</div>`;
+        html += photoSectionTable('Daily Sales Report', [
+          {label:'Cash', amount:sr.cash},
+          {label:'Credit/Debit Card', amount:sr.card},
+          {label:'QR Payment', amount:sr.qr},
+        ], 'TOTAL SALES', srTotal);
+        html += qtySectionHtmlStandalone(SECTION_TITLES.playground, currentData.sections.playground[branchKey], true);
+        html += qtySectionHtmlStandalone(SECTION_TITLES.other, currentData.sections.other[branchKey], true);
+        return html;
+      }
+      const left = buildBranchColumn('sandakan', 'Sandakan Branch');
+      const right = buildBranchColumn('tawau', 'Tawau Branch');
+      inner += `<div style="display:flex;gap:20px;align-items:flex-start;">
+        <div style="flex:1;min-width:0;border-right:1px solid #ddd;padding-right:20px;">${left}</div>
+        <div style="flex:1;min-width:0;">${right}</div>
+      </div>`;
+    } else {
+
+    const sectionsForPhoto = cfg.photoSections || cfg.sections;
+    sectionsForPhoto.forEach(sec=>{
+      if(sec==='stock'){
+        let html = `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+        html += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">Stock Balance</div>`;
+        html += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:10.5px;text-transform:uppercase;padding:6px 14px;color:#555;">
+          <span style="flex:1.1;">Branch</span>
+          <span style="flex:1;text-align:right;padding-right:16px;">TV/Laptop/HP/Tablet</span>
+          <span style="flex:1;text-align:right;">Total Stock Balance</span>
+        </div>`;
+        let catT=0, totT=0;
+        currentData.sections.stock.forEach(r=>{
+          if(!r.branch) return;
+          html += `<div style="display:flex;align-items:center;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:13.5px;">
+            <span style="flex:1.1;font-weight:600;">${escapeHtml(r.branch)}</span>
+            <span style="flex:1;text-align:right;padding-right:16px;">RM ${fmt(num(r.category))}</span>
+            <span style="flex:1;text-align:right;font-weight:600;">RM ${fmt(num(r.total))}</span>
+          </div>`;
+          catT+=num(r.category); totT+=num(r.total);
+        });
+        html += `<div style="display:flex;padding:8px 14px;background:#0A1628;color:#fff;font-weight:700;font-size:14px;">
+          <span style="flex:1.1;">TOTAL</span>
+          <span style="flex:1;text-align:right;padding-right:16px;">RM ${fmt(catT)}</span>
+          <span style="flex:1;text-align:right;">RM ${fmt(totT)}</span>
+        </div></div>`;
+        inner += html;
+      } else if(sec==='rto'){
+        const d = currentData.sections.rto;
+        const pendingList = (d.pendingMonths&&d.pendingMonths.length?d.pendingMonths:(d.pendingMonth?[{month:d.pendingMonth,count:d.pendingCount,amount:d.pendingAmount}]:[]));
+        const rows = [
+          {label:'Total Contract Value', amount:d.contractValue},
+          {label:'Device DTP', amount:d.deviceDTP},
+          {label:'Expected Total Profit', amount:d.expectedProfit},
+          {label:'Collected Payment', amount:d.collectedPayment},
+          {label:'Balance to Receive', amount:num(d.contractValue)-num(d.collectedPayment)},
+          ...pendingList.filter(pm=>pm.month||pm.amount).map(pm=>({label:`Pending Collection - ${pm.month||''} (${pm.count||0})`, amount:pm.amount})),
+          {label:`Next Month Collection - ${d.nextMonthLabel||''}`, amount:d.nextMonthAmount},
+        ];
+        inner += photoSectionTable('Rent-to-Own (RTO)', rows, 'BALANCE TO RECEIVE', num(d.contractValue)-num(d.collectedPayment));
+      } else if(sec==='salesReport'){
+        const d = currentData.sections.salesReport;
+        if(currentCompany==='miniImpianSales'){
+          const branches=[{key:'sandakan',label:'Sandakan Branch'},{key:'tawau',label:'Tawau Branch'}];
+          const branchData = branches.map(b=>{
+            const bd=d[b.key];
+            return {label:b.label, total:num(bd.cash)+num(bd.card)+num(bd.qr), rows:[{label:'Cash',amount:bd.cash},{label:'Credit/Debit Card',amount:bd.card},{label:'QR Payment',amount:bd.qr}]};
+          });
+          inner += photoBranchPairTable('Daily Sales Report', branchData, 'TOTAL SALES');
+        } else {
+          const total = num(d.cash)+num(d.card)+num(d.qr)+(currentCompany==='dojo'?num(d.grabfood)+num(d.foodpanda):0);
+          const rows = [
+            {label:'Cash', amount:d.cash},
+            {label:'Credit/Debit Card', amount:d.card},
+            {label:'QR Payment', amount:d.qr},
+            ...(currentCompany==='dojo'?[
+              {label:'GrabFood', amount:d.grabfood},
+              {label:'FoodPanda', amount:d.foodpanda},
+            ]:[]),
+          ];
+          inner += photoSectionTable('Daily Sales Report', rows, 'TOTAL SALES', total);
+        }
+      } else if(sec==='summary'){
+        const d = currentData.sections.summary;
+        const sr = currentData.sections.salesReport || {};
+        const cashNet = num(d.cashSalesTotal) - num(d.cashSalesDiscount);
+        const grabTotal = currentCompany==='dojo' ? (num(sr.grabfood)||0) : 0;
+        const fpTotal = currentCompany==='dojo' ? (num(sr.foodpanda)||0) : 0;
+        const grabNet = grabTotal - num(d.grabFoodSst);
+        const fpNet = fpTotal - num(d.foodPandaSst);
+        const grandT = cashNet + num(d.surcharge) + grabNet + fpNet + num(d.sst) + num(d.aisolove);
+        const autocountSales = cashNet - grabNet - fpNet - num(d.surcharge) - num(d.sst);
+        const rows = [
+          {label:'Cash Sales (Total − Discount)', amount:cashNet},
+          {label:'Surcharge', amount:d.surcharge},
+          {label:'GrabFood Sales (Auto)', amount:grabNet},
+          {label:'FoodPanda Sales (Auto)', amount:fpNet},
+          {label:'SST', amount:d.sst},
+          {label:'Aisolove', amount:d.aisolove},
+          {label:'Autocount Sales (auto)', amount:autocountSales},
+        ];
+        inner += photoSectionTable('Summary', rows, 'TOTAL', grandT);
+      } else if(sec==='rtoCare'){
+        const records = currentData.sections.rtoCare;
+        let html = `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+        html += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">RTO Customers</div>`;
+        html += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:10px;text-transform:uppercase;padding:6px 14px;color:#555;">
+          <span style="flex:1.6;">Customer</span>
+          <span style="flex:1;">Branch</span>
+          <span style="flex:1;text-align:right;">Monthly</span>
+          <span style="flex:1;text-align:right;">Outstanding</span>
+        </div>`;
+        let totalContract=0, totalOutstanding=0;
+        records.forEach(r=>{
+          if(!r.customerName) return;
+          const out = num(r.totalContractValue) - num(r.paymentReceived);
+          html += `<div style="display:flex;align-items:center;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:12.5px;">
+            <span style="flex:1.6;font-weight:600;">${escapeHtml(r.customerName)}</span>
+            <span style="flex:1;">${escapeHtml(r.branch)}</span>
+            <span style="flex:1;text-align:right;">RM ${fmt(num(r.monthlyInstallment))}</span>
+            <span style="flex:1;text-align:right;font-weight:600;">RM ${fmt(out)}</span>
+          </div>`;
+          totalContract += num(r.totalContractValue);
+          totalOutstanding += out;
+        });
+        html += `<div style="display:flex;justify-content:space-between;padding:8px 14px;background:#0A1628;color:#fff;font-weight:700;font-size:13px;">
+          <span>TOTAL (${records.filter(r=>r.customerName).length} customers)</span>
+          <span>Contract RM ${fmt(totalContract)} · Outstanding RM ${fmt(totalOutstanding)}</span>
+        </div></div>`;
+        inner += html;
+      } else if(QTY_SECTIONS.has(sec)){
+        function qtySectionHtml(title, rows){
+          let html = `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+          html += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">${title}</div>`;
+          html += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:10.5px;text-transform:uppercase;padding:6px 14px;color:#555;">
+            <span style="flex:1.6;">Item</span>
+            <span style="flex:0.5;text-align:right;">Qty</span>
+            <span style="flex:0.8;text-align:right;">Amount</span>
+          </div>`;
+          let t=0;
+          rows.forEach(r=>{
+            if(!r.label) return;
+            html += `<div style="display:flex;align-items:center;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:13.5px;">
+              <span style="flex:1.6;">${escapeHtml(r.label)}</span>
+              <span style="flex:0.5;text-align:right;">${r.qty||'-'}</span>
+              <span style="flex:0.8;text-align:right;font-weight:600;">RM ${fmt(num(r.amount))}</span>
+            </div>`;
+            t+=num(r.amount);
+          });
+          html += `<div style="display:flex;justify-content:space-between;padding:8px 14px;background:#0A1628;color:#fff;font-weight:700;font-size:14px;">
+            <span>TOTAL</span><span>RM ${fmt(t)}</span></div></div>`;
+          return html;
+        }
+        if(currentCompany==='miniImpianSales'){
+          const d = currentData.sections[sec];
+          const branches=[{key:'sandakan',label:'Sandakan Branch'},{key:'tawau',label:'Tawau Branch'}];
+          let cols = '';
+          branches.forEach((b,i)=>{
+            const rows = d[b.key];
+            let rowsHtml = '', t=0;
+            rows.forEach(r=>{
+              if(!r.label) return;
+              rowsHtml += `<div style="display:flex;align-items:center;padding:7px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:13.5px;">
+                <span style="flex:1.6;">${escapeHtml(r.label)}</span>
+                <span style="flex:0.5;text-align:right;">${r.qty||'-'}</span>
+                <span style="flex:0.8;text-align:right;font-weight:600;">RM ${fmt(num(r.amount))}</span>
+              </div>`;
+              t+=num(r.amount);
+            });
+            cols += `<div style="flex:1;min-width:0;${i>0?'border-left:1px solid #ddd;':''}">
+              <div style="padding:7px 14px;font-weight:700;font-size:13px;color:#1C2333;background:#E4EDFA;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${b.label}</div>
+              <div style="display:flex;background:#f0eee6;font-weight:700;font-size:10.5px;text-transform:uppercase;padding:6px 14px;color:#555;">
+                <span style="flex:1.6;">Item</span>
+                <span style="flex:0.5;text-align:right;">Qty</span>
+                <span style="flex:0.8;text-align:right;">Amount</span>
+              </div>
+              ${rowsHtml}
+              <div style="display:flex;justify-content:space-between;padding:8px 14px;background:#0A1628;color:#fff;font-weight:700;font-size:13.5px;">
+                <span>TOTAL</span><span>RM ${fmt(t)}</span></div>
+            </div>`;
+          });
+          inner += `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">
+            <div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">${SECTION_TITLES[sec]}</div>
+            <div style="display:flex;">${cols}</div>
+          </div>`;
+        } else {
+          inner += qtySectionHtml(SECTION_TITLES[sec], currentData.sections[sec]);
+        }
+      } else {
+        const rows = currentData.sections[sec];
+        const total = rows.reduce((s,r)=>s+num(r.amount),0);
+        inner += photoSectionTable(SECTION_TITLES[sec], rows, 'TOTAL', total);
+      }
+    });
+    }
+  }
+  return inner;
+}
+
+// Builds one Mini Impian branch's complete standalone report (header +
+// the same Daily Sales Report / Children's Playground / Other sections
+// used inside the combined side-by-side view) — used by saveAsPhoto() to
+// export Mini Impian as two separate photos (one per branch) instead of
+// one combined image.
+function buildMiniImpianBranchPhotoHTML(branchKey, branchLabel){
+  let inner = `<h2 style="margin:0 0 4px;font-size:19px;">MINI IMPIAN - ${branchLabel.toUpperCase()}</h2>`;
+  inner += `<div style="color:#666;font-size:13px;margin-bottom:14px;">Date: ${currentData.date}</div>`;
+  const sr = currentData.sections.salesReport[branchKey];
+  const srTotal = num(sr.cash)+num(sr.card)+num(sr.qr);
+  inner += photoSectionTable('Daily Sales Report', [
+    {label:'Cash', amount:sr.cash},
+    {label:'Credit/Debit Card', amount:sr.card},
+    {label:'QR Payment', amount:sr.qr},
+  ], 'TOTAL SALES', srTotal);
+  inner += qtySectionHtmlStandalone(SECTION_TITLES.playground, currentData.sections.playground[branchKey], true);
+  inner += qtySectionHtmlStandalone(SECTION_TITLES.other, currentData.sections.other[branchKey], true);
+  const tf=miniImpianTallyFigures(branchKey);
+  inner += `<div style="display:flex;justify-content:space-between;padding:9px 14px;background:#C9D9F0;color:#0A1628;font-weight:800;font-size:14px;border-radius:4px;margin-bottom:6px;">
+    <span>PLAYGROUND + OTHER TOTAL</span><span>RM ${fmt(tf.items)}</span></div>`;
+  return inner;
+}
+
+// Builds the combined photo by calling the existing, per-company
+// buildPhotoHTML() once for each of the 4 merged companies (same
+// temporary-swap approach as renderMergedMain), then stitching all 4
+// outputs together with a divider between each — reuses that function
+// completely unchanged rather than re-implementing per-section photo
+// layout a second time.
+function buildMergedPhotoHTML(){
+  const cfg = COMPANIES.merged;
+  const savedCompany = currentCompany, savedData = currentData;
+  let inner = `<div style="text-align:center;margin-bottom:6px;"><div style="color:#666;font-size:13px;">${mergedDataByCompany[cfg.mergedCompanies[0]].date}</div></div>`;
+  cfg.mergedCompanies.forEach((c,i)=>{
+    currentCompany = c;
+    currentData = mergedDataByCompany[c];
+    inner += `<div style="margin-top:${i===0?18:26}px;padding-top:${i===0?0:4}px;${i>0?'border-top:2px solid #C9D9F0;':''}">`;
+    inner += buildPhotoHTML();
+    inner += `</div>`;
+  });
+  currentCompany = savedCompany;
+  currentData = savedData;
+  return inner;
+}
+
+async function buildAllFailedPhotoHTML(){
+  const months = await listFailedMonths();
+  let inner = `<h2 style="margin:0 0 4px;font-size:19px;">FAILED PAYMENT (RTO)</h2>`;
+  inner += `<div style="color:#666;font-size:13px;margin-bottom:14px;">All months on record</div>`;
+
+  if(months.length===0){
+    inner += `<div style="padding:10px;color:#888;font-size:13px;">No failed payment months saved yet.</div>`;
+    return inner;
+  }
+
+  let grandTotal = 0;
+  for(const m of months){
+    let rows = [];
+    if(m === currentFailed.month){
+      rows = currentFailed.rows;
+    } else {
+      try{
+        const res = await window.storage.get(storageKeyFailed(m), STORAGE_SHARED);
+        rows = res && res.value ? JSON.parse(res.value).rows : [];
+      }catch(e){ rows = []; }
+    }
+    rows = rows.filter(r=>r.name || r.amount);
+    const monthTotal = rows.reduce((s,r)=>s+num(r.amount),0);
+    grandTotal += monthTotal;
+
+    inner += `<div style="margin-bottom:14px;border:1px solid #ddd;border-radius:4px;overflow:hidden;">`;
+    inner += `<div style="background:#C9D9F0;color:#1C2333;font-weight:700;font-size:15px;padding:8px 14px;">Month: ${m}</div>`;
+    inner += `<div style="display:flex;background:#f0eee6;font-weight:700;font-size:12px;padding:6px 14px;">
+      <span style="flex:1.4;">NAME</span><span style="flex:1;">CONTACT</span><span style="flex:0.8;text-align:right;">AMT</span></div>`;
+    if(rows.length===0){
+      inner += `<div style="padding:8px 14px;color:#999;font-size:13px;background:#FBF8EF;">No failed payments recorded</div>`;
+    }
+    rows.forEach(r=>{
+      inner += `<div style="display:flex;padding:6px 14px;background:#FBF8EF;border-bottom:1px solid #EFEAD9;font-size:13px;">
+        <span style="flex:1.4;">${escapeHtml(r.name)}</span><span style="flex:1;">${escapeHtml(r.contact)}</span>
+        <span style="flex:0.8;text-align:right;font-weight:600;">${fmt(num(r.amount))}</span></div>`;
+    });
+    inner += `<div style="display:flex;justify-content:space-between;padding:7px 14px;background:#0A1628;color:#fff;font-weight:700;font-size:13.5px;">
+      <span>Month Total</span><span>RM ${fmt(monthTotal)}</span></div>`;
+    inner += `</div>`;
+  }
+
+  inner += `<div style="display:flex;justify-content:space-between;padding:10px 14px;background:#1C2333;color:#FFD500;font-weight:700;font-size:15px;border-radius:4px;">
+    <span>GRAND TOTAL</span><span>RM ${fmt(grandTotal)}</span></div>`;
+
+  return inner;
+}
+
+async function saveAsPhoto(){
+  if(typeof html2canvas === 'undefined'){ showToast('Image tool still loading, try again'); return; }
+  const isFailed = COMPANIES[currentCompany].isLog;
+  const isMerged = COMPANIES[currentCompany].isMerged;
+
+  // Mini Impian Sales: export as two separate, standalone photos (one per
+  // branch) rather than one combined side-by-side image.
+  if(currentCompany==='miniImpianSales' && !isFailed && !isMerged){
+    const branches=[{key:'sandakan',label:'Sandakan Branch'},{key:'tawau',label:'Tawau Branch'}];
+    for(const b of branches){
+      const branchContainer = document.createElement('div');
+      branchContainer.style.cssText = `position:fixed;left:-9999px;top:0;width:560px;background:#F6F4EE;padding:20px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#20242E;`;
+      branchContainer.innerHTML = buildMiniImpianBranchPhotoHTML(b.key, b.label);
+      document.body.appendChild(branchContainer);
+      try{
+        const canvas = await html2canvas(branchContainer, {backgroundColor:'#F6F4EE', scale:2});
+        const name = `miniimpiansales-${b.key}-${currentData.date}`;
+        await new Promise((resolve)=>{
+          canvas.toBlob(function(blob){
+            if(!blob){ showToast('Could not generate photo'); resolve(); return; }
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${name}.png`;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(()=>{
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+              resolve();
+            }, 1000);
+          }, 'image/png');
+        });
+      }catch(e){
+        showToast('Could not generate photo: '+e.message);
+      }finally{
+        document.body.removeChild(branchContainer);
+      }
+    }
+    showToast('Photos saved ✓ check your Downloads');
+    return;
+  }
+
+  const container = document.createElement('div');
+  const photoWidth = 560;
+  container.style.cssText = `position:fixed;left:-9999px;top:0;width:${photoWidth}px;background:#F6F4EE;padding:20px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#20242E;`;
+  container.innerHTML = isFailed ? await buildAllFailedPhotoHTML() : isMerged ? buildMergedPhotoHTML() : buildPhotoHTML();
+  document.body.appendChild(container);
+  try{
+    const canvas = await html2canvas(container, {backgroundColor:'#F6F4EE', scale:2});
+    const name = isFailed ? `failed-payments-all-months` : isMerged ? `combined-${mergedDataByCompany.emax.date}` : `${currentCompany}-${currentData.date}`;
+
+    canvas.toBlob(function(blob){
+      if(!blob){ showToast('Could not generate photo'); return; }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${name}.png`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(()=>{
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 1000);
+      showToast('Photo saved ✓ check your Downloads');
+    }, 'image/png');
+  }catch(e){
+    showToast('Could not generate photo: '+e.message);
+  }finally{
+    document.body.removeChild(container);
+  }
+}
+
+document.getElementById('photoBtn').onclick = saveAsPhoto;
+document.getElementById('saveBtn').onclick = saveReport;
+
+// ---------- Init ----------
+(async function init(){
+  renderTabs();
+  if(RESTRICT){
+    // emaxpurchase's view (restricted to the Supplier section) only fills
+    // and saves the report — no photo export for this scoped-down view.
+    if(RESTRICT.section==='supplier'){
+      const photoBtnEl = document.getElementById('photoBtn');
+      if(photoBtnEl) photoBtnEl.style.display = 'none';
+    }
+    await switchCompany(RESTRICT.company);
+    return;
+  }
+  const allDates = (await Promise.all(COMPANIES.merged.mergedCompanies.map(c=>listReportDates(c)))).flat();
+  const latest = allDates.length ? allDates.sort().reverse()[0] : new Date().toISOString().slice(0,10);
+  await loadMergedReport(latest);
+})();
+</script>
+</body>
+</html>

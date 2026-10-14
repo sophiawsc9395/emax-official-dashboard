@@ -162,7 +162,7 @@ const MANUAL_ROSTER_ONLY_BRANCHES=["HQ"];
 // comes from — a manager name or an SR canon name. Keep this in sync by
 // hand with the matching list in App.jsx (the two files don't share a
 // lookup module for this one narrow case).
-const DIRECTOR_EXCLUDED_NAMES=["MAX SIEW","EC"];
+const DIRECTOR_EXCLUDED_NAMES=["MAX SIEW","EC","SIEW WING FEI","WING FEI","KHOR BOON THENG","BOON THENG"];
 const isDirectorExcluded=name=>DIRECTOR_EXCLUDED_NAMES.includes((name||"").trim().toUpperCase());
 // Resigned SR/BM staff are removed from the CURRENT/future roster — same
 // treatment as director-exclusion above — but, per Sophia's correction ("Do

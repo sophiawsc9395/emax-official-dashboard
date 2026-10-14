@@ -1,0 +1,240 @@
+import React, { useState, useEffect } from 'react'
+import ReactDOM from 'react-dom/client'
+import JCLTab from './JCLTab.jsx'
+import ChaileaseTab from './ChaileaseTab.jsx'
+import { PickupTodoList } from './OrderTab.jsx'
+import AuthGate from './auth/AuthGate.jsx'
+import { supabase, loadData } from './storage/index.js'
+import { listOrders, reconcile } from './storage/ordersApi.js'
+
+// Dedicated page for emaxjcl@gmail.com — she used to reach JCL Application
+// through order.html via a special-cased allowlist, but that page has since
+// been simplified back down to just Order Tracking/Daily Sales/Purchase
+// Order. This page exists solely for JCL Application, Chailease
+// Application, and the Pickup Reminder To-Do list, grouped under one
+// sidebar, matching the same grouped-sidebar look used everywhere else in
+// this app.
+const ALLOWED = ["emaxjcl@gmail.com", "sophiawsc9395@gmail.com", "boontheng2004@gmail.com"]
+
+const SR_KEY = "emax_v5_sr_list", BM_KEY = "emax_v5_branch_meta"
+
+const CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter',-apple-system,sans-serif;background:#F7F9FC;color:#0A1628;}
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-thumb{background:#CDD5E0;border-radius:3px;}
+  .card{background:#fff;border:1px solid #E4EAF2;border-radius:12px;box-shadow:0 1px 3px rgba(10,22,40,.06),0 4px 12px rgba(10,22,40,.04);transition:box-shadow .2s,transform .2s;}
+  .card:hover{box-shadow:0 4px 16px rgba(10,22,40,.10);}
+  .btn{border:none;cursor:pointer;font-family:'Inter',sans-serif;font-weight:600;letter-spacing:.01em;transition:all .15s;display:inline-flex;align-items:center;gap:6px;}
+  .input{width:100%;padding:8px 12px;border:1.5px solid #E4EAF2;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;color:#0A1628;outline:none;transition:border-color .15s;background:#fff;}
+  .input:focus{border-color:#1E6FDB;box-shadow:0 0 0 3px rgba(30,111,219,.12);}
+  .select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238A96A8'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .fade-in{animation:fadeIn .25s ease forwards;}
+  .progress-bar-fill{transition:width .8s cubic-bezier(.4,0,.2,1);}
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,22,40,.65);backdrop-filter:blur(4px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
+  tfoot td{white-space:nowrap!important;}
+  thead th{white-space:nowrap!important;}
+  .order-info-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:20px;}
+  .order-info-grid .oi-full{grid-column:1/-1;}
+  .order-info-grid .oi-value{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  @media (max-width:640px){
+    .order-info-grid{grid-template-columns:1fr;}
+    .order-info-grid .oi-value{white-space:normal;overflow:visible;text-overflow:clip;word-break:break-word;}
+  }
+  .detail-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+  .detail-topbar-back{order:1;}
+  .detail-topbar-title{order:3;flex-basis:100%;}
+  .detail-topbar-actions{order:2;}
+  .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;}
+  .pb-row{display:flex;align-items:flex-start;gap:0;margin-bottom:12px;}
+  .pb-label{font-size:9px;}
+  @media (max-width:640px){
+    .detail-grid{grid-template-columns:1fr;}
+  }
+  @media (max-width:480px){
+    .pb-label{display:none;}
+    .pb-circle{width:18px!important;height:18px!important;}
+  }
+`;
+
+const DEFAULT_BRANCH_META = {
+  KM:{name:"EMAX Kota Marudu",manager:"SUHAINIZAM",mStatus:"Confirmed (P5 F0)",address:"1st Flr, EG Mall CL225317046, Jalan Goshen, Kota Marudu"},
+  T1:{name:"EMAX Tuaran 1",manager:"REX WENMIN",mStatus:"Confirmed (P5 F0)",address:"G Flr, Lot 10, Teo Ee Teh Shopping Complex, Tuaran"},
+  TW2:{name:"EMAX Tawau 2",manager:"TONY YONG",mStatus:"Confirmed (P5 F0)",address:"TB 313, Block 37, Fajar Complex, Tawau"},
+  TW1:{name:"EMAX Tawau 1",manager:"MAX SIEW",mStatus:"Director",address:"TB250, Bangunan Hajjah Mastura Ali, Tawau"},
+  LD:{name:"EMAX Lahad Datu",manager:"SHAHRUL",mStatus:"Confirmed (P3 F0)",address:"Lot No.8, G Flr, Linear Blok A, Harbour Town, Lahad Datu"},
+  KB:{name:"EMAX Kota Belud",manager:"MAHADI",mStatus:"Confirmed (P2 F3)",address:"No 9, Blk A, G Flr, Bangunan Centenary, Kota Belud"},
+  T5:{name:"EMAX CKS",manager:"SUHAIDI",mStatus:"Confirmed (P0 F2)",address:"Lot 23-1, Lorong Plaza CKS 2B, Plaza CKS, Tuaran"},
+  ITCC:{name:"EMAX ITCC",manager:"SUHAIDI",mStatus:"Confirmed (P0 F1)",address:"Lot G-48 & G-49, G Flr, ITCC Mall, Penampang"},
+  TENOM:{name:"EMAX Tenom",manager:"AZIQIL",mStatus:"Probation (P1 F1)",address:"Lot 26, Blk E, Jln Toh Puah Hajjah Khusnah, Tenom"},
+  HQ:{name:"EMAX HQ",manager:"MIKE PANG",mStatus:"Confirmed (P0 F1)",address:"Lot 2, HM Penampang, Kota Kinabalu"},
+  SDK:{name:"EC SDK",manager:"",mStatus:""},
+}
+
+const SIDEBAR_STRUCTURE = [
+  {id:"pickupTodo",label:"Pickup Reminder To-Do"},
+  {group:"ccmApplication",label:"CCM Application",children:[
+    {id:"jclApplications",label:"JCL Application"},
+    {id:"chaileaseApplications",label:"Chailease Application"},
+  ]},
+]
+
+function CCMApp(){
+  const [email, setEmail] = useState(null)
+  const [branchMeta, setBranchMeta] = useState(DEFAULT_BRANCH_META)
+  const [srList, setSrList] = useState([])
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [pageTab, setPageTabRaw] = useState(() => {
+    const h = window.location.hash.replace('#', '')
+    return ['pickupTodo', 'jclApplications', 'chaileaseApplications'].includes(h) ? h : 'jclApplications'
+  })
+  const setPageTab = (t) => { setPageTabRaw(t); window.location.hash = t }
+  const [expandedGroups, setExpandedGroups] = useState(() => {
+    const initial = {}
+    SIDEBAR_STRUCTURE.forEach(item => { if (item.children) initial[item.group] = item.children.some(c => c.id === pageTab) })
+    return initial
+  })
+  useEffect(() => {
+    SIDEBAR_STRUCTURE.forEach(item => {
+      if (item.children && item.children.some(c => c.id === pageTab)) setExpandedGroups(p => p[item.group] ? p : { ...p, [item.group]: true })
+    })
+  }, [pageTab])
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setEmail(data.session?.user?.email || null))
+    Promise.all([loadData(BM_KEY), loadData(SR_KEY)]).then(([bm, sr]) => {
+      if (bm && Object.keys(bm).length) {
+        const merged = { ...DEFAULT_BRANCH_META, ...bm }
+        Object.keys(merged).forEach(b => { merged[b] = { ...merged[b], name: b==="SDK"?DEFAULT_BRANCH_META[b]?.name:(merged[b]?.name || DEFAULT_BRANCH_META[b]?.name), address: merged[b]?.address || DEFAULT_BRANCH_META[b]?.address } })
+        setBranchMeta(merged)
+      }
+      if (Array.isArray(sr)) setSrList(sr)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  // Only fetched for the Pickup Reminder To-Do tab, which is the only
+  // thing on this page that needs orders at all — no point loading them
+  // just to sit unused while viewing JCL/Chailease Application.
+  useEffect(() => {
+    if (pageTab !== 'pickupTodo') return
+    listOrders().then(setOrders).catch(() => {})
+  }, [pageTab])
+
+  const saveOrderPatch = async (updated) => {
+    const original = orders.find(o => o.id === updated.id)
+    const result = await reconcile(original ? [original] : [], [updated])
+    if (result.ok) setOrders(p => p.map(o => o.id === updated.id ? updated : o))
+    return result.ok
+  }
+
+  if (loading || !email) {
+    return <div style={{ height:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#0A1628", fontFamily:"Inter,sans-serif" }}>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ fontWeight:900, fontSize:18, color:"#fff", letterSpacing:"0.06em" }}>EMAX NETWORK</div>
+        <div style={{ fontSize:11, color:"rgba(255,255,255,.3)", letterSpacing:"0.15em", textTransform:"uppercase", marginTop:8 }}>Loading...</div>
+      </div>
+    </div>
+  }
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#F7F9FC", fontFamily:"Inter,-apple-system,sans-serif" }}>
+      <style>{CSS}</style>
+      {/* Top bar — same navy chrome as the main dashboard */}
+      <div style={{ background:"#0A1628", borderBottom:"1px solid #162B52", position:"sticky", top:0, zIndex:100 }}>
+        <div style={{ maxWidth:1400, margin:"0 auto", padding:"0 12px" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", minHeight:48, gap:8, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+              <div>
+                <div style={{ fontWeight:900, fontSize:12, color:"#fff", letterSpacing:"0.06em", lineHeight:1 }}>EMAX NETWORK</div>
+                <div style={{ fontSize:9, color:"rgba(255,255,255,.3)", letterSpacing:"0.14em", textTransform:"uppercase", marginTop:1 }}>CCM Application</div>
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap", rowGap:6 }}>
+              <button onClick={()=>setSidebarOpen(o=>!o)} title={sidebarOpen?"Collapse menu":"Expand menu"}
+                style={{ display:"flex", alignItems:"center", justifyContent:"center", width:30, height:30, border:"1px solid rgba(255,255,255,.15)", borderRadius:7, background:"rgba(255,255,255,.06)", cursor:"pointer", flexShrink:0 }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display:"flex", maxWidth:1400, margin:"0 auto" }}>
+        {/* MAIN CONTENT */}
+        <div style={{ flex:1, minWidth:0, padding:"20px", maxWidth:1180 }}>
+          {pageTab==="pickupTodo" && <PickupTodoList orders={orders} branchMeta={branchMeta} onUpdateOrder={saveOrderPatch} />}
+          {pageTab==="jclApplications" && <JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={email} />}
+          {pageTab==="chaileaseApplications" && <ChaileaseTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={email} />}
+        </div>
+
+        {/* SIDEBAR — right side, collapsible, same grouped treatment as the main dashboard */}
+        <div style={{
+          width:sidebarOpen?220:0, flexShrink:0, overflow:"hidden",
+          transition:"width .2s ease", background:"#0F1B30", borderLeft:sidebarOpen?"1px solid #1C2D4A":"none",
+          minHeight:"calc(100vh - 49px)", position:"sticky", top:49, alignSelf:"flex-start",
+        }}>
+          <div style={{ width:220, padding:"16px 10px", visibility:sidebarOpen?"visible":"hidden" }}>
+            {SIDEBAR_STRUCTURE.map(item=>{
+              if(!item.children)return(
+                <button key={item.id} onClick={()=>{setPageTab(item.id);setSidebarOpen(false);}} style={{
+                  display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+                  border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                  background:pageTab===item.id?"rgba(255,255,255,.1)":"transparent",color:pageTab===item.id?"#fff":"rgba(255,255,255,.45)",
+                  transition:"background .15s",
+                }}>
+                  {item.label}
+                </button>
+              );
+              const isOpen=!!expandedGroups[item.group];
+              return<div key={item.group}>
+                <button onClick={()=>setExpandedGroups(p=>({...p,[item.group]:!p[item.group]}))} style={{
+                  display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",textAlign:"left",padding:"9px 12px",marginBottom:3,
+                  border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                  background:"transparent",color:"rgba(255,255,255,.45)",transition:"background .15s",
+                }}>
+                  <span>{item.label}</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{transform:isOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform .15s",flexShrink:0}}>
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </button>
+                {isOpen&&item.children.map(c=>(
+                  <button key={c.id} onClick={()=>{setPageTab(c.id);setSidebarOpen(false);}} style={{
+                    display:"flex",alignItems:"center",width:"100%",textAlign:"left",padding:"9px 12px 9px 26px",marginBottom:3,
+                    border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",fontWeight:600,fontSize:12,borderRadius:8,
+                    background:pageTab===c.id?"rgba(255,255,255,.1)":"transparent",color:pageTab===c.id?"#fff":"rgba(255,255,255,.45)",
+                    transition:"background .15s",
+                  }}>
+                    {c.label}
+                  </button>
+                ))}
+              </div>;
+            })}
+            <div style={{ width:"100%", height:1, background:"rgba(255,255,255,.08)", margin:"10px 0" }}/>
+            <div style={{ padding:"9px 12px", marginBottom:3, fontSize:11, color:"rgba(255,255,255,.35)", wordBreak:"break-all" }}>{email}</div>
+            <button onClick={()=>supabase.auth.signOut()} style={{
+              display:"flex", alignItems:"center", gap:8, width:"100%", textAlign:"left", padding:"9px 12px",
+              border:"none", cursor:"pointer", fontFamily:"Inter,sans-serif", fontWeight:600, fontSize:12, borderRadius:8,
+              background:"transparent", color:"rgba(255,255,255,.45)", transition:"background .15s",
+            }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <AuthGate allowedEmails={ALLOWED}>
+      <CCMApp />
+    </AuthGate>
+  </React.StrictMode>
+)

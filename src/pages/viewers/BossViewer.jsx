@@ -1,5 +1,6 @@
 // EMAX NETWORK — Boss Viewer (All Branches, Read-Only)
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, Fragment } from "react";
+import { TargetReportStrip, BranchBreakdownRow, buildBranchBreakdown } from "../../TargetReport.jsx";
 import { loadData, saveData, supabase } from "../../storage/index.js";
 import { listCustomers, getPaymentsForCustomers } from "../../storage/rtoApi.js";
 import { listOrders, reconcile } from "../../storage/ordersApi.js";
@@ -91,7 +92,7 @@ const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 // case-insensitively. Keep this in sync by hand with the matching lists in
 // App.jsx and AttendanceTab.jsx (these files don't share a lookup module
 // for this one narrow case).
-const DIRECTOR_EXCLUDED_NAMES=["MAX SIEW","EC"];
+const DIRECTOR_EXCLUDED_NAMES=["MAX SIEW","EC","SIEW WING FEI","WING FEI","KHOR BOON THENG","BOON THENG"];
 const isDirectorExcluded=name=>DIRECTOR_EXCLUDED_NAMES.includes((name||"").trim().toUpperCase());
 const DEFAULT_BRANCH_META={
   KM:{name:"EMAX Kota Marudu",manager:"SUHAINIZAM",mStatus:"Confirmed (P5 F0)",address:"1st Flr, EG Mall CL225317046, Jalan Goshen, Kota Marudu"},
@@ -233,6 +234,7 @@ function SRCard({sr,records,targets,branchPct,month,year,days,bMeta,rewardBalanc
       </div>
       <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em"}}>{(bMeta[sr.branch]?.name||sr.branch).toUpperCase()}</span>
     </div>
+    <TargetReportStrip target={target} actual={total}/>
     <table style={{width:"100%",borderCollapse:"collapse"}}>
       <thead><tr>
         <th style={{...thS,textAlign:"center",width:48}}>Date</th>
@@ -364,6 +366,7 @@ function BMCard({branchId,records,targets,srList,branchMeta,month,year,days,rewa
       </div>
       <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em"}}>{meta.name}</span>
     </div>
+    <TargetReportStrip target={target} actual={total}/>
     <table style={{width:"100%",borderCollapse:"collapse"}}>
       <thead><tr>
         <th style={{...thS,textAlign:"center",width:48}}>Date</th>
@@ -534,8 +537,9 @@ function RankingTable({title,rows,showBonus,showPoints,branchMeta,period}){
 }
 
 
-function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,startDay=1,endDay=30,onChangeStartDay,onChangeEndDay,maxDay}){
+function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,startDay=1,endDay=30,onChangeStartDay,onChangeEndDay,maxDay,breakdownFor}){
   const bt = branchTotals;
+  const [openB,setOpenB]=useState({});
 
   const grandWI=BRANCH_ORDER.reduce((s,b)=>s+(bt[b]?.wi||0),0);
   const grandAE=BRANCH_ORDER.reduce((s,b)=>s+(bt[b]?.ae||0),0);
@@ -593,9 +597,10 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
           }).map((b,i)=>{
           const wi=bt[b]?.wi||0,ae=bt[b]?.ae||0,total=wi+ae;
           const target=targets?.bm?.[b]||0,bal=target>0?total-target:null,over=target>0&&total>=target;
-          return <tr key={b} className="shine-row" style={{background:"#fff"}}>
+          const isOpen=!!(breakdownFor&&openB[b]);
+          return <Fragment key={b}><tr className="shine-row" onClick={breakdownFor?()=>setOpenB(o=>({...o,[b]:!o[b]})):undefined} style={{background:isOpen?"#F7F9FC":"#fff",cursor:breakdownFor?"pointer":"default"}}>
             <td style={{...TD({textAlign:"left"})}}>
-              <div style={{fontWeight:700,color:"#0A1628",fontSize:12,textTransform:"uppercase"}}>{branchMeta[b]?.name||b}</div>
+              <div style={{fontWeight:700,color:"#0A1628",fontSize:12,textTransform:"uppercase"}}>{breakdownFor&&<span style={{display:"inline-block",width:14,color:"#8A96A8",transition:"transform .15s",transform:isOpen?"rotate(90deg)":"none"}}>▸</span>}{branchMeta[b]?.name||b}</div>
               <div style={{fontSize:10,color:"#5A6472",marginTop:1}}>{branchMeta[b]?.manager}</div>
             </td>
             <td style={{...TD(),textAlign:"right"}}>
@@ -616,7 +621,7 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
                 :<span style={{color:"#4A5568",fontSize:12}}>RM {nc(Math.abs(bal))}</span>}
             </td>
             <td style={{...TD(),textAlign:"right"}}><span style={{color:"#4A5568",fontSize:12}}>{target>0?`RM ${nc(target)}`:"—"}</span></td>
-          </tr>;
+          </tr>{isOpen&&<BranchBreakdownRow rows={breakdownFor(b)} colSpan={7} title={branchMeta[b]?.name||b}/>}</Fragment>;
         })}</tbody>
         <tfoot><tr style={{background:"#0A1628",fontSize:12}}>
           <td style={{padding:"10px 16px",fontWeight:600,color:"rgba(255,255,255,.6)"}}>Total</td>
@@ -1297,7 +1302,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
           <KpiCard label="Target Balance" value={grandTarget>0?(grandTotal-grandTarget>=0?"+"+fRM(grandTotal-grandTarget):fRM(grandTotal-grandTarget)):"—"} accent={grandTarget>0&&grandTotal>=grandTarget?"#00C896":"#F0354B"} sub={grandTarget>0&&grandTotal>=grandTarget?"Target exceeded":"Remaining"}/>
           <KpiCard label="On Target" value={`${BRANCH_ORDER.filter(b=>{const t=targets?.bm?.[b]||0;return t>0&&(branchTotals[b]?.total||0)>=t;}).length}/${BRANCH_ORDER.filter(b=>(targets?.bm?.[b]||0)>0).length}`} accent="#F5A623" sub="Branches with target set"/>
         </div>
-        <BranchPerfTable branchTotals={branchTotals} targets={targets} branchMeta={bMeta} month={month} year={year} startDay={selStartDay} endDay={Math.min(selEndDay,lastDataDay||daysInMonth(month,year))} maxDay={lastDataDay||daysInMonth(month,year)} onChangeStartDay={setSelStartDay} onChangeEndDay={setSelEndDay}/>
+        <BranchPerfTable breakdownFor={b=>buildBranchBreakdown({branchId:b,branchMeta:bMeta,srList,targets,records,month,year,startDay:selStartDay,endDay:Math.min(selEndDay,lastDataDay||daysInMonth(month,year)),bmTotal:branchTotals[b]?.total||0,isVisible:s=>srVisibleInMonth(s,selMonth,selYear)})} branchTotals={branchTotals} targets={targets} branchMeta={bMeta} month={month} year={year} startDay={selStartDay} endDay={Math.min(selEndDay,lastDataDay||daysInMonth(month,year))} maxDay={lastDataDay||daysInMonth(month,year)} onChangeStartDay={setSelStartDay} onChangeEndDay={setSelEndDay}/>
         {!isHR&&!isKnockOff&&<>
           <h2 style={{fontSize:14,fontWeight:800,color:"#0A1628",margin:"24px 0 12px"}}>Expected Profit (Pending Billing)</h2>
           <ExpectedProfitTable branchMeta={bMeta} onOrderClick={id=>{

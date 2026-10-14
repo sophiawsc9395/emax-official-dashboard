@@ -2,6 +2,7 @@
 // Change BRANCH_ID below for each branch link
 // KM | T1 | TW2 | TW1 | LD | KB | T5 | ITCC | TENOM | HQ
 import { useState, useEffect, useMemo } from "react";
+import { TargetReportStrip } from "../../TargetReport.jsx";
 import { loadData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
@@ -825,6 +826,7 @@ export default function App(){
       </div>
       <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}}>{(bMeta[sr.branch]?.name||sr.branch).toUpperCase()}</span>
     </div>
+    <TargetReportStrip target={target} actual={total}/>
     <table style={{width:"100%",borderCollapse:"collapse"}}>
       <thead><tr>
         <th style={{...thS,textAlign:"center",width:48}}>Date</th>
@@ -959,6 +961,7 @@ export default function App(){
               </div>
             </div>
             <div style={{padding:"7px 16px",background:"#0F2040",minHeight:30,boxSizing:"border-box"}}/>
+            <TargetReportStrip target={bTarget} actual={branchTotal}/>
             <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",minWidth:340}}>
               <thead><tr>

@@ -2,7 +2,8 @@
 // EMAX NETWORK SDN BHD — Sales Performance Dashboard
 // Enterprise Analytics Platform
 // ============================================================
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, Fragment } from "react";
+import { TargetReportStrip, BranchBreakdownRow, buildBranchBreakdown } from "./TargetReport.jsx";
 import { loadData, saveData, supabase } from "./storage/index.js";
 import { listOrders, listStockRequestOrders, reconcile } from "./storage/ordersApi.js";
 import { listCustomers, getPaymentsForCustomers } from "./storage/rtoApi.js";
@@ -106,7 +107,7 @@ const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
 // case-insensitively. Keep this in sync by hand with the matching list in
 // AttendanceTab.jsx (the two files don't share a lookup module for this one
 // narrow case).
-const DIRECTOR_EXCLUDED_NAMES=["MAX SIEW","EC"];
+const DIRECTOR_EXCLUDED_NAMES=["MAX SIEW","EC","SIEW WING FEI","WING FEI","KHOR BOON THENG","BOON THENG"];
 const isDirectorExcluded=name=>DIRECTOR_EXCLUDED_NAMES.includes((name||"").trim().toUpperCase());
 
 // managerId is no longer auto-assigned by the app — it's a manually-entered
@@ -388,6 +389,7 @@ function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,
       </div>
       <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em"}}>{DEFAULT_BRANCH_META[sr.branch]?.name}</span>
     </div>
+    <TargetReportStrip target={target} actual={total}/>
     <table style={{width:"100%",borderCollapse:"collapse"}}>
       <thead><tr>
         <th style={{...thS,textAlign:"center",width:48}}>Date</th>
@@ -524,6 +526,7 @@ function BMTable({branchId,records,targets,srList,branchMeta,onEdit,printMode,mo
       </div>
       <span style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.04em"}}>{meta.name}</span>
     </div>
+    <TargetReportStrip target={target} actual={total}/>
     <table style={{width:"100%",borderCollapse:"collapse"}}>
       <thead><tr>
         <th style={{...thS,textAlign:"center",width:48}}>Date</th>
@@ -664,8 +667,9 @@ function AeonTable({sr,records,printMode,month,year,days}){
 // ─── BRANCH PERFORMANCE TABLE ──────────────────────────────
 const TH=(e={})=>({padding:"10px 10px",fontWeight:700,fontSize:10,background:"#0A1628",color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right",whiteSpace:"nowrap",...e});
 const TD=(e={})=>({padding:"9px 10px",fontSize:12,whiteSpace:"nowrap",borderBottom:"1px solid rgba(228,234,242,.7)",...e});
-function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,startDay=1,endDay=30,onChangeStartDay,onChangeEndDay,maxDay}){
+function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,startDay=1,endDay=30,onChangeStartDay,onChangeEndDay,maxDay,breakdownFor}){
   const bt = branchTotals;
+  const [openB,setOpenB]=useState({});
 
   const grandWI=BRANCH_ORDER.reduce((s,b)=>s+(bt[b]?.wi||0),0);
   const grandAE=BRANCH_ORDER.reduce((s,b)=>s+(bt[b]?.ae||0),0);
@@ -721,9 +725,10 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
           }).map((b,i)=>{
           const wi=bt[b]?.wi||0,ae=bt[b]?.ae||0,total=wi+ae;
           const target=targets?.bm?.[b]||0,bal=target>0?total-target:null,over=target>0&&total>=target;
-          return <tr key={b} className="shine-row" style={{background:"#fff"}}>
+          const isOpen=!!(breakdownFor&&openB[b]);
+          return <Fragment key={b}><tr className="shine-row" onClick={breakdownFor?()=>setOpenB(o=>({...o,[b]:!o[b]})):undefined} style={{background:isOpen?"#F7F9FC":"#fff",cursor:breakdownFor?"pointer":"default"}}>
             <td style={{...TD({textAlign:"left"})}}>
-              <div style={{fontWeight:700,color:"#0A1628",fontSize:12,textTransform:"uppercase"}}>{branchMeta[b]?.name||b}</div>
+              <div style={{fontWeight:700,color:"#0A1628",fontSize:12,textTransform:"uppercase"}}>{breakdownFor&&<span style={{display:"inline-block",width:14,color:"#8A96A8",transition:"transform .15s",transform:isOpen?"rotate(90deg)":"none"}}>▸</span>}{branchMeta[b]?.name||b}</div>
               <div style={{fontSize:10,color:"#5A6472",marginTop:1}}>{branchMeta[b]?.manager}</div>
             </td>
             <td style={{...TD(),textAlign:"right"}}>
@@ -744,7 +749,7 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
                 :<span style={{color:"#4A5568",fontSize:12}}>RM {nc(Math.abs(bal))}</span>}
             </td>
             <td style={{...TD(),textAlign:"right"}}><span style={{color:"#4A5568",fontSize:12}}>{target>0?`RM ${nc(target)}`:"—"}</span></td>
-          </tr>;
+          </tr>{isOpen&&<BranchBreakdownRow rows={breakdownFor(b)} colSpan={7} title={branchMeta[b]?.name||b}/>}</Fragment>;
         })}</tbody>
         <tfoot><tr style={{background:"#0A1628",fontSize:11}}>
           <td style={{padding:"9px 10px",fontWeight:600,color:"rgba(255,255,255,.6)",whiteSpace:"nowrap"}}>Total</td>
@@ -2979,7 +2984,7 @@ export default function App(){
           const earned=calcRewardPoints(srPct,branchPct);
           const hist=rewardHistAcc[sr.id]||[];
           const alreadyCredited=hist.some(h=>h.type==="credit"&&h.note&&h.note.startsWith(`${noteMonth} performance`));
-          if(!alreadyCredited){
+          if(!alreadyCredited&&!isDirectorExcluded(sr.canon)){ // directors never receive reward points
             const cur=rewardBalAcc[sr.id]||{balance:0,asOf:""};
             rewardBalAcc[sr.id]={...cur,balance:(cur.balance||0)+earned};
             rewardHistAcc[sr.id]=[...hist,{date:new Date().toISOString(),type:"credit",amount:earned,note:`${noteMonth} performance (${srPct.toFixed(1)}%)`}];
@@ -3004,7 +3009,8 @@ export default function App(){
         const bmKey=`BM_${bmManagerId}`;
         const bmHist=rewardHistAcc[bmKey]||[];
         const bmAlreadyCredited=bmHist.some(h=>h.type==="credit"&&h.note&&h.note.startsWith(`${noteMonth} branch performance`));
-        if(!bmAlreadyCredited){
+        const bmIsDirector=isDirectorExcluded(bmMetaAcc[branchId]?.manager)||parseStatus(bmMetaAcc[branchId]?.mStatus).base==="Director";
+        if(!bmAlreadyCredited&&!bmIsDirector){ // directors never receive reward points
           const curBM=rewardBalAcc[bmKey]||{balance:0,asOf:""};
           rewardBalAcc[bmKey]={...curBM,balance:(curBM.balance||0)+bmEarned};
           rewardHistAcc[bmKey]=[...bmHist,{date:new Date().toISOString(),type:"credit",amount:bmEarned,note:`${noteMonth} branch performance (${branchPct.toFixed(1)}%)`}];
@@ -3054,6 +3060,7 @@ export default function App(){
 
         const bmTop3=BRANCH_ORDER
           .filter(b=>(targets?.bm?.[b]||0)>0)
+          .filter(b=>!(isDirectorExcluded(bmMetaAcc[b]?.manager)||parseStatus(bmMetaAcc[b]?.mStatus).base==="Director")) // directors are not ranked for the bonus
           .map(b=>({branchId:b,pct:branchStats[b]?.branchPct||0}))
           .sort((a,b)=>b.pct-a.pct)
           .slice(0,3);
@@ -3063,7 +3070,7 @@ export default function App(){
         });
 
         const srTop3For=(type)=>updatedSRList
-          .filter(s=>s.type===type&&srVisibleInMonth(s,selMonth,selYear)&&(targets?.sr?.[s.id]?.target||0)>0)
+          .filter(s=>s.type===type&&srVisibleInMonth(s,selMonth,selYear)&&!isDirectorExcluded(s.canon)&&(targets?.sr?.[s.id]?.target||0)>0)
           .map(s=>({srId:s.id,pct:srStats[s.id]?.srPct||0}))
           .sort((a,b)=>b.pct-a.pct)
           .slice(0,3);
@@ -3700,7 +3707,7 @@ export default function App(){
           <h2 style={{fontSize:14,fontWeight:800,color:"#0A1628",margin:0}}>Branch Performance</h2>
           <button className="btn btn-primary" onClick={printSummary} style={{fontSize:12}}>Download Report</button>
         </div>
-        <BranchPerfTable branchTotals={branchTotals} targets={targets} branchMeta={branchMeta} printRef={summaryRef} month={month} year={year} startDay={selStartDay} endDay={Math.min(selEndDay,lastDataDay||daysInMonth(month,year))} onChangeStartDay={setSelStartDay} onChangeEndDay={setSelEndDay} maxDay={lastDataDay||daysInMonth(month,year)}/>
+        <BranchPerfTable breakdownFor={b=>buildBranchBreakdown({branchId:b,branchMeta,srList,targets,records,month,year,startDay:selStartDay,endDay:Math.min(selEndDay,lastDataDay||daysInMonth(month,year)),bmTotal:branchTotals[b]?.total||0,isVisible:s=>srVisibleInMonth(s,selMonth,selYear)})} branchTotals={branchTotals} targets={targets} branchMeta={branchMeta} printRef={summaryRef} month={month} year={year} startDay={selStartDay} endDay={Math.min(selEndDay,lastDataDay||daysInMonth(month,year))} onChangeStartDay={setSelStartDay} onChangeEndDay={setSelEndDay} maxDay={lastDataDay||daysInMonth(month,year)}/>
 
         <h2 style={{fontSize:14,fontWeight:800,color:"#0A1628",margin:"24px 0 12px"}}>Expected Profit (Pending Billing)</h2>
         <ExpectedProfitTable branchMeta={branchMeta} onOrderClick={goToOrder}/>
