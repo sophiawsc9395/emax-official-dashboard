@@ -66,30 +66,42 @@ export function computeSRTiers({ p, branchPct, calcBonus, calcPoints, role = "sr
   return { bonus, points };
 }
 
-const TIER_BAR = "linear-gradient(90deg,#5B8DEF,#9CC0FF)";
+const TIER_BAR = "linear-gradient(90deg,#162B52,#2F5597)";
 function TierCol({ title, t }) {
   const on = t.n > 0;
   return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 6 }}>
-        <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,.6)", textTransform: "uppercase", letterSpacing: ".08em" }}>{title}</span>
-        <span style={{ fontSize: 9, fontWeight: 700, color: on ? "#9CC0FF" : "rgba(255,255,255,.5)", whiteSpace: "nowrap" }}>{on ? `Tier ${t.n}` : "Not reached"}</span>
+    <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderLeft: "4px solid #162B52", borderRadius: 8, padding: "8px 10px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", gap: 7, alignItems: "center" }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: ".08em" }}>{title}</span>
+          <span style={{ fontSize: 9, fontWeight: 700, color: on ? "#162B52" : "#8A96A8", whiteSpace: "nowrap" }}>{on ? `Tier ${t.n}` : "Not reached"}</span>
+        </div>
+        <span style={{ fontSize: 10, fontWeight: 700, color: on ? NAVY : "#8A96A8", whiteSpace: "nowrap" }}>{t.cur}</span>
       </div>
-      <div style={{ fontSize: 11.5, fontWeight: 700, color: on ? "#fff" : "rgba(255,255,255,.55)", whiteSpace: "nowrap" }}>{t.cur}</div>
-      <div style={{ height: 5, background: "rgba(255,255,255,.14)", borderRadius: 99, overflow: "hidden", margin: "6px 0 5px" }}>
+      <div style={{ height: 5, background: BORDER, borderRadius: 99, overflow: "hidden", margin: "6px 0 5px" }}>
         <div style={{ width: t.prog + "%", height: "100%", background: TIER_BAR, borderRadius: 99 }} />
       </div>
-      <div style={{ fontSize: 9, color: "rgba(255,255,255,.6)", lineHeight: 1.35 }}>{t.label}</div>
-      <div style={{ fontSize: 9, color: "rgba(255,255,255,.6)", marginTop: 1 }}>{t.max ? "Max" : <>Next <b style={{ color: "#fff" }}>{t.next}</b></>}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", columnGap: 8, rowGap: 1, fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>
+        <span>{t.label}</span>
+        <span>{t.max ? "Max" : <>Next <b style={{ color: NAVY }}>{t.next}</b></>}</span>
+      </div>
     </div>
   );
 }
 
-function TierPanel({ tiers }) {
+function TierPanel({ tiers, side }) {
+  if (side) {
+    // wide layout (hero card): Bonus and Points next to each other, stacking when narrow
+    return (
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ flex: "1 1 320px", minWidth: 0, display: "flex", flexDirection: "column" }}><TierCol title="Bonus" t={tiers.bonus} /></div>
+        <div style={{ flex: "1 1 320px", minWidth: 0, display: "flex", flexDirection: "column" }}><TierCol title="Points" t={tiers.points} /></div>
+      </div>
+    );
+  }
   return (
-    <div style={{ background: "linear-gradient(135deg,#0A1628,#162B52)", borderRadius: 8, padding: "10px 12px", display: "flex", gap: 14 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
       <TierCol title="Bonus" t={tiers.bonus} />
-      <div style={{ width: 1, background: "rgba(255,255,255,.14)" }} />
       <TierCol title="Points" t={tiers.points} />
     </div>
   );
@@ -234,4 +246,58 @@ export function SRCardHeader({ sr, branchName, onStatusHistory }) {
 
 export function BMCardHeader({ name, branchName, status, onHistory }) {
   return <PersonHeader name={name} sub={`Branch Manager · ${branchName}`} status={status} onHistory={onHistory} />;
+}
+
+/* ── Branch hero card (branch pages' Overview, top of page) ──────────────
+ * Light card, navy top bar: big total profit, achievement bar, Walk in /
+ * Invoice / Balance boxes, Bonus + Points tier cards, earned reward points. */
+export function BranchHeroCard({ name, bmName, mStatus, onHistory, branchPct, bTarget, bTotal, pointsAsOf, pointsBalance, tiers }) {
+  const raw = mStatus || "";
+  const baseM = raw.match(/^(Training|Probation|Confirmed|Director|Resigned)/i);
+  const base = baseM ? baseM[1].charAt(0).toUpperCase() + baseM[1].slice(1).toLowerCase() : "Probation";
+  const nf = raw.match(/P(\d+)\s*F(\d+)/i);
+  const chip = { Confirmed: ["#E6F7F0", "#0B7A54"], Probation: ["#FEF3C7", "#92600A"], Training: ["#E0ECFF", "#1D4ED8"], Director: ["#EDE9FE", "#5B21B6"], Resigned: ["#FDE8EA", "#B42335"] }[base];
+  const hasT = bTarget > 0, met = hasT && bTotal.total >= bTarget, bal = Math.max(bTarget - bTotal.total, 0);
+  const box = (l, v, c) => (
+    <div key={l} style={{ flex: "1 1 130px", background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 12px", minWidth: 0 }}>
+      <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".08em", color: MUTED }}>{l}</div>
+      <div style={{ fontSize: 13, fontWeight: 800, color: c, marginTop: 2, whiteSpace: "nowrap" }}>{v}</div>
+    </div>
+  );
+  return (
+    <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderTop: "4px solid #162B52", borderRadius: 14, padding: "16px 20px", marginBottom: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: NAVY }}>{name}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5, fontSize: 11.5, color: MUTED, flexWrap: "wrap" }}>
+            BM: {bmName}
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 9px", borderRadius: 99, background: chip[0], color: chip[1] }}>{base}</span>
+            {nf && base !== "Director" && base !== "Resigned" && <span style={{ fontWeight: 600 }}>Pass {nf[1]} · Fail {nf[2]}</span>}
+            {onHistory && <button onClick={onHistory} style={{ fontSize: 10, fontWeight: 600, padding: "2px 9px", borderRadius: 6, border: "1px solid #CBD5E3", background: "transparent", color: MUTED, cursor: "pointer", fontFamily: "inherit" }}>History</button>}
+          </div>
+        </div>
+        <div style={{ textAlign: "right", marginLeft: "auto" }}>
+          <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".08em", color: MUTED }}>Total profit</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: NAVY, letterSpacing: "-0.02em", whiteSpace: "nowrap" }}>{rm(bTotal.total)}</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", fontSize: 11, color: MUTED, margin: "14px 0 5px" }}>
+        <span>Achievement <b style={{ color: NAVY }}>{hasT ? branchPct.toFixed(1) + "%" : "—"}</b></span>
+        <span>Target <b style={{ color: NAVY }}>{hasT ? rm(bTarget) : "Not Set"}</b></span>
+      </div>
+      <div style={{ height: 8, background: BORDER, borderRadius: 99, overflow: "hidden" }}>
+        <div style={{ width: Math.min(hasT ? branchPct : 0, 100) + "%", height: "100%", background: "linear-gradient(90deg,#162B52,#2F5597)", borderRadius: 99 }} />
+      </div>
+      <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+        {box("Walk in", rm(bTotal.wi), NAVY)}
+        {box("Invoice", rm(bTotal.ae), NAVY)}
+        {box(met ? "Target met" : "Balance to hit", hasT ? (met ? "Achieved" : rm(bal)) : "—", hasT ? (met ? "#0B7A54" : RED) : MUTED)}
+      </div>
+      {tiers && <div style={{ marginTop: 12 }}><TierPanel tiers={tiers} side /></div>}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${BORDER}`, fontSize: 11, color: MUTED }}>
+        <span>Earned Reward Points{pointsAsOf ? ` (as at ${pointsAsOf})` : ""}</span>
+        <b style={{ color: NAVY }}>{Number(pointsBalance || 0).toLocaleString()} pts</b>
+      </div>
+    </div>
+  );
 }

@@ -2,7 +2,7 @@
 // Change BRANCH_ID below for each branch link
 // KM | T1 | TW2 | TW1 | LD | KB | T5 | ITCC | TENOM | HQ
 import { useState, useEffect, useMemo } from "react";
-import { TargetReportStrip, computeSRTiers, SRCardHeader } from "../../TargetReport.jsx";
+import { TargetReportStrip, computeSRTiers, SRCardHeader, BranchHeroCard } from "../../TargetReport.jsx";
 import { loadData, supabase } from "../../storage/index.js";
 import OrderTab from "../../OrderTab.jsx";
 import DailySalesTab from "../../DailySalesTab.jsx";
@@ -707,93 +707,12 @@ export default function App(){
       </div>}
 
       {tab==="overview"&&<div className="fade-in">
-      {/* Branch summary — gradient hero card */}
-      <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",borderRadius:16,padding:"18px 20px",marginBottom:20,color:"#fff",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:-60,right:-60,width:220,height:220,borderRadius:"50%",background:"radial-gradient(circle,rgba(30,111,219,.35),transparent 70%)",pointerEvents:"none"}}/>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12,position:"relative",zIndex:1}}>
-          <div>
-            <h2 style={{fontWeight:800,fontSize:18,color:"#fff",margin:0,letterSpacing:"0.01em"}}>{meta.name||DEFAULT_BRANCH_META[BRANCH_ID]?.name}</h2>
-            <div style={{fontSize:12,color:"rgba(255,255,255,.55)",marginTop:5,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>BM: {meta.manager} · {meta.mStatus}<button onClick={()=>{setStatusModalPerson(`BM_${BRANCH_ID}`);setShowStatusHistoryModal(true);}} style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:5,border:"1px solid rgba(255,255,255,.25)",background:"rgba(255,255,255,.06)",color:"rgba(255,255,255,.75)",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>History</button></div>
-          </div>
-          <div style={{textAlign:"right",marginLeft:"auto"}}>
-            <div style={{fontWeight:800,fontSize:24,color:achColor(bTotal.total,bTarget),letterSpacing:"-0.02em"}}>
-              {bTarget>0?branchPct.toFixed(1)+"%":"—"}
-            </div>
-            <div style={{fontSize:10,color:"rgba(255,255,255,.5)"}}>Achievement</div>
-          </div>
-        </div>
-        {bTarget>0&&<div style={{margin:"12px 0 14px",position:"relative",zIndex:1}}><ProgressBar pct={branchPct} color={achColor(bTotal.total,bTarget)}/></div>}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,position:"relative",zIndex:1}}>
-          {[["Total Profit",fRM(bTotal.total),"#fff"],["Target",bTarget>0?fRM(bTarget):"Not Set","rgba(255,255,255,.7)"],
-            ["Walk In",fRM(bTotal.wi),"#fff"],["Invoice",fRM(bTotal.ae),"#fff"],
-            ["Balance",bTarget>0?(Math.max(bTarget-bTotal.total,0)>0?fRM(Math.max(bTarget-bTotal.total,0)):"Target Met"):"—",
-             bTarget>0&&bTotal.total>=bTarget?"#00E0A8":bTarget>0?"#FF6B81":"rgba(255,255,255,.5)"]
-          ].map(([l,v,c])=>(
-            <div key={l} style={{background:"rgba(255,255,255,.06)",border:"1px solid rgba(255,255,255,.1)",borderRadius:9,padding:"8px 11px"}}>
-              <div style={{fontSize:9.5,color:"rgba(255,255,255,.45)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:4}}>{l}</div>
-              <div style={{fontWeight:800,color:c,fontSize:14,whiteSpace:"nowrap"}}>{v}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Earned Reward Points + Incentive Tiers — folded INTO the hero card as one complete BM card */}
-        <div style={{position:"relative",zIndex:1,marginTop:12,paddingTop:12,borderTop:"1px solid rgba(255,255,255,.12)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:12,marginBottom:10,gap:8,flexWrap:"wrap"}}>
-            <span style={{color:"rgba(255,255,255,.55)"}}>Earned Reward Points{pointsAsOf?` (as at ${pointsAsOf})`:""}</span>
-            <span style={{fontWeight:800,color:"#fff"}}>{(rewardBalances[`BM_${bmManagerId}`]?.balance||0).toLocaleString()} pts</span>
-          </div>
-      {(()=>{
-        const achBonus=branchPct>=120?calcAchievementBonus(branchPct,"bm"):0;
-        const pts=calcRewardPoints(branchPct,branchPct);
-        if(achBonus<=0&&pts<=0)return null;
-        return <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12}}>
-          {/* Branch Achievement Bonus tier — light blue gradient */}
-          {achBonus>0&&(()=>{
-            const tier=Math.floor((branchPct-120)/10);
-            const nextTierPct=120+(tier+1)*10;
-            const isMaxTier=nextTierPct>200;
-            return <div style={{background:"linear-gradient(135deg,#EFF6FF,#DBEAFE)",borderRadius:10,padding:"9px 12px",border:"1px solid #93C5FD"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                <span style={{fontSize:11,fontWeight:700,color:"#1E3A8A",display:"flex",alignItems:"center",gap:5}}>
-                  <span style={{background:"linear-gradient(135deg,#3B82F6,#2563EB)",color:"#fff",borderRadius:20,padding:"2px 9px",fontSize:9,fontWeight:800,boxShadow:"0 1px 3px rgba(0,0,0,.15)"}}>Tier {tier+1}</span>
-                  Branch Achievement Bonus
-                </span>
-                <span style={{fontWeight:800,fontSize:13,color:"#1D4ED8"}}>{fRM(achBonus)}</span>
-              </div>
-              {!isMaxTier&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:5,marginTop:5,borderTop:"1px dashed #93C5FD",fontSize:9.5}}>
-                <span style={{color:"#1E3A8A"}}>Next: Tier {tier+2} at {nextTierPct}%</span>
-                <span style={{fontWeight:700,color:"#1E3A8A"}}>{fRM(calcAchievementBonus(nextTierPct,"bm"))}</span>
-              </div>}
-              {isMaxTier&&<div style={{fontSize:9.5,color:"#1D4ED8",fontWeight:600,paddingTop:5,marginTop:5,borderTop:"1px dashed #93C5FD"}}>Maximum tier reached</div>}
-            </div>;
-          })()}
-          {/* Reward Points tier — violet gradient */}
-          {pts>0&&(()=>{
-            const TIERS=[[110,500],[120,1000],[130,1500],[140,2000],[150,3000],[160,4500],[170,6000],[180,7500],[190,9000],[200,12000]];
-            const curTierIdx=TIERS.reduce((acc,[t],i)=>branchPct>=t?i:acc,-1);
-            const nextTierEntry=TIERS[curTierIdx+1]||null;
-            const isMaxTier=!nextTierEntry;
-            return <div style={{background:"linear-gradient(135deg,#F5F0FF,#EDE4FF)",borderRadius:10,padding:"9px 12px",border:"1px solid #C4B5FD"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                <span style={{fontSize:11,fontWeight:700,color:"#5B21B6",display:"flex",alignItems:"center",gap:5}}>
-                  <span style={{background:"linear-gradient(135deg,#8B5CF6,#6D28D9)",color:"#fff",borderRadius:20,padding:"2px 9px",fontSize:9,fontWeight:800,boxShadow:"0 1px 3px rgba(0,0,0,.15)"}}>
-                    {curTierIdx>=0?`Tier ${curTierIdx+1}`:"Tier 1"}
-                  </span>
-                  Reward Points
-                </span>
-                <span style={{fontWeight:800,fontSize:13,color:"#6D28D9"}}>{pts.toLocaleString()} pts</span>
-              </div>
-              {!isMaxTier&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:5,marginTop:5,borderTop:"1px dashed #C4B5FD",fontSize:9.5}}>
-                <span style={{color:"#5B21B6"}}>Next: Tier {curTierIdx+2} at {nextTierEntry[0]}%</span>
-                <span style={{fontWeight:700,color:"#5B21B6"}}>{nextTierEntry[1].toLocaleString()} pts</span>
-              </div>}
-              {isMaxTier&&<div style={{fontSize:9.5,color:"#6D28D9",fontWeight:600,paddingTop:5,marginTop:5,borderTop:"1px dashed #C4B5FD"}}>Maximum tier reached</div>}
-            </div>;
-          })()}
-        </div>;
-      })()}
-        </div>
-      </div>
+      {/* Branch summary — hero card */}
+      <BranchHeroCard name={meta.name||DEFAULT_BRANCH_META[BRANCH_ID]?.name} bmName={meta.manager} mStatus={meta.mStatus}
+        onHistory={()=>{setStatusModalPerson(`BM_${BRANCH_ID}`);setShowStatusHistoryModal(true);}}
+        branchPct={branchPct} bTarget={bTarget} bTotal={bTotal} pointsAsOf={pointsAsOf}
+        pointsBalance={rewardBalances[`BM_${bmManagerId}`]?.balance||0}
+        tiers={computeSRTiers({p:branchPct,branchPct,calcBonus:calcAchievementBonus,calcPoints:calcRewardPoints,role:"bm"})}/>
 
       {/* SR Cards */}
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
