@@ -311,7 +311,7 @@ function ProgressBar({pct:p,color,height=6}){
 function AchBadge({profit,target,size="sm",binary}){
   if(!target) return <span style={{color:"#8A96A8",fontSize:11}}>—</span>;
   const p=pctN(profit,target),color=binary?(profit>=target?"#00C896":"#F0354B"):achColor(profit,target),bg=binary?(profit>=target?"#00C89612":"#F0354B12"):achBg(profit,target);
-  return <span className="tag" style={{background:bg,color,fontSize:size==="lg"?14:size==="md"?12:11,fontWeight:700}}>{p.toFixed(2)}%</span>;
+  return <span className="tag" style={{background:bg,color,fontSize:size==="lg"?14:size==="md"?12:size==="xs"?10:11,fontWeight:700}}>{p.toFixed(2)}%</span>;
 }
 function StatusTag({status}){
   if(!status) return null;
@@ -674,7 +674,7 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
               <div style={{fontSize:10,color:"#5A6472",marginTop:1}}>{branchMeta[b]?.manager}</div>
             </td>
             <td style={{...TD(),textAlign:"right"}}>
-              {target>0?<AchBadge profit={total} target={target} size="md" binary/>:<span style={{color:"#4A5568",fontSize:12}}>—</span>}
+              {target>0?<AchBadge profit={total} target={target} size="xs" binary/>:<span style={{color:"#4A5568",fontSize:12}}>—</span>}
             </td>
             <td style={{...TD(),textAlign:"right"}}>
               <span style={{color:"#4A5568",fontSize:12}}>{total>0?`RM ${nc(total)}`:"—"}</span>
@@ -695,7 +695,7 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
         })}</tbody>
         <tfoot><tr style={{background:"#0A1628",fontSize:11}}>
           <td style={{padding:"9px 10px",fontWeight:600,color:"rgba(255,255,255,.6)",whiteSpace:"nowrap"}}>Total</td>
-          <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><AchBadge profit={grandT} target={grandTgt} size="md" binary/></td>
+          <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><AchBadge profit={grandT} target={grandTgt} size="xs" binary/></td>
           <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><span style={{color:"rgba(255,255,255,.6)"}}>{grandT>0?`RM ${nc(grandT)}`:"—"}</span></td>
           <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><span style={{color:"rgba(255,255,255,.6)"}}>{grandWI!==0?`RM ${nc(grandWI)}`:"—"}</span></td>
           <td style={{padding:"9px 10px",textAlign:"right",whiteSpace:"nowrap"}}><span style={{color:"rgba(255,255,255,.6)"}}>{grandAE>0?`RM ${nc(grandAE)}`:"—"}</span></td>
