@@ -27,7 +27,7 @@ function Donut({ pct, color, size = 92, stroke = 10 }) {
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={c} strokeDashoffset={c * (1 - shown / 100)} />
       </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: size * 0.2, color: NAVY }}>
+      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: pct >= 100 ? size * 0.135 : size * 0.15, letterSpacing: "-0.03em", color: NAVY, whiteSpace: "nowrap" }}>
         {pct.toFixed(2)}%
       </div>
     </div>
