@@ -243,6 +243,16 @@ function buildStatus(base,p,f){
   return(base==="Director"||base==="Resigned")?base:`${base} (P${p} F${f})`;
 }
 
+// Undo one pass/fail count from an employment status string.
+// delta: {p:-1} / {f:-1} — never goes below 0, leaves Director/Resigned alone.
+function adjustPassFail(status,dp,df){
+  const ps=parseStatus(status);
+  if(ps.base==="Director"||ps.base==="Resigned")return status;
+  return buildStatus(ps.base,Math.max(0,ps.p+dp),Math.max(0,ps.f+df));
+}
+// Which count did an "Auto-updated on lock" history entry add? (+1 pass if the target was hit, else +1 fail)
+const lockEntryWasHit=(entry)=>!!(entry&&entry.note&&entry.note.includes("target hit"));
+
 // ─── HELPERS ───────────────────────────────────────────────
 const fRM=(n=0)=>{const v=parseFloat(n)||0;return"RM "+v.toLocaleString("en-MY",{minimumFractionDigits:2,maximumFractionDigits:2});};
 const f2=(n=0)=>Number(n||0).toFixed(2);
@@ -2738,10 +2748,46 @@ export default function App(){
   // Delete a single employment status history entry
   const deleteStatusEntry=async(personId,origIdx)=>{
     const hist=[...(statusHistory[personId]||[])];
+    const entry=hist[origIdx];
+    if(!entry)return;
+    const wasLast=origIdx===hist.length-1;
     hist.splice(origIdx,1);
     const newHist={...statusHistory,[personId]:hist};
     setStatusHistory(newHist);
     await saveData("emax_v5_status_history",newHist);
+
+    // Keep the Pass / Fail count in step with the log:
+    //  • an "Auto-updated on lock" entry added +1 Pass (target hit) or +1 Fail (missed) — take it back off
+    //  • a manual status entry that was the latest one — go back to the status of the entry before it
+    const isLockEntry=!!(entry.note&&entry.note.includes("Auto-updated on lock"));
+    let before=null,after=null;
+    const calc=(cur)=>{
+      if(isLockEntry){const hit=lockEntryWasHit(entry);return adjustPassFail(cur,hit?-1:0,hit?0:-1);}
+      if(wasLast){
+        const prev=[...hist].reverse().find(h=>h.status&&h.status!=="—");
+        return prev?prev.status:cur;
+      }
+      return cur;
+    };
+    if(personId.startsWith("BM_")){
+      const key=personId.slice(3);
+      const branches=branchMeta[key]?[key]:Object.keys(branchMeta).filter(b=>branchMeta[b]?.managerId===key);
+      if(branches.length){
+        const updated={...branchMeta};
+        branches.forEach(b=>{before=updated[b]?.mStatus;after=calc(before);updated[b]={...updated[b],mStatus:after};});
+        if(after!==before){setBranchMeta(updated);await saveData(BM_KEY,updated);}
+      }
+    } else {
+      const sr=srList.find(x=>x.id===personId);
+      if(sr){
+        before=sr.status;after=calc(before);
+        if(after!==before){
+          const updated=srList.map(x=>x.id===personId?{...x,status:after}:x);
+          setSrList(updated);await saveData(SR_KEY,updated);
+        }
+      }
+    }
+    if(after!==null&&before!==null&&after!==before)alert(`Employment status updated: ${before}  →  ${after}`);
   };
 
   // Delete a single reward points history entry and adjust balance
@@ -3091,26 +3137,14 @@ export default function App(){
         historyUpdates[sr.id]=hist.filter((_,i)=>i!==lockCreditIdx);
       }
 
-      // Reverse employment status — find the auto-lock entry and revert to status before it
+      // Reverse employment status — find this month's auto-lock entry, remove it and take its
+      // +1 Pass / +1 Fail back off the CURRENT status (so later manual edits aren't lost).
       const sHist=statusUpdates[sr.id]||[];
       const lockEntryIdx=sHist.findLastIndex(h=>h.note&&h.note.includes(`Auto-updated on lock: ${noteMonth}`));
-      if(lockEntryIdx>0){
-        // Revert to the status recorded in the entry BEFORE the lock entry
-        const prevStatus=sHist[lockEntryIdx-1].status;
-        // Remove the lock entry from history
-        const cleanedHist=sHist.filter((_,i)=>i!==lockEntryIdx);
-        statusUpdates[sr.id]=cleanedHist;
-        return{...sr,status:prevStatus};
-      } else if(lockEntryIdx===0){
-        // Lock was the very first entry — remove it and revert to status from sr's pre-lock state
-        // We reverse the +1 that was applied
-        const lockedStatus=sHist[0].status;
-        const ps=parseStatus(lockedStatus);
-        // Determine if it was a hit or miss from the note
-        const wasHit=sHist[0].note&&sHist[0].note.includes("target hit");
-        const prevStatus=buildStatus(ps.base,wasHit?ps.p-1:ps.p,wasHit?ps.f:ps.f-1);
-        statusUpdates[sr.id]=sHist.filter((_,i)=>i!==0);
-        return{...sr,status:prevStatus};
+      if(lockEntryIdx>=0){
+        const wasHit=lockEntryWasHit(sHist[lockEntryIdx]);
+        statusUpdates[sr.id]=sHist.filter((_,i)=>i!==lockEntryIdx);
+        return{...sr,status:adjustPassFail(sr.status,wasHit?-1:0,wasHit?0:-1)};
       }
       return sr;
     });
@@ -3133,15 +3167,8 @@ export default function App(){
     const bmLockIdx=bmSHist.findLastIndex(h=>h.note&&h.note.includes(`Auto-updated on lock: ${noteMonth}`));
     let revertedBMeta={...branchMeta};
     if(bmLockIdx>=0){
-      let prevBMStatus;
-      if(bmLockIdx>0){
-        prevBMStatus=bmSHist[bmLockIdx-1].status;
-      } else {
-        const lockedBMStatus=bmSHist[0].status;
-        const bps=parseStatus(lockedBMStatus);
-        const wasHit=bmSHist[0].note&&bmSHist[0].note.includes("target hit");
-        prevBMStatus=buildStatus(bps.base,wasHit?bps.p-1:bps.p,wasHit?bps.f:bps.f-1);
-      }
+      const bmWasHit=lockEntryWasHit(bmSHist[bmLockIdx]);
+      const prevBMStatus=adjustPassFail(branchMeta[branchId]?.mStatus,bmWasHit?-1:0,bmWasHit?0:-1);
       statusUpdates[bmStatusKey]=bmSHist.filter((_,i)=>i!==bmLockIdx);
       revertedBMeta={...branchMeta,[branchId]:{...branchMeta[branchId],mStatus:prevBMStatus}};
       setBranchMeta(revertedBMeta);
