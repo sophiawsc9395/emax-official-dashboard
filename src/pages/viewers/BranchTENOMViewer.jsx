@@ -96,9 +96,9 @@ function daysInMonth(m,y){return new Date(y,m,0).getDate();}
 function calcAchievementBonus(pct,role="sr"){if(pct<120)return 0;const t=Math.floor((pct-120)/10);return role==="bm"?500+t*500:300+t*50;}
 function calcRewardPoints(pct,bPct){if(bPct<100||pct<110)return 0;const T=[[200,12000],[190,9000],[180,7500],[170,6000],[160,4500],[150,3000],[140,2000],[130,1500],[120,1000],[110,500]];for(const[t,p]of T)if(pct>=t)return p;return 0;}
 
-function AchBadge({profit,target}){
+function AchBadge({profit,target,binary}){
   if(!target)return <span style={{color:"#8A96A8"}}>—</span>;
-  const p=pctN(profit,target),c=achColor(profit,target),bg=achBg(profit,target);
+  const p=pctN(profit,target),c=binary?(profit>=target?"#00C896":"#F0354B"):achColor(profit,target),bg=binary?(profit>=target?"#00C89612":"#F0354B12"):achBg(profit,target);
   return <span style={{background:bg,color:c,padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>{p.toFixed(2)}%</span>;
 }
 function ProgressBar({pct,color}){
@@ -729,7 +729,7 @@ export default function App(){
   const target=targets?.sr?.[sr.id]?.target||0,bonus=targets?.sr?.[sr.id]?.bonus||0;
   const rows=days.map(d=>{const k=`${d}/${month}/${year}`,v=records[k]?.[sr.id]||{};return{day:d,wi:v.walkin||0,ae:v.aeon||0};});
   const tWI=rows.reduce((s,r)=>s+r.wi,0),tAE=rows.reduce((s,r)=>s+r.ae,0),total=tWI+tAE;
-  const p=pctN(total,target),color=achColor(total,target);
+  const p=pctN(total,target),color=(target>0&&total>=target)?"#00C896":"#F0354B";
   const bonusEarned=branchPct>=100&&total>=target&&bonus>0;
   const achBonus=calcAchievementBonus(p),points=calcRewardPoints(p,branchPct);
   const thS={padding:"6px 12px",fontSize:10,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",whiteSpace:"nowrap"};
@@ -768,7 +768,7 @@ export default function App(){
       {target>0&&<>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
           <span style={{color:"#5A6472"}}>Personal Achievement</span>
-          <AchBadge profit={total} target={target}/>
+          <AchBadge profit={total} target={target} binary/>
         </div>
         <ProgressBar pct={p} color={color}/>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:5}}>
