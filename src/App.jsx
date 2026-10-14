@@ -3779,7 +3779,6 @@ export default function App(){
               const octOnward=(selYear>2026)||(selYear===2026&&selMonth>=6);
               if(confirm(`Lock ALL branches for ${selMonth}/${selYear}? This credits every branch's SR + BM reward points${octOnward?", plus the Top 1/2/3 Ranker bonus,":""} and updates employment status.`))lockAllBranchesAndCreditPoints();
             }} style={{fontSize:11}}>Lock Month (All Branches) &amp; Credit Points</button>
-            {selBranch!=="ALL"&&<button className="btn btn-primary" onClick={()=>setPrintBranch(selBranch)} style={{fontSize:11}}>Download {selBranch} Report</button>}
           </div>
         </div>
         {selBranch==="ALL"

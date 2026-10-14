@@ -40,6 +40,7 @@
  *   emax_v5_attendance_extra_staff       — {branchCode:[{id,name,role,branch}]}
  */
 import {useState,useEffect,useMemo,Fragment} from "react";
+import { createPortal } from "react-dom";
 import {loadData,saveData} from "./storage/index.js";
 
 /* ── Design tokens — same constants every other tab file in this project
@@ -313,7 +314,7 @@ const hoursFor=(person,hours)=>hours[person.branch]||{start:"09:30",end:"18:30"}
    and `roleOptions` feeds a <datalist> of roles already used at this branch
    so previously-typed roles get suggested (typos like "Offlin SR" become
    less likely) while still allowing any free-text role. ─────────────── */
-function AddStaffModal({branch,meta,existingNames=[],roleOptions=[],onAdd,onClose}){
+function AddStaffModalInner({branch,meta,existingNames=[],roleOptions=[],onAdd,onClose}){
   const[name,setName]=useState("");
   const[role,setRole]=useState("");
   const canSave=name.trim()&&role.trim();
@@ -353,7 +354,7 @@ function AddStaffModal({branch,meta,existingNames=[],roleOptions=[],onAdd,onClos
 /* ── Edit an existing attendance-only staff member's name/role. Never used
    for real SR/BM roster entries (those come from srList/branchMeta, edited
    elsewhere in the app). ─────────────────────────────────────────────── */
-function EditStaffModal({person,meta,roleOptions=[],onSave,onClose}){
+function EditStaffModalInner({person,meta,roleOptions=[],onSave,onClose}){
   const[name,setName]=useState(person.name);
   const[role,setRole]=useState(person.role);
   const canSave=name.trim()&&role.trim();
@@ -381,7 +382,7 @@ function EditStaffModal({person,meta,roleOptions=[],onSave,onClose}){
 }
 
 /* ── Clock-in/out (or leave) edit modal (emaxhr / Sophia fills this in) ── */
-function DayEditModal({person,day,monthLabel,entry,hours,onSave,onClose}){
+function DayEditModalInner({person,day,monthLabel,entry,hours,onSave,onClose}){
   const[type,setType]=useState(entry?.leave?entry.leave:"WORKED");
   const[inT,setInT]=useState(entry?.in||"");
   const[outT,setOutT]=useState(entry?.out||"");
@@ -930,7 +931,7 @@ function AttendanceSummaryTable({year,month,meta,srList,attendance,hours,extraSt
 }
 
 /* ── Read-only day-by-day detail for ONE person. ──────────────────────── */
-function PersonAttendanceDetailModal({person,meta,year,month,attendance,hours,onClose}){
+function PersonAttendanceDetailModalInner({person,meta,year,month,attendance,hours,onClose}){
   const days=daysInMonth(year,month);
   const dayList=Array.from({length:days},(_,i)=>i+1);
   const stats=monthStatsFor(person.id,attendance,hours,year,month);
@@ -1181,3 +1182,9 @@ export default function AttendanceTab({branchMeta={},srList=[],isAdmin=false,can
     </>:<BranchView year={year} month={month} meta={meta} srList={srList} attendance={attendance} hours={hours} extraStaff={extraStaff} allowBranchSwitch={allowBranchSwitch&&!userBranch} allowAllBranch={canViewAllBranch&&!userBranch} branch={effectiveBranch} setBranch={setBranch}/>}
   </div>;
 }
+
+// Modals render into <body> so the branch pages' sticky top bar and fade-in containers can never clip them.
+function AddStaffModal(props){return createPortal(<AddStaffModalInner {...props}/>,document.body);}
+function EditStaffModal(props){return createPortal(<EditStaffModalInner {...props}/>,document.body);}
+function DayEditModal(props){return createPortal(<DayEditModalInner {...props}/>,document.body);}
+function PersonAttendanceDetailModal(props){return createPortal(<PersonAttendanceDetailModalInner {...props}/>,document.body);}
