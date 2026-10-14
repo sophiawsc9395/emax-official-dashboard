@@ -2586,9 +2586,36 @@ export default function App(){
       setLockedMonths(lm||{});
       setRewardHistory(rh||{});
       setStatusHistory(sh||{});
+      setRewardsLoaded(true);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
+
+  // ── Purge directors' reward balance + history (Sophia: "delete old balance
+  // for Max Siew and EC"). Runs once after everything has loaded; removes the
+  // BM / SR ids of anyone matching DIRECTOR_EXCLUDED_NAMES and saves.
+  const [rewardsLoaded,setRewardsLoaded]=useState(false);
+  const [metaLoaded,setMetaLoaded]=useState(false);
+  const directorPurgeDone=useRef(false);
+  useEffect(()=>{
+    if(!rewardsLoaded||!metaLoaded||directorPurgeDone.current)return;
+    if(!srList?.length||!branchMeta||!Object.keys(branchMeta).length)return;
+    directorPurgeDone.current=true;
+    const ids=new Set();
+    srList.forEach(sr=>{if(isDirectorExcluded(sr.canon))ids.add(sr.id);});
+    Object.keys(branchMeta).forEach(b=>{
+      if(isDirectorExcluded(branchMeta[b]?.manager)||parseStatus(branchMeta[b]?.mStatus).base==="Director")
+        ids.add(`BM_${branchMeta[b]?.managerId||b}`);
+    });
+    const hit=[...ids].filter(id=>rewardBalances[id]!==undefined||rewardHistory[id]!==undefined);
+    if(!hit.length)return;
+    const rb={...rewardBalances},rh={...rewardHistory};
+    hit.forEach(id=>{delete rb[id];delete rh[id];});
+    setRewardBalances(rb);setRewardHistory(rh);
+    saveData("emax_v5_reward_balance",rb);
+    saveData("emax_v5_reward_history",rh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[rewardsLoaded,metaLoaded,srList,branchMeta]);
 
   // ── Auto-remove AEON PDF reports older than 2 months ─────────────────────
   // Per Sophia — keeps the uploaded-PDF index from growing forever (it was
@@ -2635,6 +2662,7 @@ export default function App(){
     const typeKey=`emax_v5_sr_types_${selYear}_${selMonth}`;
     Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData(snapKey),loadData(publishKey),loadData(typeKey)]).then(([r,t,tPrev,srData,bmData,snap,pub,srTypes])=>{
       setRecords(r||{});
+      setMetaLoaded(true); // batched with setSrList/setBranchMeta below
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
       // Overlay historical status snapshot if viewing a past month
       // Only apply status snapshot for PAST months — for the current month,

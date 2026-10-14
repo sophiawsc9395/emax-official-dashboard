@@ -13,6 +13,8 @@ import ChaileaseTab from "../../ChaileaseTab.jsx";
 import StockProfitTab from "../../StockProfitTab.jsx";
 import StockTransferTab from "../../StockTransferTab.jsx";
 import AttendanceTab from "../../AttendanceTab.jsx";
+const DIRECTOR_EXCLUDED_NAMES=["MAX SIEW","EC","SIEW WING FEI","WING FEI","KHOR BOON THENG","BOON THENG"];
+const isDirectorExcluded=name=>DIRECTOR_EXCLUDED_NAMES.includes((name||"").trim().toUpperCase());
 
 const BRANCH_ID = "TW1";
 const BRANCH_ORDER=["KM","T1","TW2","TW1","LD","KB","T5","ITCC","TENOM","HQ"];
@@ -669,13 +671,14 @@ export default function App(){
           {(()=>{
             const bmByManagerId={};
             BRANCH_ORDER.forEach(b=>{
+              if(isDirectorExcluded(bMeta[b]?.manager))return; // director, not staff
               const mid=bMeta[b]?.managerId||b;
               if(!bmByManagerId[mid])bmByManagerId[mid]={id:`BM_${mid}`,name:bMeta[b]?.manager||b,role:"Branch Manager",branches:[]};
               bmByManagerId[mid].branches.push(b);
             });
             const allPeople=[
               ...Object.values(bmByManagerId).map(p=>({...p,branch:p.branches.join(", ")})),
-              ...allSRList.filter(sr=>srVisibleInMonth(sr,month,year)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
+              ...allSRList.filter(sr=>srVisibleInMonth(sr,month,year)&&!isDirectorExcluded(sr.canon)).map(sr=>({id:sr.id,name:sr.canon,role:`${sr.type} SR`,branch:sr.branch})),
             ];
             const ranked=allPeople.map(p=>({...p,balance:rewardBalances[p.id]?.balance||0})).sort((a,b)=>b.balance-a.balance);
             const medals=["🥇","🥈","🥉"];
