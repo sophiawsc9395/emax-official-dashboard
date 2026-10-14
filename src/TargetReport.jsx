@@ -94,8 +94,8 @@ function TierPanel({ tiers, side }) {
     // wide layout (hero card): Bonus and Points next to each other, stacking when narrow
     return (
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-        <div style={{ flex: "1 1 320px", minWidth: 0, display: "flex", flexDirection: "column" }}><TierCol title="Bonus" t={tiers.bonus} white /></div>
-        <div style={{ flex: "1 1 320px", minWidth: 0, display: "flex", flexDirection: "column" }}><TierCol title="Points" t={tiers.points} white /></div>
+        <div style={{ flex: "1 1 320px", minWidth: 0, display: "flex", flexDirection: "column" }}><TierCol title="Bonus" t={tiers.bonus} /></div>
+        <div style={{ flex: "1 1 320px", minWidth: 0, display: "flex", flexDirection: "column" }}><TierCol title="Points" t={tiers.points} /></div>
       </div>
     );
   }
@@ -259,7 +259,7 @@ export function BranchHeroCard({ name, bmName, mStatus, onHistory, branchPct, bT
   const chip = { Confirmed: ["#E6F7F0", "#0B7A54"], Probation: ["#FEF3C7", "#92600A"], Training: ["#E0ECFF", "#1D4ED8"], Director: ["#EDE9FE", "#5B21B6"], Resigned: ["#FDE8EA", "#B42335"] }[base];
   const hasT = bTarget > 0, met = hasT && bTotal.total >= bTarget, bal = Math.max(bTarget - bTotal.total, 0);
   const box = (l, v, c) => (
-    <div key={l} style={{ flex: "1 1 130px", background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 12px", minWidth: 0 }}>
+    <div key={l} style={{ flex: "1 1 130px", background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "8px 12px", minWidth: 0 }}>
       <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".08em", color: MUTED }}>{l}</div>
       <div style={{ fontSize: 13, fontWeight: 800, color: c, marginTop: 2, whiteSpace: "nowrap" }}>{v}</div>
     </div>
@@ -286,7 +286,7 @@ export function BranchHeroCard({ name, bmName, mStatus, onHistory, branchPct, bT
         <span>Target <b style={{ color: NAVY }}>{hasT ? rm(bTarget) : "Not Set"}</b></span>
       </div>
       <div style={{ height: 8, background: BORDER, borderRadius: 99, overflow: "hidden" }}>
-        <div style={{ width: Math.min(hasT ? branchPct : 0, 100) + "%", height: "100%", background: "linear-gradient(90deg,#162B52,#2F5597)", borderRadius: 99 }} />
+        <div style={{ width: Math.min(hasT ? branchPct : 0, 100) + "%", height: "100%", background: met ? GREEN : RED, borderRadius: 99 }} />
       </div>
       <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
         {box("Walk in", rm(bTotal.wi), NAVY)}
