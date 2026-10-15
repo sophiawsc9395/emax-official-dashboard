@@ -50,7 +50,7 @@ const CSS = `
   .shine-row:hover{background:#F7F9FC!important;}
   .nav-item{transition:all .15s;}
   @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-  .fade-in{animation:fadeIn .25s ease forwards;}
+  .fade-in{animation:fadeIn .25s ease backwards;}
   .progress-bar-fill{transition:width .8s cubic-bezier(.4,0,.2,1);}
   .modal-overlay{position:fixed;inset:0;background:rgba(10,22,40,.65);backdrop-filter:blur(4px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
   tfoot td{white-space:nowrap!important;}

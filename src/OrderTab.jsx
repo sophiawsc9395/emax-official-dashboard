@@ -721,10 +721,9 @@ function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClick
     <div style={isMobile?{minWidth:0}:{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
       <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.phoneModel}</div>
       <div style={{fontSize:11,color:C.textLight}}>{a.customerName} · {a.branch}</div>
-      <div style={{fontSize:11,color:C.textMid,marginTop:2,whiteSpace:"normal"}}>{order?.billingDelayReason?.text?<><b>Branch reason:</b> {order.billingDelayReason.text}{order.billingDelayReason.date?` (${fDate(order.billingDelayReason.date)})`:""}</>:<span style={{color:C.textLight}}>No reason filled by branch yet</span>}</div>
     </div>
     <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-      <span style={{fontSize:11,color,fontWeight:700,whiteSpace:"nowrap"}}>{a.msg}</span>
+      <span style={{fontSize:11,color,fontWeight:700,whiteSpace:isMobile?"normal":"nowrap"}}>{`Arrived at branch ${a.days} days ago — ${order?.billingDelayReason?.text||"no reason filled by branch yet"}`}</span>
       {canUpload&&(rec?<span onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#15803D15",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>{Ic.check} Uploaded</span>
         :<label onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#fff",background:uploading?"#8A96A8":"#1D4ED8",padding:"5px 10px",borderRadius:6,whiteSpace:"nowrap",cursor:uploading?"default":"pointer"}}>
           {uploading?"Uploading…":"Upload recording"}
