@@ -849,7 +849,7 @@ function RequestCancelBox({order,onUpdate,email,isAdmin,userBranch}){
     setSaving(false);
   };
   return<>
-    <div style={{marginBottom:16}}><GBtn onClick={()=>setOpen(true)} style={{color:"#DC2626",borderColor:"#DC262633"}}>Request Cancel</GBtn></div>
+    <PBtn onClick={()=>setOpen(true)} style={{background:"#DC2626",borderColor:"#DC2626",color:"#fff"}}>Request Cancel</PBtn>
     {open&&<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}}>
       <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:440,maxHeight:"90vh",overflow:"auto"}}>
         <div style={{padding:"16px 20px",borderBottom:`1px solid ${C.border}`}}>
@@ -2088,6 +2088,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
           }
           setLinkCopied(true);setTimeout(()=>setLinkCopied(false),2000);
         }}>{linkCopied?<>{Ic.checkCircle} Copied!</>:<>{Ic.share} Copy Link</>}</GBtn>
+        <RequestCancelBox order={order} onUpdate={onUpdate} email={email} isAdmin={isAdmin} userBranch={userBranch}/>
       </div>
       <div className="detail-topbar-title">
         <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
@@ -2178,7 +2179,6 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <AcknowledgeSupersededBox order={order} onUpdate={onUpdate} email={email}/>
     <PickupReminderVoiceBox order={order} onUpdate={onUpdate} email={email}/>
     <CancelRequestBox order={order} onUpdate={onUpdate} email={email}/>
-    <RequestCancelBox order={order} onUpdate={onUpdate} email={email} isAdmin={isAdmin} userBranch={userBranch}/>
 
     {/* Two-col: timeline | action */}
     <div className="detail-grid">
