@@ -721,6 +721,7 @@ function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClick
     <div style={isMobile?{minWidth:0}:{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
       <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.phoneModel}</div>
       <div style={{fontSize:11,color:C.textLight}}>{a.customerName} · {a.branch}</div>
+      <div style={{fontSize:11,color:C.textMid,marginTop:2,whiteSpace:"normal"}}>{order?.billingDelayReason?.text?<><b>Branch reason:</b> {order.billingDelayReason.text}{order.billingDelayReason.date?` (${fDate(order.billingDelayReason.date)})`:""}</>:<span style={{color:C.textLight}}>No reason filled by branch yet</span>}</div>
     </div>
     <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
       <span style={{fontSize:11,color,fontWeight:700,whiteSpace:"nowrap"}}>{a.msg}</span>
@@ -744,6 +745,37 @@ function CancelRequestBox({order,onUpdate,email}){
   const myEmail=(email||"").toLowerCase();
   const canAccept=myEmail==="boontheng2004@gmail.com"||myEmail===SOPHIA_EMAIL;
   if(!order.pendingCancelRequest)return null;
+  // Requests raised with the Request Cancel button (Stock / Purchase) carry an
+  // `ack` map and need all three ACK_PARTIES to acknowledge before the order
+  // cancels — same parties and same rule as a superseded (device-amended) order.
+  if(order.pendingCancelRequest.ack){
+    const req=order.pendingCancelRequest,ack=req.ack;
+    const acknowledge=async(p)=>{
+      setAccepting(true);
+      const nextAck={...ack,[p.key]:nowDate()};
+      const allDone=ACK_PARTIES.every(x=>nextAck[x.key]);
+      const note=`${p.label} acknowledged cancellation request`+(allDone?" — all parties acknowledged, order cancelled.":"");
+      await onUpdate(allDone
+        ?{...order,cancelled:true,pendingCancelRequest:null,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation requested by ${req.requestedBy}: ${req.reason}. ${note}`,files:req.cancellationForm?{cancellationForm:req.cancellationForm}:undefined,isCancellationEntry:true,skipStepDate:true}]}
+        :{...order,pendingCancelRequest:{...req,ack:nextAck},history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note,skipStepDate:true}]});
+      setAccepting(false);
+    };
+    return<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:16}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Cancellation Request Pending</div>
+      <div style={{fontSize:12,color:C.textMid,marginBottom:8}}>Requested by {req.requestedBy} on {fDate(req.requestedDate)}: {req.reason}</div>
+      {req.cancellationForm&&<div style={{marginBottom:10}}><CancellationFormLink file={req.cancellationForm}/></div>}
+      <div style={{fontSize:12,color:C.textMid,marginBottom:8}}>The order cancels once all three below have acknowledged.</div>
+      <div style={{display:"flex",flexDirection:"column",gap:7}}>
+        {ACK_PARTIES.map(p=>{
+          const done=ack[p.key];
+          return<div key={p.key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,fontSize:12}}>
+            <span style={{display:"flex",alignItems:"center",gap:5,color:done?"#15803D":C.textMid,fontWeight:600}}>{done&&<span style={{color:"#15803D"}}>{Ic.check}</span>}{p.label}{done?` — acknowledged ${fDate(done)}`:""}</span>
+            {!done&&myEmail===p.email&&<PBtn onClick={()=>acknowledge(p)} disabled={accepting} style={{fontSize:11,padding:"4px 10px"}}>Acknowledge</PBtn>}
+          </div>;
+        })}
+      </div>
+    </div>;
+  }
   const accept=async()=>{
     setAccepting(true);
     // isCancellationEntry marks this specific entry for Timeline to pull
@@ -787,6 +819,52 @@ function PendingFileLink({file,label}){
   },[file.path,file.url]);
   return url?<a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>{Ic.download} {label}: {file.name}</a>
     :<span style={{fontSize:11,color:C.textLight}}>{label}: {file.name} (loading…)</span>;
+}
+// "Request Cancel" for Stock (emaxstock) and Purchase (emaxpurchase) — any
+// order they can open. Needs a reason and the cancellation form, same as the
+// Purchase Order page's request; the requester's own party is auto-acknowledged
+// and the other two must acknowledge in CancelRequestBox before it cancels.
+function RequestCancelBox({order,onUpdate,email}){
+  const myEmail=(email||"").toLowerCase();
+  const party=ACK_PARTIES.find(p=>p.email===myEmail&&(p.key==="stock"||p.key==="purchase"));
+  const[open,setOpen]=useState(false);
+  const[reason,setReason]=useState("");
+  const[file,setFile]=useState(null);
+  const[saving,setSaving]=useState(false);
+  if(!party||order.cancelled||order.pendingCancelRequest||order.step===14)return null;
+  const send=async()=>{
+    setSaving(true);
+    try{
+      const cancellationForm=await uploadOrderFile(order.id,file,file.name);
+      await onUpdate({...order,pendingCancelRequest:{requestedBy:email,requestedDate:nowDate(),requestedTime:nowTime(),reason:reason.trim(),cancellationForm,ack:{[party.key]:nowDate()}},
+        history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation requested by ${email}: ${reason.trim()}`,skipStepDate:true}]});
+      setOpen(false);setReason("");setFile(null);
+    }catch(err){alert("This didn't save — please check your connection and try again.");}
+    setSaving(false);
+  };
+  return<>
+    <div style={{marginBottom:16}}><GBtn onClick={()=>setOpen(true)} style={{color:"#DC2626",borderColor:"#DC262633"}}>Request Cancel</GBtn></div>
+    {open&&<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}}>
+      <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:440,maxHeight:"90vh",overflow:"auto"}}>
+        <div style={{padding:"16px 20px",borderBottom:`1px solid ${C.border}`}}>
+          <div style={{fontSize:14,fontWeight:800,color:"#DC2626"}}>Request Cancel Order</div>
+          <div style={{fontSize:11,color:C.textLight,marginTop:2}}>{order.phoneModel} — {order.customerName}</div>
+        </div>
+        <div style={{padding:"16px 20px"}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.textMid,marginBottom:4}}>Reason for Cancellation *</div>
+          <textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder="Why is this order being cancelled?" rows={3} style={{width:"100%",padding:"9px 11px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",marginBottom:12}}/>
+          <div style={{fontSize:11,fontWeight:700,color:C.textMid,marginBottom:4}}>Cancellation Form *</div>
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFile(e.target.files[0]||null)} style={{fontSize:12,width:"100%",marginBottom:4}}/>
+          {file&&<div style={{fontSize:11,color:"#15803D",fontWeight:600}}>{file.name}</div>}
+          <div style={{fontSize:11,color:C.textLight,marginTop:10}}>It cancels once Boss EC, Stock Executive and Purchasing Executive have all acknowledged.</div>
+        </div>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",padding:"14px 20px",borderTop:`1px solid ${C.border}`}}>
+          <GBtn onClick={()=>setOpen(false)}>Close</GBtn>
+          <PBtn disabled={!reason.trim()||!file||saving} onClick={send} style={{background:"#DC2626"}}>{saving?"Sending…":"Send Request"}</PBtn>
+        </div>
+      </div>
+    </div>}
+  </>;
 }
 function PhoneModelField({order,onUpdate}){
   const [editing,setEditing]=useState(false);
@@ -2094,6 +2172,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <AcknowledgeSupersededBox order={order} onUpdate={onUpdate} email={email}/>
     <PickupReminderVoiceBox order={order} onUpdate={onUpdate} email={email}/>
     <CancelRequestBox order={order} onUpdate={onUpdate} email={email}/>
+    <RequestCancelBox order={order} onUpdate={onUpdate} email={email}/>
 
     {/* Two-col: timeline | action */}
     <div className="detail-grid">
@@ -2442,7 +2521,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // acknowledge buttons themselves (Boon Theng holds admin via superAdmin).
   const canSeeSupersededAlert=isAdmin&&(!orderPermissions||orderPermissions.adminSteps==="all"||orderPermissions.adminSteps.includes(1)||orderPermissions.adminSteps.includes(4));
   const supersededAlerts=canSeeSupersededAlert?alerts.filter(a=>a.type==="device_amendment_superseded"):[];
-  const canSeePickupReminderAlert=PICKUP_REMINDER_EMAILS.includes((email||"").toLowerCase());
+  const canSeePickupReminderAlert=[...PICKUP_REMINDER_EMAILS,"emaxstock@gmail.com",EMAX_PURCHASE_EMAIL].includes((email||"").toLowerCase());
   const pickupReminderAlerts=canSeePickupReminderAlert?alerts.filter(a=>a.type==="arrived_branch_no_billing"):[];
   // Housekeeping suggestion, not something everyone needs to see — Sophia
   // only, same as the Actual Purchase Price To-Do list and a few other
@@ -2452,7 +2531,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // alert itself is just a link to the order now (see CancelRequestBox on
   // the order detail page for the actual Accept/Cancel action).
   const isBoonTheng=(email||"").toLowerCase()==="boontheng2004@gmail.com";
-  const cancelRequestAlerts=(isBoonTheng||isSophia)?alerts.filter(a=>a.type==="cancel_request_pending"):[];
+  const cancelRequestAlerts=(isBoonTheng||isSophia||["emaxstock@gmail.com",EMAX_PURCHASE_EMAIL].includes((email||"").toLowerCase()))?alerts.filter(a=>a.type==="cancel_request_pending"):[];
   // Every alert collapses purely by the user clicking its own chevron from
   // here on — but a few keep a role-based STARTING state (collapsed by
   // default for that role, since those tend to be long lists that aren't
@@ -2847,8 +2926,24 @@ function useIsMobile(){
   return isMobile;
 }
 
-const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOrderId,onOpen,userBranch}){
+const OrderListVirtualized=memo(function OrderListVirtualized({orders:ordersProp,alertsByOrderId,onOpen,userBranch}){
   const isMobile=useIsMobile();
+  // Days Waiting header toggles: none -> high-to-low -> low-to-high -> none.
+  const [daysSort,setDaysSort]=useState(null);
+  const orders=useMemo(()=>{
+    if(!daysSort)return ordersProp;
+    const dw=o=>{const d=o.stepDates?.[o.step]?.date;return d?daysSince(d):null;};
+    const keyed=ordersProp.map((o,i)=>({o,i,d:dw(o)}));
+    keyed.sort((x,y)=>{
+      if(x.d===null&&y.d===null)return x.i-y.i;
+      if(x.d===null)return 1;
+      if(y.d===null)return -1;
+      return daysSort==="desc"?(y.d-x.d||x.i-y.i):(x.d-y.d||x.i-y.i);
+    });
+    return keyed.map(k=>k.o);
+  },[ordersProp,daysSort]);
+  const cycleDaysSort=()=>setDaysSort(v=>v===null?"desc":v==="desc"?"asc":null);
+  const daysHeader=<div onClick={cycleDaysSort} title="Sort by days waiting" style={{width:112,flexShrink:0,marginLeft:"auto",textAlign:"right",cursor:"pointer",userSelect:"none"}}>Days Waiting{daysSort==="desc"?" ↓":daysSort==="asc"?" ↑":" ↕"}</div>;
   const single={whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
   // Declared unconditionally (Rules of Hooks) even though only the desktop
   // virtualized branch below actually uses scroll position.
@@ -2898,7 +2993,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
             <div style={{width:150,flexShrink:0,marginLeft:14}}>Invoice No</div>
             <div style={{width:140,flexShrink:0,marginLeft:14}}>Step</div>
             <div style={{flex:1.5,minWidth:150,marginLeft:14}}>Status</div>
-            <div style={{width:112,flexShrink:0,marginLeft:"auto",textAlign:"right"}}>Days Waiting</div>
+            {daysHeader}
           </div>
           {orders.map((o,idx)=>{
             const{s,alert,flagLabel,flagColor,hasDifferentPickup,reachedDate,daysWaiting}=rowFields(o);
@@ -2958,7 +3053,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
         <div style={{width:150,flexShrink:0,marginLeft:14}}>Invoice No</div>
         <div style={{width:140,flexShrink:0,marginLeft:14}}>Step</div>
             <div style={{flex:1.5,minWidth:150,marginLeft:14}}>Status</div>
-        <div style={{width:112,flexShrink:0,marginLeft:"auto",textAlign:"right"}}>Days Waiting</div>
+        {daysHeader}
       </div>
       <div style={{height:total*ROW_H,position:"relative"}}>
         {visible.map((o,i)=>{
@@ -2998,7 +3093,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders,alertsByOr
   </div>;
 });
 
-export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList=[],isReadOnly=false,orderPermissions=null,email=null}){
+export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList=[],isReadOnly=false,orderPermissions=null,email=null,onReturnToOverview=null}){
   const isMobile=useIsMobile();
   const isSophia=(email||"").toLowerCase()===SOPHIA_EMAIL;
   // Scoped to just the Actual Purchase Price To-Do banner below — everything
@@ -3575,7 +3670,14 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   if(view==="detail"&&selected){
     const live=detailCache[selected.id];
     if(!live)return<>{billingDelayModal}<div style={{padding:60,textAlign:"center",color:C.textLight,fontSize:13}}>Loading order…</div></>;
-    return<>{billingDelayModal}<OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} orderPermissions={orderPermissions} userBranch={userBranch} email={email} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>nav("list")} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
+    return<>{billingDelayModal}<OrderDetail order={live} branchMeta={branchMeta} isAdmin={isAdmin} isReadOnly={isReadOnly} orderPermissions={orderPermissions} userBranch={userBranch} email={email} onUpdate={saveOrder} onEdit={()=>{setEditOrder(live);nav("form");}} onDelete={()=>deleteOrder(live.id)} onBack={()=>{
+    const sp=new URLSearchParams(window.location.search);
+    if(onReturnToOverview&&sp.get("from")==="overview"&&String(sp.get("orderId"))===String(live.id)){
+      const url=new URL(window.location.href);url.searchParams.delete("from");url.searchParams.delete("orderId");
+      window.history.replaceState({},"",url);
+      nav("list");onReturnToOverview();
+    }else nav("list");
+  }} allOrders={activeOrders}/>{showArchive&&<BatchArchive orders={orders} onDelete={bulkDelete} onClose={()=>setShowArchive(false)}/>}</>;
   }
   if(view==="form")return<>{billingDelayModal}<OrderForm order={editOrder} orders={orders} branchMeta={branchMeta} isAdmin={isAdmin} userBranch={userBranch} srList={srList} orderPermissions={orderPermissions} email={email} onDirtyChange={d=>{formDirtyRef.current=d;}} onSave={async o=>{await saveOrder(o);formDirtyRef.current=false;setEditOrder(null);}} onCancel={()=>{nav(editOrder?"detail":"list",editOrder||selected);setEditOrder(null);}}/></>;
 

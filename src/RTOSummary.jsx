@@ -210,6 +210,7 @@ export function RTOLatePaymentTodoList({customers,branchMeta,email}){
 
 export function RTOSummaryInner({customers,branchMeta,email}){
   const summaryRef=useRef(null);
+  const [logCustomerId,setLogCustomerId]=useState(null);
   const now=new Date();
   const currentKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
   const nextMonthDate=new Date(now.getFullYear(),now.getMonth()+1,1);
@@ -331,7 +332,7 @@ export function RTOSummaryInner({customers,branchMeta,email}){
           </div>
           <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead><tr style={{background:C.navy}}>
-              {["Customer","Phone","Branch","Month(s)","Amount","Outstanding","Note"].map(h=>(
+              {["Customer","Phone","Branch","Month(s)","Amount","Outstanding","Note","Reminders"].map(h=>(
                 <th key={h} style={{padding:"9px 14px",textAlign:"left",fontWeight:700,fontSize:10,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
               ))}
             </tr></thead>
@@ -351,15 +352,49 @@ export function RTOSummaryInner({customers,branchMeta,email}){
                 <td style={{padding:"9px 14px",fontWeight:700,color:C.text,fontSize:12,whiteSpace:"nowrap"}}>{fRM(c.overdue.reduce((s,sl)=>s+(sl.amount-amountReceivedFor(sl,c.payments?.[sl.key])),0))}</td>
                 <td style={{padding:"9px 14px",fontSize:12,color:C.textMid,whiteSpace:"nowrap"}}>{fRM(c.outstanding)}</td>
                 <td style={{padding:"9px 14px",fontSize:11,color:C.textLight,whiteSpace:"nowrap"}}>{c.overdue.length===1?"1 month — follow up":`${c.overdue.length} months — urgent`}</td>
+                <td style={{padding:"9px 14px",fontSize:11,color:C.textMid,whiteSpace:"nowrap"}}>{(()=>{
+                  const log=c.latePaymentReminders||[];
+                  return<div style={{display:"flex",alignItems:"center",gap:8}}>
+                    {log.length===0
+                      ?<span style={{color:C.textLight}}>Not yet reminded</span>
+                      :<span style={{fontWeight:700,color:log.length>=3?"#DC2626":"#B45309"}}>Reminder {log.length} sent</span>}
+                    <button onClick={()=>setLogCustomerId(c.id)} style={{border:`1px solid ${C.border}`,background:"#fff",color:C.navy,fontSize:10.5,fontWeight:700,padding:"3px 9px",borderRadius:6,cursor:"pointer"}}>History</button>
+                  </div>;
+                })()}</td>
               </tr>
             ))}
             <tr style={{borderTop:`2px solid ${C.border}`,background:C.surface}}>
               <td colSpan={4} style={{padding:"9px 14px",fontWeight:700,fontSize:12,color:C.navy}}>TOTAL — {overdueCustomers.length} customer{overdueCustomers.length>1?"s":""}</td>
               <td style={{padding:"9px 14px",fontWeight:700,fontSize:12,color:C.navy,whiteSpace:"nowrap"}}>{fRM(overdueCustomers.reduce((s,c)=>s+c.overdue.reduce((s2,sl)=>s2+(sl.amount-amountReceivedFor(sl,c.payments?.[sl.key])),0),0))}</td>
-              <td colSpan={2}/>
+              <td colSpan={3}/>
             </tr>
             </tbody>
           </table></div>
+          {logCustomerId&&(()=>{
+            const c=overdueCustomers.find(x=>x.id===logCustomerId);
+            if(!c)return null;
+            const log=c.latePaymentReminders||[];
+            const fmt=r=>{const[y,m,d]=(r.date||"").split("-");return`${d}/${m}/${y}${r.time?` ${r.time}`:""}`;};
+            return<div onClick={()=>setLogCustomerId(null)} style={{position:"fixed",inset:0,background:"rgba(10,22,40,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16}}>
+              <div onClick={e=>e.stopPropagation()} style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:380,maxHeight:"85vh",overflow:"auto"}}>
+                <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:800,color:C.navy}}>Reminder Log</div>
+                    <div style={{fontSize:11,color:C.textLight,marginTop:2}}>{c.name}{c.memberId?` · ${c.memberId}`:""}</div>
+                  </div>
+                  <button onClick={()=>setLogCustomerId(null)} style={{border:"none",background:"transparent",fontSize:18,lineHeight:1,cursor:"pointer",color:C.textLight}}>×</button>
+                </div>
+                <div style={{padding:"12px 18px"}}>
+                  {log.length===0
+                    ?<div style={{fontSize:12,color:C.textLight,padding:"10px 0"}}>No reminders sent yet.</div>
+                    :log.map((r,j)=><div key={j} style={{display:"flex",justifyContent:"space-between",gap:10,padding:"8px 0",borderBottom:j<log.length-1?`1px solid ${C.border}`:"none",fontSize:12}}>
+                      <span style={{fontWeight:700,color:C.navy}}>Reminder {j+1}</span>
+                      <span style={{color:C.textMid}}>{fmt(r)}</span>
+                    </div>)}
+                </div>
+              </div>
+            </div>;
+          })()}
 
           <div style={{padding:"12px 16px",background:C.white,borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:9}}>
             <div style={{width:3,height:16,background:"#DC2626",borderRadius:2}}/>

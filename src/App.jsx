@@ -3489,6 +3489,7 @@ export default function App(){
   const goToOrder=(id)=>{
     const url=new URL(window.location.href);
     url.searchParams.set("orderId",id);
+    url.searchParams.set("from","overview");
     window.history.replaceState({},"",url);
     setTab("orders");
   };
@@ -3865,7 +3866,7 @@ export default function App(){
       {tab==="todoPickup"&&<PickupTodoList orders={todoOrders} branchMeta={branchMeta} onUpdateOrder={saveTodoOrder}/>}
       {tab==="todoRto"&&<RTOLatePaymentTodoList customers={todoRtoCustomers} branchMeta={branchMeta} email={currentEmail}/>}
       {tab==="rto"&&<RTOTab branchMeta={branchMeta} email={currentEmail}/>}
-      {tab==="orders"&&<OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} email={currentEmail}/>}
+      {tab==="orders"&&<OrderTab onReturnToOverview={()=>setTab("overview")} branchMeta={branchMeta} isAdmin={true} srList={srList} email={currentEmail}/>}
       {tab==="dailySales"&&<DailySalesTab branchMeta={branchMeta} isAdmin={true} canSubmit={true} canVerify={true} email={currentEmail}/>}
       {tab==="jclApplications"&&<JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={currentEmail}/>}
       {tab==="chaileaseApplications"&&<ChaileaseTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={currentEmail}/>}

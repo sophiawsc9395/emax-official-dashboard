@@ -1266,6 +1266,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
           <ExpectedProfitTable branchMeta={bMeta} onOrderClick={id=>{
             const url=new URL(window.location.href);
             url.searchParams.set("orderId",id);
+    url.searchParams.set("from","overview");
             window.history.replaceState({},"",url);
             setTab("orders");
           }}/>
@@ -1450,7 +1451,7 @@ export default function App({elevateOrderAccess=false,isHR=false,isKnockOff=fals
       {tab==="todoRto"&&<RTOLatePaymentTodoList customers={todoRtoCustomers} branchMeta={bMeta} email={currentEmail}/>}
       {tab==="todoRtoHR"&&<RTOLatePaymentTodoListLoader branchMeta={bMeta} email={currentEmail}/>}
       {tab==="rto"&&<div style={{padding:"12px 4px",minHeight:400}}><RTOSummary branchMeta={bMeta} email={currentEmail}/></div>}
-      {tab==="orders"&&<div className="fade-in"><OrderTab branchMeta={bMeta} isAdmin={true} isReadOnly={!((elevateOrderAccess||isKnockOff)&&orderPermissions)} orderPermissions={(elevateOrderAccess||isKnockOff)?orderPermissions:null} srList={srList} email={currentEmail}/></div>}
+      {tab==="orders"&&<div className="fade-in"><OrderTab onReturnToOverview={()=>setTab("overview")} branchMeta={bMeta} isAdmin={true} isReadOnly={!((elevateOrderAccess||isKnockOff)&&orderPermissions)} orderPermissions={(elevateOrderAccess||isKnockOff)?orderPermissions:null} srList={srList} email={currentEmail}/></div>}
       {tab==="dailySales"&&<div className="fade-in"><DailySalesTab branchMeta={bMeta} isAdmin={false} canSubmit={false} canVerify={elevateOrderAccess||isKnockOff} email={currentEmail}/></div>}
       {tab==="jclApplications"&&<div className="fade-in"><JCLTab branchMeta={bMeta} isAdmin={elevateOrderAccess} userBranch={null} srList={srList} email={currentEmail}/></div>}
       {tab==="chaileaseApplications"&&<div className="fade-in"><ChaileaseTab branchMeta={bMeta} isAdmin={elevateOrderAccess} userBranch={null} srList={srList} email={currentEmail}/></div>}

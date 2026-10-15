@@ -26,6 +26,8 @@ const waitColor=(days)=>days===null?"#8A96A8":days>=7?"#DC2626":days>=3?"#B45309
 const TH=(e={})=>({padding:"10px 10px",fontWeight:700,fontSize:10,background:"#0A1628",color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right",whiteSpace:"nowrap",...e});
 const TD=(e={})=>({padding:"9px 10px",fontSize:12,borderBottom:"1px solid rgba(228,234,242,.7)",...e});
 
+const eptMemory={groupBy:"branch",branches:[],steps:[]};
+
 export default function ExpectedProfitTable({branchMeta,onOrderClick}){
   const [orders,setOrders]=useState(null);
   useEffect(()=>{listOrders().then(setOrders);},[]);
@@ -35,9 +37,12 @@ export default function ExpectedProfitTable({branchMeta,onOrderClick}){
   // specifically to catch an order that's reached the branch a long time
   // ago and still hasn't been billed). Each keeps its own expanded-group
   // state so switching views and back doesn't lose what you had open.
-  const [groupBy,setGroupBy]=useState("branch");
-  const [expandedBranches,setExpandedBranches]=useState(()=>new Set());
-  const [expandedSteps,setExpandedSteps]=useState(()=>new Set());
+  const [groupBy,setGroupBy]=useState(()=>eptMemory.groupBy);
+  const [expandedBranches,setExpandedBranches]=useState(()=>new Set(eptMemory.branches));
+  const [expandedSteps,setExpandedSteps]=useState(()=>new Set(eptMemory.steps));
+  // Remembered across unmounts so opening an order from this table and
+  // pressing Back returns to the same By Branch / By Step view, same groups open.
+  useEffect(()=>{eptMemory.groupBy=groupBy;eptMemory.branches=[...expandedBranches];eptMemory.steps=[...expandedSteps];},[groupBy,expandedBranches,expandedSteps]);
   const toggleBranch=(b)=>setExpandedBranches(prev=>{
     const next=new Set(prev);
     next.has(b)?next.delete(b):next.add(b);
