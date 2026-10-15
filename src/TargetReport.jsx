@@ -108,15 +108,16 @@ function TierPanel({ tiers, side }) {
 }
 
 export function TargetReportBlock({ target, actual, tiers }) {
-  if (!(target > 0)) return null;
-  const pct = pctOf(actual, target), met = actual >= target, color = met ? GREEN : RED;
+  // No target set: still shows the full report, with the target / balance at 0.
+  target = target > 0 ? target : 0;
+  const pct = pctOf(actual, target), met = target > 0 && actual >= target, color = met ? GREEN : RED;
   return (
     <div style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 8, padding: "10px 12px", margin: "0 0 10px" }}>
       <div style={{ fontSize: 9, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Target Report</div>
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <Donut pct={pct} color={color} />
         <div style={{ flex: 1, fontSize: 11, minWidth: 0 }}>
-          {[["Profit target", rm(target), "#4A5568"], ["Actual profit", rm(actual), NAVY], [met ? "Over target by" : "Balance to hit", rm(Math.abs(target - actual)), color]].map(([l, v, c]) => (
+          {[["Profit target", rm(target), "#4A5568"], ["Actual profit", rm(actual), NAVY], [met ? "Over target by" : "Balance to hit", rm(target > 0 ? Math.abs(target - actual) : 0), color]].map(([l, v, c]) => (
             <div key={l} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "3px 0", borderBottom: `1px solid ${SURFACE}` }}>
               <span style={{ color: MUTED }}>{l}</span><span style={{ color: c, fontWeight: 700, whiteSpace: "nowrap" }}>{v}</span>
             </div>
@@ -134,7 +135,6 @@ export function TargetReportBlock({ target, actual, tiers }) {
 
 /** Convenience wrapper: the block with the padded strip it sits in at the top of a card. */
 export function TargetReportStrip({ target, actual, tiers }) {
-  if (!(target > 0)) return null;
   return (
     <div style={{ padding: "12px 14px 2px", background: SURFACE, borderBottom: `1px solid ${BORDER}` }}>
       <TargetReportBlock target={target} actual={actual} tiers={tiers} />

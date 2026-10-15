@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Attendance — preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',-apple-system,sans-serif;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  // Minimal CommonJS shim so the esbuild bundle's require("react") /
+  // require("react-dom") calls resolve to the UMD globals loaded above.
+  window.require = function(name){
+    if(name === "react") return window.React;
+    if(name === "react-dom") return window.ReactDOM;
+    throw new Error("No shim for module: " + name);
+  };
+</script>
+<script src="attendance-bundle.js"></script>
+</body>
+</html>

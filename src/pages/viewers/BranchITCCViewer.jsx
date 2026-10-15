@@ -96,9 +96,9 @@ function daysInMonth(m,y){return new Date(y,m,0).getDate();}
 function calcAchievementBonus(pct,role="sr"){if(pct<120)return 0;const t=Math.floor((pct-120)/10);return role==="bm"?500+t*500:300+t*50;}
 function calcRewardPoints(pct,bPct){if(bPct<100||pct<110)return 0;const T=[[200,12000],[190,9000],[180,7500],[170,6000],[160,4500],[150,3000],[140,2000],[130,1500],[120,1000],[110,500]];for(const[t,p]of T)if(pct>=t)return p;return 0;}
 
-function AchBadge({profit,target,binary}){
-  if(!target)return <span style={{color:"#8A96A8"}}>—</span>;
-  const p=pctN(profit,target),c=binary?(profit>=target?"#00C896":"#F0354B"):achColor(profit,target),bg=binary?(profit>=target?"#00C89612":"#F0354B12"):achBg(profit,target);
+function AchBadge({profit,target,binary,showZero}){
+  if(!target&&!showZero)return <span style={{color:"#8A96A8"}}>—</span>;
+  const p=pctN(profit,target),c=binary?(target>0&&profit>=target?"#00C896":"#F0354B"):achColor(profit,target),bg=binary?(target>0&&profit>=target?"#00C89612":"#F0354B12"):achBg(profit,target);
   return <span style={{background:bg,color:c,padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700}}>{p.toFixed(2)}%</span>;
 }
 function ProgressBar({pct,color}){
@@ -772,16 +772,16 @@ export default function App(){
         <span style={{color:"#5A6472"}}>Target</span>
         <span style={{fontSize:11,color:"#4A5568"}}>{target>0?fRM(target):"Not set"}</span>
       </div>
-      {target>0&&<>
+      {<>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
           <span style={{color:"#5A6472"}}>Personal Achievement</span>
-          <AchBadge profit={total} target={target} binary/>
+          <AchBadge profit={total} target={target} binary showZero/>
         </div>
         <ProgressBar pct={p} color={color}/>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:5}}>
           <span style={{color:"#5A6472"}}>Balance to Hit</span>
-          <span style={{color:Math.max(target-total,0)>0?"#F0354B":"#00C896",fontSize:11}}>
-            {Math.max(target-total,0)>0?fRM(Math.max(target-total,0)):"Target Met"}
+          <span style={{color:(Math.max(target-total,0)>0||!(target>0))?"#F0354B":"#00C896",fontSize:11}}>
+            {(Math.max(target-total,0)>0||!(target>0))?fRM(Math.max(target-total,0)):"Target Met"}
           </span>
         </div>
       </>}

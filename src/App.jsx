@@ -308,9 +308,9 @@ function ProgressBar({pct:p,color,height=6}){
     <div className="progress-bar-fill" style={{height:"100%",width:Math.min(p,100)+"%",background:color,borderRadius:height}}/>
   </div>;
 }
-function AchBadge({profit,target,size="sm",binary}){
-  if(!target) return <span style={{color:"#8A96A8",fontSize:11}}>—</span>;
-  const p=pctN(profit,target),color=binary?(profit>=target?"#00C896":"#F0354B"):achColor(profit,target),bg=binary?(profit>=target?"#00C89612":"#F0354B12"):achBg(profit,target);
+function AchBadge({profit,target,size="sm",binary,showZero}){
+  if(!target&&!showZero) return <span style={{color:"#8A96A8",fontSize:11}}>—</span>;
+  const p=pctN(profit,target),color=binary?(target>0&&profit>=target?"#00C896":"#F0354B"):achColor(profit,target),bg=binary?(target>0&&profit>=target?"#00C89612":"#F0354B12"):achBg(profit,target);
   return <span className="tag" style={{background:bg,color,fontSize:size==="lg"?14:size==="md"?12:size==="xs"?11:11,fontWeight:700}}>{p.toFixed(2)}%</span>;
 }
 function StatusTag({status}){
@@ -420,16 +420,16 @@ function SRTable({sr,records,targets,branchPct,onEdit,printMode,month,year,days,
         <span style={{color:"#5A6472"}}>Target</span>
         <span style={{fontSize:11,color:"#4A5568"}}>{target>0?fRM(target):"Not set"}</span>
       </div>
-      {target>0&&<>
+      {<>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
           <span style={{color:"#5A6472"}}>Personal Achievement</span>
-          <AchBadge profit={total} target={target} binary/>
+          <AchBadge profit={total} target={target} binary showZero/>
         </div>
         <ProgressBar pct={p} color={color}/>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:5}}>
           <span style={{color:"#5A6472"}}>Balance to Hit</span>
-          <span style={{color:Math.max(target-total,0)>0?"#F0354B":"#00C896",fontSize:11}}>
-            {Math.max(target-total,0)>0?fRM(Math.max(target-total,0)):"Target Met"}
+          <span style={{color:(Math.max(target-total,0)>0||!(target>0))?"#F0354B":"#00C896",fontSize:11}}>
+            {(Math.max(target-total,0)>0||!(target>0))?fRM(Math.max(target-total,0)):"Target Met"}
           </span>
         </div>
       </>}
@@ -522,15 +522,15 @@ function BMTable({branchId,records,targets,srList,branchMeta,onEdit,printMode,mo
       <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
         <span style={{color:"#5A6472"}}>Target</span><span style={{fontSize:11,color:"#4A5568"}}>{target>0?fRM(target):"Not set"}</span>
       </div>
-      {target>0&&<>
+      {<>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
-          <span style={{color:"#5A6472"}}>Personal Achievement</span><AchBadge profit={total} target={target} binary/>
+          <span style={{color:"#5A6472"}}>Personal Achievement</span><AchBadge profit={total} target={target} binary showZero/>
         </div>
         <ProgressBar pct={p} color={color}/>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginTop:5}}>
           <span style={{color:"#5A6472"}}>Balance to Hit</span>
-          <span style={{color:Math.max(target-total,0)>0?"#F0354B":"#00C896",fontSize:11}}>
-            {Math.max(target-total,0)>0?fRM(Math.max(target-total,0)):"Target Met"}
+          <span style={{color:(Math.max(target-total,0)>0||!(target>0))?"#F0354B":"#00C896",fontSize:11}}>
+            {(Math.max(target-total,0)>0||!(target>0))?fRM(Math.max(target-total,0)):"Target Met"}
           </span>
         </div>
       </>}
