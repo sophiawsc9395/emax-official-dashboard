@@ -658,29 +658,33 @@ function PickupReminderVoiceBox({order,onUpdate,email}){
 // recurring nag; Close only defers the orders NOT yet answered.
 function BillingDelayReasonModal({orders,branchMeta,onSubmit,onClose}){
   const[texts,setTexts]=useState({});
+  const[dates,setDates]=useState({});
   const[savingId,setSavingId]=useState(null);
   return<div style={{position:"fixed",inset:0,background:"rgba(10,22,40,.65)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{...card,width:"90%",maxWidth:520,maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
       <div style={{background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderRadius:"12px 12px 0 0"}}>
         <div>
           <div style={{fontWeight:800,fontSize:14,color:"#fff",display:"flex",alignItems:"center",gap:8}}>{Ic.alertCircle} Billing Request Overdue</div>
-          <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:3}}>You have {orders.length} order{orders.length===1?"":"s"} overdue — please fill in a reason for each</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.6)",marginTop:3}}>You have {orders.length} order{orders.length===1?"":"s"} overdue — please fill in a reason and expected billing date for each</div>
         </div>
         <button onClick={onClose} style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:"rgba(255,255,255,.7)",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:14,flexShrink:0}}>×</button>
       </div>
       <div style={{padding:18,overflowY:"auto",flex:1}}>
         {orders.map((order,i)=>{
           const days=daysSince(order.stepDates?.[5]?.date);
-          const text=texts[order.id]||"";
+          const text=texts[order.id]??order.billingDelayReason?.text??"";
+          const expDate=dates[order.id]??order.billingDelayReason?.expectedBillingDate??"";
           const saving=savingId===order.id;
-          const canSubmit=text.trim().length>0&&!saving;
+          const canSubmit=text.trim().length>0&&!!expDate&&!saving;
           return<div key={order.id} style={{padding:14,borderRadius:10,border:`1px solid ${C.border}`,background:C.surface,marginBottom:i===orders.length-1?0:12}}>
             <div style={{fontSize:12,color:C.textMid,marginBottom:10,lineHeight:1.5}}>
               <b>{order.phoneModel||"—"}</b>{order.customerName?` — ${order.customerName}`:""} arrived at this branch {days} day{days===1?"":"s"} ago and a Billing Request still hasn't been submitted.
             </div>
             <L req>Reason for billing delay</L>
             <TX value={text} onChange={e=>setTexts(p=>({...p,[order.id]:e.target.value}))} rows={3} placeholder="e.g. Customer hasn't come to collect/pay yet…" style={{width:"100%",boxSizing:"border-box",resize:"none"}}/>
-            <PBtn disabled={!canSubmit} onClick={async()=>{if(!canSubmit)return;setSavingId(order.id);await onSubmit(order,text.trim());setSavingId(null);setTexts(p=>{const n={...p};delete n[order.id];return n;});}} style={{width:"100%",justifyContent:"center",marginTop:10}}>{saving?"Saving…":"Submit Reason"}</PBtn>
+            <div style={{marginTop:10}}><L req>Expected billing date</L></div>
+            <input type="date" value={expDate} min={nowDate()} onChange={e=>setDates(p=>({...p,[order.id]:e.target.value}))} style={{width:"100%",boxSizing:"border-box",padding:"9px 11px",border:`1px solid ${C.border}`,borderRadius:8,fontSize:13,fontFamily:"inherit",marginBottom:10}}/>
+            <PBtn disabled={!canSubmit} onClick={async()=>{if(!canSubmit)return;setSavingId(order.id);await onSubmit(order,text.trim(),expDate);setSavingId(null);setTexts(p=>{const n={...p};delete n[order.id];return n;});setDates(p=>{const n={...p};delete n[order.id];return n;});}} style={{width:"100%",justifyContent:"center",marginTop:10}}>{saving?"Saving…":"Submit Reason"}</PBtn>
           </div>;
         })}
       </div>
@@ -723,7 +727,7 @@ function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClick
       <div style={{fontSize:11,color:C.textLight}}>{a.customerName} · {a.branch}</div>
     </div>
     <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-      <span style={{fontSize:11,color,fontWeight:700,whiteSpace:isMobile?"normal":"nowrap"}}>{`Arrived at branch ${a.days} days ago — ${order?.billingDelayReason?.text||"no reason filled by branch yet"}`}</span>
+      <span style={{fontSize:11,color,fontWeight:700,whiteSpace:isMobile?"normal":"nowrap"}}>{`Arrived at branch ${a.days} days ago — ${order?.billingDelayReason?.text||"no reason filled by branch yet"}${order?.billingDelayReason?.expectedBillingDate?` · Expected billing ${fDate(order.billingDelayReason.expectedBillingDate)}`:""}`}</span>
       {canUpload&&(rec?<span onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#15803D15",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>{Ic.check} Uploaded</span>
         :<label onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#fff",background:uploading?"#8A96A8":"#1D4ED8",padding:"5px 10px",borderRadius:6,whiteSpace:"nowrap",cursor:uploading?"default":"pointer"}}>
           {uploading?"Uploading…":"Upload recording"}
@@ -3650,17 +3654,17 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const billingDelayPendingOrders=useMemo(()=>{
     if(isAdmin||!userBranch)return[];
     return alertableOrders.filter(o=>{
-      if(o.step!==5||o.billingDelayReason)return false;
+      if(o.step!==5||(o.billingDelayReason?.text&&o.billingDelayReason?.expectedBillingDate))return false;
       const days=daysSince(o.stepDates?.[5]?.date);
       return days!==null&&days>=7;
     });
   },[alertableOrders,isAdmin,userBranch]);
   const[billingDelayDismissed,setBillingDelayDismissed]=useState(false);
   useEffect(()=>{setBillingDelayDismissed(false);},[view]);
-  const submitBillingDelayReason=async(order,text)=>{
+  const submitBillingDelayReason=async(order,text,expectedBillingDate)=>{
     const d=nowDate(),t=nowTime();
-    await patchOrderNoNav({...order,billingDelayReason:{text,date:d,time:t,branch:order.branch},
-      history:[...(order.history||[]),{step:5,date:d,time:t,note:`Reason for billing delay: ${text} — submitted by ${order.branch} branch`,skipStepDate:true,billingDelayReason:true}]});
+    await patchOrderNoNav({...order,billingDelayReason:{text,expectedBillingDate,date:d,time:t,branch:order.branch},
+      history:[...(order.history||[]),{step:5,date:d,time:t,note:`Reason for billing delay: ${text} — expected billing date ${fDate(expectedBillingDate)} — submitted by ${order.branch} branch`,skipStepDate:true,billingDelayReason:true}]});
   };
   const billingDelayModal=(billingDelayPendingOrders.length>0&&!billingDelayDismissed)?<BillingDelayReasonModal orders={billingDelayPendingOrders} branchMeta={branchMeta} onSubmit={submitBillingDelayReason} onClose={()=>setBillingDelayDismissed(true)}/>:null;
 
