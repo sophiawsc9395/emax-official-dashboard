@@ -215,7 +215,7 @@ export function buildBranchBreakdown({ branchId, branchMeta, srList, targets, re
 /* ── Person card header (shared by SR and BM cards) ─────────────────────
  * Name + "Role · Branch" on the left, status chip + Pass/Fail below,
  * History button on the right. */
-export function PersonHeader({ name, sub, status, onHistory }) {
+export function PersonHeader({ name, sub, status, onHistory, noStatus, statusPrefix, eyebrow }) {
   const raw = status || "";
   const baseM = raw.match(/^(Training|Probation|Confirmed|Director|Resigned)/i);
   const base = baseM ? baseM[1].charAt(0).toUpperCase() + baseM[1].slice(1).toLowerCase() : "Probation";
@@ -227,9 +227,11 @@ export function PersonHeader({ name, sub, status, onHistory }) {
   return (
     <div style={{ background: "linear-gradient(135deg,#0A1628,#162B52)", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
-        <div style={{ fontSize: 10.5, color: "rgba(255,255,255,.55)", marginTop: 2 }}>{sub}</div>
-        <div style={{ display: "flex", gap: 7, alignItems: "center", marginTop: 7 }}>
+        {eyebrow && <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,.45)", textTransform: "uppercase", letterSpacing: "0.1em" }}>{eyebrow}</div>}
+        <div style={{ fontSize: eyebrow ? 15 : 14, fontWeight: 800, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginTop: eyebrow ? 3 : 0 }}>{name}</div>
+        {sub && <div style={{ fontSize: 10.5, color: "rgba(255,255,255,.55)", marginTop: 2 }}>{sub}</div>}
+        <div style={{ display: "flex", gap: 7, alignItems: "center", flexWrap: "wrap", marginTop: 7, visibility: noStatus ? "hidden" : "visible" }}>
+          {statusPrefix && <span style={{ fontSize: 10.5, color: "rgba(255,255,255,.75)", fontWeight: 600, whiteSpace: "nowrap" }}>{statusPrefix}</span>}
           <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 99, background: chip[0], color: chip[1] }}>{base}</span>
           {showPF && <span style={{ fontSize: 10.5, color: "rgba(255,255,255,.75)", fontWeight: 600 }}>Pass {pass} · Fail {fail}</span>}
         </div>
