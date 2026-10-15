@@ -288,7 +288,7 @@ export default function ExpectedProfitTable({branchMeta,onOrderClick}){
                               {o.billingDelayReason?.text?<span style={{color:"#4A5568"}}>{o.billingDelayReason.text}</span>:<span style={{color:"#8A96A8"}}>—</span>}
                             </td>}
                             {showReasonCol(s)&&<td style={{...TD({textAlign:"left"}),whiteSpace:"nowrap"}}>
-                              {o.billingDelayReason?.expectedBillingDate?<span style={{color:"#4A5568",fontWeight:600}}>{fDate(o.billingDelayReason.expectedBillingDate)}</span>:<span style={{color:"#8A96A8"}}>—</span>}
+                              {o.billingDelayReason?.expectedBillingDate?<span style={{color:"#4A5568",fontWeight:600}}>{fDate(o.billingDelayReason.expectedBillingDate)}</span>:o.billingDelayReason?.noExpectedBillingDate?<span style={{color:"#8A96A8"}}>None</span>:<span style={{color:"#8A96A8"}}>—</span>}
                             </td>}
                             <td style={{...TD(),textAlign:"right",color:"#4A5568",fontWeight:600}}>{signed(o.expectedProfit)}</td>
                           </tr>)}
@@ -355,7 +355,7 @@ export default function ExpectedProfitTable({branchMeta,onOrderClick}){
                   </div>}
                   {showReasonCol(s)&&<div>
                     <div className="ept-stat-label">Expected Billing</div>
-                    <div style={{fontSize:12,color:"#4A5568",marginTop:1}}>{o.billingDelayReason?.expectedBillingDate?fDate(o.billingDelayReason.expectedBillingDate):"—"}</div>
+                    <div style={{fontSize:12,color:"#4A5568",marginTop:1}}>{o.billingDelayReason?.expectedBillingDate?fDate(o.billingDelayReason.expectedBillingDate):o.billingDelayReason?.noExpectedBillingDate?"None":"—"}</div>
                   </div>}
                   <div>
                     <div className="ept-stat-label">Expected Profit</div>
