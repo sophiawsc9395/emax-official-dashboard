@@ -845,13 +845,12 @@ export default function App(){
           const branchTWI=branchRows.reduce((s,r)=>s+r.wi,0),branchTAE=branchRows.reduce((s,r)=>s+r.ae,0),branchTUN=branchRows.reduce((s,r)=>s+r.un,0),branchTotal=branchTWI+branchTAE+branchTUN;
           const thS={padding:"6px 12px",fontSize:10,fontWeight:700,color:"#5A6472",textTransform:"uppercase",letterSpacing:"0.06em",textAlign:"right",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",whiteSpace:"nowrap"};
           return<div style={{border:"1px solid #E4EAF2",borderRadius:14,overflow:"hidden",background:"#fff",boxShadow:"0 2px 8px rgba(10,22,40,.06)"}}>
-            <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"14px 16px"}}>
+            <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"12px 14px",minHeight:118,boxSizing:"border-box",display:"flex",flexDirection:"column",justifyContent:"center"}}>
               <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>EMAX NETWORK SDN BHD</div>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:5,gap:8}}>
-                <span style={{fontWeight:800,fontSize:15,color:"#fff"}}>{bMeta[BRANCH_ID]?.name||BRANCH_ID} — Branch Total</span>
+                <span style={{fontWeight:800,fontSize:14,color:"#fff"}}>{bMeta[BRANCH_ID]?.name||BRANCH_ID} — Branch Total</span>
               </div>
             </div>
-            <div style={{padding:"7px 16px",background:"#0F2040",minHeight:30,boxSizing:"border-box"}}/>
             <TargetReportStrip target={bTarget} actual={branchTotal}/>
             <div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",minWidth:340}}>
