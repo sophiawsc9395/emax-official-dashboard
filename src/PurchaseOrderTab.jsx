@@ -278,7 +278,7 @@ function NewRequestRow({order,role,onSubmitQuotes,onRequestCancel,onSavePendingR
     <td style={{padding:"10px",verticalAlign:"top"}}>
       {role==="purchase"?<div style={{display:"flex",flexDirection:"column",gap:6}}>
         <button disabled={!canSubmit} onClick={()=>onSubmitQuotes(order,{prices,otherSupplier,otherPrice,purchaserRemark})} style={{padding:"7px 12px",borderRadius:7,border:"none",fontWeight:700,fontSize:11,whiteSpace:"nowrap",background:canSubmit?C.navy:C.border,color:canSubmit?"#fff":C.textLight,cursor:canSubmit?"pointer":"default"}}>Submit Quotes</button>
-        {!order.pendingCancelRequest?<button onClick={()=>onRequestCancel(order)} style={{padding:"7px 12px",borderRadius:7,border:"none",fontWeight:700,fontSize:11,whiteSpace:"nowrap",background:C.red,color:"#fff",cursor:"pointer"}}>Request Cancel Order</button>
+        {!order.pendingCancelRequest?(onRequestCancel?<button onClick={()=>onRequestCancel(order)} style={{padding:"7px 12px",borderRadius:7,border:"none",fontWeight:700,fontSize:11,whiteSpace:"nowrap",background:C.red,color:"#fff",cursor:"pointer"}}>Request Cancel Order</button>:null)
           :<div style={{fontSize:10,fontWeight:700,color:C.amber,whiteSpace:"nowrap"}}>Cancellation Requested — pending approver</div>}
       </div>:<span style={{fontSize:10.5,color:C.textLight,fontStyle:"italic"}}>Waiting on Purchase</span>}
     </td>
@@ -505,7 +505,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
   // simpler approver-style view (read-only unless they're also one of the
   // two actual approver accounts, see canAct checks in each action below).
   const role=isPurchaseUser?"purchase":"approver";
-  const canRequestCancel=isPurchaseUser||isSophia;
+  const canRequestCancel=false; // cancel requests now come from branches on the Order page
 
   const[orders,setOrders]=useState([]);
   const[loading,setLoading]=useState(true);
@@ -682,7 +682,7 @@ export default function PurchaseOrderTab({branchMeta,isAdmin,email}){
         </div>
         <div style={{overflowX:"auto"}}>
           {stageOrders.length===0?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No orders here.</div>
-            :stage==="new"?<NewRequestTable orders={stageOrders} role={role} onSubmitQuotes={submitQuotes} onRequestCancel={canRequestCancel?setCancellingOrder:()=>{}} onSavePendingRemark={savePendingRemark}/>
+            :stage==="new"?<NewRequestTable orders={stageOrders} role={role} onSubmitQuotes={submitQuotes} onRequestCancel={canRequestCancel?setCancellingOrder:null} onSavePendingRemark={savePendingRemark}/>
             :stage==="submitted"?<SubmittedTable orders={stageOrders} role={role} isMobile={isMobile} onProceed={proceed} onReject={rejectQuotes} canReject={isSophia}/>
             :stage==="pending_purchase"?<PendingPurchaseTable orders={stageOrders} role={role} onOpenPurchaseModal={(o,l,v)=>{setPurchasingOrder(o);setPurchasingTarget({label:l,value:v});}}/>
             :<PurchasedTable orders={stageOrders} role={isSophia||myEmail==="boontheng2004@gmail.com"?"approver":role} canDelete={isSophia} isMobile={isMobile} onBulkDismiss={dismissPurchased}/>}

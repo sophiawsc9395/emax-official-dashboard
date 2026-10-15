@@ -826,13 +826,13 @@ function PendingFileLink({file,label}){
   return url?<a href={url} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:C.blueBright,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}>{Ic.download} {label}: {file.name}</a>
     :<span style={{fontSize:11,color:C.textLight}}>{label}: {file.name} (loading…)</span>;
 }
-// "Request Cancel" for Stock (emaxstock) and Purchase (emaxpurchase) — any
-// order they can open. Needs a reason and the cancellation form, same as the
-// Purchase Order page's request; the requester's own party is auto-acknowledged
-// and the other two must acknowledge in CancelRequestBox before it cancels.
-function RequestCancelBox({order,onUpdate,email}){
-  const myEmail=(email||"").toLowerCase();
-  const party=ACK_PARTIES.find(p=>p.email===myEmail&&(p.key==="stock"||p.key==="purchase"));
+// "Request Cancel" for a BRANCH user, on their own branch's orders. Needs a
+// reason and the cancellation form. Submitting raises an alert for Boss EC,
+// emaxstock and emaxpurchase; the order cancels once all three have
+// acknowledged in CancelRequestBox. (Stock and Purchase no longer raise
+// cancel requests themselves — they only acknowledge.)
+function RequestCancelBox({order,onUpdate,email,isAdmin,userBranch}){
+  const party=(!isAdmin&&!!userBranch&&order.branch===userBranch)?{branch:true}:null;
   const[open,setOpen]=useState(false);
   const[reason,setReason]=useState("");
   const[file,setFile]=useState(null);
@@ -842,7 +842,7 @@ function RequestCancelBox({order,onUpdate,email}){
     setSaving(true);
     try{
       const cancellationForm=await uploadOrderFile(order.id,file,file.name);
-      await onUpdate({...order,pendingCancelRequest:{requestedBy:email,requestedDate:nowDate(),requestedTime:nowTime(),reason:reason.trim(),cancellationForm,ack:{[party.key]:nowDate()}},
+      await onUpdate({...order,pendingCancelRequest:{requestedBy:email,requestedDate:nowDate(),requestedTime:nowTime(),reason:reason.trim(),cancellationForm,ack:{}},
         history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation requested by ${email}: ${reason.trim()}`,skipStepDate:true}]});
       setOpen(false);setReason("");setFile(null);
     }catch(err){alert("This didn't save — please check your connection and try again.");}
@@ -862,7 +862,7 @@ function RequestCancelBox({order,onUpdate,email}){
           <div style={{fontSize:11,fontWeight:700,color:C.textMid,marginBottom:4}}>Cancellation Form *</div>
           <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e=>setFile(e.target.files[0]||null)} style={{fontSize:12,width:"100%",marginBottom:4}}/>
           {file&&<div style={{fontSize:11,color:"#15803D",fontWeight:600}}>{file.name}</div>}
-          <div style={{fontSize:11,color:C.textLight,marginTop:10}}>It cancels once Boss EC, Stock Executive and Purchasing Executive have all acknowledged.</div>
+          <div style={{fontSize:11,color:C.textLight,marginTop:10}}>Boss EC, Stock Executive and Purchasing Executive will be alerted. The order cancels once all three have acknowledged.</div>
         </div>
         <div style={{display:"flex",gap:8,justifyContent:"flex-end",padding:"14px 20px",borderTop:`1px solid ${C.border}`}}>
           <GBtn onClick={()=>setOpen(false)}>Close</GBtn>
@@ -2178,7 +2178,7 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <AcknowledgeSupersededBox order={order} onUpdate={onUpdate} email={email}/>
     <PickupReminderVoiceBox order={order} onUpdate={onUpdate} email={email}/>
     <CancelRequestBox order={order} onUpdate={onUpdate} email={email}/>
-    <RequestCancelBox order={order} onUpdate={onUpdate} email={email}/>
+    <RequestCancelBox order={order} onUpdate={onUpdate} email={email} isAdmin={isAdmin} userBranch={userBranch}/>
 
     {/* Two-col: timeline | action */}
     <div className="detail-grid">
@@ -2537,7 +2537,14 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // alert itself is just a link to the order now (see CancelRequestBox on
   // the order detail page for the actual Accept/Cancel action).
   const isBoonTheng=(email||"").toLowerCase()==="boontheng2004@gmail.com";
-  const cancelRequestAlerts=(isBoonTheng||isSophia||["emaxstock@gmail.com",EMAX_PURCHASE_EMAIL].includes((email||"").toLowerCase()))?alerts.filter(a=>a.type==="cancel_request_pending"):[];
+  const myAckEmail=(email||"").toLowerCase();
+  const cancelRequestAlerts=(isBoonTheng||isSophia||["emaxstock@gmail.com",EMAX_PURCHASE_EMAIL].includes(myAckEmail))?alerts.filter(a=>{
+    if(a.type!=="cancel_request_pending")return false;
+    // Hide it from an acknowledging party once they've acknowledged.
+    const ack=(orders||[]).find(x=>x.id===a.orderId)?.pendingCancelRequest?.ack;
+    const me=ACK_PARTIES.find(x=>x.email===myAckEmail);
+    return !(ack&&me&&ack[me.key]);
+  }):[];
   // Every alert collapses purely by the user clicking its own chevron from
   // here on — but a few keep a role-based STARTING state (collapsed by
   // default for that role, since those tend to be long lists that aren't

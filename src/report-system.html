@@ -634,11 +634,25 @@ async function autoFillLabelsFromLastRecord(company,date,targetData){
   });
 }
 
+// Auto-fill the time when Save Report is clicked. emaxpurchase's restricted
+// Supplier view records its own separate supplierTime (the Supplier section's
+// timestamp) and leaves the report's main time untouched.
+function nowHM(){ const d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+function stampSaveTime(d){
+  if(!d || typeof d!=='object') return;
+  if(RESTRICT && RESTRICT.section==='supplier'){ d.supplierTime = nowHM(); return; }
+  d.time = nowHM();
+}
 async function saveReport(){
   const company = currentCompany;
   if(COMPANIES[company].isLog){ return saveFailed(); }
   if(COMPANIES[company].isMerged){ return saveMergedReport(); }
   try{
+    if(COMPANIES[company].hasTime || (RESTRICT && RESTRICT.section==='supplier')){
+      stampSaveTime(currentData);
+      const ti=document.getElementById('timeInput'); if(ti && currentData.time) ti.value=currentData.time;
+      if(RESTRICT && RESTRICT.section==='supplier') renderMain(); // show the new "Supplier updated at" remark
+    }
     const res = await window.storage.set(storageKeyReport(company, currentData.date), JSON.stringify(currentData), STORAGE_SHARED);
     if(res) showToast('Saved ✓ ' + currentData.date);
     else showToast('Save failed, try again');
@@ -648,6 +662,9 @@ async function saveReport(){
 async function saveMergedReport(){
   const cfg = COMPANIES.merged;
   let allOk = true;
+  const stampedTime = nowHM();
+  cfg.mergedCompanies.forEach(c=>{ mergedDataByCompany[c].time = stampedTime; });
+  const _ti=document.getElementById('timeInput'); if(_ti) _ti.value=stampedTime;
   for(const c of cfg.mergedCompanies){
     try{
       const res = await window.storage.set(storageKeyReport(c, mergedDataByCompany[c].date), JSON.stringify(mergedDataByCompany[c]), STORAGE_SHARED);
@@ -733,14 +750,29 @@ function renderMain(){
   topbar.className = 'topbar';
   topbar.innerHTML = `
     <div><label>Date</label><input type="date" id="dateInput" value="${currentData.date}"></div>
-    ${cfg.hasTime ? `<div><label>Time</label><input type="time" id="timeInput" value="${currentData.time||''}"></div>` : ''}
+    ${(cfg.hasTime && !(RESTRICT && RESTRICT.section==='supplier')) ? `<div><label>Time</label><input type="time" id="timeInput" value="${currentData.time||''}"></div>` : ''}
   `;
   main.appendChild(topbar);
   document.getElementById('dateInput').onchange = async (e)=>{
     await loadReport(currentCompany, e.target.value);
   };
-  if(cfg.hasTime){
+  if(cfg.hasTime && document.getElementById('timeInput')){
     document.getElementById('timeInput').oninput = (e)=>{ currentData.time = e.target.value; };
+  }
+
+  if(!RESTRICT && (currentCompany==='espaceSales' || currentCompany==='miniImpianSales')){
+    const ym0 = (currentData.date||new Date().toISOString().slice(0,10)).slice(0,7);
+    const bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;';
+    const branchBtns = currentCompany==='miniImpianSales'
+      ? [{key:'sandakan',label:'Sandakan'},{key:'tawau',label:'Tawau'}]
+      : [{key:null,label:'Espace X'}];
+    bar.innerHTML = `<div><label>Monthly PDF</label><input type="month" id="pdfMonth" value="${ym0}"></div>` +
+      branchBtns.map((b,i)=>`<button class="btn btn-secondary" data-pdfbranch="${i}" style="padding:8px 12px;">⬇ ${b.label} PDF</button>`).join('');
+    topbar.appendChild(bar);
+    bar.querySelectorAll('[data-pdfbranch]').forEach(btn=>{
+      btn.onclick = ()=>{ const b = branchBtns[+btn.dataset.pdfbranch]; downloadMonthlyPdf(currentCompany, b.key, b.label, document.getElementById('pdfMonth').value); };
+    });
   }
 
   if(currentCompany==='miniImpianSales'){
@@ -848,7 +880,8 @@ function renderListCard(sec){
   rows.forEach(r=>{ if(r.label==null)r.label=''; if(r.amount==null)r.amount=''; });
   const total = rows.reduce((s,r)=>s+num(r.amount),0);
 
-  card.innerHTML = `<div class="card-head"><span>${SECTION_TITLES[sec]}</span></div>`;
+  const supTime = (sec==='supplier' && currentData.supplierTime) ? `<span style="font-weight:600;font-size:11px;opacity:.85;">Supplier updated at ${escapeHtml(currentData.supplierTime)}</span>` : '';
+  card.innerHTML = `<div class="card-head"><span>${SECTION_TITLES[sec]}</span>${supTime}</div>`;
   const list = document.createElement('div');
   list.className = 'row-list';
   rows.forEach((r,i)=>{
@@ -1586,6 +1619,82 @@ function updateFailedTotal(card){
 // ---------- Copy as text ----------
 function escapeHtml(str){
   return (str||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+
+// ---------- Monthly payment-method PDF (Espace X / Mini Impian) ----------
+function loadJsPdf(){
+  if(window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+  return new Promise((res,rej)=>{
+    const sc=document.createElement('script');
+    sc.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    sc.onload=()=>res(window.jspdf.jsPDF); sc.onerror=()=>rej(new Error('Could not load PDF library'));
+    document.head.appendChild(sc);
+  });
+}
+async function downloadMonthlyPdf(company, branchKey, branchLabel, ym){
+  if(!ym){ showToast('Choose a month first'); return; }
+  try{
+    showToast('Preparing PDF…');
+    const [y,m] = ym.split('-').map(Number);
+    const days = new Date(y,m,0).getDate();
+    const res = await window.storage.list(`report:${company}:`, STORAGE_SHARED);
+    const dates = (res && res.keys ? res.keys : []).map(k=>k.split(':')[2]).filter(d=>d && d.startsWith(ym));
+    const byDate = {};
+    for(const d of dates){
+      try{
+        const r = await window.storage.get(storageKeyReport(company,d), STORAGE_SHARED);
+        if(r && r.value) byDate[d] = JSON.parse(r.value);
+      }catch(e){}
+    }
+    // what's on screen for the open date wins over the last saved copy
+    if(currentData && currentData.date && currentData.date.startsWith(ym)) byDate[currentData.date] = currentData;
+    const rows = [];
+    for(let d=1; d<=days; d++){
+      const ds = `${ym}-${String(d).padStart(2,'0')}`;
+      const sr = byDate[ds] && byDate[ds].sections && byDate[ds].sections.salesReport;
+      const v = sr ? (branchKey ? sr[branchKey] : sr) : null;
+      const cash = v ? num(v.cash) : 0, card = v ? num(v.card) : 0, qr = v ? num(v.qr) : 0;
+      rows.push({ds, cash, card, qr, has: !!v && (v.cash!==''||v.card!==''||v.qr!=='')});
+    }
+    const tot = rows.reduce((a,r)=>({cash:a.cash+r.cash,card:a.card+r.card,qr:a.qr+r.qr}),{cash:0,card:0,qr:0});
+    const grand = tot.cash+tot.card+tot.qr;
+    const JsPDF = await loadJsPdf();
+    const doc = new JsPDF({unit:'mm',format:'a4'});
+    const MN = ['January','February','March','April','May','June','July','August','September','October','November','December'][m-1];
+    const entity = company==='espaceSales' ? 'ESPACE X SDN BHD' : 'MINI IMPIAN';
+    const title = company==='espaceSales' ? entity : `${entity} — ${branchLabel} Branch`;
+    doc.setFillColor(10,22,40); doc.rect(0,0,210,24,'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.text(title,14,11);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.text(`Monthly Payment Method Report — ${MN} ${y}`,14,18);
+    const X = [14, 62, 105, 148, 196]; // date | cash | merchant | qr | total (right-aligned edges)
+    const money = n => n.toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+    let yy = 32;
+    doc.setFillColor(27,63,114); doc.rect(14,yy-5,182,8,'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
+    doc.text('DATE',16,yy);
+    ['CASH (RM)','MERCHANT (RM)','QR (RM)','DAILY TOTAL (RM)'].forEach((h,i)=>doc.text(h,X[i+1]-2,yy,{align:'right'}));
+    yy += 8;
+    doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    rows.forEach((r,i)=>{
+      if(i%2===0){ doc.setFillColor(245,247,251); doc.rect(14,yy-4.6,182,6.6,'F'); }
+      const t = r.cash+r.card+r.qr;
+      doc.setTextColor(10,22,40);
+      doc.text(`${r.ds.slice(8)}/${r.ds.slice(5,7)}/${r.ds.slice(0,4)}`,16,yy);
+      const cells = r.has ? [r.cash,r.card,r.qr,t].map(money) : ['-','-','-','-'];
+      cells.forEach((c,k)=>{ if(k===3) doc.setFont('helvetica','bold'); doc.text(c,X[k+1]-2,yy,{align:'right'}); doc.setFont('helvetica','normal'); });
+      yy += 6.6;
+    });
+    doc.setFillColor(10,22,40); doc.rect(14,yy-4.6,182,8,'F');
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(9.5);
+    doc.text('MONTH TOTAL',16,yy+0.4);
+    [tot.cash,tot.card,tot.qr,grand].forEach((v,k)=>doc.text(money(v),X[k+1]-2,yy+0.4,{align:'right'}));
+    doc.setTextColor(120,130,145); doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+    doc.text(`Merchant = credit/debit card. Generated ${new Date().toLocaleString('en-MY')}. Days without a saved report show "-".`,14,yy+9);
+    const fname = `${company==='espaceSales'?'Espace-X':'Mini-Impian-'+branchLabel}_Payment-Report_${ym}.pdf`;
+    doc.save(fname);
+    showToast('PDF downloaded ✓');
+  }catch(e){ showToast('PDF failed: '+e.message); }
 }
 
 // ---------- Save as photo ----------
