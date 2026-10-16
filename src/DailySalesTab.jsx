@@ -15,6 +15,7 @@ import {useState,useEffect,useMemo,useRef,Fragment} from "react";
 import {loadData,saveData,supabase} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl,removeOrderFile} from "./storage/ordersApi.js";
 import {resolveEditorRole} from "./auth/orderRoles.js";
+import AlertPanel from "./AlertPanel.jsx";
 
 const DAILY_SALES_KEY="emax_v5_daily_sales";
 const BANKS=["PBB","AGRO","RHB"];
@@ -714,67 +715,21 @@ export default function DailySalesTab({branchMeta,isAdmin,userBranch,canSubmit,c
       </div>;
     })()}
     {/* Branch-facing reminder — upload/replace panel shown directly, no expand click needed */}
-    {myPending.length>0&&<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:14}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-        <span style={{color:"#B45309",flexShrink:0}}>{alertCircle}</span>
-        <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Bank In Cash Sales</span>
-        <span style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"1px 8px",borderRadius:20}}>{myPending.length}</span>
-      </div>
-      {myPending.map(r=>{
-        const late=daysSince(effectiveSubmitDate(r.submittedAt))>=1;
-        const slips=getSlips(r);
-        return<div key={r.id} style={{borderTop:`1px solid ${C.border}`,padding:"8px 0"}}>
-          <div style={{fontSize:12,color:late?"#DC2626":C.text,fontWeight:600,marginBottom:6}}>
-            {slips.length?`${slips.length} slip${slips.length>1?"s":""} uploaded for `:`Bank in ${fRM(r.cashSales)} for `}{fDate(r.date)}{late?` — ${daysSince(effectiveSubmitDate(r.submittedAt))} day${daysSince(effectiveSubmitDate(r.submittedAt))>1?"s":""} late`:""}
-            {slips.length>0&&<span style={{color:C.textLight,fontWeight:500}}> — add another if you banked in across more than one transaction, or remove one below if it was a mistake</span>}
-          </div>
-          <UploadSlipBox report={r} onSaved={save}/>
-        </div>;
-      })}
-    </div>}
+    {myPending.length>0&&<AlertPanel title="Bank In Cash Sales" color="#B45309" orderHeader="Report" items={myPending.map(r=>{
+      const late=daysSince(effectiveSubmitDate(r.submittedAt));const slips=getSlips(r);
+      return{key:r.id,title:fRM(r.cashSales),sub:`Report dated ${fDate(r.date)}`,days:late>=1?late:null,detail:<div>
+        <div style={{color:late>=1?"#DC2626":C.text,fontWeight:600,marginBottom:6}}>{slips.length?`${slips.length} slip${slips.length>1?"s":""} uploaded`:"Bank in this amount and upload the slip"}{late>=1?` — ${late} day${late>1?"s":""} late`:""}{slips.length>0&&<span style={{color:C.textLight,fontWeight:500}}> — add another if you banked in across more than one transaction, or remove one below if it was a mistake</span>}</div>
+        <UploadSlipBox report={r} onSaved={save}/></div>};
+    })}/>}
 
     {/* Branch-facing reminder for short-payment balance slip */}
-    {myBalancePending.length>0&&<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:14}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-        <span style={{color:"#B45309",flexShrink:0}}>{alertCircle}</span>
-        <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Balance Payment Needed</span>
-        <span style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#FFFBEB",padding:"1px 8px",borderRadius:20}}>{myBalancePending.length}</span>
-      </div>
-      {myBalancePending.map(r=><div key={r.id} style={{borderTop:`1px solid ${C.border}`,padding:"8px 0"}}>
-        <div style={{fontSize:12,color:"#B45309",fontWeight:600,marginBottom:6}}>{fDate(r.date)} — {r.shortPaymentRemark}</div>
-        <UploadBalanceSlipBox report={r} onSaved={save}/>
-      </div>)}
-    </div>}
+    {myBalancePending.length>0&&<AlertPanel title="Balance Payment Needed" color="#B45309" orderHeader="Report" items={myBalancePending.map(r=>({key:r.id,title:fDate(r.date),sub:"Short payment balance",detail:<div><div style={{color:"#B45309",fontWeight:600,marginBottom:6}}>{r.shortPaymentRemark}</div><UploadBalanceSlipBox report={r} onSaved={save}/></div>}))}/>}
 
     {/* HQ-level overdue summary across all branches — branch users get the reminder above instead */}
-    {!userBranch&&lateAlerts.length>0&&<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:14}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-        <span style={{color:"#DC2626",flexShrink:0}}>{alertCircle}</span>
-        <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Bank-in Slip Overdue</span>
-        <span style={{fontSize:10,fontWeight:700,color:"#DC2626",background:"#FEF2F226",padding:"1px 8px",borderRadius:20}}>{lateAlerts.length}</span>
-      </div>
-      {lateAlertsByBranch.map(([b,items])=>(
-        <div key={b} style={{marginBottom:8}}>
-          <div style={{fontSize:11,fontWeight:700,color:C.text,marginBottom:3}}>{branchMeta[b]?.name||b}</div>
-          {items.map(r=><div key={r.id} style={{fontSize:12,color:"#DC2626",padding:"2px 0 2px 10px"}}>Report dated {fDate(r.date)}, slip still not uploaded ({daysSince(r.submittedAt)} day{daysSince(r.submittedAt)>1?"s":""} since submitted)</div>)}
-        </div>
-      ))}
-    </div>}
+    {!userBranch&&lateAlerts.length>0&&<AlertPanel title="Bank-in Slip Overdue" color="#DC2626" orderHeader="Branch" items={lateAlertsByBranch.flatMap(([b,items])=>items.map(r=>({key:r.id,title:branchMeta[b]?.name||b,sub:`Report dated ${fDate(r.date)}`,days:daysSince(r.submittedAt),detail:"Slip still not uploaded"})))}/>}
 
     {/* HQ-level — slip uploaded but not yet verified by knock-off/admin */}
-    {!userBranch&&unverifiedAlerts.length>0&&<div style={{...card,borderLeft:"3px solid #1D4ED8",padding:"12px 14px",marginBottom:14}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-        <span style={{color:"#1D4ED8",flexShrink:0}}>{alertCircle}</span>
-        <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Payment Slip Not Verified</span>
-        <span style={{fontSize:10,fontWeight:700,color:"#1D4ED8",background:"#EFF6FF",padding:"1px 8px",borderRadius:20}}>{unverifiedAlerts.length}</span>
-      </div>
-      {unverifiedAlertsByBranch.map(([b,items])=>(
-        <div key={b} style={{marginBottom:8}}>
-          <div style={{fontSize:11,fontWeight:700,color:C.text,marginBottom:3}}>{branchMeta[b]?.name||b}</div>
-          {items.map(r=><div key={r.id} onClick={()=>jumpToReport(r)} style={{fontSize:12,color:"#1D4ED8",padding:"2px 0 2px 10px",cursor:"pointer",textDecoration:"underline",textDecorationColor:"transparent"}} onMouseEnter={e=>e.currentTarget.style.textDecorationColor="#1D4ED8"} onMouseLeave={e=>e.currentTarget.style.textDecorationColor="transparent"}>Report dated {fDate(r.date)}, slip uploaded {daysSince(r.bankInUploadedAt)} day{daysSince(r.bankInUploadedAt)>1?"s":""} ago — still not verified</div>)}
-        </div>
-      ))}
-    </div>}
+    {!userBranch&&unverifiedAlerts.length>0&&<AlertPanel title="Payment Slip Not Verified" color="#1D4ED8" orderHeader="Branch" items={unverifiedAlertsByBranch.flatMap(([b,items])=>items.map(r=>({key:r.id,title:branchMeta[b]?.name||b,sub:`Report dated ${fDate(r.date)}`,days:daysSince(r.bankInUploadedAt),detail:"Slip uploaded — still not verified",onClick:()=>jumpToReport(r)})))}/>}
 
     {userBranch
       ?<BranchMonthlyReport branchMeta={branchMeta} userBranch={userBranch} reports={reports}/>

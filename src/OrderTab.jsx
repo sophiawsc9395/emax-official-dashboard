@@ -726,8 +726,10 @@ function AlertRecordingPlayer({rec}){
 // sees this alert (shouldn't happen — AlertBanner already gates the whole
 // block to them) just sees the plain alert row with no upload affordance.
 // Fixed/zero-min tracks so every row (and the header) lines up identically regardless of its content.
-const ALERT_GRID="minmax(0,1.3fr) 84px minmax(0,2.2fr)";
-const PICKUP_ALERT_GRID="minmax(0,1.3fr) 84px minmax(0,1.5fr) 110px 160px";
+// Same first two column widths in every alert block so Days / Details line up block to block.
+const ALERT_ORDER_COL="clamp(220px,26vw,320px)";
+const ALERT_GRID=ALERT_ORDER_COL+" 84px minmax(0,1fr)";
+const PICKUP_ALERT_GRID=ALERT_ORDER_COL+" 84px minmax(0,1fr) 110px 160px";
 function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClickOrder}){
   const isMobile=useIsMobile();
   const [uploading,setUploading]=useState(false);
@@ -800,7 +802,7 @@ async function acknowledgeCancelRequest(order,p,email,onUpdate){
   const allDone=ACK_PARTIES.every(x=>nextAck[x.key]);
   const note=`${p.label} acknowledged cancellation request`+(allDone?" — all parties acknowledged, order cancelled.":"");
   return onUpdate(allDone
-    ?{...order,cancelled:true,pendingCancelRequest:null,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation requested by ${req.requestedBy}: ${req.reason}. ${note}`,files:req.cancellationForm?{cancellationForm:req.cancellationForm}:undefined,isCancellationEntry:true,skipStepDate:true}]}
+    ?{...order,cancelled:true,pendingCancelRequest:null,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation requested by ${req.requestedBy||`${order.branch} branch`}: ${req.reason}. ${note}`,files:req.cancellationForm?{cancellationForm:req.cancellationForm}:undefined,isCancellationEntry:true,skipStepDate:true}]}
     :{...order,pendingCancelRequest:{...req,ack:nextAck},history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note,skipStepDate:true}]});
 }
 function CancelRequestBox({order,onUpdate,email}){
@@ -816,7 +818,7 @@ function CancelRequestBox({order,onUpdate,email}){
     const acknowledge=async(p)=>{setAccepting(true);await acknowledgeCancelRequest(order,p,email,onUpdate);setAccepting(false);};
     return<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:16}}>
       <div style={{fontSize:11,fontWeight:700,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Cancellation Request Pending</div>
-      <div style={{fontSize:12,color:C.textMid,marginBottom:8}}>Requested by {req.requestedBy} on {fDate(req.requestedDate)}{req.requestedTime?` ${req.requestedTime}`:""}: {req.reason}</div>
+      <div style={{fontSize:12,color:C.textMid,marginBottom:8}}>Requested by {req.requestedBy||`${order.branch} branch`} on {fDate(req.requestedDate)}{req.requestedTime?` ${req.requestedTime}`:""}: {req.reason}</div>
       {req.cancellationForm&&<div style={{marginBottom:10}}><CancellationFormLink file={req.cancellationForm}/></div>}
       <div style={{fontSize:12,color:C.textMid,marginBottom:8}}>The order cancels once all three below have acknowledged.</div>
       <div style={{display:"flex",flexDirection:"column",gap:7}}>
@@ -890,8 +892,8 @@ function RequestCancelBox({order,onUpdate,email,isAdmin,userBranch}){
     setSaving(true);
     try{
       const cancellationForm=await uploadOrderFile(order.id,file,file.name);
-      await onUpdate({...order,pendingCancelRequest:{requestedBy:email,requestedDate:nowDate(),requestedTime:nowTime(),reason:reason.trim(),cancellationForm,ack:{}},
-        history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation requested by ${email}: ${reason.trim()}`,skipStepDate:true}]});
+      await onUpdate({...order,pendingCancelRequest:{requestedBy:email||`${order.branch} branch`,requestedDate:nowDate(),requestedTime:nowTime(),reason:reason.trim(),cancellationForm,ack:{}},
+        history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation requested by ${email||`${order.branch} branch`}: ${reason.trim()}`,skipStepDate:true}]});
       setOpen(false);setReason("");setFile(null);
     }catch(err){alert("This didn't save — please check your connection and try again.");}
     setSaving(false);
@@ -2547,7 +2549,7 @@ function getOrderAlerts(orders,userBranch=null){
   // actually cancels it. See requestCancelOrder in PurchaseOrderTab.jsx and
   // the Accept button on this alert below.
   orders.filter(o=>o.pendingCancelRequest&&!o.cancelled&&visibleToBranch(o,userBranch)).forEach(o=>{
-    alerts.push({type:"cancel_request_pending",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:`Requested by ${o.pendingCancelRequest.requestedBy}: ${o.pendingCancelRequest.reason}`});
+    alerts.push({type:"cancel_request_pending",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:`Requested by ${o.pendingCancelRequest.requestedBy||`${o.branch} branch`}: ${o.pendingCancelRequest.reason}`});
   });
   return alerts;
 }

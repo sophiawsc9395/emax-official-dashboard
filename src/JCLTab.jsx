@@ -18,6 +18,7 @@ import {useState,useEffect,useMemo,useRef} from "react";
 import {loadData,saveData,supabase} from "./storage/index.js";
 import {uploadOrderFile,signFileUrl,reconcile,getOrder} from "./storage/ordersApi.js";
 import {CHAILEASE_KEY} from "./ChaileaseTab.jsx";
+import AlertPanel from "./AlertPanel.jsx";
 
 export const JCL_KEY="emax_v5_jcl_applications";
 
@@ -1389,47 +1390,11 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
       <div style={{fontSize:17,fontWeight:800,color:C.navy}}>JCL Application</div>
       <div style={{fontSize:11,color:C.textLight,marginTop:2}}>Customer financing applications submitted to JCL</div>
     </div>
-    {overdueSubmissions.length>0&&<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:14}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
-        <span style={{color:"#DC2626",flexShrink:0}}>{Ic.alertCircle}</span>
-        <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Not Yet Submitted to JCL</span>
-        <span style={{fontSize:10,fontWeight:700,color:"#DC2626",background:"#DC262615",padding:"1px 8px",borderRadius:20}}>{overdueSubmissions.length}</span>
-      </div>
-      {overdueSubmissions.map((a,i)=><div key={a.id} onClick={()=>{setView("detail");setSelectedId(a.id);}} style={{display:"flex",flexDirection:"row",justifyContent:"space-between",alignItems:"center",gap:10,padding:"8px 4px",borderTop:i>0?`1px solid ${C.border}`:"none",cursor:"pointer"}}>
-        <div style={{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
-          <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.customerName}</div>
-          <div style={{fontSize:11,color:C.textLight}}>{branchMeta[a.branch]?.name||a.branch}</div>
-        </div>
-        <span style={{fontSize:11,color:"#DC2626",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>Submitted {daysSince(a.submittedAt)} day{daysSince(a.submittedAt)>1?"s":""} ago</span>
-      </div>)}
-    </div>}
+    {overdueSubmissions.length>0&&<AlertPanel title="Not Yet Submitted to JCL" color="#DC2626" orderHeader="Customer" items={overdueSubmissions.map(a=>({key:a.id,title:a.customerName,sub:branchMeta[a.branch]?.name||a.branch,days:daysSince(a.submittedAt),detail:`Submitted ${daysSince(a.submittedAt)} day${daysSince(a.submittedAt)>1?"s":""} ago — not yet submitted to JCL`,onClick:()=>{setView("detail");setSelectedId(a.id);}}))}/>}
 
-    {needsBranchAction.length>0&&<div style={{...card,borderLeft:"3px solid #B45309",padding:"12px 14px",marginBottom:14}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
-        <span style={{color:"#B45309",flexShrink:0}}>{Ic.alertCircle}</span>
-        <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Follow-Up Needed From You</span>
-        <span style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#B4530915",padding:"1px 8px",borderRadius:20}}>{needsBranchAction.length}</span>
-      </div>
-      {needsBranchAction.map((a,i)=><div key={a.id} style={{borderTop:i>0?`1px solid ${C.border}`:"none",padding:"8px 4px"}}>
-        <div style={{fontSize:12,fontWeight:700,color:C.text,marginBottom:4}}>{a.customerName} · {a.phoneModel}</div>
-        <FollowUpResponseBox app={a} onSaved={save}/>
-      </div>)}
-    </div>}
+    {needsBranchAction.length>0&&<AlertPanel title="Follow-Up Needed From You" color="#B45309" orderHeader="Customer" items={needsBranchAction.map(a=>({key:a.id,title:a.customerName,sub:a.phoneModel,detail:<FollowUpResponseBox app={a} onSaved={save}/>}))}/>}
 
-    {needsAmendment.length>0&&<div style={{...card,borderLeft:"3px solid #B91C1C",padding:"12px 14px",marginBottom:14}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
-        <span style={{color:"#B91C1C",flexShrink:0}}>{Ic.alertCircle}</span>
-        <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Amendment Needed From You</span>
-        <span style={{fontSize:10,fontWeight:700,color:"#B91C1C",background:"#B91C1C15",padding:"1px 8px",borderRadius:20}}>{needsAmendment.length}</span>
-      </div>
-      {needsAmendment.map((a,i)=><div key={a.id} onClick={()=>{setView("detail");setSelectedId(a.id);}} style={{display:"flex",flexDirection:"row",justifyContent:"space-between",alignItems:"center",gap:10,padding:"8px 4px",borderTop:i>0?`1px solid ${C.border}`:"none",cursor:"pointer"}}>
-        <div style={{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
-          <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.customerName}</div>
-          <div style={{fontSize:11,color:C.textLight}}>{a.phoneModel} · {branchMeta[a.branch]?.name||a.branch}</div>
-        </div>
-        <span style={{fontSize:11,color:"#B91C1C",fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{a.amendmentRemark}</span>
-      </div>)}
-    </div>}
+    {needsAmendment.length>0&&<AlertPanel title="Amendment Needed From You" color="#B91C1C" orderHeader="Customer" items={needsAmendment.map(a=>({key:a.id,title:a.customerName,sub:`${a.phoneModel} · ${branchMeta[a.branch]?.name||a.branch}`,detail:a.amendmentRemark,onClick:()=>{setView("detail");setSelectedId(a.id);}}))}/>}
 
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:10,marginBottom:14}}>
       {STEPS.map(s=>{
