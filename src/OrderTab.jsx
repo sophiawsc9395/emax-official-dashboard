@@ -726,6 +726,7 @@ function AlertRecordingPlayer({rec}){
 // sees this alert (shouldn't happen — AlertBanner already gates the whole
 // block to them) just sees the plain alert row with no upload affordance.
 // Fixed/zero-min tracks so every row (and the header) lines up identically regardless of its content.
+const ALERT_GRID="minmax(0,1.3fr) 84px minmax(0,2.2fr)";
 const PICKUP_ALERT_GRID="minmax(0,1.3fr) 84px minmax(0,1.5fr) 110px 160px";
 function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClickOrder}){
   const isMobile=useIsMobile();
@@ -2470,14 +2471,14 @@ function getOrderAlerts(orders,userBranch=null){
     else if(days>=31)alerts.push({type:"approval_warning",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Approval ${days} days ago — action needed`});
   });
   // Billing Request Overdue — fires once an order has sat at step 6
-  // (Billing Request, still awaiting the branch to submit) for 7+ days
+  // (Billing Request already submitted by the branch, still waiting for billing) for 7+ days
   // since it arrived at branch (step 5). Only catches orders that arrived
   // at branch after stepDates started being recorded for every step —
   // orders already past step 5 before that point won't have this date on
   // file and won't trigger retroactively.
   myOrders.filter(o=>o.step===6&&o.stepDates?.["5"]?.date).forEach(o=>{
     const days=daysSince(o.stepDates["5"].date);
-    if(days>=7)alerts.push({type:"billing_request_overdue",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Arrived branch ${days} days ago — billing request not yet submitted`});
+    if(days>=7)alerts.push({type:"billing_request_overdue",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,days,msg:`Billing request submitted by branch — waiting for billing (arrived at branch ${days} days ago)`});
   });
   myOrders.filter(o=>o.step<8&&o.step>=6).forEach(o=>{
     const billingDate=o.billingData?.billingDate;
@@ -2611,13 +2612,24 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
       <span style={{fontSize:10,fontWeight:700,color,background:color+"15",padding:"1px 8px",borderRadius:20}}>{items.length}</span>
       {collapsible&&<span style={{marginLeft:"auto",color,transition:"transform .15s",transform:expanded?"rotate(180deg)":"none"}}>{Ic.chevDown}</span>}
     </div>
-    {(!collapsible||expanded)&&items.map((a,i)=><div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:isMobile?"flex-start":"center",gap:isMobile?3:10,padding:"8px 4px",borderTop:i>0?`1px solid ${C.border}`:"none",cursor:onClickOrder?"pointer":"default"}}>
-      <div style={isMobile?{minWidth:0}:{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
-        <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.phoneModel}</div>
-        <div style={{fontSize:11,color:C.textLight}}>{a.customerName} · {a.branch}</div>
-      </div>
-      <span style={{fontSize:11,color,fontWeight:700,whiteSpace:"nowrap",flexShrink:0}}>{a.msg}</span>
-    </div>)}
+    {(!collapsible||expanded)&&!isMobile&&<div style={{display:"grid",gridTemplateColumns:ALERT_GRID,gap:16,padding:"8px 8px",background:C.surface,borderRadius:8,border:`1px solid ${C.border}`}}>
+      {["Order","Days","Details"].map(h=><div key={h} style={{fontSize:10,fontWeight:700,color:C.textLight,letterSpacing:"0.06em",textTransform:"uppercase"}}>{h}</div>)}
+    </div>}
+    {(!collapsible||expanded)&&items.map((a,i)=>{
+      const orderCell=<div style={{minWidth:0}}>
+        <div style={{fontSize:12.5,fontWeight:700,color:C.text,...(isMobile?{}:{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"})}}>{a.phoneModel}</div>
+        <div style={{fontSize:11,color:C.textLight,...(isMobile?{}:{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"})}}>{a.customerName} · <b style={{color:C.textMid}}>{a.branch}</b></div>
+      </div>;
+      const daysBadge=a.days!=null?<span style={{fontSize:11,fontWeight:700,color,background:color+"15",border:`1px solid ${color}30`,padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>{a.days} days</span>:<span style={{fontSize:11,color:C.textLight}}>—</span>;
+      const detail=<div style={{fontSize:12,color:C.text,lineHeight:1.35,wordBreak:"break-word"}}>{a.msg}</div>;
+      return isMobile
+        ?<div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",flexDirection:"column",gap:6,padding:"11px 4px",borderTop:`1px solid ${C.border}`,cursor:onClickOrder?"pointer":"default"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>{orderCell}{a.days!=null&&daysBadge}</div>{detail}
+        </div>
+        :<div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"grid",gridTemplateColumns:ALERT_GRID,gap:16,alignItems:"center",padding:"11px 8px",borderTop:`1px solid ${C.border}`,cursor:onClickOrder?"pointer":"default"}}>
+          {orderCell}<div>{daysBadge}</div>{detail}
+        </div>;
+    })}
   </div>;
   // Same layout as Block, but each row also gets an inline
   // upload/uploaded-status control for the pickup reminder call recording
@@ -2701,7 +2713,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
     <Block items={billingRequestOverdue} color="#B91C1C" title="Billing Request Overdue" collapsible expanded={!collapsedAlerts.billingRequestOverdue} onToggle={()=>toggleAlert("billingRequestOverdue")}/>
     <Block items={missingActualPrice} color="#B45309" title="Actual Purchase Price Missing" collapsible expanded={!collapsedAlerts.missingActualPrice} onToggle={()=>toggleAlert("missingActualPrice")}/>
     <Block items={supersededAlerts} color="#B45309" title="Device Amendment — Old Order Needs Acknowledgment" collapsible expanded={!collapsedAlerts.supersededAlerts} onToggle={()=>toggleAlert("supersededAlerts")}/>
-    <PickupReminderBlock items={pickupReminderAlerts} color="#1D4ED8" title="Arrived Branch, Not Yet Billed" collapsible expanded={!collapsedAlerts.pickupReminder} onToggle={()=>toggleAlert("pickupReminder")}/>
+    <PickupReminderBlock items={pickupReminderAlerts} color="#1D4ED8" title="Arrived Branch, Not Yet Billed" collapsible={false} expanded={true}/>
     <SuggestDeleteBlock items={suggestDeleteAlerts} color="#8A96A8" title="Suggest Deleting — Fully Knocked Off"/>
     <Block items={cancelRequestAlerts} color="#DC2626" title="Cancellation Request Pending" collapsible expanded={!collapsedAlerts.cancelRequest} onToggle={()=>toggleAlert("cancelRequest")}/>
     <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={!collapsedAlerts.agreementReceived} onToggle={()=>toggleAlert("agreementReceived")}/>
