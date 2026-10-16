@@ -2392,7 +2392,12 @@ function visibleToBranch(o,userBranch){
   // verified the phone collection and balance payment (step 9 verification
   // completes a cash order straight to Completed). Admin/HQ views and reports
   // still see them — they are hidden, not deleted.
-  if(userBranch&&o.orderType==="cash"&&o.step===14&&o.lastVerification&&!o.cancelled)return false;
+  if(userBranch&&o.orderType==="cash"&&o.step===14&&!o.cancelled)return false;
+  // Aeon / JCL / Chailease orders drop off the branch page once the branch has
+  // submitted its Agreement Checklist (step 10 -> step 11+). A merchant-rejected
+  // order that hasn't been resubmitted stays visible, and if HQ sends it back to
+  // step 10 it reappears automatically.
+  if(userBranch&&o.orderType!=="cash"&&o.step>=11&&!o.cancelled&&!(o.merchantRejected&&!o.resubmittedDate))return false;
   return !userBranch||o.branch===userBranch||(o.pickUpBranch===userBranch&&o.step>=4);
 }
 
