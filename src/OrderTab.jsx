@@ -720,11 +720,12 @@ function AlertRecordingPlayer({rec}){
     return()=>{live=false;};
   },[rec?.path,rec?.url]);
   if(!url)return<span style={{fontSize:10,color:C.textLight}}>Loading recording…</span>;
-  return<audio controls controlsList="nodownload noplaybackrate" onContextMenu={e=>e.preventDefault()} onClick={e=>e.stopPropagation()} src={url} style={{height:30,width:230,maxWidth:"100%"}}/>;
+  return<audio controls controlsList="nodownload noplaybackrate" onContextMenu={e=>e.preventDefault()} onClick={e=>e.stopPropagation()} src={url} style={{height:30,width:210,maxWidth:"100%"}}/>;
 }
 // emaxhr/Boon Theng/Sophia get the control at all; anyone else who somehow
 // sees this alert (shouldn't happen — AlertBanner already gates the whole
 // block to them) just sees the plain alert row with no upload affordance.
+const PICKUP_ALERT_GRID="minmax(200px,1.3fr) 78px minmax(180px,1.6fr) 120px minmax(190px,auto)";
 function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClickOrder}){
   const isMobile=useIsMobile();
   const [uploading,setUploading]=useState(false);
@@ -745,21 +746,34 @@ function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClick
     }
     setUploading(false);
   };
-  return<div onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",flexDirection:isMobile?"column":"row",justifyContent:"space-between",alignItems:isMobile?"flex-start":"center",gap:isMobile?6:10,padding:"8px 4px",borderTop:`1px solid ${C.border}`,cursor:onClickOrder?"pointer":"default"}}>
-    <div style={isMobile?{minWidth:0}:{minWidth:0,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>
-      <div style={{fontSize:12,fontWeight:700,color:C.text}}>{a.phoneModel}</div>
-      <div style={{fontSize:11,color:C.textLight}}>{a.customerName} · {a.branch}</div>
-    </div>
-    <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-      <span style={{fontSize:11,color,fontWeight:700,whiteSpace:isMobile?"normal":"nowrap"}}>{`Arrived at branch ${a.days} days ago — ${order?.billingDelayReason?.text||"no reason filled by branch yet"}${order?.billingDelayReason?.expectedBillingDate?` · Expected billing ${fDate(order.billingDelayReason.expectedBillingDate)}`:order?.billingDelayReason?.noExpectedBillingDate?" · No expected billing date":""}`}</span>
-      {canSeeStatus&&rec&&<AlertRecordingPlayer rec={rec}/>}
-      {(canUpload||canSeeStatus)&&(rec?<span onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#15803D15",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>{Ic.check} Uploaded</span>
-        :!canUpload?<span onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#B4530915",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>Not uploaded</span>
-        :<label onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#fff",background:uploading?"#8A96A8":"#1D4ED8",padding:"5px 10px",borderRadius:6,whiteSpace:"nowrap",cursor:uploading?"default":"pointer"}}>
-          {uploading?"Uploading…":"Upload recording"}
-          <input type="file" accept="audio/*" style={{display:"none"}} disabled={uploading} onChange={e=>{const f=e.target.files[0];e.target.value="";upload(e,f);}}/>
-        </label>)}
-    </div>
+  const bd=order?.billingDelayReason;
+  const reasonText=bd?.text;
+  const recCell=<div style={{display:"flex",justifyContent:isMobile?"flex-start":"flex-end",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+    {canSeeStatus&&rec&&<AlertRecordingPlayer rec={rec}/>}
+    {(canUpload||canSeeStatus)&&(rec?<span onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#15803D15",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>{Ic.check} Uploaded</span>
+      :!canUpload?<span onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#B4530915",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>Not uploaded</span>
+      :<label onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#fff",background:uploading?"#8A96A8":"#1D4ED8",padding:"5px 10px",borderRadius:6,whiteSpace:"nowrap",cursor:uploading?"default":"pointer"}}>
+        {uploading?"Uploading…":"Upload recording"}
+        <input type="file" accept="audio/*" style={{display:"none"}} disabled={uploading} onChange={e=>{const f=e.target.files[0];e.target.value="";upload(e,f);}}/>
+      </label>)}
+  </div>;
+  const daysBadge=<span style={{fontSize:11,fontWeight:700,color:C.blue,background:"#1D4ED815",border:"1px solid #1D4ED830",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>{a.days} days</span>;
+  const reasonCell=<div style={{fontSize:12,color:reasonText?C.text:C.textLight,fontStyle:reasonText?"normal":"italic",lineHeight:1.35,wordBreak:"break-word"}}>{reasonText||"No reason filled by branch yet"}</div>;
+  const expCell=bd?.expectedBillingDate
+    ?<span style={{fontSize:11,fontWeight:600,color:C.textMid,background:C.surface,border:`1px solid ${C.border}`,padding:"3px 9px",borderRadius:6,whiteSpace:"nowrap"}}>{fDate(bd.expectedBillingDate)}</span>
+    :<span style={{fontSize:11,color:C.textLight}}>{bd?.noExpectedBillingDate?"No date":"—"}</span>;
+  const orderCell=<div style={{minWidth:0}}>
+    <div style={{fontSize:12.5,fontWeight:700,color:C.text,...(isMobile?{}:{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"})}}>{a.phoneModel}</div>
+    <div style={{fontSize:11,color:C.textLight,...(isMobile?{}:{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"})}}>{a.customerName} · <b style={{color:C.textMid}}>{a.branch}</b></div>
+  </div>;
+  if(isMobile)return<div onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",flexDirection:"column",gap:7,padding:"11px 4px",borderTop:`1px solid ${C.border}`,cursor:onClickOrder?"pointer":"default"}}>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>{orderCell}{daysBadge}</div>
+    {reasonCell}
+    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><span style={{fontSize:10,color:C.textLight,fontWeight:700,textTransform:"uppercase"}}>Expected billing</span>{expCell}</div>
+    {recCell}
+  </div>;
+  return<div onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"grid",gridTemplateColumns:PICKUP_ALERT_GRID,gap:16,alignItems:"center",padding:"11px 8px",borderTop:`1px solid ${C.border}`,cursor:onClickOrder?"pointer":"default"}}>
+    {orderCell}<div>{daysBadge}</div>{reasonCell}<div>{expCell}</div>{recCell}
   </div>;
 }
 
@@ -2670,6 +2684,9 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
       <span style={{fontSize:10,fontWeight:700,color,background:color+"15",padding:"1px 8px",borderRadius:20}}>{items.length}</span>
       {collapsible&&<span style={{marginLeft:"auto",color,transition:"transform .15s",transform:expanded?"rotate(180deg)":"none"}}>{Ic.chevDown}</span>}
     </div>
+    {(!collapsible||expanded)&&!isMobile&&<div style={{display:"grid",gridTemplateColumns:PICKUP_ALERT_GRID,gap:16,padding:"8px 8px",background:C.surface,borderRadius:8,border:`1px solid ${C.border}`}}>
+      {["Order","At branch","Reason from branch","Expected billing","Call recording"].map((h,i)=><div key={h} style={{fontSize:10,fontWeight:700,color:C.textLight,letterSpacing:"0.06em",textTransform:"uppercase",textAlign:i===4?"right":"left"}}>{h}</div>)}
+    </div>}
     {(!collapsible||expanded)&&items.map((a,i)=><PickupReminderAlertRow key={a.orderId} alert={a} color={color} isFirst={i===0} order={orders?.find(o=>o.id===a.orderId)} onUpdateOrder={onUpdateOrder} email={email} onClickOrder={onClickOrder}/>)}
   </div>;
   return<div style={{marginBottom:18}}>
