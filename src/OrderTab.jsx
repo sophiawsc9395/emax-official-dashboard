@@ -2547,7 +2547,7 @@ function getOrderAlerts(orders,userBranch=null){
   // actually cancels it. See requestCancelOrder in PurchaseOrderTab.jsx and
   // the Accept button on this alert below.
   orders.filter(o=>o.pendingCancelRequest&&!o.cancelled&&visibleToBranch(o,userBranch)).forEach(o=>{
-    alerts.push({type:"cancel_request_pending",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:`Requested by ${o.pendingCancelRequest.requestedBy}: ${o.pendingCancelRequest.reason}`+(o.pendingCancelRequest.ack?` · Acknowledged: ${ACK_PARTIES.filter(p=>o.pendingCancelRequest.ack[p.key]).map(p=>`${p.label} ${fAck(o.pendingCancelRequest.ack[p.key])}`).join(", ")||"none yet"} · Waiting: ${ACK_PARTIES.filter(p=>!o.pendingCancelRequest.ack[p.key]).map(p=>p.label).join(", ")||"—"}`:"")});
+    alerts.push({type:"cancel_request_pending",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:`Requested by ${o.pendingCancelRequest.requestedBy}: ${o.pendingCancelRequest.reason}`});
   });
   return alerts;
 }
@@ -2619,7 +2619,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // clicking still freely toggles any of them afterward.
   const [collapsedAlerts,setCollapsedAlerts]=useState({warning:isAdmin,agreementReceived:isSophia,pickupReminder:isSophia||isBoonTheng});
   const toggleAlert=key=>setCollapsedAlerts(c=>({...c,[key]:!c[key]}));
-  const Block=({items,color,title,collapsible,expanded,onToggle,action})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
+  const Block=({items,color,title,collapsible,expanded,onToggle,action,detailExtra})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
     <div onClick={collapsible?onToggle:undefined} style={{display:"flex",alignItems:"center",gap:8,marginBottom:collapsible&&!expanded?0:9,cursor:collapsible?"pointer":"default",userSelect:collapsible?"none":"auto"}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
       <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>{title}</span>
@@ -2635,7 +2635,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
         <div style={{fontSize:11,color:C.textLight,...(isMobile?{}:{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"})}}>{a.customerName} · <b style={{color:C.textMid}}>{a.branch}</b></div>
       </div>;
       const daysBadge=a.days!=null?<span style={{fontSize:11,fontWeight:700,color,background:color+"15",border:`1px solid ${color}30`,padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>{a.days} days</span>:<span style={{fontSize:11,color:C.textLight}}>—</span>;
-      const detail=<div style={{fontSize:12,color:C.text,lineHeight:1.35,wordBreak:"break-word"}}>{a.msg}</div>;
+      const detail=<div><div style={{fontSize:12,color:C.text,lineHeight:1.35,wordBreak:"break-word"}}>{a.msg}</div>{detailExtra&&detailExtra(a)}</div>;
       return isMobile
         ?<div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",flexDirection:"column",gap:6,padding:"11px 4px",borderTop:`1px solid ${C.border}`,cursor:onClickOrder?"pointer":"default"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>{orderCell}{a.days!=null&&daysBadge}</div>{detail}{action&&action(a)}
@@ -2719,7 +2719,12 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
     {(!collapsible||expanded)&&items.map((a,i)=><PickupReminderAlertRow key={a.orderId} alert={a} color={color} isFirst={i===0} order={orders?.find(o=>o.id===a.orderId)} onUpdateOrder={onUpdateOrder} email={email} onClickOrder={onClickOrder}/>)}
   </div>;
   return<div style={{marginBottom:18}}>
-    <Block items={cancelRequestAlerts} color="#DC2626" title="Cancellation Request Pending" collapsible={false} expanded={true} action={a=>{
+    <Block items={cancelRequestAlerts} color="#DC2626" title="Cancellation Request Pending" collapsible={false} expanded={true} detailExtra={a=>{
+      const ack=(orders||[]).find(x=>x.id===a.orderId)?.pendingCancelRequest?.ack||{};
+      return<div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
+        {ACK_PARTIES.map(p=>{const v=ackInfo(ack[p.key]);return<span key={p.key} style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap",color:v?"#15803D":"#B45309",background:v?"#15803D15":"#B4530915"}}>{v?Ic.check:"○"} {p.label}{v?` · ${fAck(v)}`:" · waiting"}</span>;})}
+      </div>;
+    }} action={a=>{
       const o=(orders||[]).find(x=>x.id===a.orderId);
       const me=ACK_PARTIES.find(x=>x.email===myAckEmail);
       if(!o?.pendingCancelRequest?.ack||!me||ackInfo(o.pendingCancelRequest.ack[me.key]))return null;
