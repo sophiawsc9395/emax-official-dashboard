@@ -163,6 +163,9 @@ const ACK_PARTIES=[
 // PickupReminderVoiceBox) and who sees the "Arrived Branch, Not Yet Billed"
 // alert that points them at it. Everyone can still play a recording once
 // it's there — this list only gates uploading and the alert itself.
+// Only emaxhr can upload (or play) the call recording. Boon Theng and Sophia
+// just see an "Uploaded / Not uploaded" status.
+const PICKUP_UPLOAD_EMAILS=["emaxhr@gmail.com"];
 const PICKUP_REMINDER_EMAILS=["emaxhr@gmail.com","boontheng2004@gmail.com","sophiawsc9395@gmail.com"];
 // Same three, plus emaxjcl@gmail.com (who owns the Pickup Reminder To-Do
 // list itself) — this is who's allowed to see the "marked as messaged"
@@ -608,9 +611,14 @@ function PickupReminderVoiceBox({order,onUpdate,email}){
   // other role, never sees this box exists.
   const canAccess=PICKUP_REMINDER_EMAILS.includes(myEmail);
   if(!canAccess)return null;
-  const canUpload=canAccess;
+  const canUpload=PICKUP_UPLOAD_EMAILS.includes(myEmail);
   const rec=order.pickupReminderVoice;
   if(!rec&&order.step!==5)return null;
+  // Boon Theng / Sophia: can play it, but can't upload or replace it.
+  if(!canUpload&&!rec)return<div style={{...card,borderLeft:"3px solid #1D4ED8",padding:"12px 14px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+    <div style={{fontSize:11,fontWeight:700,color:"#1D4ED8",textTransform:"uppercase",letterSpacing:"0.05em"}}>Pickup Reminder Call</div>
+    <span style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#B4530915",padding:"3px 9px",borderRadius:20}}>Not uploaded</span>
+  </div>;
   const upload=async(file)=>{
     if(!file)return;
     setUploading(true);
@@ -702,6 +710,18 @@ function BillingDelayReasonModal({orders,branchMeta,onSubmit,onClose}){
 // info as any other alert row, plus an inline upload control (or an
 // "Uploaded" status) for the pickup reminder recording, so acting on it
 // doesn't require leaving the alert bar to open the order first. Only
+// Inline player for the alert row — signs the stored file path on demand.
+function AlertRecordingPlayer({rec}){
+  const[url,setUrl]=useState(rec?.url||null);
+  useEffect(()=>{
+    if(rec?.url||!rec?.path)return;
+    let live=true;
+    signFileUrl(rec.path).then(u=>{if(live&&u)setUrl(u);});
+    return()=>{live=false;};
+  },[rec?.path,rec?.url]);
+  if(!url)return<span style={{fontSize:10,color:C.textLight}}>Loading recording…</span>;
+  return<audio controls controlsList="nodownload noplaybackrate" onContextMenu={e=>e.preventDefault()} onClick={e=>e.stopPropagation()} src={url} style={{height:30,width:230,maxWidth:"100%"}}/>;
+}
 // emaxhr/Boon Theng/Sophia get the control at all; anyone else who somehow
 // sees this alert (shouldn't happen — AlertBanner already gates the whole
 // block to them) just sees the plain alert row with no upload affordance.
@@ -709,7 +729,8 @@ function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClick
   const isMobile=useIsMobile();
   const [uploading,setUploading]=useState(false);
   const myEmail=(email||"").toLowerCase();
-  const canUpload=PICKUP_REMINDER_EMAILS.includes(myEmail);
+  const canUpload=PICKUP_UPLOAD_EMAILS.includes(myEmail);
+  const canSeeStatus=PICKUP_REMINDER_EMAILS.includes(myEmail);
   const rec=order?.pickupReminderVoice;
   const upload=async(e,file)=>{
     e.stopPropagation();
@@ -731,7 +752,9 @@ function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClick
     </div>
     <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
       <span style={{fontSize:11,color,fontWeight:700,whiteSpace:isMobile?"normal":"nowrap"}}>{`Arrived at branch ${a.days} days ago — ${order?.billingDelayReason?.text||"no reason filled by branch yet"}${order?.billingDelayReason?.expectedBillingDate?` · Expected billing ${fDate(order.billingDelayReason.expectedBillingDate)}`:order?.billingDelayReason?.noExpectedBillingDate?" · No expected billing date":""}`}</span>
-      {canUpload&&(rec?<span onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#15803D15",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>{Ic.check} Uploaded</span>
+      {canSeeStatus&&rec&&<AlertRecordingPlayer rec={rec}/>}
+      {(canUpload||canSeeStatus)&&(rec?<span onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#15803D15",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>{Ic.check} Uploaded</span>
+        :!canUpload?<span onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#B4530915",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>Not uploaded</span>
         :<label onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#fff",background:uploading?"#8A96A8":"#1D4ED8",padding:"5px 10px",borderRadius:6,whiteSpace:"nowrap",cursor:uploading?"default":"pointer"}}>
           {uploading?"Uploading…":"Upload recording"}
           <input type="file" accept="audio/*" style={{display:"none"}} disabled={uploading} onChange={e=>{const f=e.target.files[0];e.target.value="";upload(e,f);}}/>
@@ -2365,6 +2388,11 @@ function daysSince(dateStr){
 // applies at the DB level; this is the client-side equivalent for any place
 // that still needs to re-check it in memory.
 function visibleToBranch(o,userBranch){
+  // Cash orders drop off every branch page automatically once admin has
+  // verified the phone collection and balance payment (step 9 verification
+  // completes a cash order straight to Completed). Admin/HQ views and reports
+  // still see them — they are hidden, not deleted.
+  if(userBranch&&o.orderType==="cash"&&o.step===14&&o.lastVerification&&!o.cancelled)return false;
   return !userBranch||o.branch===userBranch||(o.pickUpBranch===userBranch&&o.step>=4);
 }
 
