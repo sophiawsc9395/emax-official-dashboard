@@ -720,12 +720,13 @@ function AlertRecordingPlayer({rec}){
     return()=>{live=false;};
   },[rec?.path,rec?.url]);
   if(!url)return<span style={{fontSize:10,color:C.textLight}}>Loading recording…</span>;
-  return<audio controls controlsList="nodownload noplaybackrate" onContextMenu={e=>e.preventDefault()} onClick={e=>e.stopPropagation()} src={url} style={{height:30,width:210,maxWidth:"100%"}}/>;
+  return<audio controls controlsList="nodownload noplaybackrate" onContextMenu={e=>e.preventDefault()} onClick={e=>e.stopPropagation()} src={url} style={{height:30,width:150,maxWidth:"100%"}}/>;
 }
 // emaxhr/Boon Theng/Sophia get the control at all; anyone else who somehow
 // sees this alert (shouldn't happen — AlertBanner already gates the whole
 // block to them) just sees the plain alert row with no upload affordance.
-const PICKUP_ALERT_GRID="minmax(200px,1.3fr) 78px minmax(180px,1.6fr) 120px minmax(190px,auto)";
+// Fixed/zero-min tracks so every row (and the header) lines up identically regardless of its content.
+const PICKUP_ALERT_GRID="minmax(0,1.3fr) 84px minmax(0,1.5fr) 110px 160px";
 function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClickOrder}){
   const isMobile=useIsMobile();
   const [uploading,setUploading]=useState(false);
@@ -748,14 +749,16 @@ function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClick
   };
   const bd=order?.billingDelayReason;
   const reasonText=bd?.text;
-  const recCell=<div style={{display:"flex",justifyContent:isMobile?"flex-start":"flex-end",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-    {canSeeStatus&&rec&&<AlertRecordingPlayer rec={rec}/>}
-    {(canUpload||canSeeStatus)&&(rec?<span onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#15803D",background:"#15803D15",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>{Ic.check} Uploaded</span>
-      :!canUpload?<span onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#B45309",background:"#B4530915",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>Not uploaded</span>
-      :<label onClick={e=>e.stopPropagation()} style={{fontSize:10,fontWeight:700,color:"#fff",background:uploading?"#8A96A8":"#1D4ED8",padding:"5px 10px",borderRadius:6,whiteSpace:"nowrap",cursor:uploading?"default":"pointer"}}>
+  const recW={width:150,boxSizing:"border-box",textAlign:"center"};
+  const recCell=<div style={{display:"flex",justifyContent:isMobile?"flex-start":"flex-end",alignItems:"center"}}>
+    {rec&&canSeeStatus?<AlertRecordingPlayer rec={rec}/>
+      :rec?null
+      :!canSeeStatus?null
+      :!canUpload?<span onClick={e=>e.stopPropagation()} style={{...recW,fontSize:10,fontWeight:700,color:"#B45309",background:"#B4530915",padding:"6px 9px",borderRadius:20,whiteSpace:"nowrap"}}>Not uploaded</span>
+      :<label onClick={e=>e.stopPropagation()} style={{...recW,fontSize:10,fontWeight:700,color:"#fff",background:uploading?"#8A96A8":"#1D4ED8",padding:"6px 10px",borderRadius:20,whiteSpace:"nowrap",cursor:uploading?"default":"pointer"}}>
         {uploading?"Uploading…":"Upload recording"}
         <input type="file" accept="audio/*" style={{display:"none"}} disabled={uploading} onChange={e=>{const f=e.target.files[0];e.target.value="";upload(e,f);}}/>
-      </label>)}
+      </label>}
   </div>;
   const daysBadge=<span style={{fontSize:11,fontWeight:700,color:C.blue,background:"#1D4ED815",border:"1px solid #1D4ED830",padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap"}}>{a.days} days</span>;
   const reasonCell=<div style={{fontSize:12,color:reasonText?C.text:C.textLight,fontStyle:reasonText?"normal":"italic",lineHeight:1.35,wordBreak:"break-word"}}>{reasonText||"No reason filled by branch yet"}</div>;
