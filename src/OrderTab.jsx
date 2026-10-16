@@ -787,6 +787,22 @@ function PickupReminderAlertRow({alert:a,color,order,onUpdateOrder,email,onClick
 // There's no separate reject action — if neither agrees with the
 // cancellation, they simply don't click it, and can follow up with
 // Purchase directly outside the app.
+// An acknowledgement used to be stored as just a date string; it is now
+// {date,time,by}. This reads either shape.
+const ackInfo=v=>!v?null:(typeof v==="string"?{date:v}:v);
+const fAck=v=>{const a=ackInfo(v);return a?`${fDate(a.date)}${a.time?` ${a.time}`:""}`:"";};
+// Acknowledge a cancellation request as party `p` — shared by the alert's
+// Acknowledge button and the button on the order page. The last of the three
+// parties to acknowledge cancels the order.
+async function acknowledgeCancelRequest(order,p,email,onUpdate){
+  const req=order.pendingCancelRequest;if(!req)return;
+  const nextAck={...(req.ack||{}),[p.key]:{date:nowDate(),time:nowTime(),by:email}};
+  const allDone=ACK_PARTIES.every(x=>nextAck[x.key]);
+  const note=`${p.label} acknowledged cancellation request`+(allDone?" — all parties acknowledged, order cancelled.":"");
+  return onUpdate(allDone
+    ?{...order,cancelled:true,pendingCancelRequest:null,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation requested by ${req.requestedBy}: ${req.reason}. ${note}`,files:req.cancellationForm?{cancellationForm:req.cancellationForm}:undefined,isCancellationEntry:true,skipStepDate:true}]}
+    :{...order,pendingCancelRequest:{...req,ack:nextAck},history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note,skipStepDate:true}]});
+}
 function CancelRequestBox({order,onUpdate,email}){
   const [accepting,setAccepting]=useState(false);
   const myEmail=(email||"").toLowerCase();
@@ -797,26 +813,17 @@ function CancelRequestBox({order,onUpdate,email}){
   // cancels — same parties and same rule as a superseded (device-amended) order.
   if(order.pendingCancelRequest.ack){
     const req=order.pendingCancelRequest,ack=req.ack;
-    const acknowledge=async(p)=>{
-      setAccepting(true);
-      const nextAck={...ack,[p.key]:nowDate()};
-      const allDone=ACK_PARTIES.every(x=>nextAck[x.key]);
-      const note=`${p.label} acknowledged cancellation request`+(allDone?" — all parties acknowledged, order cancelled.":"");
-      await onUpdate(allDone
-        ?{...order,cancelled:true,pendingCancelRequest:null,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:`Cancellation requested by ${req.requestedBy}: ${req.reason}. ${note}`,files:req.cancellationForm?{cancellationForm:req.cancellationForm}:undefined,isCancellationEntry:true,skipStepDate:true}]}
-        :{...order,pendingCancelRequest:{...req,ack:nextAck},history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note,skipStepDate:true}]});
-      setAccepting(false);
-    };
+    const acknowledge=async(p)=>{setAccepting(true);await acknowledgeCancelRequest(order,p,email,onUpdate);setAccepting(false);};
     return<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:16}}>
       <div style={{fontSize:11,fontWeight:700,color:"#DC2626",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Cancellation Request Pending</div>
-      <div style={{fontSize:12,color:C.textMid,marginBottom:8}}>Requested by {req.requestedBy} on {fDate(req.requestedDate)}: {req.reason}</div>
+      <div style={{fontSize:12,color:C.textMid,marginBottom:8}}>Requested by {req.requestedBy} on {fDate(req.requestedDate)}{req.requestedTime?` ${req.requestedTime}`:""}: {req.reason}</div>
       {req.cancellationForm&&<div style={{marginBottom:10}}><CancellationFormLink file={req.cancellationForm}/></div>}
       <div style={{fontSize:12,color:C.textMid,marginBottom:8}}>The order cancels once all three below have acknowledged.</div>
       <div style={{display:"flex",flexDirection:"column",gap:7}}>
         {ACK_PARTIES.map(p=>{
           const done=ack[p.key];
           return<div key={p.key} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,fontSize:12}}>
-            <span style={{display:"flex",alignItems:"center",gap:5,color:done?"#15803D":C.textMid,fontWeight:600}}>{done&&<span style={{color:"#15803D"}}>{Ic.check}</span>}{p.label}{done?` — acknowledged ${fDate(done)}`:""}</span>
+            <span style={{display:"flex",alignItems:"center",gap:5,color:done?"#15803D":C.textMid,fontWeight:600}}>{done&&<span style={{color:"#15803D"}}>{Ic.check}</span>}{p.label}{done?` — acknowledged ${fAck(done)}`:" — waiting"}</span>
             {!done&&myEmail===p.email&&<PBtn onClick={()=>acknowledge(p)} disabled={accepting} style={{fontSize:11,padding:"4px 10px"}}>Acknowledge</PBtn>}
           </div>;
         })}
@@ -951,7 +958,9 @@ function ActualPriceField({order,onUpdate}){
   if(!editing){
     return<div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
       <div className="oi-value" style={{fontSize:12,color:C.text,fontWeight:600}}>{order.actualPrice?fRM(order.actualPrice):"—"}</div>
-      <button onClick={()=>{setVal(order.actualPrice||"");setEditing(true);}} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",padding:0}}>{order.actualPrice?"Edit":"Fill In"}</button>
+      {(!order.actualPrice&&order.step>=2&&order.step<=5)
+        ?<button onClick={()=>{setVal("");setEditing(true);}} style={{fontSize:11,fontWeight:700,color:"#fff",background:"#DC2626",border:"none",borderRadius:20,padding:"4px 14px",cursor:"pointer",fontFamily:"Inter,sans-serif"}}>Fill In</button>
+        :<button onClick={()=>{setVal(order.actualPrice||"");setEditing(true);}} style={{fontSize:10,color:C.blue,background:"none",border:"none",cursor:"pointer",fontFamily:"Inter,sans-serif",textDecoration:"underline",padding:0}}>{order.actualPrice?"Edit":"Fill In"}</button>}
     </div>;
   }
   return<div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
@@ -2159,6 +2168,8 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
       {!isSuperAdminOrder&&canEditOrder&&!isReadOnly&&<div className="detail-topbar-actions" style={{display:"flex",gap:6}}><GBtn onClick={onEdit}>{Ic.edit} Edit</GBtn>{canAdminBilling&&!order.cancelled&&order.step!==14&&<DBtn onClick={()=>{const reason=prompt("Reason for cancelling this order (optional):")||"";if(!confirm("Cancel this order? It will move out of active tracking and won't appear in any reports."))return;onUpdate({...order,cancelled:true,cancelledReason:reason||undefined,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Order Cancelled",cancelledReason:reason||undefined}]});}}>{Ic.x} Cancel Order</DBtn>}</div>}
     </div>
 
+    {/* Cancellation request first, so it is the first thing on the page */}
+    <CancelRequestBox order={order} onUpdate={onUpdate} email={email}/>
     {order.cancelled&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"12px 16px",marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
       <div style={{display:"flex",alignItems:"center",gap:8,color:"#DC2626"}}>{Ic.alertCircle}<div><div style={{fontWeight:700,fontSize:13}}>This order has been cancelled</div>{order.cancelledReason&&<div style={{fontSize:11,color:"#B91C1C",marginTop:2}}>{order.cancelledReason}</div>}</div></div>
       {isSuperAdminOrder&&!isReadOnly&&<GBtn onClick={()=>onUpdate({...order,cancelled:false,history:[...(order.history||[]),{step:order.step,date:nowDate(),time:nowTime(),note:"Reactivated"}]})}>Reactivate</GBtn>}
@@ -2219,7 +2230,6 @@ function OrderDetail({order,branchMeta,onUpdate,onEdit,onDelete,onBack,isAdmin,a
     <AmendDeviceBox order={order} onUpdate={onUpdate} isAdmin={isAdmin} userBranch={userBranch}/>
     <AcknowledgeSupersededBox order={order} onUpdate={onUpdate} email={email}/>
     <PickupReminderVoiceBox order={order} onUpdate={onUpdate} email={email}/>
-    <CancelRequestBox order={order} onUpdate={onUpdate} email={email}/>
 
     {/* Two-col: timeline | action */}
     <div className="detail-grid">
@@ -2537,9 +2547,13 @@ function getOrderAlerts(orders,userBranch=null){
   // actually cancels it. See requestCancelOrder in PurchaseOrderTab.jsx and
   // the Accept button on this alert below.
   orders.filter(o=>o.pendingCancelRequest&&!o.cancelled&&visibleToBranch(o,userBranch)).forEach(o=>{
-    alerts.push({type:"cancel_request_pending",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:`Cancellation requested by ${o.pendingCancelRequest.requestedBy}: ${o.pendingCancelRequest.reason}`});
+    alerts.push({type:"cancel_request_pending",orderId:o.id,phoneModel:o.phoneModel,customerName:o.customerName,branch:o.branch,msg:`Requested by ${o.pendingCancelRequest.requestedBy}: ${o.pendingCancelRequest.reason}`+(o.pendingCancelRequest.ack?` · Acknowledged: ${ACK_PARTIES.filter(p=>o.pendingCancelRequest.ack[p.key]).map(p=>`${p.label} ${fAck(o.pendingCancelRequest.ack[p.key])}`).join(", ")||"none yet"} · Waiting: ${ACK_PARTIES.filter(p=>!o.pendingCancelRequest.ack[p.key]).map(p=>p.label).join(", ")||"—"}`:"")});
   });
   return alerts;
+}
+function CancelAckButton({onClick}){
+  const[busy,setBusy]=useState(false);
+  return<button disabled={busy} onClick={async e=>{e.stopPropagation();setBusy(true);try{await onClick();}finally{setBusy(false);}}} style={{fontSize:11,fontWeight:700,color:"#fff",background:busy?"#8A96A8":"#DC2626",border:"none",borderRadius:20,padding:"6px 14px",cursor:busy?"default":"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>{busy?"Saving…":"Acknowledge"}</button>;
 }
 function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder,orders,onUpdateOrder,onBulkDelete}){
   const isMobile=useIsMobile();
@@ -2605,15 +2619,15 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // clicking still freely toggles any of them afterward.
   const [collapsedAlerts,setCollapsedAlerts]=useState({warning:isAdmin,agreementReceived:isSophia,pickupReminder:isSophia||isBoonTheng});
   const toggleAlert=key=>setCollapsedAlerts(c=>({...c,[key]:!c[key]}));
-  const Block=({items,color,title,collapsible,expanded,onToggle})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
+  const Block=({items,color,title,collapsible,expanded,onToggle,action})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
     <div onClick={collapsible?onToggle:undefined} style={{display:"flex",alignItems:"center",gap:8,marginBottom:collapsible&&!expanded?0:9,cursor:collapsible?"pointer":"default",userSelect:collapsible?"none":"auto"}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
       <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>{title}</span>
       <span style={{fontSize:10,fontWeight:700,color,background:color+"15",padding:"1px 8px",borderRadius:20}}>{items.length}</span>
       {collapsible&&<span style={{marginLeft:"auto",color,transition:"transform .15s",transform:expanded?"rotate(180deg)":"none"}}>{Ic.chevDown}</span>}
     </div>
-    {(!collapsible||expanded)&&!isMobile&&<div style={{display:"grid",gridTemplateColumns:ALERT_GRID,gap:16,padding:"8px 8px",background:C.surface,borderRadius:8,border:`1px solid ${C.border}`}}>
-      {["Order","Days","Details"].map(h=><div key={h} style={{fontSize:10,fontWeight:700,color:C.textLight,letterSpacing:"0.06em",textTransform:"uppercase"}}>{h}</div>)}
+    {(!collapsible||expanded)&&!isMobile&&<div style={{display:"grid",gridTemplateColumns:action?ALERT_GRID+" 130px":ALERT_GRID,gap:16,padding:"8px 8px",background:C.surface,borderRadius:8,border:`1px solid ${C.border}`}}>
+      {["Order","Days","Details",...(action?["Action"]:[])].map(h=><div key={h} style={{fontSize:10,fontWeight:700,color:C.textLight,letterSpacing:"0.06em",textTransform:"uppercase"}}>{h}</div>)}
     </div>}
     {(!collapsible||expanded)&&items.map((a,i)=>{
       const orderCell=<div style={{minWidth:0}}>
@@ -2624,10 +2638,10 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
       const detail=<div style={{fontSize:12,color:C.text,lineHeight:1.35,wordBreak:"break-word"}}>{a.msg}</div>;
       return isMobile
         ?<div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"flex",flexDirection:"column",gap:6,padding:"11px 4px",borderTop:`1px solid ${C.border}`,cursor:onClickOrder?"pointer":"default"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>{orderCell}{a.days!=null&&daysBadge}</div>{detail}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>{orderCell}{a.days!=null&&daysBadge}</div>{detail}{action&&action(a)}
         </div>
-        :<div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"grid",gridTemplateColumns:ALERT_GRID,gap:16,alignItems:"center",padding:"11px 8px",borderTop:`1px solid ${C.border}`,cursor:onClickOrder?"pointer":"default"}}>
-          {orderCell}<div>{daysBadge}</div>{detail}
+        :<div key={i} onClick={()=>onClickOrder&&onClickOrder(a.orderId)} style={{display:"grid",gridTemplateColumns:action?ALERT_GRID+" 130px":ALERT_GRID,gap:16,alignItems:"center",padding:"11px 8px",borderTop:`1px solid ${C.border}`,cursor:onClickOrder?"pointer":"default"}}>
+          {orderCell}<div>{daysBadge}</div>{detail}{action&&<div style={{display:"flex",justifyContent:"flex-end"}}>{action(a)}</div>}
         </div>;
     })}
   </div>;
@@ -2705,17 +2719,22 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
     {(!collapsible||expanded)&&items.map((a,i)=><PickupReminderAlertRow key={a.orderId} alert={a} color={color} isFirst={i===0} order={orders?.find(o=>o.id===a.orderId)} onUpdateOrder={onUpdateOrder} email={email} onClickOrder={onClickOrder}/>)}
   </div>;
   return<div style={{marginBottom:18}}>
+    <Block items={cancelRequestAlerts} color="#DC2626" title="Cancellation Request Pending" collapsible={false} expanded={true} action={a=>{
+      const o=(orders||[]).find(x=>x.id===a.orderId);
+      const me=ACK_PARTIES.find(x=>x.email===myAckEmail);
+      if(!o?.pendingCancelRequest?.ack||!me||ackInfo(o.pendingCancelRequest.ack[me.key]))return null;
+      return<CancelAckButton onClick={()=>acknowledgeCancelRequest(o,me,email,onUpdateOrder)}/>;
+    }}/>
     <Block items={expired} color="#DC2626" title="Approval Expired" collapsible expanded={!collapsedAlerts.expired} onToggle={()=>toggleAlert("expired")}/>
     <Block items={urgent} color="#B91C1C" title="Urgent Attention" collapsible expanded={!collapsedAlerts.urgent} onToggle={()=>toggleAlert("urgent")}/>
     <Block items={collectionOverdue} color="#B91C1C" title="Collection Proof Overdue" collapsible expanded={!collapsedAlerts.collectionOverdue} onToggle={()=>toggleAlert("collectionOverdue")}/>
     <Block items={cashBalanceOverdue} color="#7C3AED" title="Cash Balance Payment Slip Overdue" collapsible expanded={!collapsedAlerts.cashBalanceOverdue} onToggle={()=>toggleAlert("cashBalanceOverdue")}/>
     <Block items={merchantRejected} color="#DC2626" title="Merchant Rejected" collapsible expanded={!collapsedAlerts.merchantRejected} onToggle={()=>toggleAlert("merchantRejected")}/>
     <Block items={billingRequestOverdue} color="#B91C1C" title="Billing Request Overdue" collapsible expanded={!collapsedAlerts.billingRequestOverdue} onToggle={()=>toggleAlert("billingRequestOverdue")}/>
-    <Block items={missingActualPrice} color="#B45309" title="Actual Purchase Price Missing" collapsible expanded={!collapsedAlerts.missingActualPrice} onToggle={()=>toggleAlert("missingActualPrice")}/>
+    <Block items={missingActualPrice} color="#B45309" title="Actual Purchase Price Missing" collapsible expanded={!collapsedAlerts.missingActualPrice} onToggle={()=>toggleAlert("missingActualPrice")} action={a=><button onClick={e=>{e.stopPropagation();onClickOrder&&onClickOrder(a.orderId);}} style={{fontSize:11,fontWeight:700,color:"#fff",background:"#DC2626",border:"none",borderRadius:20,padding:"6px 14px",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>Fill Price</button>}/>
     <Block items={supersededAlerts} color="#B45309" title="Device Amendment — Old Order Needs Acknowledgment" collapsible expanded={!collapsedAlerts.supersededAlerts} onToggle={()=>toggleAlert("supersededAlerts")}/>
     <PickupReminderBlock items={pickupReminderAlerts} color="#1D4ED8" title="Arrived Branch, Not Yet Billed" collapsible={false} expanded={true}/>
     <SuggestDeleteBlock items={suggestDeleteAlerts} color="#8A96A8" title="Suggest Deleting — Fully Knocked Off"/>
-    <Block items={cancelRequestAlerts} color="#DC2626" title="Cancellation Request Pending" collapsible expanded={!collapsedAlerts.cancelRequest} onToggle={()=>toggleAlert("cancelRequest")}/>
     <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={!collapsedAlerts.agreementReceived} onToggle={()=>toggleAlert("agreementReceived")}/>
     <Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={!collapsedAlerts.warning} onToggle={()=>toggleAlert("warning")}/>
   </div>;
