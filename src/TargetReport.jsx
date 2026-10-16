@@ -153,7 +153,8 @@ export function BranchBreakdownRow({ rows, colSpan, title }) {
         <div style={{ padding: "10px 16px 14px 28px" }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Target Report · {title}</div>
           <div style={{ overflowX: "auto", background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 8 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760, tableLayout: "fixed" }}>
+              <colgroup><col style={{ width:"22%" }}/><col style={{ width:"13%" }}/><col style={{ width:"13%" }}/><col style={{ width:"13%" }}/><col style={{ width:"13%" }}/><col style={{ width:"13%" }}/><col style={{ width:"13%" }}/></colgroup>
               <thead><tr>
                 <th style={th({ textAlign: "left" })}>Name</th><th style={th()}>Achievement</th><th style={th()}>Total Profit</th>
                 <th style={th()}>Walk In</th><th style={th()}>Invoice</th><th style={th()}>Balance</th><th style={th()}>Monthly Target</th>

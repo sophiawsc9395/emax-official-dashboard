@@ -650,7 +650,8 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
       </div>
     </div>
     <div style={{overflowX:"auto"}}>
-      <table style={{width:"100%",borderCollapse:"collapse",minWidth:920}}>
+      <table style={{width:"100%",borderCollapse:"collapse",minWidth:920,tableLayout:"fixed"}}>
+        <colgroup><col style={{width:"22%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/><col style={{width:"13%"}}/></colgroup>
         <thead><tr>
           <th style={TH({textAlign:"left"})}>Branch</th>
           <th style={TH()}>Achievement</th>
