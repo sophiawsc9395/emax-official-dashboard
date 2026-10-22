@@ -1764,7 +1764,18 @@ function photoBranchPairTable(sectionTitle, branches, totalLabel){
   </div>`;
 }
 
-function buildPhotoHTML(){
+function photoHeaderHTML(dateStr, time){
+  const dt=new Date(dateStr+'T00:00:00');
+  const pretty=isNaN(dt)?dateStr:dt.toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const wk=isNaN(dt)?'':dt.toLocaleDateString('en-GB',{weekday:'long'}).toUpperCase();
+  return `<div style="display:flex;justify-content:space-between;align-items:center;background:#0A1628;color:#fff;border-radius:6px;padding:12px 16px;">
+    <div><div style="font-size:10px;letter-spacing:.12em;color:rgba(255,255,255,.6);font-weight:600;">DAILY FINANCIAL REPORT</div>
+    <div style="font-size:18px;font-weight:800;margin-top:2px;">${pretty}</div></div>
+    <div style="text-align:right;"><div style="background:#FFD500;color:#0A1628;font-size:11px;font-weight:800;letter-spacing:.08em;padding:5px 10px;border-radius:4px;display:inline-block;">${wk}</div>
+    ${time?`<div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:5px;">Time ${time}</div>`:''}</div></div>`;
+}
+
+function buildPhotoHTML(noHeader){
   let inner = '';
   if(COMPANIES[currentCompany].isLog){
     inner += `<h2 style="margin:0 0 4px;font-size:19px;">FAILED PAYMENT (RTO)</h2>`;
@@ -1783,8 +1794,13 @@ function buildPhotoHTML(){
     inner += `</div>`;
   } else {
     const cfg = COMPANIES[currentCompany];
-    inner += `<h2 style="margin:0 0 4px;font-size:19px;">${cfg.name}</h2>`;
-    inner += `<div style="color:#666;font-size:13px;margin-bottom:14px;">${cfg.hasTime?('Time: '+(currentData.time||'-')+' &middot; '):''}Date: ${currentData.date}</div>`;
+    if(noHeader){
+      inner += `<h2 style="margin:0 0 4px;font-size:19px;">${cfg.name}</h2>`;
+      inner += `<div style="color:#666;font-size:13px;margin-bottom:14px;">${cfg.hasTime?('Time: '+(currentData.time||'-')+' &middot; '):''}Date: ${currentData.date}</div>`;
+    } else {
+      inner += photoHeaderHTML(currentData.date, cfg.hasTime?(currentData.time||'-'):'');
+      inner += `<h2 style="margin:18px 0 12px;font-size:19px;">${cfg.name}</h2>`;
+    }
 
     if(currentCompany==='miniImpianSales'){
       // Two complete, independent reports side by side — each built exactly
@@ -1995,8 +2011,8 @@ function buildPhotoHTML(){
 // export Mini Impian as two separate photos (one per branch) instead of
 // one combined image.
 function buildMiniImpianBranchPhotoHTML(branchKey, branchLabel){
-  let inner = `<h2 style="margin:0 0 4px;font-size:19px;">MINI IMPIAN - ${branchLabel.toUpperCase()}</h2>`;
-  inner += `<div style="color:#666;font-size:13px;margin-bottom:14px;">Date: ${currentData.date}</div>`;
+  let inner = photoHeaderHTML(currentData.date, '');
+  inner += `<h2 style="margin:18px 0 12px;font-size:19px;">MINI IMPIAN - ${branchLabel.toUpperCase()}</h2>`;
   const sr = currentData.sections.salesReport[branchKey];
   const srTotal = num(sr.cash)+num(sr.card)+num(sr.qr);
   inner += photoSectionTable('Daily Sales Report', [
@@ -2021,12 +2037,12 @@ function buildMiniImpianBranchPhotoHTML(branchKey, branchLabel){
 function buildMergedPhotoHTML(){
   const cfg = COMPANIES.merged;
   const savedCompany = currentCompany, savedData = currentData;
-  let inner = `<div style="text-align:center;margin-bottom:6px;"><div style="color:#666;font-size:13px;">${mergedDataByCompany[cfg.mergedCompanies[0]].date}</div></div>`;
+  let inner = photoHeaderHTML(mergedDataByCompany[cfg.mergedCompanies[0]].date, '');
   cfg.mergedCompanies.forEach((c,i)=>{
     currentCompany = c;
     currentData = mergedDataByCompany[c];
     inner += `<div style="margin-top:${i===0?18:26}px;padding-top:${i===0?0:4}px;${i>0?'border-top:2px solid #C9D9F0;':''}">`;
-    inner += buildPhotoHTML();
+    inner += buildPhotoHTML(true);
     inner += `</div>`;
   });
   currentCompany = savedCompany;

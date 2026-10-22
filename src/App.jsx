@@ -3838,7 +3838,7 @@ export default function App(){
               return <div>
                 <BranchHeroCard name={selMeta.name||selBranch} bmName={selMeta.manager} mStatus={selMeta.mStatus}
                   onHistory={()=>{setStatusModalPerson(`BM_${selBranch}`);setShowStatusHistoryModal(true);}}
-                  branchPct={branchPct} bTarget={bTarget} bTotal={bTotal} pointsAsOf={pointsAsOfFor(selBranch)}
+                  branchPct={branchPct} bTarget={bTarget} bTotal={fullMonthBranchTotals[selBranch]||{total:0,wi:0,ae:0}} pointsAsOf={pointsAsOfFor(selBranch)}
                   pointsBalance={rewardBalances[`BM_${selMgrId}`]?.balance||0}
                   tiers={computeSRTiers({p:branchPct,branchPct,calcBonus:calcAchievementBonus,calcPoints:calcRewardPoints,role:"bm"})}/>
                 <SRPerformanceHeading view={reportSrView} onView={setReportSrView} subtitle={reportSrView==="att"?`${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][month-1]} ${year} attendance`:`${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][month-1]} ${year} sales`}/>
