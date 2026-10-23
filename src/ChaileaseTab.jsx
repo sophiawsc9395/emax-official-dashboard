@@ -955,7 +955,7 @@ function AdminActions({app,onSaved,onCreateOrder}){
         <div><L req>Agreement No. / Case ID No.</L><I value={agreementNumber} onChange={e=>setAgreementNumber(e.target.value)}/></div>
         <div><L req>Merchant Approval Date</L><I type="date" value={merchantApprovalDate} onChange={e=>setMerchantApprovalDate(e.target.value)}/></div>
         <div><L req>Finance Price (RM)</L><I type="number" step="0.01" value={approveFinancePrice} onChange={e=>setApproveFinancePrice(e.target.value)}/></div>
-        <div><L req>CCM Tenure</L><SEL value={approveTenure} onChange={e=>setApproveTenure(e.target.value)}><option value="12">12 Months</option><option value="24">24 Months</option><option value="36">36 Months</option></SEL></div>
+        <div><L req>CCM Tenure</L><SEL value={approveTenure} onChange={e=>setApproveTenure(e.target.value)}><option value="12">12 Months</option><option value="24">24 Months</option><option value="36">36 Months</option><option value="48">48 Months</option></SEL></div>
         <div><L req>Deposit (RM)</L><I type="number" step="0.01" value={deposit} onChange={e=>setDeposit(e.target.value)}/></div>
         <div><L req>Monthly Installment (RM)</L><I type="number" step="0.01" value={monthlyInstallment} onChange={e=>setMonthlyInstallment(e.target.value)}/></div>
       </div>

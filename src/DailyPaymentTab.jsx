@@ -145,6 +145,9 @@ export default function DailyPaymentTab({email,pendingByCompany={}}){
   // against stale data" race that a plain whole-list overwrite is prone
   // to. updater receives the fresh list and returns the new list.
   const saveEntries=async(updater)=>{
+    // Show the change on screen immediately (optimistic), then reconcile
+    // against the freshest saved data so nothing from another device is lost.
+    setEntries(prev=>updater(prev));
     const fresh=(await loadData(keyFor(company)))||[];
     const next=updater(fresh);
     setEntries(next);
