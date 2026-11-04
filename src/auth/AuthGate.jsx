@@ -18,12 +18,16 @@ import ResetPasswordPage from "./ResetPasswordPage.jsx";
 export default function AuthGate({ children, allowedEmails }) {
   const [session, setSession] = useState(undefined); // undefined = still loading
   const [isRecovery, setIsRecovery] = useState(false);
+  const [stalled, setStalled] = useState(false);
 
   useEffect(() => {
     // Get current session on mount
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session ?? null);
-    });
+    }).catch(() => setSession(null));
+    // If the session check hangs (e.g. a stuck login-lock from other open
+    // tabs, or a bad saved token), offer a way out instead of "Loading…" forever.
+    const stallTimer = setTimeout(() => setStalled(true), 6000);
 
     // Listen for sign-in / sign-out / password-recovery events. Clicking a
     // Supabase "reset password" email link lands back on this page and fires
@@ -34,8 +38,15 @@ export default function AuthGate({ children, allowedEmails }) {
       setSession(session ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    return () => { clearTimeout(stallTimer); subscription.unsubscribe(); };
   }, []);
+
+  const clearSavedLogin = () => {
+    try {
+      Object.keys(localStorage).filter(k => k.startsWith("sb-")).forEach(k => localStorage.removeItem(k));
+    } catch {}
+    window.location.reload();
+  };
 
   // Still checking session — show nothing (avoids flash of login page)
   if (session === undefined) {
@@ -44,8 +55,15 @@ export default function AuthGate({ children, allowedEmails }) {
         minHeight: "100vh", background: "#0A1628",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
-        <div style={{ color: "rgba(255,255,255,.3)", fontSize: 13, fontFamily: "Inter,sans-serif" }}>
+        <div style={{ color: "rgba(255,255,255,.3)", fontSize: 13, fontFamily: "Inter,sans-serif", textAlign: "center" }}>
           Loading…
+          {stalled && (
+            <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 10, alignItems: "center" }}>
+              <div style={{ color: "rgba(255,255,255,.55)", maxWidth: 280 }}>Taking longer than usual. Close other EMAX tabs, then try again.</div>
+              <button onClick={() => window.location.reload()} style={{ padding: "8px 20px", borderRadius: 8, border: "1px solid #2D3E55", background: "transparent", color: "rgba(255,255,255,.7)", cursor: "pointer", fontSize: 13 }}>Try again</button>
+              <button onClick={clearSavedLogin} style={{ padding: "8px 20px", borderRadius: 8, border: "none", background: "#FFD500", color: "#0A1628", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Clear saved login &amp; reload</button>
+            </div>
+          )}
         </div>
       </div>
     );
