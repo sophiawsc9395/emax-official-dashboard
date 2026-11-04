@@ -22,13 +22,29 @@ export default function LoginPage({ onLogin }) {
     if (!email.trim() || !password) return;
     setLoading(true);
     setError("");
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
-    });
+    const attempt = async () => {
+      try {
+        return await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+      } catch (err) {
+        return { data: null, error: { status: 0, message: String(err?.message || err) } };
+      }
+    };
+    let { data, error: authError } = await attempt();
+    // A wrong password comes back as a 400 "invalid credentials". Anything
+    // else (slow/dropped connection, busy server, rate limit) is not the
+    // user's mistake — retry once quietly before saying anything.
+    const isWrongPassword = (er) => er && (er.status === 400 || er.code === "invalid_credentials");
+    if (authError && !isWrongPassword(authError)) {
+      await new Promise((r) => setTimeout(r, 1200));
+      ({ data, error: authError } = await attempt());
+    }
     setLoading(false);
     if (authError) {
-      setError("Invalid email or password. Please try again.");
+      setError(
+        isWrongPassword(authError)
+          ? "Invalid email or password. Please try again."
+          : "Couldn't reach the server — your password is probably fine. Please wait a moment and tap Sign In again."
+      );
       return;
     }
     if (onLogin) onLogin(data.session);
