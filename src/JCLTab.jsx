@@ -317,6 +317,32 @@ async function downloadAllDocuments(app,fileUrls){
 }
 
 /* ── Timeline ──────────────────────────────────────────────────────────── */
+const APP_COLS="minmax(0,3fr) minmax(0,1.6fr) 120px 100px 170px 100px";
+const appSingle={whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
+function ApplicationsTable({apps,branchMeta,onOpen}){
+  const waitColor=d=>d===null?C.textLight:d>=7?"#DC2626":d>=3?"#B45309":C.textMid;
+  const reached=a=>(a.step===4&&a.approvedDate)||(a.step===5&&a.rejectedDate)||a.submittedAt||null;
+  return<div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><div style={{minWidth:860}}>
+    <div style={{display:"grid",gridTemplateColumns:APP_COLS,gap:20,alignItems:"center",padding:"0 16px",height:34,background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
+      <div>Customer</div><div>Device</div><div>Finance Price</div><div>Submitted</div><div>Status</div><div style={{textAlign:"right"}}>Days Waiting</div>
+    </div>
+    {apps.map((a,i)=>{
+      const r=reached(a),days=r?daysSince(r):null;
+      return<div key={a.id} onClick={()=>onOpen(a.id)} style={{display:"grid",gridTemplateColumns:APP_COLS,gap:20,alignItems:"center",padding:"10px 16px",borderBottom:`1px solid ${C.border}`,background:i%2?C.surface:C.white,cursor:"pointer"}}>
+        <div style={{minWidth:0}}>
+          <div style={{fontWeight:700,fontSize:12,color:C.text,...appSingle}}>{a.customerName}</div>
+          <div style={{fontSize:10,color:C.textLight,...appSingle}}>IC {a.customerIC||"—"} · {a.customerHP||"—"} · {branchMeta[a.branch]?.name||a.branch} · {a.salesAgentName||a.salesAgentId||"—"}</div>
+        </div>
+        <div style={{fontWeight:600,fontSize:12,color:C.text,...appSingle}}>{a.phoneModel||"—"}</div>
+        <div style={{fontSize:12,fontWeight:700,color:C.textMid,paddingRight:16}}>{fRM(a.financePrice)}</div>
+        <div style={{fontSize:11,color:C.textMid}}>{fDate(a.submittedAt)}</div>
+        <div><StepBadge app={a} step={a.step}/></div>
+        <div style={{textAlign:"right",fontSize:11,fontWeight:700,color:waitColor(days)}}>{days===null?"—":days+" days"}</div>
+      </div>;
+    })}
+  </div></div>;
+}
+
 function Timeline({app,fileUrls}){
   const cur=app.step;
   const hist=app.history||[];
@@ -1428,15 +1454,7 @@ export default function JCLTab({branchMeta,isAdmin,userBranch,srList=[],email=nu
       <DetailSecHdr>Applications</DetailSecHdr>
       {visible.length===0
         ?<div style={{padding:"30px 16px",textAlign:"center",color:C.textLight,fontSize:12}}>No applications found.</div>
-        :<div>{visible.map(a=><div key={a.id} onClick={()=>{setView("detail");setSelectedId(a.id);}} style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,cursor:"pointer"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap"}}>
-            <div>
-              <div style={{fontSize:13,fontWeight:700,color:C.text}}>{a.customerName} <span style={{fontWeight:500,color:C.textLight,fontSize:11}}>· {branchMeta[a.branch]?.name||a.branch} · {fDate(a.submittedAt)}</span></div>
-              <div style={{fontSize:11,color:C.textMid,marginTop:3}}>{a.phoneModel} · {fRM(a.financePrice)} · IC {a.customerIC} · {a.customerHP} · Agent: {a.salesAgentName||a.salesAgentId||"—"}</div>
-            </div>
-            <StepBadge app={a} step={a.step}/>
-          </div>
-        </div>)}</div>}
+        :<ApplicationsTable apps={visible} branchMeta={branchMeta} onOpen={id=>{setView("detail");setSelectedId(id);}}/>}
     </div>
 
     {canBulkDelete&&(()=>{

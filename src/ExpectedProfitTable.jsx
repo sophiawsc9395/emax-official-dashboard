@@ -63,7 +63,10 @@ export default function ExpectedProfitTable({branchMeta,onOrderClick}){
     }).map(o=>{
       const sellPrice=parseFloat(o.orderType==="cash"?o.retailPrice:o.financePrice)||0;
       const reachedDate=o.stepDates?.[o.step]?.date||null;
-      return{...o,expectedProfit:sellPrice-(parseFloat(o.actualPrice)||0),reachedDate,daysWaiting:daysSince(reachedDate)};
+      // Finance orders: Finance Price + Deposit - Actual Purchase Price. Cash orders
+      // already have the deposit inside the retail price, so it isn't added again.
+      const dep=o.orderType==='cash'?0:(parseFloat(o.deposit)||0);
+      return{...o,expectedProfit:sellPrice+dep-(parseFloat(o.actualPrice)||0),reachedDate,daysWaiting:daysSince(reachedDate)};
     }).sort((a,b)=>b.id-a.id);
   },[orders]);
 
