@@ -133,11 +133,36 @@ function applyHistoryEntry(order, entry) {
 // pickup location — but only once the order has actually reached
 // "Dispatched to Branch" (step 4+); before that there's nothing for the
 // pickup branch to do yet, so it stays out of their list.
-export async function listOrders(branch = null) {
+// In-memory cache of the last full list per scope, so reopening the Order page
+// paints instantly and refreshes quietly in the background.
+const ordersCache = new Map();
+export const getCachedOrders = (branch = null) => ordersCache.get(branch || "__all") || null;
+
+// activeOnly: just orders that are not Completed (step < 14) — a much smaller
+// download, used for the first paint. The full list follows in the background.
+export async function listOrders(branch = null, { activeOnly = false } = {}) {
   let q = supabase.from(ORDERS_TABLE).select("*").order("id", { ascending: false });
+  if (activeOnly) q = q.lt("step", 14);
   if (branch) q = q.or(`branch.eq.${branch},and(pick_up_branch.eq.${branch},step.gte.4)`);
   const { data, error } = await q;
   if (error) { console.error("listOrders error:", error); return []; }
+  const list = (data || []).map(rowToOrder);
+  if (!activeOnly) ordersCache.set(branch || "__all", list);
+  return list;
+}
+
+// Expected Profit table only ever shows orders that are still pending billing
+// (steps 1-5, not cancelled). Filtering in the database means it no longer
+// downloads every completed order that ever existed just to throw it away.
+export async function listPendingBillingOrders() {
+  const { data, error } = await supabase
+    .from(ORDERS_TABLE)
+    .select("*")
+    .gte("step", 1)
+    .lte("step", 5)
+    .eq("cancelled", false)
+    .order("id", { ascending: false });
+  if (error) { console.error("listPendingBillingOrders error:", error); return []; }
   return (data || []).map(rowToOrder);
 }
 

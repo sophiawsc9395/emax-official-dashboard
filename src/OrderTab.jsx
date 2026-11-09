@@ -1,5 +1,5 @@
 import {useState,useEffect,useRef,useMemo,useCallback,memo,Fragment} from "react";
-import {listOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles,signFileUrl,updateHistoryRow,deleteHistoryRow} from "./storage/ordersApi.js";
+import {listOrders,getCachedOrders,getOrderHistory,getHistoryForOrders,getOrder,reconcile,deleteOrder as apiDeleteOrder,deleteOrders as apiDeleteOrders,uploadOrderFile,signOrderFiles,signFileUrl,updateHistoryRow,deleteHistoryRow} from "./storage/ordersApi.js";
 import {supabase,loadData,saveData} from "./storage/index.js";
 import {resolveEditorRole} from "./auth/orderRoles.js";
 import * as XLSX from "xlsx";
@@ -2562,7 +2562,7 @@ function CancelAckButton({onClick}){
   const[busy,setBusy]=useState(false);
   return<button disabled={busy} onClick={async e=>{e.stopPropagation();setBusy(true);try{await onClick();}finally{setBusy(false);}}} style={{fontSize:11,fontWeight:700,color:"#fff",background:busy?"#8A96A8":"#DC2626",border:"none",borderRadius:20,padding:"6px 14px",cursor:busy?"default":"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>{busy?"Saving…":"Acknowledge"}</button>;
 }
-function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder,orders,onUpdateOrder,onBulkDelete}){
+function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder,orders,onUpdateOrder,onBulkDelete,useBell=true}){
   const isMobile=useIsMobile();
   if(!alerts.length)return null;
   const isEmaxPurchase=(email||"").toLowerCase()===EMAX_PURCHASE_EMAIL;
@@ -2626,6 +2626,8 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // clicking still freely toggles any of them afterward.
   const [collapsedAlerts,setCollapsedAlerts]=useState({warning:isAdmin,agreementReceived:isSophia,pickupReminder:isSophia||isBoonTheng});
   const toggleAlert=key=>setCollapsedAlerts(c=>({...c,[key]:!c[key]}));
+  const [openAlertKey,setOpenAlertKey]=useState(null);
+  const [centreOpen,setCentreOpen]=useState(false);
   const Block=({items,color,title,collapsible,expanded,onToggle,action,detailExtra})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
     <div onClick={collapsible?onToggle:undefined} style={{display:"flex",alignItems:"center",gap:8,marginBottom:collapsible&&!expanded?0:9,cursor:collapsible?"pointer":"default",userSelect:collapsible?"none":"auto"}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
@@ -2725,8 +2727,23 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
     </div>}
     {(!collapsible||expanded)&&items.map((a,i)=><PickupReminderAlertRow key={a.orderId} alert={a} color={color} isFirst={i===0} order={orders?.find(o=>o.id===a.orderId)} onUpdateOrder={onUpdateOrder} email={email} onClickOrder={onClickOrder}/>)}
   </div>;
-  return<div style={{marginBottom:18}}>
-    <Block items={cancelRequestAlerts} color="#DC2626" title="Cancellation Request Pending" collapsible={false} expanded={true} detailExtra={a=>{
+  // Bell bar: one icon per alert type with its own count; tap an icon to open
+  // just that type's list (tap again to close). Nothing is removed — each list
+  // is the same block as before, only shown on demand.
+  const IC={
+    cancel:"M18 6L6 18M6 6l12 12",
+    urgent:"M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z",
+    slip:"M4 4h16v16H4zM8 9h8M8 13h5",
+    rej:"M12 2a10 10 0 100 20 10 10 0 000-20zM4.9 4.9l14.2 14.2",
+    bill:"M2 7h20v10H2zM2 11h20",
+    price:"M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6",
+    amend:"M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3",
+    arrived:"M3 7h13l5 5v5h-3M3 7v10h2M9 17h6",
+    agr:"M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M9 13h6M9 17h6",
+    del:"M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6",
+  };
+  const groups=[
+    {k:"cancel",label:"Cancellation Request",color:"#DC2626",items:cancelRequestAlerts,nodes:[<Block items={cancelRequestAlerts} color="#DC2626" title="Cancellation Request Pending" collapsible={false} expanded={true} detailExtra={a=>{
       const ack=(orders||[]).find(x=>x.id===a.orderId)?.pendingCancelRequest?.ack||{};
       return<div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
         {ACK_PARTIES.map(p=>{const v=ackInfo(ack[p.key]);return<span key={p.key} style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap",color:v?"#15803D":"#B45309",background:v?"#15803D15":"#B4530915"}}>{v?Ic.check:"○"} {p.label}{v?` · ${fAck(v)}`:" · waiting"}</span>;})}
@@ -2736,19 +2753,47 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
       const me=ACK_PARTIES.find(x=>x.email===myAckEmail);
       if(!o?.pendingCancelRequest?.ack||!me||ackInfo(o.pendingCancelRequest.ack[me.key]))return null;
       return<CancelAckButton onClick={()=>acknowledgeCancelRequest(o,me,email,onUpdateOrder)}/>;
-    }}/>
-    <Block items={expired} color="#DC2626" title="Approval Expired" collapsible expanded={!collapsedAlerts.expired} onToggle={()=>toggleAlert("expired")}/>
-    <Block items={urgent} color="#B91C1C" title="Urgent Attention" collapsible expanded={!collapsedAlerts.urgent} onToggle={()=>toggleAlert("urgent")}/>
-    <Block items={collectionOverdue} color="#B91C1C" title="Collection Proof Overdue" collapsible expanded={!collapsedAlerts.collectionOverdue} onToggle={()=>toggleAlert("collectionOverdue")}/>
-    <Block items={cashBalanceOverdue} color="#7C3AED" title="Cash Balance Payment Slip Overdue" collapsible expanded={!collapsedAlerts.cashBalanceOverdue} onToggle={()=>toggleAlert("cashBalanceOverdue")}/>
-    <Block items={merchantRejected} color="#DC2626" title="Merchant Rejected" collapsible expanded={!collapsedAlerts.merchantRejected} onToggle={()=>toggleAlert("merchantRejected")}/>
-    <Block items={billingRequestOverdue} color="#B91C1C" title="Billing Request Overdue" collapsible expanded={!collapsedAlerts.billingRequestOverdue} onToggle={()=>toggleAlert("billingRequestOverdue")}/>
-    <Block items={missingActualPrice} color="#B45309" title="Actual Purchase Price Missing" collapsible expanded={!collapsedAlerts.missingActualPrice} onToggle={()=>toggleAlert("missingActualPrice")} action={a=><button onClick={e=>{e.stopPropagation();onClickOrder&&onClickOrder(a.orderId);}} style={{fontSize:11,fontWeight:700,color:"#fff",background:"#DC2626",border:"none",borderRadius:20,padding:"6px 14px",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>Fill Price</button>}/>
-    <Block items={supersededAlerts} color="#B45309" title="Device Amendment — Old Order Needs Acknowledgment" collapsible expanded={!collapsedAlerts.supersededAlerts} onToggle={()=>toggleAlert("supersededAlerts")}/>
-    <PickupReminderBlock items={pickupReminderAlerts} color="#1D4ED8" title="Arrived Branch, Not Yet Billed" collapsible={false} expanded={true}/>
-    <SuggestDeleteBlock items={suggestDeleteAlerts} color="#8A96A8" title="Suggest Deleting — Fully Knocked Off"/>
-    <Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={!collapsedAlerts.agreementReceived} onToggle={()=>toggleAlert("agreementReceived")}/>
-    <Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={!collapsedAlerts.warning} onToggle={()=>toggleAlert("warning")}/>
+    }}/>]},
+    {k:"urgent",label:"Urgent & Approval",color:"#B91C1C",items:[...expired,...urgent,...warning],nodes:[<Block items={expired} color="#DC2626" title="Approval Expired" collapsible expanded={!collapsedAlerts.expired} onToggle={()=>toggleAlert("expired")}/>,<Block items={urgent} color="#B91C1C" title="Urgent Attention" collapsible expanded={!collapsedAlerts.urgent} onToggle={()=>toggleAlert("urgent")}/>,<Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={!collapsedAlerts.warning} onToggle={()=>toggleAlert("warning")}/>]},
+    {k:"slip",label:"Collection / Slip Overdue",color:"#7C3AED",items:[...collectionOverdue,...cashBalanceOverdue],nodes:[<Block items={collectionOverdue} color="#B91C1C" title="Collection Proof Overdue" collapsible expanded={!collapsedAlerts.collectionOverdue} onToggle={()=>toggleAlert("collectionOverdue")}/>,<Block items={cashBalanceOverdue} color="#7C3AED" title="Cash Balance Payment Slip Overdue" collapsible expanded={!collapsedAlerts.cashBalanceOverdue} onToggle={()=>toggleAlert("cashBalanceOverdue")}/>]},
+    {k:"rej",label:"Merchant Rejected",color:"#DC2626",items:merchantRejected,nodes:[<Block items={merchantRejected} color="#DC2626" title="Merchant Rejected" collapsible expanded={!collapsedAlerts.merchantRejected} onToggle={()=>toggleAlert("merchantRejected")}/>]},
+    {k:"bill",label:"Billing Request Overdue",color:"#B91C1C",items:billingRequestOverdue,nodes:[<Block items={billingRequestOverdue} color="#B91C1C" title="Billing Request Overdue" collapsible expanded={!collapsedAlerts.billingRequestOverdue} onToggle={()=>toggleAlert("billingRequestOverdue")}/>]},
+    {k:"price",label:"Actual Price Missing",color:"#B45309",items:missingActualPrice,nodes:[<Block items={missingActualPrice} color="#B45309" title="Actual Purchase Price Missing" collapsible expanded={!collapsedAlerts.missingActualPrice} onToggle={()=>toggleAlert("missingActualPrice")} action={a=><button onClick={e=>{e.stopPropagation();onClickOrder&&onClickOrder(a.orderId);}} style={{fontSize:11,fontWeight:700,color:"#fff",background:"#DC2626",border:"none",borderRadius:20,padding:"6px 14px",cursor:"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>Fill Price</button>}/>]},
+    {k:"amend",label:"Device Amendment",color:"#B45309",items:supersededAlerts,nodes:[<Block items={supersededAlerts} color="#B45309" title="Device Amendment — Old Order Needs Acknowledgment" collapsible expanded={!collapsedAlerts.supersededAlerts} onToggle={()=>toggleAlert("supersededAlerts")}/>]},
+    {k:"arrived",label:"Arrived Branch, Not Billed",color:"#1D4ED8",items:pickupReminderAlerts,nodes:[<PickupReminderBlock items={pickupReminderAlerts} color="#1D4ED8" title="Arrived Branch, Not Yet Billed" collapsible={false} expanded={true}/>]},
+    {k:"agr",label:"Agreement Not Sent Out",color:"#B45309",items:agreementReceivedOverdue,nodes:[<Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={!collapsedAlerts.agreementReceived} onToggle={()=>toggleAlert("agreementReceived")}/>]},
+    {k:"del",label:"Suggest Deleting",color:"#8A96A8",items:suggestDeleteAlerts,nodes:[<SuggestDeleteBlock items={suggestDeleteAlerts} color="#8A96A8" title="Suggest Deleting — Fully Knocked Off"/>]},
+  ].filter(g=>g.items.length>0);
+  const totalAlerts=groups.reduce((n,g)=>n+g.items.length,0);
+  const openGroup=groups.find(g=>g.k===openAlertKey)||null;
+  // Branch viewers keep the original always-open stacked lists (no bell).
+  if(!useBell)return<div style={{marginBottom:18}}>{groups.flatMap(g=>g.nodes.map((nd,i)=><Fragment key={g.k+i}>{nd}</Fragment>))}</div>;
+  return<div style={{marginBottom:18}}>
+    <div style={{...card,overflow:"hidden",padding:0}}>
+      <div onClick={()=>{setCentreOpen(o=>!o);setOpenAlertKey(null);}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",cursor:"pointer",userSelect:"none",borderBottom:centreOpen?`1px solid ${C.border}`:"none"}}>
+        <div style={{width:36,height:36,borderRadius:10,background:C.navy,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg>
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:14,fontWeight:800,color:C.navy,letterSpacing:"-.01em"}}>Alert Centre</div>
+          <div style={{fontSize:11,color:C.textLight}}>{totalAlerts} item{totalAlerts===1?"":"s"} need attention</div>
+        </div>
+        <span style={{fontSize:12,fontWeight:800,color:"#fff",background:"#DC2626",borderRadius:20,padding:"3px 11px",flexShrink:0}}>{totalAlerts}</span>
+        <span style={{color:C.textLight,transition:"transform .15s",transform:centreOpen?"rotate(180deg)":"none",display:"flex"}}>{Ic.chevDown}</span>
+      </div>
+      {centreOpen&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,padding:"14px 16px",background:C.surface}}>
+        {groups.map(g=>{const on=openAlertKey===g.k;return<div key={g.k} onClick={()=>setOpenAlertKey(on?null:g.k)} title={g.label} style={{background:"#fff",border:`1px solid ${on?g.color:C.border}`,borderTop:`3px solid ${g.color}`,borderRadius:10,padding:"10px 12px",cursor:"pointer",boxShadow:on?`0 0 0 3px ${g.color}18`:"none"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{width:30,height:30,borderRadius:8,background:g.color+"14",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={g.color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={IC[g.k]}/></svg>
+            </div>
+            <div style={{fontSize:21,fontWeight:800,color:C.navy,lineHeight:1}}>{g.items.length}</div>
+          </div>
+          <div style={{fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:".05em",marginTop:8}}>{g.label}</div>
+        </div>;})}
+      </div>}
+    </div>
+    {centreOpen&&openGroup&&<div style={{marginTop:10}}>{openGroup.nodes.map((nd,i)=><Fragment key={i}>{nd}</Fragment>)}</div>}
   </div>;
 }
 
@@ -3056,6 +3101,17 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders:ordersProp
   const cycleDaysSort=()=>setDaysSort(v=>v===null?"desc":v==="desc"?"asc":null);
   const daysHeader=<div onClick={cycleDaysSort} title="Sort by days waiting" style={{width:112,flexShrink:0,marginLeft:"auto",textAlign:"right",cursor:"pointer",userSelect:"none"}}>Days Waiting{daysSort==="desc"?" ↓":daysSort==="asc"?" ↑":" ↕"}</div>;
   const single={whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
+  // Phone list: draw 50 rows, and 50 more each time the bottom comes into view.
+  const PAGE=50;
+  const [shown,setShown]=useState(PAGE);
+  const sentinelRef=useRef(null);
+  useEffect(()=>{
+    const el=sentinelRef.current;
+    if(!el||typeof IntersectionObserver==="undefined")return;
+    const io=new IntersectionObserver(es=>{if(es[0].isIntersecting)setShown(n=>n+PAGE);},{rootMargin:"400px"});
+    io.observe(el);
+    return()=>io.disconnect();
+  },[isMobile,orders.length,shown]);
   // Declared unconditionally (Rules of Hooks) even though only the desktop
   // virtualized branch below actually uses scroll position.
   const [scrollTop,setScrollTop]=useState(0);
@@ -3106,7 +3162,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders:ordersProp
             <div style={{flex:1.5,minWidth:150,marginLeft:14}}>Status</div>
             {daysHeader}
           </div>
-          {orders.map((o,idx)=>{
+          {orders.slice(0,shown).map((o,idx)=>{
             const{s,alert,flagLabel,flagColor,hasDifferentPickup,reachedDate,daysWaiting}=rowFields(o);
             const rowBg=idx%2===0?C.white:C.surface;
             return<div key={o.id} onClick={()=>onOpen(o)}
@@ -3135,6 +3191,7 @@ const OrderListVirtualized=memo(function OrderListVirtualized({orders:ordersProp
               <div style={{width:112,flexShrink:0,marginLeft:"auto",textAlign:"right",fontSize:11,fontWeight:700,whiteSpace:"nowrap",color:daysWaiting===null?C.textLight:daysWaiting>=7?"#DC2626":daysWaiting>=3?"#B45309":C.textMid}}>{daysWaiting===null?"—":`${daysWaiting} day${daysWaiting===1?"":"s"}${daysWaiting>=7?" ⚠":""}`}</div>
             </div>;
           })}
+          {shown<orders.length&&<div ref={sentinelRef} style={{padding:"12px",textAlign:"center",fontSize:11,color:C.textLight}}>Loading more…</div>}
         </div>
       </div>
     </div>;
@@ -3225,8 +3282,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   };
   const canAdminStep = (step) => !orderPermissions || orderPermissions.adminSteps==="all" || orderPermissions.adminSteps.includes(step);
   const canSeeReport = (type) => !orderPermissions || orderPermissions.reports==="all" || orderPermissions.reports.includes(type);
-  const [orders,setOrders]=useState([]);
-  const [loading,setLoading]=useState(true);
+  const [orders,setOrders]=useState(()=>getCachedOrders(userBranch)||[]);
+  const [loading,setLoading]=useState(()=>!getCachedOrders(userBranch));
   const [view,setView]=useState(()=>sessionStorage.getItem("orderView")||"list");
   const [selected,setSelected]=useState(()=>{try{const s=sessionStorage.getItem("orderSelected");return s?JSON.parse(s):null;}catch{return null;}});
   const [editOrder,setEditOrder]=useState(null);
@@ -3326,7 +3383,20 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   // view needs, regardless of how many years of tracking events pile up.
   // Branch viewers pass userBranch so the filter happens in the DB query
   // itself, not after downloading every branch's headers.
-  const refreshList=useCallback(()=>listOrders(userBranch).then(d=>{setOrders(d);setLoading(false);}),[userBranch]);
+  // Fast first paint: (1) if this scope was loaded before, it's already on
+  // screen from the cache; (2) otherwise load only the not-yet-completed orders
+  // first (small), then (3) fetch the complete list in the background and swap
+  // it in. Final state is identical to before — only the waiting is shorter.
+  const refreshList=useCallback(async()=>{
+    if(!getCachedOrders(userBranch)){
+      const active=await listOrders(userBranch,{activeOnly:true});
+      setOrders(prev=>prev.length?prev:active);
+      setLoading(false);
+    }
+    const full=await listOrders(userBranch);
+    setOrders(full);
+    setLoading(false);
+  },[userBranch]);
   useEffect(()=>{refreshList();},[refreshList]);
 
   // Auto-cleanup: duplicate Agreement No./Case ID No. across active (non-cancelled)
@@ -3819,7 +3889,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     </div>
 
     {/* Alerts */}
-    <AlertBanner alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} orderPermissions={orderPermissions} email={email} orders={alertableOrders} onUpdateOrder={patchOrderNoNav} onBulkDelete={bulkDelete} onClickOrder={id=>{const o=alertableOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
+    <AlertBanner useBell={!userBranch} alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} orderPermissions={orderPermissions} email={email} orders={alertableOrders} onUpdateOrder={patchOrderNoNav} onBulkDelete={bulkDelete} onClickOrder={id=>{const o=alertableOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
 
     {(()=>{
       const outOfStockUnacked=cancelledOrders.filter(o=>o.outOfStock&&!(o.outOfStockAckAdmin&&o.outOfStockAckBranch));

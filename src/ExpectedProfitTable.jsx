@@ -1,5 +1,5 @@
 import {useState,useEffect,useMemo,Fragment} from "react";
-import {listOrders} from "./storage/ordersApi.js";
+import {listPendingBillingOrders} from "./storage/ordersApi.js";
 
 const STEP_LABELS={1:"New Order Request",2:"Ordered",3:"Arrived HQ",4:"Dispatched to Branch",5:"Arrived Branch"};
 // Reason (billing-delay reason) can only ever exist once an order has
@@ -30,7 +30,7 @@ const eptMemory={groupBy:"branch",branches:[],steps:[]};
 
 export default function ExpectedProfitTable({branchMeta,onOrderClick}){
   const [orders,setOrders]=useState(null);
-  useEffect(()=>{listOrders().then(setOrders);},[]);
+  useEffect(()=>{listPendingBillingOrders().then(setOrders);},[]);
   // Two independent grouping views over the exact same underlying orders —
   // Branch (original: which branch is sitting on the most unbilled profit)
   // and Step (which step orders are stuck at, and for how long — built

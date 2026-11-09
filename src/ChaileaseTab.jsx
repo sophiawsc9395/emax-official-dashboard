@@ -480,12 +480,12 @@ function TimelineSegment({steps,hist,curStep,isFinalSegment,stepDocs}){
   })}</>;
 }
 
-const APP_COLS="minmax(0,3fr) minmax(0,1.6fr) 120px 100px 170px 100px";
-const appSingle={whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
+const APP_COLS="minmax(260px,3fr) minmax(190px,2fr) 120px 100px 170px 100px";
+const appSingle={whiteSpace:"normal",overflowWrap:"anywhere"};
 function ApplicationsTable({apps,branchMeta,onOpen}){
   const waitColor=d=>d===null?C.textLight:d>=7?"#DC2626":d>=3?"#B45309":C.textMid;
   const reached=a=>(a.step===4&&a.approvedDate)||(a.step===5&&a.rejectedDate)||a.submittedAt||null;
-  return<div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><div style={{minWidth:860}}>
+  return<div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}><div style={{minWidth:1000}}>
     <div style={{display:"grid",gridTemplateColumns:APP_COLS,gap:20,alignItems:"center",padding:"0 16px",height:34,background:C.navy,fontSize:10,fontWeight:700,color:"rgba(255,255,255,.75)",textTransform:"uppercase",letterSpacing:"0.05em"}}>
       <div>Customer</div><div>Device</div><div>Finance Price</div><div>Submitted</div><div>Status</div><div style={{textAlign:"right"}}>Days Waiting</div>
     </div>
