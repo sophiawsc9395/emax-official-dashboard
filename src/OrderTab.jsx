@@ -2628,6 +2628,8 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   const toggleAlert=key=>setCollapsedAlerts(c=>({...c,[key]:!c[key]}));
   const [openAlertKey,setOpenAlertKey]=useState(null);
   const [centreOpen,setCentreOpen]=useState(false);
+  const [wideCentre,setWideCentre]=useState(typeof window!=="undefined"?window.innerWidth>=700:true);
+  useEffect(()=>{const f=()=>setWideCentre(window.innerWidth>=700);window.addEventListener("resize",f);return()=>window.removeEventListener("resize",f);},[]);
   const Block=({items,color,title,collapsible,expanded,onToggle,action,detailExtra})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
     <div onClick={collapsible?onToggle:undefined} style={{display:"flex",alignItems:"center",gap:8,marginBottom:collapsible&&!expanded?0:9,cursor:collapsible?"pointer":"default",userSelect:collapsible?"none":"auto"}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
@@ -2786,19 +2788,17 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
         <span style={{fontSize:12,fontWeight:800,color:"#fff",background:"#DC2626",borderRadius:20,padding:"3px 11px",flexShrink:0}}>{totalAlerts}</span>
         <span style={{color:C.textLight,transition:"transform .15s",transform:centreOpen?"rotate(180deg)":"none",display:"flex"}}>{Ic.chevDown}</span>
       </div>
-      {centreOpen&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:10,padding:"14px 16px",background:C.surface}}>
-        {groups.map(g=>{const on=openAlertKey===g.k;return<div key={g.k} onClick={()=>setOpenAlertKey(on?null:g.k)} title={g.label} style={{background:"#fff",border:`1px solid ${on?g.color:C.border}`,borderTop:`3px solid ${g.color}`,borderRadius:10,padding:"10px 12px",cursor:"pointer",boxShadow:on?`0 0 0 3px ${g.color}18`:"none"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{width:30,height:30,borderRadius:8,background:g.color+"14",display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={g.color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={IC[g.k]}/></svg>
-            </div>
-            <div style={{fontSize:21,fontWeight:800,color:C.navy,lineHeight:1}}>{g.items.length}</div>
-          </div>
-          <div style={{fontSize:10,fontWeight:700,color:C.textLight,textTransform:"uppercase",letterSpacing:".05em",marginTop:8}}>{g.label}</div>
-        </div>;})}
-      </div>}
+      {centreOpen&&groups.length>0&&(()=>{const sel=openGroup||groups[0];return<div style={{display:"flex",flexWrap:wideCentre?"nowrap":"wrap"}}>
+        <div style={wideCentre?{flex:"0 0 275px",borderRight:`1px solid ${C.border}`,padding:8,background:C.surface}:{flex:"1 1 100%",padding:8,background:C.surface}}>
+          {groups.map(g=>{const on=sel.k===g.k;return<div key={g.k} onClick={()=>setOpenAlertKey(g.k)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:9,cursor:"pointer",background:on?"#fff":"transparent",border:`1px solid ${on?C.border:"transparent"}`,boxShadow:on?"0 1px 3px rgba(10,22,40,.08)":"none"}}>
+            <span style={{width:4,height:22,borderRadius:2,background:g.color,flexShrink:0}}/>
+            <span style={{flex:1,minWidth:0,fontSize:12.5,fontWeight:on?700:600,color:C.navy}}>{g.label}</span>
+            <span style={{fontSize:11.5,fontWeight:800,color:g.color}}>{g.items.length}</span>
+          </div>;})}
+        </div>
+        <div style={{flex:"1 1 300px",minWidth:0,padding:12}}>{sel.nodes.map((nd,i)=><Fragment key={sel.k+i}>{nd}</Fragment>)}</div>
+      </div>;})()}
     </div>
-    {centreOpen&&openGroup&&<div style={{marginTop:10}}>{openGroup.nodes.map((nd,i)=><Fragment key={i}>{nd}</Fragment>)}</div>}
   </div>;
 }
 
