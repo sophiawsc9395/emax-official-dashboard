@@ -2562,9 +2562,9 @@ function CancelAckButton({onClick}){
   const[busy,setBusy]=useState(false);
   return<button disabled={busy} onClick={async e=>{e.stopPropagation();setBusy(true);try{await onClick();}finally{setBusy(false);}}} style={{fontSize:11,fontWeight:700,color:"#fff",background:busy?"#8A96A8":"#DC2626",border:"none",borderRadius:20,padding:"6px 14px",cursor:busy?"default":"pointer",fontFamily:"Inter,sans-serif",whiteSpace:"nowrap"}}>{busy?"Saving…":"Acknowledge"}</button>;
 }
-function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder,orders,onUpdateOrder,onBulkDelete,useBell=true}){
+function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrder,orders,onUpdateOrder,onBulkDelete,useBell=true,extraGroups=[]}){
   const isMobile=useIsMobile();
-  if(!alerts.length)return null;
+  if(!alerts.length&&!extraGroups.length)return null;
   const isEmaxPurchase=(email||"").toLowerCase()===EMAX_PURCHASE_EMAIL;
   const expired=isEmaxPurchase?[]:alerts.filter(a=>a.type==="approval_expired");
   // Urgent Attention normally combines two different alert types:
@@ -2732,6 +2732,8 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // is the same block as before, only shown on demand.
   const IC={
     cancel:"M18 6L6 18M6 6l12 12",
+    expired:"M12 6v6l4 2M12 2a10 10 0 100 20 10 10 0 000-20z",
+    warn:"M12 2a10 10 0 100 20 10 10 0 000-20zM12 8v4M12 16h.01",
     urgent:"M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z",
     slip:"M4 4h16v16H4zM8 9h8M8 13h5",
     rej:"M12 2a10 10 0 100 20 10 10 0 000-20zM4.9 4.9l14.2 14.2",
@@ -2739,6 +2741,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
     price:"M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6",
     amend:"M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3",
     arrived:"M3 7h13l5 5v5h-3M3 7v10h2M9 17h6",
+    oos:"M21 8l-9-5-9 5v8l9 5 9-5zM3.3 7.5L12 12l8.7-4.5M12 22V12",
     agr:"M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M9 13h6M9 17h6",
     del:"M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6",
   };
@@ -2754,7 +2757,9 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
       if(!o?.pendingCancelRequest?.ack||!me||ackInfo(o.pendingCancelRequest.ack[me.key]))return null;
       return<CancelAckButton onClick={()=>acknowledgeCancelRequest(o,me,email,onUpdateOrder)}/>;
     }}/>]},
-    {k:"urgent",label:"Urgent & Approval",color:"#B91C1C",items:[...expired,...urgent,...warning],nodes:[<Block items={expired} color="#DC2626" title="Approval Expired" collapsible expanded={!collapsedAlerts.expired} onToggle={()=>toggleAlert("expired")}/>,<Block items={urgent} color="#B91C1C" title="Urgent Attention" collapsible expanded={!collapsedAlerts.urgent} onToggle={()=>toggleAlert("urgent")}/>,<Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={!collapsedAlerts.warning} onToggle={()=>toggleAlert("warning")}/>]},
+    {k:"expired",label:"Approval Expired",color:"#DC2626",items:expired,nodes:[<Block items={expired} color="#DC2626" title="Approval Expired" collapsible expanded={!collapsedAlerts.expired} onToggle={()=>toggleAlert("expired")}/>]},
+    {k:"urgent",label:"Urgent Attention",color:"#B91C1C",items:urgent,nodes:[<Block items={urgent} color="#B91C1C" title="Urgent Attention" collapsible expanded={!collapsedAlerts.urgent} onToggle={()=>toggleAlert("urgent")}/>]},
+    {k:"warn",label:"Approval Warning",color:"#B45309",items:warning,nodes:[<Block items={warning} color="#B45309" title="Approval Warning" collapsible expanded={!collapsedAlerts.warning} onToggle={()=>toggleAlert("warning")}/>]},
     {k:"slip",label:"Collection / Slip Overdue",color:"#7C3AED",items:[...collectionOverdue,...cashBalanceOverdue],nodes:[<Block items={collectionOverdue} color="#B91C1C" title="Collection Proof Overdue" collapsible expanded={!collapsedAlerts.collectionOverdue} onToggle={()=>toggleAlert("collectionOverdue")}/>,<Block items={cashBalanceOverdue} color="#7C3AED" title="Cash Balance Payment Slip Overdue" collapsible expanded={!collapsedAlerts.cashBalanceOverdue} onToggle={()=>toggleAlert("cashBalanceOverdue")}/>]},
     {k:"rej",label:"Merchant Rejected",color:"#DC2626",items:merchantRejected,nodes:[<Block items={merchantRejected} color="#DC2626" title="Merchant Rejected" collapsible expanded={!collapsedAlerts.merchantRejected} onToggle={()=>toggleAlert("merchantRejected")}/>]},
     {k:"bill",label:"Billing Request Overdue",color:"#B91C1C",items:billingRequestOverdue,nodes:[<Block items={billingRequestOverdue} color="#B91C1C" title="Billing Request Overdue" collapsible expanded={!collapsedAlerts.billingRequestOverdue} onToggle={()=>toggleAlert("billingRequestOverdue")}/>]},
@@ -2763,7 +2768,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
     {k:"arrived",label:"Arrived Branch, Not Billed",color:"#1D4ED8",items:pickupReminderAlerts,nodes:[<PickupReminderBlock items={pickupReminderAlerts} color="#1D4ED8" title="Arrived Branch, Not Yet Billed" collapsible={false} expanded={true}/>]},
     {k:"agr",label:"Agreement Not Sent Out",color:"#B45309",items:agreementReceivedOverdue,nodes:[<Block items={agreementReceivedOverdue} color="#B45309" title="Agreement Received by HQ — Not Yet Sent Out" collapsible expanded={!collapsedAlerts.agreementReceived} onToggle={()=>toggleAlert("agreementReceived")}/>]},
     {k:"del",label:"Suggest Deleting",color:"#8A96A8",items:suggestDeleteAlerts,nodes:[<SuggestDeleteBlock items={suggestDeleteAlerts} color="#8A96A8" title="Suggest Deleting — Fully Knocked Off"/>]},
-  ].filter(g=>g.items.length>0);
+  ].filter(g=>g.items.length>0).concat(extraGroups);
   const totalAlerts=groups.reduce((n,g)=>n+g.items.length,0);
   const openGroup=groups.find(g=>g.k===openAlertKey)||null;
   // Branch viewers keep the original always-open stacked lists (no bell).
@@ -3383,6 +3388,38 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   // view needs, regardless of how many years of tracking events pile up.
   // Branch viewers pass userBranch so the filter happens in the DB query
   // itself, not after downloading every branch's headers.
+  // "Out of Stock — Order Cancelled" alert: shows each party's acknowledge
+  // status (Admin + the order's Branch), and the Acknowledge button only to the
+  // person who actually has to click it. Gone once both have acknowledged.
+  const buildOosGroups=()=>{
+    const list=cancelledOrders.filter(o=>o.outOfStock&&!(o.outOfStockAckAdmin&&o.outOfStockAckBranch));
+    if(!list.length)return [];
+    const chip=(label,date)=><span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap",color:date?"#15803D":"#B45309",background:date?"#15803D15":"#B4530915"}}>{date?Ic.check:"○"} {label}{date?` · ${fDate(date)}`:" · waiting"}</span>;
+    const node=<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:10}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
+        <span style={{color:"#DC2626",display:"flex"}}>{Ic.alertCircle}</span>
+        <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Out of Stock — Order Cancelled</span>
+        <span style={{fontSize:10,fontWeight:700,color:"#DC2626",background:"#DC262615",padding:"1px 8px",borderRadius:20}}>{list.length}</span>
+      </div>
+      {list.map(o=>{
+        const canAckAdmin=isAdmin&&!o.outOfStockAckAdmin;
+        const canAckBranch=!isAdmin&&userBranch===o.branch&&!o.outOfStockAckBranch;
+        return<div key={o.id} style={{borderTop:`1px solid ${C.border}`,padding:"10px 0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <div style={{minWidth:0}}>
+            <div onClick={()=>nav("detail",o)} style={{fontSize:12.5,fontWeight:700,color:C.text,cursor:"pointer"}}>{o.phoneModel}</div>
+            <div style={{fontSize:11,color:C.textLight}}>{o.customerName} · <b style={{color:C.textMid}}>{o.branch}</b> · refunded {fDate(o.refundSlipDate)}</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>{chip("Admin",o.outOfStockAckAdmin)}{chip(`${o.branch} Branch`,o.outOfStockAckBranch)}</div>
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            {canAckAdmin&&<GBtn onClick={()=>bulkSave([{...o,outOfStockAckAdmin:nowDate()}])} style={{fontSize:11,padding:"6px 12px"}}>Acknowledge</GBtn>}
+            {canAckBranch&&<GBtn onClick={()=>bulkSave([{...o,outOfStockAckBranch:nowDate()}])} style={{fontSize:11,padding:"6px 12px"}}>Acknowledge</GBtn>}
+          </div>
+        </div>;
+      })}
+    </div>;
+    return [{k:"oos",label:"Out of Stock Cancelled",color:"#DC2626",items:list,nodes:[node]}];
+  };
+
   // Fast first paint: (1) if this scope was loaded before, it's already on
   // screen from the cache; (2) otherwise load only the not-yet-completed orders
   // first (small), then (3) fetch the complete list in the background and swap
@@ -3889,22 +3926,8 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     </div>
 
     {/* Alerts */}
-    <AlertBanner useBell={!userBranch} alerts={alerts} isAdmin={isAdmin} isSophia={isSophia} orderPermissions={orderPermissions} email={email} orders={alertableOrders} onUpdateOrder={patchOrderNoNav} onBulkDelete={bulkDelete} onClickOrder={id=>{const o=alertableOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
+    <AlertBanner useBell={!userBranch} alerts={alerts} extraGroups={buildOosGroups()} isAdmin={isAdmin} isSophia={isSophia} orderPermissions={orderPermissions} email={email} orders={alertableOrders} onUpdateOrder={patchOrderNoNav} onBulkDelete={bulkDelete} onClickOrder={id=>{const o=alertableOrders.find(x=>x.id===id);if(o)nav("detail",o);}}/>
 
-    {(()=>{
-      const outOfStockUnacked=cancelledOrders.filter(o=>o.outOfStock&&!(o.outOfStockAckAdmin&&o.outOfStockAckBranch));
-      if(!outOfStockUnacked.length)return null;
-      return<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:16}}>
-        <div style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>Out of Stock — Order Cancelled</div>
-        {outOfStockUnacked.map(o=><div key={o.id} style={{borderTop:`1px solid ${C.border}`,padding:"8px 0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-          <div onClick={()=>nav("detail",o)} style={{fontSize:12,color:C.text,cursor:"pointer",textDecoration:"underline",textDecorationColor:"transparent"}} onMouseEnter={e=>e.currentTarget.style.textDecorationColor=C.text} onMouseLeave={e=>e.currentTarget.style.textDecorationColor="transparent"}>{o.customerName} — {o.phoneModel} — {o.branch} — refunded {fDate(o.refundSlipDate)}</div>
-          <div style={{display:"flex",gap:6}}>
-            {isAdmin&&!o.outOfStockAckAdmin&&<GBtn onClick={()=>bulkSave([{...o,outOfStockAckAdmin:nowDate()}])} style={{fontSize:11,padding:"6px 12px"}}>Acknowledge (Admin)</GBtn>}
-            {(!isAdmin||userBranch===o.branch)&&!o.outOfStockAckBranch&&<GBtn onClick={()=>bulkSave([{...o,outOfStockAckBranch:nowDate()}])} style={{fontSize:11,padding:"6px 12px"}}>Acknowledge (Branch)</GBtn>}
-          </div>
-        </div>)}
-      </div>;
-    })()}
 
     {/* Step progress cards — grouped by phase. Mobile: cards connected by a
         colored rail per phase (echoes the physical hand-off of stock/
