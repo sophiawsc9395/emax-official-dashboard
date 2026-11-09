@@ -3289,6 +3289,14 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
   const canSeeReport = (type) => !orderPermissions || orderPermissions.reports==="all" || orderPermissions.reports.includes(type);
   const [orders,setOrders]=useState(()=>getCachedOrders(userBranch)||[]);
   const [loading,setLoading]=useState(()=>!getCachedOrders(userBranch));
+  const [bulkMenuOpen,setBulkMenuOpen]=useState(false);
+  const bulkMenuRef=useRef(null);
+  useEffect(()=>{
+    if(!bulkMenuOpen)return;
+    const h=e=>{if(bulkMenuRef.current&&!bulkMenuRef.current.contains(e.target))setBulkMenuOpen(false);};
+    document.addEventListener("mousedown",h);document.addEventListener("touchstart",h);
+    return()=>{document.removeEventListener("mousedown",h);document.removeEventListener("touchstart",h);};
+  },[bulkMenuOpen]);
   const [view,setView]=useState(()=>sessionStorage.getItem("orderView")||"list");
   const [selected,setSelected]=useState(()=>{try{const s=sessionStorage.getItem("orderSelected");return s?JSON.parse(s):null;}catch{return null;}});
   const [editOrder,setEditOrder]=useState(null);
@@ -3914,15 +3922,37 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
         <div style={{fontSize:19,fontWeight:800,color:C.navy,letterSpacing:"-0.01em"}}>Order Tracking</div>
         <div style={{fontSize:12,color:C.textLight,marginTop:4}}>{activeOrders.length} active · {completedCount} completed</div>
       </div>
-      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        {isAdmin&&!isReadOnly&&canAdminStep(4)&&orders.some(o=>o.step===3)&&<GBtn onClick={()=>setShowBulkDispatch(true)}>{Ic.truck} Dispatch to Branch</GBtn>}
-        {isAdmin&&!isReadOnly&&canAdminStep(11)&&orders.some(o=>!o.cancelled&&o.step===10)&&<GBtn onClick={()=>setShowBulkAgreementReceived(true)}>{Ic.checkCircle} Set Agreement Received by HQ Date</GBtn>}
-        {isAdmin&&!isReadOnly&&canSeeReport("firstInstallmentKnockoff")&&orders.some(o=>!o.cancelled&&o.merchant==="Aeon"&&o.lastVerification?.paymentChecked&&o.lastVerification?.monthlyInstallment&&!o.firstInstallmentKnockOffDate)&&<GBtn onClick={()=>setShowBulkKnockOffInstallment(true)}>{Ic.checkCircle} Knock Off First Monthly Installment</GBtn>}
-        {isAdmin&&!isReadOnly&&canAdminStep(12)&&orders.some(o=>!o.cancelled&&o.step===11)&&<GBtn onClick={()=>setShowBulkClaimSent(true)}>{Ic.checkCircle} Set Agreement Sent to Merchant Date</GBtn>}
-        {isAdmin&&!isReadOnly&&canAdminStep(13)&&orders.some(o=>!o.cancelled&&o.step===12)&&<GBtn onClick={()=>setShowBulkKnockoff(true)}>{Ic.calendar} Set Knock-off Merchant Claim</GBtn>}
-        {isSophia&&!isReadOnly&&completedCount>0&&<GBtn onClick={()=>setShowArchive(true)}>{Ic.trash} Remove Completed ({completedCount})</GBtn>}
-        {(isSuperAdminOrder||!isAdmin)&&!isReadOnly&&<PBtn onClick={()=>{setEditOrder(null);nav("form");}}>{Ic.plus} New Order</PBtn>}
-      </div>
+      {(()=>{
+        const bulkItems=[
+          {g:"Stock",ok:!!(isAdmin&&!isReadOnly&&canAdminStep(4)&&orders.some(o=>o.step===3)),icon:Ic.truck,label:"Dispatch to Branch",run:()=>setShowBulkDispatch(true)},
+          {g:"Agreement",ok:!!(isAdmin&&!isReadOnly&&canAdminStep(11)&&orders.some(o=>!o.cancelled&&o.step===10)),icon:Ic.checkCircle,label:"Set Agreement Received by HQ Date",run:()=>setShowBulkAgreementReceived(true)},
+          {g:"Agreement",ok:!!(isAdmin&&!isReadOnly&&canAdminStep(12)&&orders.some(o=>!o.cancelled&&o.step===11)),icon:Ic.checkCircle,label:"Set Agreement Sent to Merchant Date",run:()=>setShowBulkClaimSent(true)},
+          {g:"Knock-off",ok:!!(isAdmin&&!isReadOnly&&canSeeReport("firstInstallmentKnockoff")&&orders.some(o=>!o.cancelled&&o.merchant==="Aeon"&&o.lastVerification?.paymentChecked&&o.lastVerification?.monthlyInstallment&&!o.firstInstallmentKnockOffDate)),icon:Ic.checkCircle,label:"Knock Off First Monthly Installment",run:()=>setShowBulkKnockOffInstallment(true)},
+          {g:"Knock-off",ok:!!(isAdmin&&!isReadOnly&&canAdminStep(13)&&orders.some(o=>!o.cancelled&&o.step===12)),icon:Ic.calendar,label:"Set Knock-off Merchant Claim",run:()=>setShowBulkKnockoff(true)},
+        ].filter(x=>x.ok);
+        const canRemove=!!(isSophia&&!isReadOnly&&completedCount>0);
+        const hasMenu=bulkItems.length>0||canRemove;
+        const groupNames=["Stock","Agreement","Knock-off"].filter(g=>bulkItems.some(x=>x.g===g));
+        return<div style={{display:"flex",gap:10,alignItems:"flex-start",flexWrap:"wrap"}}>
+          {hasMenu&&<div ref={bulkMenuRef} style={{position:"relative"}}>
+            <button onClick={()=>setBulkMenuOpen(o=>!o)} style={{display:"inline-flex",alignItems:"center",gap:8,height:36,padding:"0 14px",borderRadius:9,fontSize:12.5,fontWeight:600,fontFamily:"inherit",cursor:"pointer",border:`1px solid ${bulkMenuOpen?C.navy:C.border}`,background:"#fff",color:C.text,whiteSpace:"nowrap"}}>
+              Bulk Actions{bulkItems.length+(canRemove?1:0)>0&&<span style={{fontSize:10,fontWeight:700,background:C.surface,border:`1px solid ${C.border}`,borderRadius:20,padding:"1px 7px",color:C.textMid}}>{bulkItems.length+(canRemove?1:0)}</span>}
+              <span style={{display:"flex",transition:"transform .15s",transform:bulkMenuOpen?"rotate(180deg)":"none"}}>{Ic.chevDown}</span>
+            </button>
+            {bulkMenuOpen&&<div style={{position:"absolute",...(isMobile?{left:0}:{right:0}),top:42,minWidth:290,maxWidth:"86vw",background:"#fff",border:`1px solid ${C.border}`,borderRadius:12,boxShadow:"0 12px 32px rgba(10,22,40,.16)",padding:6,zIndex:50}}>
+              {groupNames.map(g=><div key={g}>
+                <div style={{fontSize:9.5,fontWeight:700,color:C.textLight,letterSpacing:".08em",textTransform:"uppercase",padding:"8px 10px 4px"}}>{g}</div>
+                {bulkItems.filter(x=>x.g===g).map(x=><div key={x.label} onClick={()=>{setBulkMenuOpen(false);x.run();}} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,fontSize:12.5,color:C.text,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background=C.surface} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><span style={{color:C.textMid,display:"flex"}}>{x.icon}</span>{x.label}</div>)}
+              </div>)}
+              {canRemove&&<>
+                {groupNames.length>0&&<div style={{height:1,background:C.border,margin:"6px 4px"}}/>}
+                <div onClick={()=>{setBulkMenuOpen(false);setShowArchive(true);}} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,fontSize:12.5,color:"#B91C1C",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#B91C1C0D"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}><span style={{display:"flex"}}>{Ic.trash}</span>Remove Completed<span style={{marginLeft:"auto",fontSize:10.5,fontWeight:700,background:"#B91C1C15",padding:"1px 8px",borderRadius:20}}>{completedCount}</span></div>
+              </>}
+            </div>}
+          </div>}
+          {(isSuperAdminOrder||!isAdmin)&&!isReadOnly&&<button onClick={()=>{setEditOrder(null);nav("form");}} style={{display:"inline-flex",alignItems:"center",gap:8,height:36,padding:"0 16px",borderRadius:9,fontSize:12.5,fontWeight:700,fontFamily:"inherit",cursor:"pointer",border:"none",background:`linear-gradient(135deg,${C.navy},${C.navyLight})`,color:"#fff",boxShadow:"0 2px 8px rgba(10,22,40,.3)",whiteSpace:"nowrap"}}>{Ic.plus} New Order</button>}
+        </div>;
+      })()}
     </div>
 
     {/* Alerts */}
