@@ -2630,7 +2630,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   const [centreOpen,setCentreOpen]=useState(false);
   const [wideCentre,setWideCentre]=useState(typeof window!=="undefined"?window.innerWidth>=700:true);
   useEffect(()=>{const f=()=>setWideCentre(window.innerWidth>=700);window.addEventListener("resize",f);return()=>window.removeEventListener("resize",f);},[]);
-  const Block=({items,color,title,collapsible,expanded,onToggle,action,detailExtra})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
+  const BlockBase=({items,color,title,collapsible,expanded,onToggle,action,detailExtra,noBar})=>items.length>0&&<div style={{...card,...(noBar?{}:{borderLeft:`3px solid ${color}`}),padding:"12px 14px",marginBottom:10}}>
     <div onClick={collapsible?onToggle:undefined} style={{display:"flex",alignItems:"center",gap:8,marginBottom:collapsible&&!expanded?0:9,cursor:collapsible?"pointer":"default",userSelect:collapsible?"none":"auto"}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
       <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>{title}</span>
@@ -2670,6 +2670,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
   // as every other alert, keyed by month so they don't share one toggle),
   // and only Sophia gets the bulk-delete button per month — everyone else
   // just sees the grouped list.
+  const Block=p=>BlockBase(useBell?{...p,collapsible:false,expanded:true,noBar:true}:p);
   const SuggestDeleteBlock=({items,color,title})=>{
     if(!items.length)return null;
     const groups={};
@@ -2685,7 +2686,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
       const[y,m]=k.split("-");
       return new Date(Number(y),Number(m)-1,1).toLocaleDateString("en-MY",{month:"long",year:"numeric"});
     };
-    return<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
+    return<div style={{...card,...(useBell?{}:{borderLeft:`3px solid ${color}`}),padding:"12px 14px",marginBottom:10}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
         <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
         <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>{title}</span>
@@ -2698,7 +2699,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
         // list only grows and isn't the first thing they need to see);
         // everyone else starts expanded. Once a person clicks a month's
         // chevron, their choice for that month wins from then on.
-        const expanded=collapsedAlerts[toggleKey]===undefined?!(isSophia||isBoonTheng):!collapsedAlerts[toggleKey];
+        const expanded=useBell?true:collapsedAlerts[toggleKey]===undefined?!(isSophia||isBoonTheng):!collapsedAlerts[toggleKey];
         return<div key={mk} style={{marginTop:6}}>
           <div onClick={()=>toggleAlert(toggleKey)} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 4px",cursor:"pointer",userSelect:"none"}}>
             <span style={{color,transition:"transform .15s",transform:expanded?"rotate(180deg)":"none",fontSize:11}}>{Ic.chevDown}</span>
@@ -2717,7 +2718,7 @@ function AlertBanner({alerts,isAdmin,isSophia,orderPermissions,email,onClickOrde
       })}
     </div>;
   };
-  const PickupReminderBlock=({items,color,title,collapsible,expanded,onToggle})=>items.length>0&&<div style={{...card,borderLeft:`3px solid ${color}`,padding:"12px 14px",marginBottom:10}}>
+  const PickupReminderBlock=({items,color,title,collapsible,expanded,onToggle})=>items.length>0&&<div style={{...card,...(useBell?{}:{borderLeft:`3px solid ${color}`}),padding:"12px 14px",marginBottom:10}}>
     <div onClick={collapsible?onToggle:undefined} style={{display:"flex",alignItems:"center",gap:8,marginBottom:collapsible&&!expanded?0:9,cursor:collapsible?"pointer":"default",userSelect:collapsible?"none":"auto"}}>
       <span style={{color,flexShrink:0}}>{Ic.alertCircle}</span>
       <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>{title}</span>
@@ -3403,7 +3404,7 @@ export default function OrderTab({branchMeta,isAdmin=true,userBranch=null,srList
     const list=cancelledOrders.filter(o=>o.outOfStock&&!(o.outOfStockAckAdmin&&o.outOfStockAckBranch));
     if(!list.length)return [];
     const chip=(label,date)=><span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap",color:date?"#15803D":"#B45309",background:date?"#15803D15":"#B4530915"}}>{date?Ic.check:"○"} {label}{date?` · ${fDate(date)}`:" · waiting"}</span>;
-    const node=<div style={{...card,borderLeft:"3px solid #DC2626",padding:"12px 14px",marginBottom:10}}>
+    const node=<div style={{...card,...(userBranch?{borderLeft:"3px solid #DC2626"}:{}),padding:"12px 14px",marginBottom:10}}>
       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9}}>
         <span style={{color:"#DC2626",display:"flex"}}>{Ic.alertCircle}</span>
         <span style={{fontSize:11,fontWeight:700,color:C.navy,textTransform:"uppercase",letterSpacing:"0.05em"}}>Out of Stock — Order Cancelled</span>
