@@ -1417,7 +1417,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
     }
     const hist=statusHistory[id]||[];
     const noteStr=resignDate?`${desc} (Resignation date: ${resignDate})`:desc;
-    const newHist={...statusHistory,[id]:[...hist,{date:new Date().toISOString(),status:newStatus,note:noteStr}]};
+    const newHist={...statusHistory,[id]:[...hist,{date:new Date().toISOString(),status:newStatus,event:isResignedStatus(newStatus)?"Resigned":"Status Change",note:noteStr}]};
     setStatusHistory(newHist);
     await saveData("emax_v5_status_history",newHist);
   };
@@ -1445,13 +1445,19 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
     // start in the new role/position, always at Probation (P0 F0),
     // regardless of what the update panel's status picker was set to.
     const resolvedStatus=roleChanging?"Probation (P0 F0)":(status==="continue"?(isSR?person.sr.status:person.status):status);
-    const logNote=(parts)=>{
-      const hist=statusHistory[historyKey]||[];
-      const note=`Staff update (effective ${effectiveFrom}): ${parts.join(", ")}`;
-      const newHist={...statusHistory,[historyKey]:[...hist,{date:new Date().toISOString(),status:status==="continue"?"—":status,note}]};
+    // Employment history entry. `event` is the headline shown in the log
+    // (Resigned / Branch Transfer / Promoted ... / Status Change). For role
+    // changes the same entry is also written to the person's NEW history key,
+    // so the log follows them into their new position.
+    const logNote=(parts,event,altKey)=>{
+      const note=`${event||"Staff update"} (effective ${effectiveFrom}): ${parts.join(", ")}`;
+      const entry={date:new Date().toISOString(),status:status==="continue"?"—":status,event:event||"Status Change",effectiveFrom,note};
+      const newHist={...statusHistory,[historyKey]:[...(statusHistory[historyKey]||[]),entry]};
+      if(altKey&&altKey!==historyKey)newHist[altKey]=[...(statusHistory[altKey]||[]),entry];
       setStatusHistory(newHist);
       saveData("emax_v5_status_history",newHist);
     };
+    let altHistoryKey=null;
 
     if(isSR&&!roleChanging){
       const sr=person.sr;
@@ -1476,7 +1482,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
         const curTypes=(await loadData(typeKey))||{};
         await saveData(typeKey,{...curTypes,[sr.id]:newType});
       }
-      logNote([newBranch!==sr.branch?`branch → ${newBranch}`:null,`status → ${resolvedStatus}`].filter(Boolean));
+      logNote([newBranch!==sr.branch?`branch ${sr.branch} → ${newBranch}`:null,`status → ${resolvedStatus}`].filter(Boolean),isResignedStatus(resolvedStatus)?"Resigned":(newBranch!==sr.branch?"Branch Transfer":"Status Change"));
 
     }else if(isSR&&roleChanging){
       // SR → Branch Manager. Role change only resets STATUS and HISTORY —
@@ -1522,7 +1528,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
         setLocalSR(updated);
         await saveSR(updated);
       }
-      logNote([`role → Branch Manager (${branchMeta[newBranch]?.name||newBranch})`,`status → ${resolvedStatus}`]);
+      logNote([`SR → Branch Manager (${branchMeta[newBranch]?.name||newBranch})`,`status → ${resolvedStatus}`],"Promoted to Branch Manager",`BM_${newBranch}`);
 
     }else if(!isSR&&!roleChanging){
       const b=person.branch;
@@ -1537,7 +1543,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
           if(bal>0&&!isStillActiveSR(localSR,localBM[b]?.managerId,localBM[b]?.manager)&&adjustBalance)await adjustBalance(bmKey,-bal,`Resigned — ${bal.toLocaleString()} reward points burned`);
         }
       }
-      logNote([`status → ${resolvedStatus}`]);
+      logNote([`status → ${resolvedStatus}`],isResignedStatus(resolvedStatus)?"Resigned":"Status Change");
 
     }else{
       // Branch Manager → SR. Role change only resets STATUS and HISTORY —
@@ -1559,6 +1565,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
           while(localSR.find(s=>s.id===newId)){newId="BM"+b+nowYM.replace("-","")+"_"+suffix;suffix++;}
         }
         const newSR={id:newId,canon:person.name,branch:b,type:newType||"Online",status:resolvedStatus,joinDate:effectiveFrom};
+        altHistoryKey=newId;
         const updatedSRList=[...localSR,newSR];
         setLocalSR(updatedSRList);
         await saveSR(updatedSRList);
@@ -1580,7 +1587,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
           }
         }
       }
-      logNote([`role → SR`,`status → ${resolvedStatus}`]);
+      logNote([`Branch Manager → SR (${b})`,`status → ${resolvedStatus}`],"Changed from Branch Manager to SR",altHistoryKey);
     }
   };
   const saveBMStatus=async(b,newStatus,desc)=>{
@@ -1595,7 +1602,7 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
     }
     const key=`BM_${b}`; // status/employment history is always branch-scoped, not managerId-scoped
     const hist=statusHistory[key]||[];
-    const newHist={...statusHistory,[key]:[...hist,{date:new Date().toISOString(),status:newStatus,note:desc}]};
+    const newHist={...statusHistory,[key]:[...hist,{date:new Date().toISOString(),status:newStatus,event:isResignedStatus(newStatus)?"Resigned":"Status Change",note:desc}]};
     setStatusHistory(newHist);
     await saveData("emax_v5_status_history",newHist);
   };
@@ -2429,7 +2436,7 @@ function StatusHistoryModal({srList,branchMeta,statusHistory,onClose,initialPers
             <div key={i} style={{padding:"10px 0",borderBottom:i<history.length-1?"1px solid #F0F2F5":"none",display:"flex",alignItems:"flex-start",gap:8}}>
               <div style={{flex:1}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span style={{fontSize:13,fontWeight:800,color:"#0A1628"}}>{h.status}</span>
+                  <span style={{fontSize:13,fontWeight:800,color:/^resigned/i.test(h.event||h.status||"")?"#DC2626":/transfer/i.test(h.event||"")?"#1D4ED8":/promoted|changed from/i.test(h.event||"")?"#7C3AED":"#0A1628"}}>{h.event||h.status}{h.event&&h.status&&h.status!=="—"&&h.status!==h.event?<span style={{fontWeight:600,color:"#8A96A8",fontSize:11}}> · {h.status}</span>:null}</span>
                   <span style={{fontSize:10,color:"#8A96A8"}}>{new Date(h.date).toLocaleString("en-MY",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
                 </div>
                 <div style={{fontSize:12,color:"#5A6472",marginTop:3}}>{h.note}</div>
