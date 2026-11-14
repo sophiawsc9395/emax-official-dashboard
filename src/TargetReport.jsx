@@ -194,7 +194,8 @@ export function BranchBreakdownRow({ rows, colSpan, title }) {
  * Rows for one branch: Branch Manager (branch target vs the branch's profit
  * for the period) first, then every visible SR ranked by achievement.
  */
-export function buildBranchBreakdown({ branchId, branchMeta, srList, targets, records, month, year, startDay, endDay, bmTotal, isVisible }) {
+export function buildBranchBreakdown({ branchId, branchMeta, srList, targets, records, month, year, startDay, endDay, bmTotal, isVisible, branchOf }) {
+  const brOf = branchOf || ((s) => s.branch);
   const parts = (id) => {
     let wi = 0, ae = 0;
     for (let d = startDay; d <= endDay; d++) {
@@ -205,10 +206,10 @@ export function buildBranchBreakdown({ branchId, branchMeta, srList, targets, re
   };
   const sum = (id) => { const x = parts(id); return x.wi + x.ae; };
   const srs = srList
-    .filter((s) => s.branch === branchId && (!isVisible || isVisible(s)))
+    .filter((s) => brOf(s) === branchId && (!isVisible || isVisible(s)))
     .map((s) => ({ key: s.id, name: s.canon, role: `${s.type} SR`, target: targets?.sr?.[s.id]?.target || 0, actual: sum(s.id), ...parts(s.id) }))
     .sort((a, b) => pctOf(b.actual, b.target) - pctOf(a.actual, a.target));
-  const bmParts = [`BM_${branchId}`, ...srList.filter((s) => s.branch === branchId && (!isVisible || isVisible(s))).map((s) => s.id)].map(parts);
+  const bmParts = [`BM_${branchId}`, ...srList.filter((s) => brOf(s) === branchId && (!isVisible || isVisible(s))).map((s) => s.id)].map(parts);
   const bm = { key: `BM_${branchId}`, name: branchMeta?.[branchId]?.manager || "Branch Manager", role: "Branch Manager", target: targets?.bm?.[branchId] || 0, actual: bmTotal || 0, wi: bmParts.reduce((t, x) => t + x.wi, 0), ae: bmParts.reduce((t, x) => t + x.ae, 0), bm: true };
   return [bm, ...srs];
 }

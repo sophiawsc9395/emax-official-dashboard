@@ -112,6 +112,8 @@ function StepBadge({app,step}){
   return<span style={{fontSize:10,fontWeight:700,padding:"3px 9px",borderRadius:20,background:d.bg,color:d.color,whiteSpace:"nowrap"}}>{d.label}</span>;
 }
 
+function withTimeout(p,ms,msg){let t;return Promise.race([p,new Promise((_,rej)=>{t=setTimeout(()=>rej(new Error(msg)),ms);})]).finally(()=>clearTimeout(t));}
+
 function readAppFile(f,syntheticId){
   return new Promise((res,rej)=>{
     if(!f.type||!f.type.startsWith("image/")){uploadOrderFile(syntheticId,f,f.name).then(res).catch(rej);return;}
@@ -474,33 +476,39 @@ function ApplicationForm({branchMeta,userBranch,isAdmin,srList,editingApp,onSave
     if(invalidEc1Contact||invalidEc2Contact){alert("Emergency Contact Number(s) must be 10 to 11 digits.");return;}
     if(duplicateDocKeys.size>0){alert("The same file has been selected for more than one document slot. Please check each upload and select the correct, distinct file for each one.");return;}
     setSaving(true);
-    const id=editingApp?.id||`jcl_${Date.now()}`;
-    const uploadedDocs={};
-    for(const{key} of DOC_FIELDS){
-      if(docFiles[key])uploadedDocs[key]=await readAppFile(docFiles[key],`${id}_${key}`);
-      else uploadedDocs[key]=docs[key];
+    try{
+      const id=editingApp?.id||`jcl_${Date.now()}`;
+      const uploadedDocs={};
+      for(const{key,label} of DOC_FIELDS){
+        if(docFiles[key])uploadedDocs[key]=await withTimeout(readAppFile(docFiles[key],`${id}_${key}`),90000,`Uploading ${label} timed out`);
+        else uploadedDocs[key]=docs[key];
+      }
+      const base=editingApp||{
+        step:1,merchant:"JCL",
+        submittedAt:nowDate(),submittedTime:nowTime(),
+        submittedToJCLDate:null,followUpRemark:null,followUpRequestedDate:null,
+        followUpResponseFiles:[],followUpRespondedDate:null,
+        amendmentRemark:null,amendmentRequestedDate:null,amendmentRespondedDate:null,
+        approvedDate:null,approvedRemark:null,rejectedDate:null,rejectedRemark:null,
+        linkedOrderId:null,history:[{step:1,date:nowDate(),time:nowTime(),note:"New Application submitted"}],
+      };
+      // If this application had a pending amendment request (branch fixing
+      // wrong details before admin ever submitted to JCL), resubmitting here
+      // clears that pending state so it goes back to admin as a normal new
+      // application, ready for Submit to JCL again.
+      const hadPendingAmendment=editingApp?.amendmentRequestedDate&&!editingApp?.amendmentRespondedDate;
+      const app={
+        ...base,id,...f,financePrice:parseFloat(f.financePrice)||0,...uploadedDocs,
+        ...(hadPendingAmendment?{amendmentRespondedDate:nowDate()}:{}),
+        history:editingApp?[...(editingApp.history||[]),{step:editingApp.step,date:nowDate(),time:nowTime(),note:hadPendingAmendment?"Application corrected and resubmitted":"Application details edited"}]:base.history,
+      };
+      await withTimeout(onSaved(app),60000,"Saving timed out");
+    }catch(e){
+      console.error(e);
+      alert("Could not submit the application: "+(e?.message||"unknown error")+". Nothing was lost — please check your connection and press Submit again.");
+    }finally{
+      setSaving(false);
     }
-    const base=editingApp||{
-      step:1,merchant:"JCL",
-      submittedAt:nowDate(),submittedTime:nowTime(),
-      submittedToJCLDate:null,followUpRemark:null,followUpRequestedDate:null,
-      followUpResponseFiles:[],followUpRespondedDate:null,
-      amendmentRemark:null,amendmentRequestedDate:null,amendmentRespondedDate:null,
-      approvedDate:null,approvedRemark:null,rejectedDate:null,rejectedRemark:null,
-      linkedOrderId:null,history:[{step:1,date:nowDate(),time:nowTime(),note:"New Application submitted"}],
-    };
-    // If this application had a pending amendment request (branch fixing
-    // wrong details before admin ever submitted to JCL), resubmitting here
-    // clears that pending state so it goes back to admin as a normal new
-    // application, ready for Submit to JCL again.
-    const hadPendingAmendment=editingApp?.amendmentRequestedDate&&!editingApp?.amendmentRespondedDate;
-    const app={
-      ...base,id,...f,financePrice:parseFloat(f.financePrice)||0,...uploadedDocs,
-      ...(hadPendingAmendment?{amendmentRespondedDate:nowDate()}:{}),
-      history:editingApp?[...(editingApp.history||[]),{step:editingApp.step,date:nowDate(),time:nowTime(),note:hadPendingAmendment?"Application corrected and resubmitted":"Application details edited"}]:base.history,
-    };
-    await onSaved(app);
-    setSaving(false);
   };
 
   return<div className="fade-in">

@@ -202,9 +202,15 @@ export function resolveSRForMonth(sr,year,month){
   const hist=sr.progressionHistory||[];
   const applicable=hist.filter(h=>h.effectiveFrom<=ym).sort((a,b)=>a.effectiveFrom.localeCompare(b.effectiveFrom));
   const latest=applicable[applicable.length-1];
+  // Branch = the most recent applicable entry that actually recorded a branch
+  // (status-only entries leave branch undefined and must not reset it).
+  const brEntry=[...applicable].reverse().find(h=>h.branch!==undefined&&h.branch!==null);
   if(!latest)return{branch:sr.branch,role:sr.role||"sr",status:sr.status};
-  return{branch:latest.branch??sr.branch,role:latest.role??(sr.role||"sr"),status:latest.status==="continue"?(applicable.slice(0,-1).reverse().find(h=>h.status&&h.status!=="continue")?.status??sr.status):latest.status};
+  return{branch:brEntry?brEntry.branch:sr.branch,role:latest.role??(sr.role||"sr"),status:latest.status==="continue"?(applicable.slice(0,-1).reverse().find(h=>h.status&&h.status!=="continue")?.status??sr.status):latest.status};
 }
+// Branch an SR belonged to during a specific month — so a branch transfer
+// never moves their past months' sales out of the branch they were in.
+function srBranchIn(sr,m,y){return resolveSRForMonth(sr,y,m).branch;}
 
 // Targets are stored per-month so each month keeps its own targets independently
 // Status snapshot key pattern: emax_v5_status_{year}_{month}
@@ -1070,7 +1076,7 @@ export function TargetModal({targets,setTargets,srList,branchMeta,onClose,curren
           </div>}
 
           {branches.map(b=>{
-            const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,tgtMonth,tgtYear));
+            const bSRs=srList.filter(s=>srBranchIn(s,tgtMonth,tgtYear)===b&&srVisibleInMonth(s,tgtMonth,tgtYear));
             const bmName=branchMeta[b]?.manager??"";
             return <div key={b} style={{marginBottom:24,border:"1px solid #E4EAF2",borderRadius:12,overflow:"hidden"}}>
               {/* Branch header */}
@@ -1379,6 +1385,10 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
     } else {
       await updateSR(id,"status",newStatus);
     }
+    if(resignDate||/^resigned/i.test(newStatus||"")){
+      const bal=rewardBalances?.[id]?.balance||0;
+      if(bal>0&&adjustBalance)await adjustBalance(id,-bal,`Resigned — ${bal.toLocaleString()} reward points burned`);
+    }
     const hist=statusHistory[id]||[];
     const noteStr=resignDate?`${desc} (Resignation date: ${resignDate})`:desc;
     const newHist={...statusHistory,[id]:[...hist,{date:new Date().toISOString(),status:newStatus,note:noteStr}]};
@@ -1420,13 +1430,21 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
     if(isSR&&!roleChanging){
       const sr=person.sr;
       const entry={effectiveFrom,branch:newBranch!==sr.branch?newBranch:undefined,status:resolvedStatus,loggedAt:new Date().toISOString()};
+      // First recorded change for this SR: store a baseline of where they were
+      // BEFORE it, so older months keep reading their original branch/status.
+      const baseline=(sr.progressionHistory&&sr.progressionHistory.length)?[]:[{effectiveFrom:"0000-00",branch:sr.branch,status:sr.status,loggedAt:new Date().toISOString()}];
       const updated=localSR.map(s=>s.id!==sr.id?s:{
         ...s,
-        progressionHistory:[...(s.progressionHistory||[]),entry],
+        progressionHistory:[...baseline,...(s.progressionHistory||[]),entry],
         ...(isNowOrPast?{branch:newBranch,status:resolvedStatus}:{}),
+        ...(isNowOrPast&&/^resigned/i.test(resolvedStatus||"")&&!s.resignDate?{resignDate:`${effectiveFrom}-01`}:{}),
       });
       setLocalSR(updated);
       await saveSR(updated);
+      if(isNowOrPast&&/^resigned/i.test(resolvedStatus||"")){
+        const bal=rewardBalances?.[sr.id]?.balance||0;
+        if(bal>0&&adjustBalance)await adjustBalance(sr.id,-bal,`Resigned — ${bal.toLocaleString()} reward points burned`);
+      }
       if(isNowOrPast&&newType&&newType!==sr.type){
         const typeKey=`emax_v5_sr_types_${nowYM.split("-")[0]}_${parseInt(nowYM.split("-")[1])}`;
         const curTypes=(await loadData(typeKey))||{};
@@ -1934,8 +1952,19 @@ function srActiveInMonth(sr,m,y){
 function srVisibleInMonth(sr,m,y){
   if(!srActiveInMonth(sr,m,y))return false;
   if(!(sr.status||'').toLowerCase().includes('resigned'))return true;
-  if(!sr.resignDate)return false;
-  const [ry,rm]=sr.resignDate.split("-").map(Number);
+  // A resigned SR stays in the report for the month they resigned and every
+  // month before it, and only drops out of LATER months — so a resignation
+  // never rewrites past reports. The resignation month comes from resignDate;
+  // if that is missing (e.g. set through the Staff Update panel on older
+  // data) it falls back to the effective month recorded in progressionHistory,
+  // and as a last resort to the current month — never "hidden everywhere".
+  let ry,rm;
+  if(sr.resignDate){[ry,rm]=sr.resignDate.split("-").map(Number);}
+  else{
+    const ent=[...(sr.progressionHistory||[])].reverse().find(h=>/^resigned/i.test(h.status||""));
+    if(ent?.effectiveFrom){[ry,rm]=ent.effectiveFrom.split("-").map(Number);}
+    else{const n=new Date();ry=n.getFullYear();rm=n.getMonth()+1;}
+  }
   return ry>y||(ry===y&&rm>=m);
 }
 
@@ -2073,8 +2102,8 @@ export function DailyEntry({records,setRecords,srList,branchMeta,month,year,days
     />;
   };
 
-  const branchWalkinTotal=(b)=>visibleSRs.filter(s=>s.branch===b).reduce((s,sr)=>s+(localInputs[sr.id]?.walkin||0),0)+(localInputs[`BM_${b}`]?.unalloc||0);
-  const branchInvoiceTotal=(b)=>visibleSRs.filter(s=>s.branch===b).reduce((s,sr)=>s+(localInputs[sr.id]?.aeon||0),0);
+  const branchWalkinTotal=(b)=>visibleSRs.filter(s=>srBranchIn(s,month,year)===b).reduce((s,sr)=>s+(localInputs[sr.id]?.walkin||0),0)+(localInputs[`BM_${b}`]?.unalloc||0);
+  const branchInvoiceTotal=(b)=>visibleSRs.filter(s=>srBranchIn(s,month,year)===b).reduce((s,sr)=>s+(localInputs[sr.id]?.aeon||0),0);
   const branchDayTotal=(b)=>branchWalkinTotal(b)+branchInvoiceTotal(b);
   const companyDayTotal=BRANCH_ORDER.reduce((s,b)=>s+branchDayTotal(b),0);
   const companyWalkinTotal=BRANCH_ORDER.reduce((s,b)=>s+branchWalkinTotal(b),0);
@@ -2129,7 +2158,7 @@ export function DailyEntry({records,setRecords,srList,branchMeta,month,year,days
 
     {/* One section per branch */}
     {BRANCH_ORDER.map(b=>{
-      const bSRs=visibleSRs.filter(s=>s.branch===b);
+      const bSRs=visibleSRs.filter(s=>srBranchIn(s,month,year)===b);
       const dayTotal=branchDayTotal(b);
       const wiTotal=branchWalkinTotal(b);
       const invTotal=branchInvoiceTotal(b);
@@ -2823,7 +2852,7 @@ export default function App(){
     if(lockInFlightRef.current[`${branchId}_${monthKeyStr}`])return;
     lockInFlightRef.current[`${branchId}_${monthKeyStr}`]=true;
     try{
-    const bSRs=srList.filter(s=>s.branch===branchId&&!(s.status||'').toLowerCase().includes('resigned'));
+    const bSRs=srList.filter(s=>srBranchIn(s,selMonth,selYear)===branchId&&!(s.status||'').toLowerCase().includes('resigned'));
     const bTarget=targets?.bm?.[branchId]||0,bTotal=fullMonthBranchTotals[branchId]?.total||0;
     const branchPct=pctN(bTotal,bTarget);
     const updates={...rewardBalances};
@@ -3412,7 +3441,7 @@ export default function App(){
   const branchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
-      const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,selMonth,selYear));let wi=0,ae=0;
+      const bSRs=srList.filter(s=>srBranchIn(s,selMonth,selYear)===b&&srVisibleInMonth(s,selMonth,selYear));let wi=0,ae=0;
       for(let d=selStartDay;d<=selEndDay;d++){
         const k=`${d}/${month}/${year}`,day=records[k]||{};
         bSRs.forEach(sr=>{wi+=(day[sr.id]?.walkin||0);ae+=(day[sr.id]?.aeon||0);});
@@ -3427,7 +3456,7 @@ export default function App(){
   const fullMonthBranchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
-      const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,selMonth,selYear));let wi=0,ae=0;
+      const bSRs=srList.filter(s=>srBranchIn(s,selMonth,selYear)===b&&srVisibleInMonth(s,selMonth,selYear));let wi=0,ae=0;
       days.forEach(d=>{
         const k=`${d}/${month}/${year}`,day=records[k]||{};
         bSRs.forEach(sr=>{wi+=(day[sr.id]?.walkin||0);ae+=(day[sr.id]?.aeon||0);});
@@ -3451,7 +3480,7 @@ export default function App(){
   const rankBranchTotals=useMemo(()=>{
     const t={};
     BRANCH_ORDER.forEach(b=>{
-      const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,selMonth,selYear));let wi=0,ae=0;
+      const bSRs=srList.filter(s=>srBranchIn(s,selMonth,selYear)===b&&srVisibleInMonth(s,selMonth,selYear));let wi=0,ae=0;
       for(let d=1;d<=rankEndDay;d++){
         const k=`${d}/${month}/${year}`,day=records[k]||{};
         bSRs.forEach(sr=>{wi+=(day[sr.id]?.walkin||0);ae+=(day[sr.id]?.aeon||0);});
@@ -3696,7 +3725,7 @@ export default function App(){
           <h2 style={{fontSize:14,fontWeight:800,color:"#0A1628",margin:0}}>Branch Performance</h2>
           <button className="btn btn-primary" onClick={printSummary} style={{fontSize:12}}>Download Report</button>
         </div>
-        <BranchPerfTable breakdownFor={b=>buildBranchBreakdown({branchId:b,branchMeta,srList,targets,records,month,year,startDay:selStartDay,endDay:Math.min(selEndDay,lastDataDay||daysInMonth(month,year)),bmTotal:branchTotals[b]?.total||0,isVisible:s=>srVisibleInMonth(s,selMonth,selYear)})} branchTotals={branchTotals} targets={targets} branchMeta={branchMeta} printRef={summaryRef} month={month} year={year} startDay={selStartDay} endDay={Math.min(selEndDay,lastDataDay||daysInMonth(month,year))} onChangeStartDay={setSelStartDay} onChangeEndDay={setSelEndDay} maxDay={lastDataDay||daysInMonth(month,year)}/>
+        <BranchPerfTable breakdownFor={b=>buildBranchBreakdown({branchId:b,branchMeta,srList,targets,records,month,year,startDay:selStartDay,endDay:Math.min(selEndDay,lastDataDay||daysInMonth(month,year)),bmTotal:branchTotals[b]?.total||0,isVisible:s=>srVisibleInMonth(s,selMonth,selYear),branchOf:s=>srBranchIn(s,selMonth,selYear)})} branchTotals={branchTotals} targets={targets} branchMeta={branchMeta} printRef={summaryRef} month={month} year={year} startDay={selStartDay} endDay={Math.min(selEndDay,lastDataDay||daysInMonth(month,year))} onChangeStartDay={setSelStartDay} onChangeEndDay={setSelEndDay} maxDay={lastDataDay||daysInMonth(month,year)}/>
 
         <h2 style={{fontSize:14,fontWeight:800,color:"#0A1628",margin:"24px 0 12px"}}>Expected Profit (Pending Billing)</h2>
         <ExpectedProfitTable branchMeta={branchMeta} onOrderClick={goToOrder}/>
@@ -3801,7 +3830,7 @@ export default function App(){
                     {days.map((d,i)=>{
                       const k=`${d}/${month}/${year}`,day=records[k]||{};
                       const branchTotals=BRANCH_ORDER.map(b=>{
-                        const bSRs=srList.filter(s=>s.branch===b&&srVisibleInMonth(s,month,year));
+                        const bSRs=srList.filter(s=>srBranchIn(s,month,year)===b&&srVisibleInMonth(s,month,year));
                         let t=bSRs.reduce((s,sr)=>(s+(day[sr.id]?.walkin||0)+(day[sr.id]?.aeon||0)),0);
                         t+=(day[`BM_${b}`]?.walkin||0)+(day[`BM_${b}`]?.aeon||0)+(day[`BM_${b}`]?.unalloc||0);
                         return t;
@@ -3830,7 +3859,7 @@ export default function App(){
               </div>
             </div>
           : (()=>{
-              const bSRs=srList.filter(s=>s.branch===selBranch&&srVisibleInMonth(s,month,year));
+              const bSRs=srList.filter(s=>srBranchIn(s,month,year)===selBranch&&srVisibleInMonth(s,month,year));
               const bTarget=targets?.bm?.[selBranch]||0,bTotal=fullMonthBranchTotals[selBranch]?.total||0;
               const branchPct=pctN(bTotal,bTarget);
               const selMeta=branchMeta[selBranch]||{};
@@ -3842,7 +3871,7 @@ export default function App(){
                   pointsBalance={rewardBalances[`BM_${selMgrId}`]?.balance||0}
                   tiers={computeSRTiers({p:branchPct,branchPct,calcBonus:calcAchievementBonus,calcPoints:calcRewardPoints,role:"bm"})}/>
                 <SRPerformanceHeading view={reportSrView} onView={setReportSrView} subtitle={reportSrView==="att"?`${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][month-1]} ${year} attendance`:`${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][month-1]} ${year} sales`}/>
-                {reportSrView==="att"?<BranchAttendanceCards branchMeta={branchMeta} srList={srList.filter(s=>s.branch===selBranch)} branchId={selBranch} year={year} month={month} canEdit={true}/>:
+                {reportSrView==="att"?<BranchAttendanceCards branchMeta={branchMeta} srList={srList.filter(s=>srBranchIn(s,month,year)===selBranch)} branchId={selBranch} year={year} month={month} canEdit={true}/>:
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:14,alignItems:"start"}}>
                   {bSRs.map(sr=><SRTable key={sr.id} sr={sr} records={records} targets={targets} branchPct={branchPct} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[sr.id]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>)}
                   <BMTable branchId={selBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onEdit={handleEdit} printMode={false} month={month} year={year} days={days} rewardBalance={rewardBalances[`BM_${branchMeta[selBranch]?.managerId||selBranch}`]?.balance||0} pointsAsOf={pointsAsOfFor(selBranch)} onStatusHistory={id=>{setStatusModalPerson(id);setShowStatusHistoryModal(true);}}/>
