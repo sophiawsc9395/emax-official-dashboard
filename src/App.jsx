@@ -215,6 +215,16 @@ export function resolveSRForMonth(sr,year,month){
 // monthly report or the Overview branch performance. The current month stays
 // live (and keeps refreshing its snapshot until the month ends).
 const rosterSnaps={};
+// SR ids that actually have sales recorded in a given month (ground truth).
+// Anyone with recorded sales always counts in that month's branch totals,
+// whatever their resigned / roster flags say.
+const recordedSRs={};
+function noteRecordedSRs(y,m,records){
+  const set=new Set();
+  Object.values(records||{}).forEach(day=>{if(day&&typeof day==='object')Object.keys(day).forEach(id=>{const v=day[id];if(v&&((v.walkin||0)!==0||(v.aeon||0)!==0))set.add(id);});});
+  recordedSRs[`${y}-${m}`]=set;
+}
+const hasRecordedSales=(sr,m,y)=>!!recordedSRs[`${y}-${m}`]?.has(sr.id);
 const rosterKeyFor=(y,m)=>`emax_v5_roster_${y}_${m}`;
 function frozenRosterEntry(sr,m,y){
   const n=new Date();
@@ -1994,6 +2004,7 @@ function srActiveInMonth(sr,m,y){
   return true;
 }
 function srVisibleInMonth(sr,m,y){
+  if(hasRecordedSales(sr,m,y))return true;
   const fe=frozenRosterEntry(sr,m,y);
   if(fe&&typeof fe.visible==="boolean")return fe.visible;
   return srVisibleLive(sr,m,y);
@@ -2684,6 +2695,7 @@ export default function App(){
     const typeKey=`emax_v5_sr_types_${selYear}_${selMonth}`;
     Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData(snapKey),loadData(publishKey),loadData(typeKey),loadData(rosterKeyFor(selYear,selMonth))]).then(([r,t,tPrev,srData,bmData,snap,pub,srTypes,roster])=>{
       if(roster&&typeof roster==='object')rosterSnaps[`${selYear}-${selMonth}`]=roster;
+      noteRecordedSRs(selYear,selMonth,r);
       setRecords(r||{});
       setMetaLoaded(true); // batched with setSrList/setBranchMeta below
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
@@ -3309,6 +3321,7 @@ export default function App(){
   };
   // Keeps the current month's roster snapshot fresh and, once, freezes the
   // previous 12 months that have no snapshot yet (as they read today).
+  useEffect(()=>{noteRecordedSRs(selYear,selMonth,records);},[records,selMonth,selYear]);
   const rosterBackfillDone=useRef(false);
   const rosterLastWritten=useRef("");
   useEffect(()=>{
