@@ -208,9 +208,25 @@ export function resolveSRForMonth(sr,year,month){
   if(!latest)return{branch:sr.branch,role:sr.role||"sr",status:sr.status};
   return{branch:brEntry?brEntry.branch:sr.branch,role:latest.role??(sr.role||"sr"),status:latest.status==="continue"?(applicable.slice(0,-1).reverse().find(h=>h.status&&h.status!=="continue")?.status??sr.status):latest.status};
 }
-// Branch an SR belonged to during a specific month — so a branch transfer
-// never moves their past months' sales out of the branch they were in.
-function srBranchIn(sr,m,y){return resolveSRForMonth(sr,y,m).branch;}
+// ─── MONTH ROSTER FREEZE ───────────────────────────────────
+// For every month BEFORE the current one, who was in which branch (and who
+// counted in that month's report) is frozen in a saved snapshot, so later
+// resignations, transfers, removals or status edits can never alter a past
+// monthly report or the Overview branch performance. The current month stays
+// live (and keeps refreshing its snapshot until the month ends).
+const rosterSnaps={};
+const rosterKeyFor=(y,m)=>`emax_v5_roster_${y}_${m}`;
+function frozenRosterEntry(sr,m,y){
+  const n=new Date();
+  if(y===n.getFullYear()&&m===n.getMonth()+1)return undefined;
+  return rosterSnaps[`${y}-${m}`]?.[sr.id];
+}
+function srBranchLive(sr,m,y){return resolveSRForMonth(sr,y,m).branch;}
+// Branch an SR belonged to during a specific month.
+function srBranchIn(sr,m,y){
+  const e=frozenRosterEntry(sr,m,y);
+  return(e&&e.branch)?e.branch:srBranchLive(sr,m,y);
+}
 
 // Targets are stored per-month so each month keeps its own targets independently
 // Status snapshot key pattern: emax_v5_status_{year}_{month}
@@ -1505,6 +1521,11 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
         setLocalBM(updatedMeta);
         setBranchMeta(updatedMeta);
         await saveData(BM_KEY,updatedMeta);
+        if(isResignedStatus(resolvedStatus)){
+          const bmKey=`BM_${localBM[b]?.managerId||b}`;
+          const bal=rewardBalances?.[bmKey]?.balance||0;
+          if(bal>0&&!isStillActiveSR(localSR,localBM[b]?.managerId,localBM[b]?.manager)&&adjustBalance)await adjustBalance(bmKey,-bal,`Resigned — ${bal.toLocaleString()} reward points burned`);
+        }
       }
       logNote([`status → ${resolvedStatus}`]);
 
@@ -1557,6 +1578,11 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
     setBranchMeta(updatedMeta);
     await saveData(BM_KEY,updatedMeta);
     setLocalBM(p=>({...p,[b]:{...p[b],mStatus:newStatus}}));
+    if(isResignedStatus(newStatus)){
+      const bmKey=`BM_${branchMeta[b]?.managerId||b}`;
+      const bal=rewardBalances?.[bmKey]?.balance||0;
+      if(bal>0&&!isStillActiveSR(srList,branchMeta[b]?.managerId,branchMeta[b]?.manager)&&adjustBalance)await adjustBalance(bmKey,-bal,`Resigned — ${bal.toLocaleString()} reward points burned`);
+    }
     const key=`BM_${b}`; // status/employment history is always branch-scoped, not managerId-scoped
     const hist=statusHistory[key]||[];
     const newHist={...statusHistory,[key]:[...hist,{date:new Date().toISOString(),status:newStatus,note:desc}]};
@@ -1564,8 +1590,13 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
     await saveData("emax_v5_status_history",newHist);
   };
   const removeSR=async(sr)=>{
-    if(!confirm(`Remove ${sr.canon} (${sr.id}) from the roster? This permanently deletes their SR record — branch, type and status. It does NOT delete their existing reward points balance/history or status history (those stay under ${sr.id} in case they're re-added later), but they will disappear from every list, table and ranking immediately. This cannot be undone from here. Continue?`))return;
-    const updated=localSR.filter(s=>s.id!==sr.id);setLocalSR(updated);await saveSR(updated);
+    if(!confirm(`Remove ${sr.canon} (${sr.id}) from the roster? They will be marked Resigned as of today (their sales stay in every report up to this month and are never deleted from past reports), and any reward points balance will be burned. Continue?`))return;
+    const today=new Date();
+    const rd=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+    const updated=localSR.map(s=>s.id===sr.id?{...s,status:"Resigned",resignDate:s.resignDate||rd,removedFromRoster:true}:s);
+    setLocalSR(updated);await saveSR(updated);
+    const bal=rewardBalances?.[sr.id]?.balance||0;
+    if(bal>0&&adjustBalance)await adjustBalance(sr.id,-bal,`Removed from roster — ${bal.toLocaleString()} reward points burned`);
   };
   // All staff for this branch: BM + SRs (active + resigned)
   const allStaffForBranch=(b)=>{
@@ -1940,6 +1971,19 @@ function StaffUpdatePanel({person,branchMeta,year,month,isHR=false,onClose,onSav
 }
 
 
+// A BM's reward points are only burned when they are fully out of the company,
+// i.e. they are NOT also still working as an SR somewhere.
+function isStillActiveSR(srList,managerId,managerName){
+  const nm=(managerName||"").trim().toUpperCase();
+  return (srList||[]).some(s=>{
+    if(!((managerId&&s.id===managerId)||(nm&&(s.canon||"").trim().toUpperCase()===nm)))return false;
+    const st=(s.status||"").toLowerCase();
+    return !st.includes("resigned")&&!st.includes("promoted");
+  });
+}
+// SR / BM statuses that mean the person has left the company.
+const isResignedStatus=st=>/^resigned/i.test((st||"").trim());
+
 // ─── SR VISIBILITY (joined + resigned filters) ────────────
 function srActiveInMonth(sr,m,y){
   // Not yet joined: hide before joinDate month
@@ -1950,6 +1994,11 @@ function srActiveInMonth(sr,m,y){
   return true;
 }
 function srVisibleInMonth(sr,m,y){
+  const fe=frozenRosterEntry(sr,m,y);
+  if(fe&&typeof fe.visible==="boolean")return fe.visible;
+  return srVisibleLive(sr,m,y);
+}
+function srVisibleLive(sr,m,y){
   if(!srActiveInMonth(sr,m,y))return false;
   if(!(sr.status||'').toLowerCase().includes('resigned'))return true;
   // A resigned SR stays in the report for the month they resigned and every
@@ -2633,7 +2682,8 @@ export default function App(){
     const prevTargetKey=`emax_v5_targets_${prevY}_${prevM}`;
     const publishKey=`emax_v5_published_${selYear}_${selMonth}`;
     const typeKey=`emax_v5_sr_types_${selYear}_${selMonth}`;
-    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData(snapKey),loadData(publishKey),loadData(typeKey)]).then(([r,t,tPrev,srData,bmData,snap,pub,srTypes])=>{
+    Promise.all([loadData(recordsKey),loadData(targetKey),loadData(prevTargetKey),loadData(SR_KEY),loadData(BM_KEY),loadData(snapKey),loadData(publishKey),loadData(typeKey),loadData(rosterKeyFor(selYear,selMonth))]).then(([r,t,tPrev,srData,bmData,snap,pub,srTypes,roster])=>{
+      if(roster&&typeof roster==='object')rosterSnaps[`${selYear}-${selMonth}`]=roster;
       setRecords(r||{});
       setMetaLoaded(true); // batched with setSrList/setBranchMeta below
       const baseSR=(srData&&Array.isArray(srData)&&srData.length>0)?srData:DEFAULT_SR;
@@ -3257,6 +3307,60 @@ export default function App(){
     }
     return changed;
   };
+  // Keeps the current month's roster snapshot fresh and, once, freezes the
+  // previous 12 months that have no snapshot yet (as they read today).
+  const rosterBackfillDone=useRef(false);
+  const rosterLastWritten=useRef("");
+  useEffect(()=>{
+    const n=new Date(),cm=n.getMonth()+1,cy=n.getFullYear();
+    if(!(selMonth===cm&&selYear===cy))return;
+    if(!metaLoaded||!srList.length)return;
+    const build=(m,y)=>{const o={};srList.forEach(sr=>{o[sr.id]={branch:srBranchLive(sr,m,y),visible:srVisibleLive(sr,m,y)};});return o;};
+    const cur=build(cm,cy),curStr=JSON.stringify(cur);
+    if(curStr!==rosterLastWritten.current){rosterLastWritten.current=curStr;saveData(rosterKeyFor(cy,cm),cur);}
+    if(rosterBackfillDone.current)return;
+    rosterBackfillDone.current=true;
+    (async()=>{
+      for(let k=1;k<=12;k++){
+        let m=cm-k,y=cy;while(m<1){m+=12;y-=1;}
+        const ex=await loadData(rosterKeyFor(y,m));
+        if(ex&&typeof ex==='object'&&Object.keys(ex).length){rosterSnaps[`${y}-${m}`]=ex;continue;}
+        const snapObj=build(m,y);
+        rosterSnaps[`${y}-${m}`]=snapObj;
+        await saveData(rosterKeyFor(y,m),snapObj);
+      }
+    })();
+  },[metaLoaded,srList,selMonth,selYear]);
+
+  // One-time catch-up (idempotent): anyone ALREADY marked Resigned keeps no
+  // reward points — burn any leftover SR balance, and any BM balance when that
+  // BM is fully out of the company (not still an SR).
+  useEffect(()=>{
+    const now=new Date();
+    if(!(selMonth===now.getMonth()+1&&selYear===now.getFullYear()))return;
+    if(!rewardsLoaded||!metaLoaded||!srList.length||!Object.keys(rewardBalances||{}).length)return;
+    const burns=[];
+    srList.forEach(sr=>{
+      if(isResignedStatus(sr.status)&&(rewardBalances[sr.id]?.balance||0)>0)burns.push({key:sr.id,bal:rewardBalances[sr.id].balance});
+    });
+    Object.keys(branchMeta||{}).forEach(b=>{
+      const m=branchMeta[b]||{};
+      if(!isResignedStatus(m.mStatus))return;
+      const key=`BM_${m.managerId||b}`;
+      const bal=rewardBalances[key]?.balance||0;
+      if(bal>0&&!isStillActiveSR(srList,m.managerId,m.manager)&&!burns.some(x=>x.key===key))burns.push({key,bal});
+    });
+    if(!burns.length)return;
+    const rb={...rewardBalances},rh={...rewardHistory};
+    burns.forEach(({key,bal})=>{
+      rb[key]={...(rb[key]||{}),balance:0};
+      rh[key]=[...(rh[key]||[]),{date:new Date().toISOString(),type:"adjustment",amount:-bal,note:`Resigned — ${bal.toLocaleString()} reward points burned`}];
+    });
+    setRewardBalances(rb);setRewardHistory(rh);
+    saveData("emax_v5_reward_balance",rb);
+    saveData("emax_v5_reward_history",rh);
+  },[rewardsLoaded,metaLoaded,srList,branchMeta,rewardBalances,selMonth,selYear]);
+
   const adjustBalance=async(personId,delta,note)=>{
     const d=Number(delta)||0;
     if(d===0)return;
