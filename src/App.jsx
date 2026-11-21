@@ -1358,7 +1358,7 @@ function RecoverStaffModal({srList,onRestore,onClose}){
   </div>;
 }
 
-export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,setRewardBalances,rewardHistory,setRewardHistory,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,isHR=false}){
+export function SRBMModal({canRecover=false,srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,setRewardBalances,rewardHistory,setRewardHistory,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,isHR=false}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
   const [localSR,setLocalSR]=useState(JSON.parse(JSON.stringify(srList)));
@@ -1731,8 +1731,8 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             {(saved||srSaved)&&<span style={{fontSize:12,color:"#00C896",fontWeight:700}}>Saved</span>}
             <button className="btn btn-success" onClick={()=>setEditSR("new")} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>+ Add New SR</button>
-            <button className="btn btn-ghost" onClick={()=>setShowRecover(true)} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>Recover Removed Staff</button>
-            {showRecover&&<RecoverStaffModal srList={localSR} onClose={()=>setShowRecover(false)} onRestore={async(list)=>{const updated=[...localSR,...list];setLocalSR(updated);await saveSR(updated);}}/>}
+            {canRecover&&<button className="btn btn-ghost" onClick={()=>setShowRecover(true)} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>Recover Removed Staff</button>}
+            {canRecover&&showRecover&&<RecoverStaffModal srList={localSR} onClose={()=>setShowRecover(false)} onRestore={async(list)=>{const updated=[...localSR,...list];setLocalSR(updated);await saveSR(updated);}}/>}
             <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px",fontSize:12}}>Close</button>
           </div>
         </div>
@@ -4218,7 +4218,7 @@ export default function App(){
     </div>{/* end flex layout */}
 
     {showTargetModal&&<TargetModal targets={targets} setTargets={setTargets} srList={srList} branchMeta={branchMeta} onClose={()=>setShowTargetModal(false)} currentMonth={selMonth} currentYear={selYear} onSaveForMonth={async(t,m,y)=>{if(m===selMonth&&y===selYear){setTargets(t);handleSaveTargets(t);}else await saveData(`emax_v5_targets_${y}_${m}`,t);}}/>}
-    {showSRModal&&<SRBMModal srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} setRewardBalances={setRewardBalances} rewardHistory={rewardHistory} setRewardHistory={setRewardHistory} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson} renameSRId={renameSRId}/>}
+    {showSRModal&&<SRBMModal canRecover={currentEmail==="sophiawsc9395@gmail.com"} srList={srList} setSrList={setSrList} branchMeta={branchMeta} setBranchMeta={setBranchMeta} onClose={()=>setShowSRModal(false)} rewardBalances={rewardBalances} setRewardBalances={setRewardBalances} rewardHistory={rewardHistory} setRewardHistory={setRewardHistory} adjustBalance={adjustBalance} statusHistory={statusHistory} setStatusHistory={setStatusHistory} month={month} year={year} setShowStatusHistoryModal={setShowStatusHistoryModal} setStatusModalPerson={setStatusModalPerson} renameSRId={renameSRId}/>}
     {printBranch&&<PrintBranchReport branchId={printBranch} records={records} targets={targets} srList={srList} branchMeta={branchMeta} onClose={()=>setPrintBranch(null)} month={month} year={year} days={days}/>}
     {showPointsModal&&<PointsHistoryModal srList={srList} branchMeta={branchMeta} rewardBalances={rewardBalances} rewardHistory={rewardHistory} initialPerson={pointsModalPerson} onDeletePointsEntry={deletePointsEntry} onClose={()=>{setShowPointsModal(false);setPointsModalPerson(null);}}/>}
     {showStatusHistoryModal&&<StatusHistoryModal srList={srList} branchMeta={branchMeta} statusHistory={statusHistory} initialPerson={statusModalPerson} onDeleteStatusEntry={deleteStatusEntry} onClose={()=>{setShowStatusHistoryModal(false);setStatusModalPerson(null);}}/>}
