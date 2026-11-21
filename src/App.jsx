@@ -1274,11 +1274,96 @@ function AdjustBalanceWidget({personId,balance,adjustBalance}){
   </div>;
 }
 
+// ─── RECOVER REMOVED STAFF ───────────────────────────────────
+// Sales records are saved per SR id, so deleting an SR from the roster never
+// deletes their sales — it only hides them. This scans every saved month for
+// SR ids that have records but are no longer in the roster, so they can be
+// restored (as Resigned) and the old reports add up again.
+function RecoverStaffModal({srList,onRestore,onClose}){
+  const [rows,setRows]=useState(null);
+  const [busy,setBusy]=useState(false);
+  const [msg,setMsg]=useState("");
+  const scan=async()=>{
+    setBusy(true);setRows(null);
+    const now=new Date(),cy=now.getFullYear(),cm=now.getMonth()+1;
+    const known=new Set(srList.map(x=>x.id));
+    const stats={};
+    for(let y=2024;y<=cy;y++){
+      for(let m=1;m<=(y===cy?cm:12);m++){
+        setMsg(`Scanning ${m}/${y}…`);
+        let r=null;try{r=await loadData(`emax_v5_records_${y}_${m}`);}catch(e){}
+        if(!r)continue;
+        const ym=`${y}-${String(m).padStart(2,"0")}`;
+        Object.values(r).forEach(day=>{
+          if(!day||typeof day!=="object")return;
+          Object.keys(day).forEach(id=>{
+            if(known.has(id)||id.startsWith("BM_"))return;
+            const v=day[id]||{},amt=(v.walkin||0)+(v.aeon||0);
+            if(!amt)return;
+            const st=stats[id]||(stats[id]={id,total:0,first:ym,last:ym,months:{}});
+            st.total+=amt;st.months[ym]=(st.months[ym]||0)+amt;
+            if(ym<st.first)st.first=ym;if(ym>st.last)st.last=ym;
+          });
+        });
+      }
+    }
+    const out=Object.values(stats).map(st=>{
+      const d=DEFAULT_SR.find(x=>x.id===st.id);
+      return{...st,name:d?.canon||"",branch:d?.branch||"",type:d?.type||"Online",pick:true};
+    }).sort((a,b)=>b.last.localeCompare(a.last)||b.total-a.total);
+    setRows(out);setBusy(false);setMsg(out.length?"":"No removed staff with sales found — every SR id in the sales records is already in the roster.");
+  };
+  const upd=(id,k,v)=>setRows(rs=>rs.map(r=>r.id===id?{...r,[k]:v}:r));
+  const restore=async()=>{
+    const pick=rows.filter(r=>r.pick);
+    if(!pick.length){alert("Tick at least one person to restore.");return;}
+    const bad=pick.find(r=>!r.name.trim()||!r.branch);
+    if(bad){alert(`Please fill in the name and branch for ${bad.id} (or untick them).`);return;}
+    const list=pick.map(r=>{const[y,m]=r.last.split("-").map(Number);const ld=new Date(y,m,0).getDate();return{id:r.id,canon:r.name.trim().toUpperCase(),branch:r.branch,type:r.type,status:"Resigned",joinDate:`${r.first}-01`,resignDate:`${r.last}-${String(ld).padStart(2,"0")}`,restoredFromRecords:true};});
+    setBusy(true);await onRestore(list);setBusy(false);
+    alert(`Restored ${list.length} staff as Resigned. Their sales now count again in the months they sold.`);onClose();
+  };
+  const inp={padding:"4px 7px",fontSize:12,border:"1px solid #D5DCE8",borderRadius:6,fontFamily:"Inter,sans-serif"};
+  return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:860,maxHeight:"88vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{padding:"16px 22px",borderBottom:"1px solid #E4EAF2",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div><h2 style={{fontSize:15,fontWeight:800,margin:0,color:"#0A1628"}}>Recover Removed Staff</h2>
+          <div style={{fontSize:11,color:"#8A96A8",marginTop:3}}>Finds staff who still have sales in the records but are missing from the roster.</div></div>
+        <button className="btn btn-ghost" onClick={onClose}>Close</button>
+      </div>
+      <div style={{padding:"14px 22px",overflowY:"auto",flex:1}}>
+        {!rows&&<button className="btn btn-success" disabled={busy} onClick={scan} style={{fontSize:13,padding:"9px 18px"}}>{busy?"Scanning…":"Scan all months"}</button>}
+        {msg&&<div style={{fontSize:12,color:"#5A6472",marginTop:10}}>{msg}</div>}
+        {rows&&rows.length>0&&<>
+          <div style={{fontSize:12,color:"#5A6472",marginBottom:10}}>Names are filled in where the ID is known. Fill in the rest (name + branch) from your own knowledge, then restore. They come back as <b>Resigned</b>, effective their last month with sales.</div>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead><tr style={{textAlign:"left",color:"#8A96A8",fontSize:10,textTransform:"uppercase"}}><th></th><th>ID</th><th>Name</th><th>Branch</th><th>Type</th><th>Sales months</th><th style={{textAlign:"right"}}>Total sales</th></tr></thead>
+            <tbody>{rows.map(r=><tr key={r.id} style={{borderTop:"1px solid #F0F2F5"}}>
+              <td><input type="checkbox" checked={r.pick} onChange={e=>upd(r.id,"pick",e.target.checked)}/></td>
+              <td style={{fontWeight:700,padding:"7px 6px"}}>{r.id}</td>
+              <td><input style={{...inp,width:170}} value={r.name} placeholder="Full name" onChange={e=>upd(r.id,"name",e.target.value)}/></td>
+              <td><select style={inp} value={r.branch} onChange={e=>upd(r.id,"branch",e.target.value)}><option value="">Branch…</option>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b}</option>)}</select></td>
+              <td><select style={inp} value={r.type} onChange={e=>upd(r.id,"type",e.target.value)}><option>Online</option><option>Offline</option></select></td>
+              <td style={{color:"#5A6472"}}>{r.first} → {r.last}</td>
+              <td style={{textAlign:"right",fontWeight:700}}>RM {Math.round(r.total).toLocaleString()}</td>
+            </tr>)}</tbody>
+          </table>
+        </>}
+      </div>
+      {rows&&rows.length>0&&<div style={{padding:"12px 22px",borderTop:"1px solid #E4EAF2",display:"flex",justifyContent:"flex-end",gap:8}}>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-success" disabled={busy} onClick={restore}>{busy?"Restoring…":"Restore ticked staff"}</button>
+      </div>}
+    </div>
+  </div>;
+}
+
 export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,setRewardBalances,rewardHistory,setRewardHistory,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,isHR=false}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
   const [localSR,setLocalSR]=useState(JSON.parse(JSON.stringify(srList)));
   const [editSR,setEditSR]=useState(null);
+  const [showRecover,setShowRecover]=useState(false);
   const [updatePerson,setUpdatePerson]=useState(null);
   const [expandedResigned,setExpandedResigned]=useState({});
   const [editSRId,setEditSRId]=useState(null); // {oldId, value} — separate from editSR (name) since renaming an ID needs its own validation/migration path
@@ -1646,6 +1731,8 @@ export function SRBMModal({srList,setSrList,branchMeta,setBranchMeta,onClose,rew
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             {(saved||srSaved)&&<span style={{fontSize:12,color:"#00C896",fontWeight:700}}>Saved</span>}
             <button className="btn btn-success" onClick={()=>setEditSR("new")} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>+ Add New SR</button>
+            <button className="btn btn-ghost" onClick={()=>setShowRecover(true)} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>Recover Removed Staff</button>
+            {showRecover&&<RecoverStaffModal srList={localSR} onClose={()=>setShowRecover(false)} onRestore={async(list)=>{const updated=[...localSR,...list];setLocalSR(updated);await saveSR(updated);}}/>}
             <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px",fontSize:12}}>Close</button>
           </div>
         </div>
