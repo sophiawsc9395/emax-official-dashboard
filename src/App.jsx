@@ -1410,6 +1410,57 @@ function CorrectBranchModal({srList,onSave,onClose}){
   </div>;
 }
 
+// ─── CORRECT PAST BRANCH MANAGER ─────────────────────────────
+// Which manager's name a branch shows in a given month is stored in that
+// month's targets (bmName). This sets it for a range of past months, so a
+// manager who later moved branch is still shown at the branch they managed.
+function CorrectBMModal({branchMeta,onClose,onDone}){
+  const [branch,setBranch]=useState("");
+  const [name,setName]=useState("");
+  const [from,setFrom]=useState("");
+  const [to,setTo]=useState("");
+  const [busy,setBusy]=useState(false);
+  const go=async()=>{
+    const re=/^\d{4}-\d{2}$/;
+    if(!branch||!name.trim()||!re.test(from)||!re.test(to)||from>to){alert("Choose the branch, type the manager's name, and set the first and last month (first month must not be after the last).");return;}
+    setBusy(true);
+    const done=[],skipped=[];
+    let[y,m]=from.split("-").map(Number);const[ty,tm]=to.split("-").map(Number);
+    while(y<ty||(y===ty&&m<=tm)){
+      const key=`emax_v5_targets_${y}_${m}`;
+      let doc=null;try{doc=await loadData(key);}catch(e){}
+      if(doc&&typeof doc==="object"&&Object.keys(doc).length){
+        await saveData(key,{...doc,bmName:{...(doc.bmName||{}),[branch]:name.trim().toUpperCase()}});
+        done.push(`${m}/${y}`);
+      }else skipped.push(`${m}/${y}`);
+      m++;if(m>12){m=1;y++;}
+    }
+    setBusy(false);
+    alert(`${branchMeta[branch]?.name||branch}: manager set to ${name.trim().toUpperCase()} for ${done.length?done.join(", "):"no months"}.`+(skipped.length?`\nSkipped (no saved targets for that month): ${skipped.join(", ")}`:"")+"\nReload the dashboard to see it.");
+    if(onDone)onDone();onClose();
+  };
+  const inp={padding:"7px 9px",fontSize:13,border:"1px solid #D5DCE8",borderRadius:8,fontFamily:"Inter,sans-serif",width:"100%"};
+  const lb={fontSize:11,fontWeight:700,color:"#5A6472"};
+  return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:440,padding:22}}>
+      <h2 style={{fontSize:15,fontWeight:800,margin:0,color:"#0A1628"}}>Correct Past Branch Manager</h2>
+      <div style={{fontSize:11,color:"#8A96A8",margin:"4px 0 14px"}}>Sets who is shown as a branch's manager in past months.</div>
+      <label style={lb}>Branch</label>
+      <select style={{...inp,marginBottom:10}} value={branch} onChange={e=>setBranch(e.target.value)}><option value="">Branch…</option>{BRANCH_ORDER.map(b=><option key={b} value={b}>{branchMeta[b]?.name||b} ({b})</option>)}</select>
+      <label style={lb}>Manager in those months</label>
+      <input style={{...inp,marginBottom:10}} value={name} placeholder="e.g. MUHAMMAD SUHAIDI" onChange={e=>setName(e.target.value)}/>
+      <div style={{display:"flex",gap:10,marginBottom:16}}>
+        <div style={{flex:1}}><label style={lb}>From month</label><input type="month" style={inp} value={from} onChange={e=>setFrom(e.target.value)}/></div>
+        <div style={{flex:1}}><label style={lb}>To month</label><input type="month" style={inp} value={to} onChange={e=>setTo(e.target.value)}/></div>
+      </div>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-success" disabled={busy} onClick={go}>{busy?"Saving…":"Apply"}</button>
+      </div>
+    </div>
+  </div>;
+}
+
 export function SRBMModal({canRecover=false,srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,setRewardBalances,rewardHistory,setRewardHistory,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,isHR=false}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
@@ -1417,6 +1468,7 @@ export function SRBMModal({canRecover=false,srList,setSrList,branchMeta,setBranc
   const [editSR,setEditSR]=useState(null);
   const [showRecover,setShowRecover]=useState(false);
   const [showFixBranch,setShowFixBranch]=useState(false);
+  const [showFixBM,setShowFixBM]=useState(false);
   const [updatePerson,setUpdatePerson]=useState(null);
   const [expandedResigned,setExpandedResigned]=useState({});
   const [editSRId,setEditSRId]=useState(null); // {oldId, value} — separate from editSR (name) since renaming an ID needs its own validation/migration path
@@ -1786,6 +1838,8 @@ export function SRBMModal({canRecover=false,srList,setSrList,branchMeta,setBranc
             <button className="btn btn-success" onClick={()=>setEditSR("new")} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>+ Add New SR</button>
             {canRecover&&<button className="btn btn-ghost" onClick={()=>setShowRecover(true)} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>Recover Removed Staff</button>}
             {canRecover&&<button className="btn btn-ghost" onClick={()=>setShowFixBranch(true)} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>Correct Past Branch</button>}
+            {canRecover&&<button className="btn btn-ghost" onClick={()=>setShowFixBM(true)} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>Correct Past Manager</button>}
+            {canRecover&&showFixBM&&<CorrectBMModal branchMeta={branchMeta} onClose={()=>setShowFixBM(false)}/>}
             {canRecover&&showFixBranch&&<CorrectBranchModal srList={localSR} onClose={()=>setShowFixBranch(false)} onSave={async(sid,hist)=>{const updated=localSR.map(x=>x.id===sid?{...x,progressionHistory:hist}:x);setLocalSR(updated);await saveSR(updated);}}/>}
             {canRecover&&showRecover&&<RecoverStaffModal srList={localSR} onClose={()=>setShowRecover(false)} onRestore={async(list)=>{const updated=[...localSR,...list];setLocalSR(updated);await saveSR(updated);}}/>}
             <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px",fontSize:12}}>Close</button>
