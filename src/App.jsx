@@ -693,7 +693,7 @@ function BranchPerfTable({branchTotals,targets,branchMeta,printRef,month,year,st
           <th style={TH()}>Balance</th>
           <th style={TH()}>Monthly Target</th>
         </tr></thead>
-        <tbody>{[...BRANCH_ORDER].filter(b=>(targets?.bm?.[b]||0)>0).sort((a,b2)=>{
+        <tbody>{[...BRANCH_ORDER].filter(b=>(targets?.bm?.[b]||0)>0||(bt[b]?.total||0)>0).sort((a,b2)=>{
             const pa=pctN(bt[a]?.total||0,targets?.bm?.[a]||0);
             const pb=pctN(bt[b2]?.total||0,targets?.bm?.[b2]||0);
             return pb-pa;
@@ -1358,12 +1358,65 @@ function RecoverStaffModal({srList,onRestore,onClose}){
   </div>;
 }
 
+// ─── CORRECT PAST BRANCH ─────────────────────────────────────
+// For an SR whose past months were recorded under the wrong branch (e.g. they
+// moved branch but history says otherwise): sets the branch they really were
+// in up to a given month, in their history AND in the frozen month snapshots,
+// so those past months report under the right branch. From the next month
+// onwards they stay in their current branch.
+function CorrectBranchModal({srList,onSave,onClose}){
+  const [id,setId]=useState("");
+  const [was,setWas]=useState("");
+  const [until,setUntil]=useState("");
+  const [busy,setBusy]=useState(false);
+  const sr=srList.find(x=>x.id===id);
+  const go=async()=>{
+    if(!sr||!was||!/^\d{4}-\d{2}$/.test(until)){alert("Choose the SR, the branch they were in, and the last month they were in it.");return;}
+    if(was===sr.branch&&!confirm(`${sr.canon} is already in ${was} now. Continue anyway?`))return;
+    setBusy(true);
+    const[uy,um]=until.split("-").map(Number);
+    let ny=uy,nm=um+1;if(nm>12){nm=1;ny++;}
+    const nextYM=`${ny}-${String(nm).padStart(2,"0")}`;
+    const kept=(sr.progressionHistory||[]).filter(h=>h.effectiveFrom!=="0000-00").map(h=>h.effectiveFrom<=until&&h.branch?{...h,branch:was}:h);
+    const hasNext=kept.some(h=>h.effectiveFrom===nextYM&&h.branch);
+    const hist=[{effectiveFrom:"0000-00",branch:was,status:sr.status,loggedAt:new Date().toISOString()},...kept,...(hasNext?[]:[{effectiveFrom:nextYM,branch:sr.branch,status:sr.status,loggedAt:new Date().toISOString()}])];
+    // overwrite saved month snapshots up to `until`
+    for(let y=2024;y<=uy;y++){
+      for(let m=1;m<=(y===uy?um:12);m++){
+        let snap=null;try{snap=await loadData(rosterKeyFor(y,m));}catch(e){}
+        if(snap&&snap[sr.id]){snap={...snap,[sr.id]:{...snap[sr.id],branch:was}};rosterSnaps[`${y}-${m}`]=snap;await saveData(rosterKeyFor(y,m),snap);}
+      }
+    }
+    await onSave(sr.id,hist);
+    setBusy(false);
+    alert(`${sr.canon}: reports up to ${until} now count under ${was}; from ${nextYM} they stay in ${sr.branch}. Reload the dashboard to see it.`);onClose();
+  };
+  const inp={padding:"7px 9px",fontSize:13,border:"1px solid #D5DCE8",borderRadius:8,fontFamily:"Inter,sans-serif",width:"100%"};
+  return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:440,padding:22}}>
+      <h2 style={{fontSize:15,fontWeight:800,margin:0,color:"#0A1628"}}>Correct Past Branch</h2>
+      <div style={{fontSize:11,color:"#8A96A8",margin:"4px 0 14px"}}>Fixes which branch a staff member's earlier months are reported under.</div>
+      <label style={{fontSize:11,fontWeight:700,color:"#5A6472"}}>Staff</label>
+      <select style={{...inp,marginBottom:10}} value={id} onChange={e=>setId(e.target.value)}><option value="">Choose…</option>{[...srList].sort((a,b)=>a.canon.localeCompare(b.canon)).map(x=><option key={x.id} value={x.id}>{x.canon} — now {x.branch} ({x.id})</option>)}</select>
+      <label style={{fontSize:11,fontWeight:700,color:"#5A6472"}}>Branch they were really in</label>
+      <select style={{...inp,marginBottom:10}} value={was} onChange={e=>setWas(e.target.value)}><option value="">Branch…</option>{BRANCH_ORDER.map(b=><option key={b} value={b}>{b}</option>)}</select>
+      <label style={{fontSize:11,fontWeight:700,color:"#5A6472"}}>Last month in that branch</label>
+      <input type="month" style={{...inp,marginBottom:16}} value={until} onChange={e=>setUntil(e.target.value)}/>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-success" disabled={busy} onClick={go}>{busy?"Saving…":"Apply"}</button>
+      </div>
+    </div>
+  </div>;
+}
+
 export function SRBMModal({canRecover=false,srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,setRewardBalances,rewardHistory,setRewardHistory,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,isHR=false}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
   const [localSR,setLocalSR]=useState(JSON.parse(JSON.stringify(srList)));
   const [editSR,setEditSR]=useState(null);
   const [showRecover,setShowRecover]=useState(false);
+  const [showFixBranch,setShowFixBranch]=useState(false);
   const [updatePerson,setUpdatePerson]=useState(null);
   const [expandedResigned,setExpandedResigned]=useState({});
   const [editSRId,setEditSRId]=useState(null); // {oldId, value} — separate from editSR (name) since renaming an ID needs its own validation/migration path
@@ -1732,6 +1785,8 @@ export function SRBMModal({canRecover=false,srList,setSrList,branchMeta,setBranc
             {(saved||srSaved)&&<span style={{fontSize:12,color:"#00C896",fontWeight:700}}>Saved</span>}
             <button className="btn btn-success" onClick={()=>setEditSR("new")} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>+ Add New SR</button>
             {canRecover&&<button className="btn btn-ghost" onClick={()=>setShowRecover(true)} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>Recover Removed Staff</button>}
+            {canRecover&&<button className="btn btn-ghost" onClick={()=>setShowFixBranch(true)} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>Correct Past Branch</button>}
+            {canRecover&&showFixBranch&&<CorrectBranchModal srList={localSR} onClose={()=>setShowFixBranch(false)} onSave={async(sid,hist)=>{const updated=localSR.map(x=>x.id===sid?{...x,progressionHistory:hist}:x);setLocalSR(updated);await saveSR(updated);}}/>}
             {canRecover&&showRecover&&<RecoverStaffModal srList={localSR} onClose={()=>setShowRecover(false)} onRestore={async(list)=>{const updated=[...localSR,...list];setLocalSR(updated);await saveSR(updated);}}/>}
             <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px",fontSize:12}}>Close</button>
           </div>
