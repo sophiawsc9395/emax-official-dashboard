@@ -74,12 +74,12 @@ export const ORDER_ROLE_DEFS = {
     visibleSteps: [3, 4, 5],
     reports: [],
   },
-  // View-only. Sees only orders currently sitting on Billing Request (step 6)
-  // and can't change anything. order-main.jsx also forces isReadOnly for this
+  // View-only. Sees orders from Billing Request (step 6) through Completed (14),
+  // plus cancelled ones. Can't change anything. order-main.jsx also forces isReadOnly for this
   // role so every edit / bulk action / report button is hidden.
   billingRequestViewer: {
     adminSteps: [],
-    visibleSteps: [6],
+    visibleSteps: [6, 7, 8, 9, 10, 11, 12, 13, 14],
     reports: [],
   },
   // Full super-admin — everything, same as the main dashboard's order admin,
