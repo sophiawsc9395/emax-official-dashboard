@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import JCLTab from './JCLTab.jsx'
 import ChaileaseTab from './ChaileaseTab.jsx'
-import { PickupTodoList } from './OrderTab.jsx'
+import OrderTab, { PickupTodoList } from './OrderTab.jsx'
+import { mergeOrderPermissions } from './auth/orderRoles.js'
 import AuthGate from './auth/AuthGate.jsx'
 import { supabase, loadData } from './storage/index.js'
 import { listOrders, reconcile } from './storage/ordersApi.js'
@@ -74,6 +75,7 @@ const DEFAULT_BRANCH_META = {
 }
 
 const SIDEBAR_STRUCTURE = [
+  {id:"orders",label:"Order Tracking"},
   {id:"pickupTodo",label:"Pickup Reminder To-Do"},
   {group:"ccmApplication",label:"CCM Application",children:[
     {id:"jclApplications",label:"JCL Application"},
@@ -90,7 +92,7 @@ function CCMApp(){
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [pageTab, setPageTabRaw] = useState(() => {
     const h = window.location.hash.replace('#', '')
-    return ['pickupTodo', 'jclApplications', 'chaileaseApplications'].includes(h) ? h : 'jclApplications'
+    return ['orders', 'pickupTodo', 'jclApplications', 'chaileaseApplications'].includes(h) ? h : 'jclApplications'
   })
   const setPageTab = (t) => { setPageTabRaw(t); window.location.hash = t }
   const [expandedGroups, setExpandedGroups] = useState(() => {
@@ -167,6 +169,7 @@ function CCMApp(){
       <div style={{ display:"flex", maxWidth:1400, margin:"0 auto" }}>
         {/* MAIN CONTENT */}
         <div style={{ flex:1, minWidth:0, padding:"20px", maxWidth:1180 }}>
+          {pageTab==="orders" && <OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} isReadOnly={(email||"").toLowerCase()==="emaxjcl@gmail.com"} orderPermissions={mergeOrderPermissions(email)} email={email} />}
           {pageTab==="pickupTodo" && <PickupTodoList orders={orders} branchMeta={branchMeta} onUpdateOrder={saveOrderPatch} />}
           {pageTab==="jclApplications" && <JCLTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={email} />}
           {pageTab==="chaileaseApplications" && <ChaileaseTab branchMeta={branchMeta} isAdmin={true} userBranch={null} srList={srList} email={email} />}
