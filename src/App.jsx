@@ -1068,94 +1068,110 @@ export function TargetModal({targets,setTargets,srList,branchMeta,onClose,curren
   const setSR=(id,field,v)=>setLocal(p=>({...p,sr:{...p.sr,[id]:{...p.sr?.[id],[field]:parseFloat(v)||0}}}));
 
   const branches=selBranch==="ALL"?BRANCH_ORDER:[selBranch];
+  const [openB,setOpenB]=useState({});
+  const [vw,setVw]=useState(typeof window!=="undefined"?window.innerWidth:1100);
+  useEffect(()=>{const f=()=>setVw(window.innerWidth);window.addEventListener("resize",f);return()=>window.removeEventListener("resize",f);},[]);
+  const wide=vw>=760;
+  const fmRM=n=>"RM "+Number(n||0).toLocaleString();
+  const [dirty,setDirty]=useState(false);
+  const mark=()=>setDirty(true);
+  const fieldS={padding:"9px 11px 9px 38px",fontSize:13.5,border:"1px solid #D1D5DB",borderRadius:8,background:hrLocked?"#F3F4F6":"#fff",color:"#111827",fontFamily:"inherit",width:"100%",boxSizing:"border-box",textAlign:"right"};
+  const numBox=(v,on)=><div style={{position:"relative",width:"100%"}}><span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",fontSize:12.5,color:"#6B7280",pointerEvents:"none"}}>RM</span><input type="number" value={v||""} onChange={e=>{on(e.target.value);mark();}} placeholder="0" disabled={hrLocked} style={fieldS}/></div>;
+  const Lbl=({children})=><div style={{fontSize:12,fontWeight:600,color:"#4B5563",marginBottom:5}}>{children}</div>;
+  const selS={padding:"8px 30px 8px 11px",fontSize:13,border:"1px solid #D1D5DB",borderRadius:8,background:"#fff",color:"#111827",fontFamily:"inherit"};
+  const totalBranch=branches.reduce((s,b)=>s+(+local.bm?.[b]||0),0);
+  const monthLabel=`${MONTHS_LABEL[tgtMonth-1]} ${tgtYear}`;
 
   return <div className="modal-overlay">
-    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:860,maxHeight:"90vh",overflow:"auto"}}>
-      {/* Sticky header */}
-      <div style={{padding:"14px 20px",borderBottom:"1px solid #E4EAF2",position:"sticky",top:0,background:"#fff",zIndex:1}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Targets</h2>
-          {saved&&<span style={{fontSize:12,color:"#00C896",fontWeight:700}}>Saved</span>}
+    <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:1000,maxHeight:"92vh",overflow:"auto",border:"1px solid #E5E7EB",fontFamily:"Inter,system-ui,sans-serif",color:"#111827"}}>
+      {/* Header */}
+      <div style={{padding:wide?"22px 24px 0":"16px 16px 0",display:"flex",alignItems:"center",gap:10}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:wide?20:18,fontWeight:700}}>Set Targets</div>
+          {wide&&<div style={{fontSize:13,color:"#6B7280",marginTop:3}}>Each month has its own targets. Choose a month, then edit by branch.</div>}
         </div>
-        <div style={{display:"flex",gap:6,alignItems:"center",marginTop:8}}>
-          <select className="input select" value={tgtMonth} onChange={e=>loadMonthTargets(parseInt(e.target.value),tgtYear)} style={{fontSize:12,padding:"4px 20px 4px 6px",width:88}}>
-            {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
-          </select>
-          <select className="input select" value={tgtYear} onChange={e=>loadMonthTargets(tgtMonth,parseInt(e.target.value))} style={{fontSize:12,padding:"4px 20px 4px 6px",width:78}}>
-            {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
-          </select>
-          <select className="input select" value={selBranch} onChange={e=>setSelBranch(e.target.value)} style={{fontSize:12,padding:"4px 20px 4px 6px",width:130}}>
-            <option value="ALL">All Branches</option>
-            {BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name}</option>)}
-          </select>
-          <div style={{flex:1}}/>
-          <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px",fontSize:12}}>Close</button>
-        </div>
+        {saved&&<span style={{fontSize:13,color:"#047857",fontWeight:600}}>Saved</span>}
+        <button onClick={onClose} style={{padding:"9px 14px",fontSize:13.5,fontWeight:600,borderRadius:8,border:"1px solid #D1D5DB",background:"#fff",color:"#111827",cursor:"pointer"}}>Close</button>
+      </div>
+      <div style={{padding:wide?"16px 24px 6px":"12px 16px 4px",display:"flex",flexWrap:"wrap",gap:8,alignItems:"center"}}>
+        <select value={tgtMonth} onChange={e=>{loadMonthTargets(parseInt(e.target.value),tgtYear);setDirty(false);}} style={{...selS,flex:wide?"0 0 auto":1}}>
+          {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
+        </select>
+        <select value={tgtYear} onChange={e=>{loadMonthTargets(tgtMonth,parseInt(e.target.value));setDirty(false);}} style={{...selS,flex:wide?"0 0 auto":"0 0 92px"}}>
+          {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
+        </select>
+        <select value={selBranch} onChange={e=>setSelBranch(e.target.value)} style={{...selS,flex:wide?"0 0 auto":"1 1 100%"}}>
+          <option value="ALL">All branches</option>
+          {BRANCH_ORDER.map(b=><option key={b} value={b}>{b} — {branchMeta[b]?.name}</option>)}
+        </select>
+        <div style={{flex:1}}/>
+        {wide&&<div style={{fontSize:13,color:"#6B7280"}}>Total branch targets <b style={{color:"#111827",fontSize:15,marginLeft:4}}>{fmRM(totalBranch)}</b></div>}
+      </div>
+      <div style={{margin:wide?"8px 24px 16px":"8px 16px 12px",fontSize:wide?13:12,color:hrLocked?"#4B5563":"#6B7280",lineHeight:1.45,background:hrLocked?"#F3F4F6":"transparent",padding:hrLocked?"10px 12px":0,borderRadius:8}}>
+        {hrLocked?`${monthLabel} is a past month, so it is view only.`:(wide?"Changing targets only affects the month you have chosen. Other months are not touched.":"Only the chosen month changes.")}
       </div>
 
-      <div style={{padding:20}}>
-        {loading&&<div style={{textAlign:"center",padding:"32px 0",color:"#8A96A8",fontSize:13}}>Loading targets for {MONTHS_LABEL[tgtMonth-1]} {tgtYear}…</div>}
+      <div style={{padding:wide?"0 24px 8px":"0 12px 8px"}}>
+        {loading&&<div style={{textAlign:"center",padding:"32px 0",color:"#6B7280",fontSize:13}}>Loading targets for {monthLabel}…</div>}
         {!loading&&<>
-          {/* Branch-by-branch: BM + SR together */}
-          {hrLocked&&<div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#92400E"}}>
-            You're viewing {MONTHS_LABEL[tgtMonth-1]} {tgtYear} — that's a past month, so it's read-only from here. Switch to the current month to make changes.
-          </div>}
-
+          {!wide&&<div style={{fontSize:12.5,color:"#6B7280",margin:"0 4px 10px"}}>Total branch targets <b style={{color:"#111827"}}>{fmRM(totalBranch)}</b></div>}
           {branches.map(b=>{
             const bSRs=srList.filter(s=>srBranchIn(s,tgtMonth,tgtYear)===b&&srVisibleInMonth(s,tgtMonth,tgtYear));
             const bmName=branchMeta[b]?.manager??"";
-            return <div key={b} style={{marginBottom:24,border:"1px solid #E4EAF2",borderRadius:12,overflow:"hidden"}}>
-              {/* Branch header */}
-              <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div style={{fontWeight:800,fontSize:13,color:"#fff"}}>{branchMeta[b]?.name}{bmName&&<span style={{fontWeight:500,color:"rgba(255,255,255,.5)"}}> — {bmName}</span>}</div>
-                <div style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em"}}>{b}</div>
+            const open=selBranch!=="ALL"||!!openB[b];
+            const srTotal=bSRs.reduce((s,x)=>s+(+local.sr?.[x.id]?.target||0),0);
+            return <div key={b} style={{border:"1px solid #E5E7EB",borderRadius:10,marginBottom:12,background:"#fff"}}>
+              <div onClick={()=>selBranch==="ALL"&&setOpenB(o=>({...o,[b]:!o[b]}))} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px",cursor:selBranch==="ALL"?"pointer":"default"}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:15,fontWeight:700}}>{branchMeta[b]?.name||b}</div>
+                  <div style={{fontSize:12.5,color:"#6B7280",marginTop:1}}>{bmName?`${bmName} · `:""}{bSRs.length} SR{bSRs.length!==1?"s":""}</div>
+                </div>
+                <div style={{textAlign:"right"}}><div style={{fontSize:11.5,color:"#6B7280"}}>Branch target</div><div style={{fontSize:14,fontWeight:700}}>{fmRM(local.bm?.[b])}</div></div>
+                {selBranch==="ALL"&&<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,transform:open?"rotate(180deg)":"none",transition:".15s"}}><path d="M6 9l6 6 6-6"/></svg>}
               </div>
-              {/* BM targets */}
-              <div style={{padding:"14px 16px",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2"}}>
-                <div style={{fontSize:10,fontWeight:700,color:"#1E6FDB",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>Branch Manager Targets</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:12}}>
-                  <div>
-                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch Target (RM)</label>
-                    <input className="input" type="number" value={local.bm?.[b]||""} onChange={e=>setBM(b,e.target.value)} placeholder="0" disabled={hrLocked} style={{fontSize:12}}/>
-                  </div>
-                  <div>
-                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Personal Achievement Bonus (RM)</label>
-                    <input className="input" type="number" value={local.bmBonus?.[b]||""} onChange={e=>setBMB(b,e.target.value)} placeholder="0" disabled={hrLocked} style={{fontSize:12}}/>
-                  </div>
-                  <div>
-                    <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Monthly Basic (RM)</label>
-                    <input className="input" type="number" value={local.bmBasic?.[b]||""} onChange={e=>setBMBasic(b,e.target.value)} placeholder="0" disabled={hrLocked} style={{fontSize:12}}/>
+              {open&&<div style={{borderTop:"1px solid #E5E7EB"}}>
+                <div style={{padding:"16px 18px"}}>
+                  <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Branch manager</div>
+                  <div style={{display:"grid",gridTemplateColumns:wide?"repeat(3,1fr)":"1fr",gap:12}}>
+                    <div><Lbl>Branch target</Lbl>{numBox(local.bm?.[b],v=>setBM(b,v))}</div>
+                    <div><Lbl>Personal achievement bonus</Lbl>{numBox(local.bmBonus?.[b],v=>setBMB(b,v))}</div>
+                    <div><Lbl>Monthly basic</Lbl>{numBox(local.bmBasic?.[b],v=>setBMBasic(b,v))}</div>
                   </div>
                 </div>
-              </div>
-              {/* SR targets */}
-              {bSRs.length>0&&<div style={{padding:"12px 16px",overflowX:"auto"}}>
-                <div style={{fontSize:10,fontWeight:700,color:"#1E6FDB",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10}}>SR Targets</div>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                  <thead><tr style={{borderBottom:"2px solid #E4EAF2"}}>
-                    {["Name","Type","Target (RM)","Personal Bonus (RM)"].map(h=>
-                      <th key={h} style={{textAlign:"left",padding:"8px",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
-                    )}
-                  </tr></thead>
-                  <tbody>{bSRs.map((sr,i)=>(
-                    <tr key={sr.id} style={{borderBottom:"1px solid #E4EAF2",background:i%2===0?"#fff":"#F7F9FC"}}>
-                      <td style={{padding:"7px 8px",fontWeight:700,color:"#0A1628",whiteSpace:"nowrap"}}>{sr.canon}</td>
-                      <td style={{padding:"7px 8px"}}><TypeTag type={sr.type}/></td>
-                      <td style={{padding:"7px 8px"}}><input className="input" type="number" value={local.sr?.[sr.id]?.target||""} onChange={e=>setSR(sr.id,"target",e.target.value)} placeholder="0" disabled={hrLocked} style={{fontSize:12,padding:"5px 8px",width:110}}/></td>
-                      <td style={{padding:"7px 8px"}}><input className="input" type="number" value={local.sr?.[sr.id]?.bonus||""} onChange={e=>setSR(sr.id,"bonus",e.target.value)} placeholder="0" disabled={hrLocked} style={{fontSize:12,padding:"5px 8px",width:110}}/></td>
-                    </tr>
-                  ))}</tbody>
-                </table>
+                <div style={{borderTop:"1px solid #E5E7EB",padding:"16px 18px 6px",display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+                  <div style={{fontSize:13,fontWeight:700}}>Sales representatives</div>
+                  {bSRs.length>0&&<div style={{fontSize:12.5,color:"#6B7280"}}>SR targets total <b style={{color:"#111827"}}>{fmRM(srTotal)}</b></div>}
+                </div>
+                {bSRs.length===0&&<div style={{padding:"6px 18px 16px",fontSize:12.5,color:"#6B7280"}}>No active SR for this branch in {monthLabel}.</div>}
+                {bSRs.length>0&&(wide
+                  ?<table style={{width:"100%",borderCollapse:"collapse"}}>
+                    <thead><tr>{["Name","Type","Target","Personal bonus"].map((h,i)=><th key={h} style={{textAlign:i>1?"right":"left",fontSize:12,fontWeight:600,color:"#6B7280",padding:i===0?"9px 10px 9px 18px":"9px 10px",background:"#F9FAFB",borderTop:"1px solid #E5E7EB",borderBottom:"1px solid #E5E7EB"}}>{h}</th>)}</tr></thead>
+                    <tbody>{bSRs.map(sr=><tr key={sr.id} style={{borderBottom:"1px solid #E5E7EB"}}>
+                      <td style={{padding:"10px 10px 10px 18px"}}><div style={{fontSize:14,fontWeight:600}}>{sr.canon}</div><div style={{fontSize:12,color:"#6B7280"}}>{sr.id}</div></td>
+                      <td style={{padding:10,fontSize:12,color:"#4B5563"}}>{sr.type}</td>
+                      <td style={{padding:10,width:170}}>{numBox(local.sr?.[sr.id]?.target,v=>setSR(sr.id,"target",v))}</td>
+                      <td style={{padding:"10px 18px 10px 10px",width:170}}>{numBox(local.sr?.[sr.id]?.bonus,v=>setSR(sr.id,"bonus",v))}</td>
+                    </tr>)}</tbody>
+                  </table>
+                  :<div>{bSRs.map(sr=><div key={sr.id} style={{padding:"14px 18px",borderTop:"1px solid #E5E7EB"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+                      <div><div style={{fontSize:14,fontWeight:600}}>{sr.canon}</div><div style={{fontSize:12,color:"#6B7280"}}>{sr.id}</div></div>
+                      <span style={{fontSize:12,color:"#4B5563"}}>{sr.type}</span>
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                      <div><Lbl>Target</Lbl>{numBox(local.sr?.[sr.id]?.target,v=>setSR(sr.id,"target",v))}</div>
+                      <div><Lbl>Personal bonus</Lbl>{numBox(local.sr?.[sr.id]?.bonus,v=>setSR(sr.id,"bonus",v))}</div>
+                    </div>
+                  </div>)}</div>)}
               </div>}
-              {bSRs.length===0&&<div style={{padding:"10px 16px",fontSize:11,color:"#8A96A8"}}>No active SR for this branch in {MONTHS_LABEL[tgtMonth-1]} {tgtYear}.</div>}
             </div>;
           })}
-
-          <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:8,paddingTop:16,borderTop:"1px solid #E4EAF2"}}>
-            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button className="btn btn-primary" onClick={save}>Save — {MONTHS_LABEL[tgtMonth-1]} {tgtYear}{selBranch!=="ALL"?` · ${selBranch}`:""}</button>
-          </div>
         </>}
+      </div>
+      <div style={{position:"sticky",bottom:0,padding:wide?"13px 24px":"12px 16px",borderTop:"1px solid #E5E7EB",background:"#fff",borderRadius:"0 0 12px 12px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <div style={{flex:wide?"1 1 160px":"1 1 100%",fontSize:13,color:dirty&&!hrLocked?"#92400E":"#6B7280"}}>{hrLocked?"View only":dirty?"You have unsaved changes":"No changes yet"}</div>
+        <button onClick={onClose} style={{flex:wide?"0 0 auto":1,padding:"9px 16px",borderRadius:8,border:"1px solid #D1D5DB",background:"#fff",fontWeight:600,fontSize:13.5,color:"#111827",cursor:"pointer"}}>{hrLocked?"Close":"Cancel"}</button>
+        {!hrLocked&&<button onClick={async()=>{await save();setDirty(false);}} disabled={!dirty} style={{flex:wide?"0 0 auto":2,padding:"9px 18px",borderRadius:8,border:"none",background:"#1F3A5F",color:"#fff",fontWeight:600,fontSize:13.5,cursor:dirty?"pointer":"default",opacity:dirty?1:.55}}>{wide?`Save ${monthLabel} targets${selBranch!=="ALL"?` · ${selBranch}`:""}`:"Save targets"}</button>}
       </div>
     </div>
   </div>;
@@ -1461,7 +1477,148 @@ function CorrectBMModal({branchMeta,onClose,onDone}){
   </div>;
 }
 
-export function SRBMModal({canRecover=false,srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances,setRewardBalances,rewardHistory,setRewardHistory,adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,isHR=false}){
+// ─── MANAGE STAFF (HR-style UI helpers) ────────────────────
+const SM={ink:"#111827",mid:"#4B5563",light:"#6B7280",line:"#E5E7EB",soft:"#F9FAFB",navy:"#1F3A5F"};
+const SM_MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const smField={width:"100%",padding:"9px 11px",fontSize:13.5,border:"1px solid #D1D5DB",borderRadius:8,background:"#fff",color:SM.ink,fontFamily:"inherit",boxSizing:"border-box"};
+const SmIco=({d,c="currentColor",s=15})=><svg width={s} height={s} style={{flexShrink:0}} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>;
+const SMI={role:"M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5",hist:"M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8M3 3v5h5M12 7v5l3 2",edit:"M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z",swap:"M7 7h13l-4-4M17 17H4l4 4",out:"M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9",search:"M21 21l-4.3-4.3M11 18a7 7 0 110-14 7 7 0 010 14z",plus:"M12 5v14M5 12h14",info:"M12 22a10 10 0 100-20 10 10 0 000 20zM12 16v-4M12 8h.01",type:"M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM22 21v-2a4 4 0 00-3-3.9M16 3.1a4 4 0 010 7.8",tool:"M14.7 6.3a4 4 0 005 5L21 13l-8 8-4-4 8-8z",chev:"M6 9l6 6 6-6",user:"M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z"};
+const smInitials=n=>(n||"?").trim().split(/\s+/).map(w=>w[0]).slice(0,2).join("").toUpperCase();
+const smDot=s=>/^resigned/i.test(s||"")?"#9CA3AF":/^(probation|training)/i.test(s||"")?"#D97706":"#059669";
+const SmLbl=({children,hint})=><div style={{margin:"16px 0 6px"}}><div style={{fontSize:13,fontWeight:600,color:SM.ink}}>{children}</div>{hint&&<div style={{fontSize:12,color:SM.light,marginTop:1}}>{hint}</div>}</div>;
+const smPad=n=>String(n).padStart(2,"0");
+
+// One dialog for every staff action. It only collects the choices; the actual
+// saving is done by SRBMModal (saveStaffUpdate etc.), so all existing rules
+// (month-aware history, point burning, frozen past reports) stay in one place.
+function StaffActionDialog({kind,p,branchMeta,month,year,onClose,onConfirm}){
+  const branches=BRANCH_ORDER.filter(b=>branchMeta[b]);
+  const nowYM=`${year}-${smPad(month)}`;
+  const [m,setM]=useState(month),[y,setY]=useState(year);
+  const [busy,setBusy]=useState(false);
+  const [to,setTo]=useState(branches.find(b=>b!==p?.branch)||branches[0]);
+  const [rb,setRb]=useState(p?.branch||branches[0]);
+  const [ty,setTy]=useState(p?.type==="Offline"?"Offline":"Online");
+  const [nm,setNm]=useState(p?.name||"");
+  const [nid,setNid]=useState(p?.id||"");
+  const [add,setAdd]=useState({id:"",canon:"",branch:branches[0]||"KM",type:"Online"});
+  const ym=`${y}-${smPad(m)}`;
+  const future=ym>nowYM;
+  const nextM=m===12?1:m+1,nextY=m===12?y+1:y;
+  const toBM=p?.kind==="sr";
+  const replaced=kind==="role"&&toBM?branchMeta[rb]?.manager:"";
+  const titles={transfer:"Transfer branch",role:toBM?"Change to Branch Manager":"Change to SR",type:"Change SR type",resign:"Record resignation",edit:"Edit name and ID",add:"Add staff"};
+  const okLabel={transfer:"Confirm transfer",role:"Confirm change",type:"Save type",resign:"Confirm resignation",edit:"Save",add:"Add staff"}[kind];
+  const needsMonth=kind!=="edit"&&kind!=="add";
+  const blockFuture=(kind==="resign"||kind==="role")&&future;
+  const invalid=blockFuture||(kind==="transfer"&&to===p.branch)||(kind==="edit"&&!nm.trim())||(kind==="add"&&(!add.id.trim()||!add.canon.trim()));
+  const go=async()=>{
+    if(invalid||busy)return;
+    setBusy(true);
+    try{
+      if(kind==="transfer")await onConfirm({effectiveFrom:ym,newRole:"sr",newBranch:to,newType:p.type,status:"continue"});
+      else if(kind==="role")await onConfirm({effectiveFrom:ym,newRole:toBM?"bm":"sr",newBranch:toBM?rb:p.branch,newType:ty,status:"continue"});
+      else if(kind==="type")await onConfirm({type:ty,month:m,year:y});
+      else if(kind==="resign")await onConfirm({effectiveFrom:ym,newRole:p.kind,newBranch:p.branch,newType:p.type,status:"Resigned"});
+      else if(kind==="edit")await onConfirm({name:nm.trim(),id:nid.trim()});
+      else if(kind==="add")await onConfirm({...add,id:add.id.trim().toUpperCase(),canon:add.canon.trim().toUpperCase(),status:"Training (P0 F0)",joinDate:ym});
+      onClose();
+    }catch(err){console.warn("staff action not saved",err);}finally{setBusy(false);}
+  };
+  const typeBtns=(val,set)=><div style={{display:"flex",gap:8}}>{["Online","Offline"].map(t=><button key={t} onClick={()=>set(t)} style={{flex:1,padding:"9px 10px",fontSize:13.5,fontWeight:600,borderRadius:8,cursor:"pointer",border:`1px solid ${val===t?SM.navy:"#D1D5DB"}`,background:val===t?"#EEF2F7":"#fff",color:SM.ink}}>{t}</button>)}</div>;
+  const B=({children})=><b style={{color:SM.ink}}>{children}</b>;
+  const bn=b=>branchMeta[b]?.name||b;
+  return <div onMouseDown={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:"rgba(17,24,39,.5)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:2100,fontFamily:"Inter,system-ui,sans-serif"}}>
+    <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:460,boxShadow:"0 20px 50px rgba(17,24,39,.25)",maxHeight:"92vh",overflowY:"auto"}}>
+      <div style={{padding:"20px 22px 14px",borderBottom:`1px solid ${SM.line}`}}>
+        <div style={{fontSize:16,fontWeight:700,color:SM.ink}}>{titles[kind]}</div>
+        {p&&<div style={{fontSize:13,color:SM.light,marginTop:3}}>{p.name} · {p.role} · {bn(p.branch)}</div>}
+      </div>
+      <div style={{padding:"2px 22px 20px"}}>
+        {kind==="add"&&<>
+          <SmLbl>Staff ID</SmLbl><input style={smField} placeholder="EM0311" value={add.id} onChange={e=>setAdd(a=>({...a,id:e.target.value.toUpperCase()}))}/>
+          <SmLbl>Full name</SmLbl><input style={smField} placeholder="FULL NAME" value={add.canon} onChange={e=>setAdd(a=>({...a,canon:e.target.value.toUpperCase()}))}/>
+          <SmLbl>Branch</SmLbl><select style={smField} value={add.branch} onChange={e=>setAdd(a=>({...a,branch:e.target.value}))}>{branches.map(b=><option key={b} value={b}>{bn(b)}</option>)}</select>
+          <SmLbl>SR type</SmLbl>{typeBtns(add.type,t=>setAdd(a=>({...a,type:t})))}
+        </>}
+        {kind==="edit"&&<>
+          <SmLbl>Name</SmLbl><input style={smField} value={nm} onChange={e=>setNm(e.target.value)}/>
+          <SmLbl hint="Changing an ID that already exists merges the two records. You will be asked to confirm.">Staff ID</SmLbl><input style={smField} value={nid} onChange={e=>setNid(e.target.value.toUpperCase())} placeholder={p.kind==="bm"?"e.g. EM0360":""}/>
+        </>}
+        {kind==="type"&&<><SmLbl>SR type</SmLbl>{typeBtns(ty,setTy)}</>}
+        {kind==="role"&&<>
+          {toBM
+            ?<><SmLbl>Branch to manage</SmLbl><select style={smField} value={rb} onChange={e=>setRb(e.target.value)}>{branches.map(b=><option key={b} value={b}>{bn(b)}</option>)}</select></>
+            :<><SmLbl>SR type</SmLbl>{typeBtns(ty,setTy)}</>}
+        </>}
+        {kind==="transfer"&&<><SmLbl>New branch</SmLbl><select style={smField} value={to} onChange={e=>setTo(e.target.value)}>{branches.filter(b=>b!==p.branch).map(b=><option key={b} value={b}>{bn(b)}</option>)}</select></>}
+        {needsMonth&&<>
+          <SmLbl hint="Any month can be chosen.">{kind==="type"?"Month":kind==="resign"?"Last working month":"Effective from"}</SmLbl>
+          <div style={{display:"flex",gap:8}}>
+            <select style={{...smField,flex:1}} value={m} onChange={e=>setM(+e.target.value)}>{SM_MONTHS.map((x,i)=><option key={i} value={i+1}>{x}</option>)}</select>
+            <select style={{...smField,flex:"0 0 96px"}} value={y} onChange={e=>setY(+e.target.value)}>{[2024,2025,2026,2027,2028].map(x=><option key={x}>{x}</option>)}</select>
+          </div>
+        </>}
+        {kind==="add"&&<>
+          <SmLbl hint="Every new SR starts at Training (P0 F0).">Start month</SmLbl>
+          <div style={{display:"flex",gap:8}}>
+            <select style={{...smField,flex:1}} value={m} onChange={e=>setM(+e.target.value)}>{SM_MONTHS.map((x,i)=><option key={i} value={i+1}>{x}</option>)}</select>
+            <select style={{...smField,flex:"0 0 96px"}} value={y} onChange={e=>setY(+e.target.value)}>{[2024,2025,2026,2027,2028].map(x=><option key={x}>{x}</option>)}</select>
+          </div>
+        </>}
+        {blockFuture&&<div style={{marginTop:14,fontSize:13,color:"#991B1B"}}>Please choose the current month or an earlier month. A future date cannot be applied yet.</div>}
+        {kind!=="edit"&&kind!=="add"&&<div style={{display:"flex",gap:10,background:SM.soft,border:`1px solid ${SM.line}`,borderRadius:8,padding:"11px 13px",marginTop:16,fontSize:13,color:SM.mid,lineHeight:1.55}}>
+          <SmIco d={SMI.info} c={SM.light} s={16}/>
+          <div>
+            {kind==="role"&&<>From <B>{SM_MONTHS[m-1]} {y}</B>, {p.name} is a <B>{toBM?"Branch Manager":"SR"}</B> at <B>{bn(toBM?rb:p.branch)}</B>. Status restarts at Probation (P0 F0). The reward points balance carries over; the points history starts fresh.{replaced?<> This replaces the current manager, <B>{replaced}</B>.</>:null}</>}
+            {kind==="type"&&<>{p.name} is shown as <B>{ty}</B> for <B>{SM_MONTHS[m-1]} {y}</B> only. Nothing else changes.</>}
+            {kind==="resign"&&<>Counted in reports up to <B>{SM_MONTHS[m-1]} {y}</B>, removed from <B>{SM_MONTHS[nextM-1]} {nextY}</B>. Reward points ({(p.pts||0).toLocaleString()}){p.kind==="bm"?" are burned unless this person also works as an SR":" will be burned"}.</>}
+            {kind==="transfer"&&<>Reports under <B>{bn(to)}</B> from <B>{SM_MONTHS[m-1]} {y}</B>. Earlier months stay under <B>{bn(p.branch)}</B>.</>}
+            {kind!=="type"&&<div style={{marginTop:4}}>Past monthly reports and the Overview will not change.</div>}
+          </div>
+        </div>}
+      </div>
+      <div style={{padding:"13px 22px",borderTop:`1px solid ${SM.line}`,display:"flex",justifyContent:"flex-end",gap:8,background:SM.soft,borderRadius:"0 0 12px 12px"}}>
+        <button onClick={onClose} style={{padding:"9px 16px",borderRadius:8,border:"1px solid #D1D5DB",background:"#fff",fontWeight:600,fontSize:13.5,color:SM.ink,cursor:"pointer"}}>Cancel</button>
+        <button onClick={go} disabled={invalid||busy} style={{padding:"9px 18px",borderRadius:8,border:"none",background:kind==="resign"?"#991B1B":SM.navy,color:"#fff",fontWeight:600,fontSize:13.5,cursor:invalid||busy?"default":"pointer",opacity:invalid||busy?.5:1}}>{busy?"Saving…":okLabel}</button>
+      </div>
+    </div>
+  </div>;
+}
+
+// One "Actions" button per row: dropdown on desktop, bottom sheet on mobile.
+function StaffActionsMenu({p,wide,resignedTab,onPick}){
+  const [pos,setPos]=useState(null);
+  const btnRef=useRef(null);
+  const isBM=p.kind==="bm";
+  const groups=resignedTab
+    ?[[{l:"Update status",d:SMI.edit,k:"status"},{l:"Employment history",d:SMI.hist,k:"hist"}]]
+    :[
+      [...(isBM?[]:[{l:"Transfer branch",d:SMI.swap,k:"transfer"}]),{l:isBM?"Change to SR":"Change to Branch Manager",d:SMI.role,k:"role"},...(isBM?[]:[{l:"Change SR type",d:SMI.type,k:"type"}])],
+      [{l:"Edit name and ID",d:SMI.user,k:"edit"},{l:"Update status",d:SMI.edit,k:"status"},{l:"Employment history",d:SMI.hist,k:"hist"}],
+      [{l:"Resign",d:SMI.out,k:"resign",danger:true}],
+    ];
+  const open=()=>{
+    const r=btnRef.current.getBoundingClientRect();
+    const h=groups.reduce((s,g)=>s+g.length*38+10,0)+8;
+    const below=window.innerHeight-r.bottom;
+    setPos({top:below<h+12?Math.max(8,r.top-h-4):r.bottom+4,left:Math.max(8,r.right-240)});
+  };
+  const pick=k=>{setPos(null);onPick(k,p);};
+  const list=<div>{groups.map((g,gi)=><div key={gi} style={{padding:"4px 0",borderTop:gi?`1px solid ${SM.line}`:"none"}}>{g.map(it=><div key={it.k} onClick={()=>pick(it.k)} style={{display:"flex",alignItems:"center",gap:11,padding:wide?"9px 12px":"13px 16px",fontSize:wide?13:15,color:it.danger?"#991B1B":SM.ink,cursor:"pointer",borderRadius:6}} onMouseEnter={e=>wide&&(e.currentTarget.style.background="#F3F4F6")} onMouseLeave={e=>wide&&(e.currentTarget.style.background="transparent")}><SmIco d={it.d} c={it.danger?"#991B1B":SM.light} s={wide?15:18}/>{it.l}</div>)}</div>)}</div>;
+  return <div>
+    <button ref={btnRef} onClick={()=>pos?setPos(null):open()} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 11px",fontSize:13,fontWeight:600,color:SM.navy,background:"#fff",border:"1px solid #D1D5DB",borderRadius:8,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"inherit"}}>Actions<SmIco d={SMI.chev} c={SM.light} s={13}/></button>
+    {pos&&wide&&<><div onClick={()=>setPos(null)} style={{position:"fixed",inset:0,zIndex:2000}}/><div style={{position:"fixed",top:pos.top,left:pos.left,background:"#fff",border:`1px solid ${SM.line}`,borderRadius:10,boxShadow:"0 10px 30px rgba(17,24,39,.15)",padding:4,zIndex:2001,width:240,fontFamily:"Inter,system-ui,sans-serif"}}>{list}</div></>}
+    {pos&&!wide&&<div onClick={()=>setPos(null)} style={{position:"fixed",inset:0,background:"rgba(17,24,39,.45)",zIndex:2000,display:"flex",alignItems:"flex-end",fontFamily:"Inter,system-ui,sans-serif"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#fff",width:"100%",borderRadius:"16px 16px 0 0",paddingBottom:18,maxHeight:"85vh",overflowY:"auto"}}>
+        <div style={{width:38,height:4,borderRadius:2,background:"#D1D5DB",margin:"9px auto 4px"}}/>
+        <div style={{padding:"8px 16px 10px"}}><div style={{fontSize:15,fontWeight:700,color:SM.ink}}>{p.name}</div><div style={{fontSize:12.5,color:SM.light}}>{p.role} · {p.branchName}</div></div>
+        <div style={{borderTop:`1px solid ${SM.line}`}}>{list}</div>
+      </div></div>}
+  </div>;
+}
+
+export function SRBMModal({canRecover=false,srList,setSrList,branchMeta,setBranchMeta,onClose,rewardBalances={},setRewardBalances=()=>{},rewardHistory={},setRewardHistory=()=>{},adjustBalance,statusHistory,setStatusHistory,month,year,setShowStatusHistoryModal,setStatusModalPerson,renameSRId,isHR=false}){
   const MONTHS_LABEL=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const [localBM,setLocalBM]=useState(JSON.parse(JSON.stringify(branchMeta)));
   const [localSR,setLocalSR]=useState(JSON.parse(JSON.stringify(srList)));
@@ -1558,11 +1715,11 @@ export function SRBMModal({canRecover=false,srList,setSrList,branchMeta,setBranc
   const [saved,setSaved]=useState(false);
   const [srSaved,setSRSaved]=useState(false);
   // Monthly type overrides — per month, per SR
-  const [typeMonth,setTypeMonth]=useState(month);
-  const [typeYear,setTypeYear]=useState(year);
-  const realNow=new Date();
-  const isPastMonth=isHR&&(typeYear<realNow.getFullYear()||(typeYear===realNow.getFullYear()&&typeMonth<realNow.getMonth()+1));
-  const hrLocked=isHR&&isPastMonth;
+  const typeMonth=month,typeYear=year;
+  // HR may now pick any effective month inside each action's own dialog, and
+  // every change is month-aware (past reports never change), so there is no
+  // longer a blanket past-month lock on this screen.
+  const hrLocked=false;
   const [typeOverrides,setTypeOverrides]=useState({});
 
   // Load type overrides whenever month/year changes
@@ -1582,13 +1739,13 @@ export function SRBMModal({canRecover=false,srList,setSrList,branchMeta,setBranc
   };
   const saveBM=async()=>{setBranchMeta(localBM);await saveData(BM_KEY,localBM);setSaved(true);setTimeout(()=>setSaved(false),1500);};
   const saveSR=async(list)=>{setSrList(list);await saveData(SR_KEY,list);setSRSaved(true);setTimeout(()=>setSRSaved(false),1500);};
-  const addSR=async()=>{
-    if(!newSR.id||!newSR.canon){alert("SR ID and Name are required.");return;}
-    if(localSR.find(s=>s.id===newSR.id)){alert("SR ID already exists.");return;}
-    const srToAdd={...newSR};
+  const addSR=async(srIn)=>{
+    const srToAdd={...(srIn||newSR)};
+    if(!srToAdd.id||!srToAdd.canon){alert("SR ID and Name are required.");throw new Error("missing");}
+    if(localSR.find(s=>s.id===srToAdd.id)){alert("SR ID already exists.");throw new Error("dup");}
     // joinDate already set in newSR state — store as "YYYY-MM"
     const updated=[...localSR,srToAdd];setLocalSR(updated);setEditSR(null);
-    setNewSR({id:"",canon:"",branch:"KM",type:"Online",status:"Probation (P0 F0)",joinDate:`${year}-${String(month).padStart(2,"0")}`});
+    setNewSR({id:"",canon:"",branch:"KM",type:"Online",status:"Training (P0 F0)",joinDate:`${year}-${String(month).padStart(2,"0")}`});
     await saveSR(updated);
   };
   const updateSR=async(id,field,val)=>{const updated=localSR.map(s=>s.id===id?{...s,[field]:val}:s);setLocalSR(updated);await saveSR(updated);};
@@ -1827,226 +1984,140 @@ export function SRBMModal({canRecover=false,srList,setSrList,branchMeta,setBranc
     return bmMatch||active.some(matchesSearch)||resigned.some(matchesSearch);
   });
 
+  // ── New HR-style screen state ──
+  const [tab,setTab]=useState("Active");
+  const [posFilter,setPosFilter]=useState("ALL");
+  const [adminOpen,setAdminOpen]=useState(false);
+  const [dlg,setDlg]=useState(null); // {kind,p}
+  const [vw,setVw]=useState(typeof window!=="undefined"?window.innerWidth:1100);
+  useEffect(()=>{const f=()=>setVw(window.innerWidth);window.addEventListener("resize",f);return()=>window.removeEventListener("resize",f);},[]);
+  const wide=vw>=760;
+  const branchName=b=>branchMeta[b]?.name||localBM[b]?.name||b;
+  const ptsOf=id=>rewardBalances?.[id]?.balance||0;
+  const buildRows=()=>{
+    const rows=[];
+    BRANCH_ORDER.forEach(b=>{
+      const bm=localBM[b];
+      if(bm?.manager){
+        const bmKey=`BM_${bm.managerId||b}`;
+        rows.push({key:`BM_${b}`,kind:"bm",branch:b,branchName:branchName(b),name:bm.manager,id:bm.managerId||"",role:"Branch Manager",status:bm.mStatus||"",pts:ptsOf(bmKey),ptsId:bmKey,resigned:isResignedStatus(bm.mStatus)});
+      }
+      localSR.filter(s=>s.branch===b&&srActiveInMonth(s,month,year)).forEach(sr=>{
+        const st=(sr.status||"");
+        if(/^promoted/i.test(st))return;
+        rows.push({key:sr.id,kind:"sr",sr,branch:b,branchName:branchName(b),name:sr.canon,id:sr.id,type:getType(sr),role:`SR · ${getType(sr)}`,status:st,pts:ptsOf(sr.id),ptsId:sr.id,resigned:/resigned/i.test(st),resignDate:sr.resignDate});
+      });
+    });
+    return rows;
+  };
+  const allRows=buildRows();
+  const activeAllRows=allRows.filter(r=>!r.resigned),resignedAllRows=allRows.filter(r=>r.resigned);
+  const q=searchQuery.trim().toLowerCase();
+  const passFilters=r=>(filterBranch==="ALL"||r.branch===filterBranch)&&(posFilter==="ALL"||(posFilter==="BM"?r.kind==="bm":r.kind==="sr"))&&(!q||(r.name||"").toLowerCase().includes(q)||(r.id||"").toLowerCase().includes(q));
+  const shownRows=(tab==="Active"?activeAllRows:resignedAllRows).filter(passFilters);
+
+  const doPick=(k,p)=>{
+    if(k==="hist"){if(setShowStatusHistoryModal){setStatusModalPerson(p.kind==="bm"?`BM_${p.branch}`:p.id);setShowStatusHistoryModal(true);}return;}
+    if(k==="status"){setUpdatePerson(p.kind==="bm"?{kind:"bm",branch:p.branch,name:p.name,status:p.status}:{kind:"sr",sr:p.sr});return;}
+    setDlg({kind:k,p});
+  };
+  const handleDialog=async(payload)=>{
+    const {kind,p}=dlg;
+    if(kind==="add"){await addSR(payload);return;}
+    if(kind==="type"){
+      const key=`emax_v5_sr_types_${payload.year}_${payload.month}`;
+      const cur=(await loadData(key))||{};
+      const upd={...cur,[p.id]:payload.type};
+      await saveData(key,upd);
+      if(payload.year===typeYear&&payload.month===typeMonth)setTypeOverrides(upd);
+      setSRSaved(true);setTimeout(()=>setSRSaved(false),1500);
+      return;
+    }
+    if(kind==="edit"){
+      if(p.kind==="sr"){
+        if(payload.name!==p.name)await updateSR(p.id,"canon",payload.name);
+        if(payload.id!==p.id&&payload.id)await trySaveSRId(p.id,payload.id);
+      }else{
+        if(payload.name!==p.name){
+          const upd={...localBM,[p.branch]:{...localBM[p.branch],manager:payload.name}};
+          setLocalBM(upd);setBranchMeta(upd);await saveData(BM_KEY,upd);
+          setSRSaved(true);setTimeout(()=>setSRSaved(false),1500);
+        }
+        if(payload.id!==p.id)trySaveBMId(p.branch,payload.id);
+      }
+      return;
+    }
+    // transfer / role / resign → the same month-aware save used everywhere
+    await saveStaffUpdate(p.kind==="bm"?{kind:"bm",branch:p.branch,name:p.name,status:p.status}:{kind:"sr",sr:p.sr},payload);
+    setSRSaved(true);setTimeout(()=>setSRSaved(false),1500);
+  };
+
+  const Tab=({t,n})=><button onClick={()=>setTab(t)} style={{padding:"10px 2px",marginRight:22,fontSize:14,fontWeight:tab===t?700:500,color:tab===t?SM.ink:SM.light,background:"none",border:"none",borderBottom:`2px solid ${tab===t?SM.navy:"transparent"}`,cursor:"pointer",fontFamily:"inherit"}}>{t} <span style={{color:SM.light,fontWeight:500}}>({n})</span></button>;
+  const selS={...smField,width:"auto",padding:"8px 30px 8px 11px",fontSize:13};
+  const person=r=><div style={{display:"flex",alignItems:"center",gap:11,minWidth:0}}>
+    <div style={{width:34,height:34,borderRadius:"50%",background:"#E5E7EB",color:SM.mid,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0}}>{smInitials(r.name)}</div>
+    <div style={{minWidth:0}}><div style={{fontSize:14,fontWeight:600,color:SM.ink,whiteSpace:"nowrap"}}>{r.name}</div><div style={{fontSize:12,color:SM.light,whiteSpace:"nowrap"}}>{r.role}{r.id?` · ${r.id}`:""}</div></div>
+  </div>;
+  const statusEl=r=><span style={{display:"inline-flex",alignItems:"center",gap:7,fontSize:13,color:SM.mid,whiteSpace:"nowrap"}}><span style={{width:7,height:7,borderRadius:"50%",background:smDot(r.status)}}/>{r.status||"No status set"}</span>;
+  const ptsEl=r=>!isHR?<AdjustBalanceWidget personId={r.ptsId} balance={r.pts} adjustBalance={adjustBalance}/>:<span style={{fontSize:13,fontWeight:600,color:SM.ink}}>{r.pts.toLocaleString()}</span>;
+  const resignedDate=r=>r.resignDate?r.resignDate.split("-").reverse().join("/"):"—";
+
   return <div className="modal-overlay">
-    <div style={{background:"#fff",borderRadius:16,width:"100%",maxWidth:900,maxHeight:"92vh",overflow:"auto"}}>
-      {/* Header */}
-      <div style={{padding:"14px 24px",borderBottom:"1px solid #E4EAF2",position:"sticky",top:0,background:"#fff",zIndex:10}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-          <h2 style={{fontSize:15,fontWeight:800,color:"#0A1628",margin:0}}>Manage Staff</h2>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            {(saved||srSaved)&&<span style={{fontSize:12,color:"#00C896",fontWeight:700}}>Saved</span>}
-            <button className="btn btn-success" onClick={()=>setEditSR("new")} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>+ Add New SR</button>
-            {canRecover&&<button className="btn btn-ghost" onClick={()=>setShowRecover(true)} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>Recover Removed Staff</button>}
-            {canRecover&&<button className="btn btn-ghost" onClick={()=>setShowFixBranch(true)} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>Correct Past Branch</button>}
-            {canRecover&&<button className="btn btn-ghost" onClick={()=>setShowFixBM(true)} disabled={hrLocked} style={{fontSize:12,padding:"6px 12px",opacity:hrLocked?.5:1}}>Correct Past Manager</button>}
-            {canRecover&&showFixBM&&<CorrectBMModal branchMeta={branchMeta} onClose={()=>setShowFixBM(false)}/>}
-            {canRecover&&showFixBranch&&<CorrectBranchModal srList={localSR} onClose={()=>setShowFixBranch(false)} onSave={async(sid,hist)=>{const updated=localSR.map(x=>x.id===sid?{...x,progressionHistory:hist}:x);setLocalSR(updated);await saveSR(updated);}}/>}
-            {canRecover&&showRecover&&<RecoverStaffModal srList={localSR} onClose={()=>setShowRecover(false)} onRestore={async(list)=>{const updated=[...localSR,...list];setLocalSR(updated);await saveSR(updated);}}/>}
-            <button className="btn btn-ghost" onClick={onClose} style={{padding:"6px 14px",fontSize:12}}>Close</button>
-          </div>
+    <div style={{background:"#fff",borderRadius:12,width:"100%",maxWidth:1000,maxHeight:"92vh",overflow:"auto",border:`1px solid ${SM.line}`,fontFamily:"Inter,system-ui,sans-serif",color:SM.ink}}>
+      <div style={{padding:wide?"22px 24px 0":"16px 16px 0",display:"flex",gap:10,alignItems:"center"}}>
+        <div style={{flex:"1 1 auto",minWidth:0}}>
+          <div style={{fontSize:wide?20:17,fontWeight:700,whiteSpace:"nowrap"}}>Manage Staff</div>
+          {wide&&<div style={{fontSize:13,color:SM.light,marginTop:3}}>Add staff, transfer branches and record resignations.</div>}
         </div>
-        {/* Help text moved up from the bottom of the page — this is the one
-            place both the name- and ID-editing gestures are explained. */}
-        <div style={{fontSize:11,color:"#8A96A8",marginTop:6}}>Click a name {EDIT_PENCIL} to edit it inline. Click an ID to edit or merge it. Changes to Type only apply to the SR Type month selected below.</div>
-        {/* Branch filter + search toolbar — filterBranch existed before but
-            was never wired to anything; this is the real control for it. */}
-        <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
-          <span style={{fontSize:11,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.06em"}}>Branch</span>
-          <button onClick={()=>setFilterBranch("ALL")} style={{padding:"4px 10px",cursor:"pointer",borderRadius:6,fontWeight:700,fontSize:11,fontFamily:"Inter,sans-serif",background:filterBranch==="ALL"?"#1E6FDB":"#fff",color:filterBranch==="ALL"?"#fff":"#4A5568",border:filterBranch==="ALL"?"none":"1px solid #E4EAF2"}}>All</button>
-          {BRANCH_ORDER.map(b=><button key={b} onClick={()=>setFilterBranch(b)} style={{padding:"4px 10px",cursor:"pointer",borderRadius:6,fontWeight:700,fontSize:11,fontFamily:"Inter,sans-serif",background:filterBranch===b?"#0A1628":"#fff",color:filterBranch===b?"#fff":"#4A5568",border:filterBranch===b?"none":"1px solid #E4EAF2"}}>{b}</button>)}
-          <input className="input" placeholder="Search name or ID…" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} style={{fontSize:12,maxWidth:180,marginLeft:"auto"}}/>
-        </div>
-        {/* SR Type override — visually separated because it's the ONLY thing
-            this month/year selector affects (plus the HR past-month lock
-            below); it does not filter, sort or otherwise touch anything
-            else on this page. */}
-        <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10,background:"#FFF8E8",border:"1px solid #FBE3A8",borderRadius:8,padding:"7px 10px"}}>
-          <span style={{fontSize:11,fontWeight:700,color:"#92400E",whiteSpace:"nowrap"}}>SR Type override for:</span>
-          <select className="input select" value={typeMonth} onChange={e=>setTypeMonth(parseInt(e.target.value))} style={{fontSize:12,padding:"4px 20px 4px 6px",width:88}}>
-            {MONTHS_LABEL.map((m,i)=><option key={i+1} value={i+1}>{m}</option>)}
-          </select>
-          <select className="input select" value={typeYear} onChange={e=>setTypeYear(parseInt(e.target.value))} style={{fontSize:12,padding:"4px 20px 4px 6px",width:78}}>
-            {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
-          </select>
-          <span style={{fontSize:10,color:"#92400E"}}>Only changes each SR's Type shown for this month{isHR?" and whether past months are locked":""} — nothing else.</span>
+        {(saved||srSaved)&&<span style={{fontSize:13,color:"#047857",fontWeight:600}}>Saved</span>}
+        <div style={{position:"relative",display:"flex",gap:wide?8:6,flexShrink:0}}>
+          {canRecover&&<>
+            <button onClick={()=>setAdminOpen(a=>!a)} style={{display:"flex",alignItems:"center",gap:7,padding:"9px 13px",fontSize:13,fontWeight:600,borderRadius:8,border:"1px solid #D1D5DB",background:"#fff",color:SM.ink,cursor:"pointer",fontFamily:"inherit"}}><SmIco d={SMI.tool} c={SM.mid}/>{wide&&<>Admin tools<SmIco d={SMI.chev} c={SM.light} s={13}/></>}</button>
+            {adminOpen&&<><div onClick={()=>setAdminOpen(false)} style={{position:"fixed",inset:0,zIndex:20}}/><div style={{position:"absolute",right:0,top:42,background:"#fff",border:`1px solid ${SM.line}`,borderRadius:8,boxShadow:"0 8px 24px rgba(17,24,39,.12)",padding:4,zIndex:21,width:240}}>
+              <div style={{fontSize:11,fontWeight:600,color:SM.light,padding:"7px 10px 3px"}}>Visible to Sophia only</div>
+              {[["Recover removed staff",()=>setShowRecover(true)],["Correct past branch",()=>setShowFixBranch(true)],["Correct past manager",()=>setShowFixBM(true)]].map(([l,fn])=><div key={l} onClick={()=>{setAdminOpen(false);fn();}} style={{padding:"9px 10px",fontSize:13,color:SM.ink,borderRadius:6,cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#F3F4F6"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{l}</div>)}
+            </div></>}
+          </>}
+          <button onClick={()=>setDlg({kind:"add",p:null})} style={{display:"flex",alignItems:"center",gap:wide?7:5,whiteSpace:"nowrap",padding:wide?"9px 15px":"9px 11px",fontSize:wide?13.5:13,fontWeight:600,borderRadius:8,border:"none",background:SM.navy,color:"#fff",cursor:"pointer",fontFamily:"inherit"}}><SmIco d={SMI.plus} c="#fff"/>{wide?"Add staff":"Add"}</button>
+          <button onClick={onClose} style={{whiteSpace:"nowrap",padding:wide?"9px 14px":"9px 11px",fontSize:wide?13.5:13,fontWeight:600,borderRadius:8,border:"1px solid #D1D5DB",background:"#fff",color:SM.ink,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
         </div>
       </div>
-
-      <div style={{padding:"20px 24px"}}>
-        {/* Add New SR form */}
-        {hrLocked&&<div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#92400E"}}>
-          You're viewing {MONTHS_LABEL[typeMonth-1]} {typeYear} — that's a past month, so it's read-only from here. Switch to the current month to make changes.
-        </div>}
-        {editSR==="new"&&<div style={{background:"rgba(0,200,150,.06)",borderRadius:12,padding:16,border:"1px solid rgba(0,200,150,.3)",marginBottom:20}}>
-          <div style={{fontWeight:700,fontSize:13,color:"#00C896",marginBottom:12}}>New Sales Representative</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:10}}>
-            <div>
-              <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>SR ID</label>
-              <input className="input" placeholder="EM0311" value={newSR.id} onChange={e=>setNewSR(p=>({...p,id:e.target.value.toUpperCase()}))} style={{fontSize:12}}/>
-            </div>
-            <div>
-              <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Full Name</label>
-              <input className="input" placeholder="FULL NAME" value={newSR.canon} onChange={e=>setNewSR(p=>({...p,canon:e.target.value.toUpperCase()}))} style={{fontSize:12}}/>
-            </div>
-            <div>
-              <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Branch</label>
-              <select className="input select" value={newSR.branch} onChange={e=>setNewSR(p=>({...p,branch:e.target.value}))} style={{fontSize:12}}>
-                {BRANCH_ORDER.map(b=><option key={b} value={b}>{branchMeta[b]?.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Type</label>
-              <select className="input select" value={newSR.type} onChange={e=>setNewSR(p=>({...p,type:e.target.value}))} style={{fontSize:12}}>
-                <option value="Online">Online</option><option value="Offline">Offline</option>
-              </select>
-            </div>
-            <div>
-              <label style={{fontSize:10,fontWeight:700,color:"#00C896",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Start Month</label>
-              <div style={{display:"flex",gap:4}}>
-                <select className="input select" value={(newSR.joinDate||"").split("-")[1]||String(month).padStart(2,"0")} onChange={e=>setNewSR(p=>({...p,joinDate:`${(p.joinDate||`${year}-${String(month).padStart(2,"0")}`).split("-")[0]}-${e.target.value}`}))} style={{fontSize:11,flex:1,padding:"4px 20px 4px 6px"}}>
-                  {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((m,i)=><option key={i+1} value={String(i+1).padStart(2,"0")}>{m}</option>)}
-                </select>
-                <select className="input select" value={(newSR.joinDate||"").split("-")[0]||year} onChange={e=>setNewSR(p=>({...p,joinDate:`${e.target.value}-${(p.joinDate||`${year}-${String(month).padStart(2,"0")}`).split("-")[1]}`}))} style={{fontSize:11,width:70,padding:"4px 20px 4px 6px"}}>
-                  {[2024,2025,2026,2027,2028].map(y=><option key={y} value={y}>{y}</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-          <div style={{marginTop:10,gridColumn:"1/-1"}}>
-            <label style={{fontSize:10,fontWeight:700,color:"#8A96A8",display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Employment Status</label>
-            <div style={{fontSize:12,color:"#0A1628",fontWeight:600,padding:"7px 0"}}>Training (P0 F0) — every new SR starts here</div>
-          </div>
-          <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:12}}>
-            <button className="btn btn-ghost" onClick={()=>setEditSR(null)}>Cancel</button>
-            <button className="btn btn-success" onClick={addSR}>Add SR</button>
-          </div>
-        </div>}
-
-        {/* Branch-by-branch view */}
-        {visibleBranches.map(b=>{
-          const {active:activeAll,resigned:resignedAll}=allStaffForBranch(b);
-          const active=activeAll.filter(matchesSearch);
-          const resigned=resignedAll.filter(matchesSearch);
-          const bm=localBM[b];
-          return <div key={b} style={{marginBottom:20,border:"1px solid #E4EAF2",borderRadius:14,overflow:"hidden",boxShadow:"0 1px 3px rgba(10,22,40,.05)"}}>
-            {/* Branch header */}
-            <div style={{background:"linear-gradient(135deg,#0A1628,#162B52)",padding:"12px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
-              <input value={bm?.name||branchMeta[b]?.name||b} onChange={e=>setLocalBM(p=>({...p,[b]:{...p[b],name:e.target.value}}))} onBlur={saveBM} readOnly={hrLocked} style={{fontWeight:800,fontSize:14,color:"#fff",border:"none",background:"transparent",padding:"2px 0",flex:1,minWidth:0}}/>
-              <div style={{fontSize:10,color:"rgba(255,255,255,.4)",textTransform:"uppercase",letterSpacing:"0.08em",whiteSpace:"nowrap"}}>{activeAll.length} SR{activeAll.length!==1?"s":""}</div>
-            </div>
-
-            {/* BM card — identity fields (name/ID) get a subtle tinted panel,
-                separated by a divider from the current-state fields
-                (status) to their right (item 5). */}
-            <div style={{padding:"14px 18px",background:"#F7F9FC",borderBottom:"1px solid #E4EAF2",display:"flex",alignItems:"center",gap:0,flexWrap:"wrap"}}>
-              <div style={{width:34,height:34,borderRadius:10,background:"#EFF6FF",color:"#1E6FDB",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:11,flexShrink:0,marginRight:14}}>BM</div>
-              <div style={{flex:1,minWidth:160,display:"flex",alignItems:"stretch",gap:12,background:"#EEF2FA",borderRadius:8,padding:"6px 10px"}}>
-                <div style={{flex:1,minWidth:120}}>
-                  <div style={{display:"flex",alignItems:"center",gap:5}}>
-                    <input className="input" value={bm?.manager||""} onChange={e=>setLocalBM(p=>({...p,[b]:{...p[b],manager:e.target.value}}))} onBlur={saveBM} placeholder="Branch Manager Name" readOnly={hrLocked} style={{fontSize:13,fontWeight:700,border:"none",background:"transparent",padding:"2px 0",width:"100%"}}/>
-                    {!hrLocked&&<span style={{color:"#8A96A8",flexShrink:0}}>{EDIT_PENCIL}</span>}
-                  </div>
-                  {bm?.manager&&(editBMId?.branch===b
-                    ?<div style={{display:"flex",flexDirection:"column",gap:2,marginTop:3}}>
-                      <input autoFocus className="input" style={{width:110,padding:"2px 6px",fontSize:10}} value={editBMId.value} onChange={e=>{setEditBMId(p=>({...p,value:e.target.value.toUpperCase()}));setBmIdError(null);}} onKeyDown={e=>{if(e.key==="Enter")trySaveBMId(b,editBMId.value);if(e.key==="Escape"){setEditBMId(null);setBmIdError(null);}}} placeholder="e.g. EM0360"/>
-                      <div style={{display:"flex",gap:4}}>
-                        <button onClick={()=>trySaveBMId(b,editBMId.value)} style={{fontSize:9,padding:"1px 6px",background:"#1E6FDB",color:"#fff",border:"none",borderRadius:4,cursor:"pointer"}}>Save</button>
-                        <button onClick={()=>{setEditBMId(null);setBmIdError(null);}} style={{fontSize:9,padding:"1px 6px",background:"none",border:"1px solid #E4EAF2",borderRadius:4,cursor:"pointer",color:"#8A96A8"}}>×</button>
-                      </div>
-                      {bmIdError&&<div style={{fontSize:9,color:"#DC2626"}}>{bmIdError}</div>}
-                    </div>
-                    :<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:bm?.managerId?"#8A96A8":"#DC2626",fontWeight:bm?.managerId?400:700,cursor:hrLocked?"default":"pointer",marginTop:1}} onClick={()=>{if(hrLocked)return;setEditBMId({branch:b,value:bm?.managerId||""});setBmIdError(null);}} title={hrLocked?undefined:"Click to set/edit Manager ID"}>{!hrLocked&&EDIT_PENCIL}{bm?.managerId||"⚠ Set Manager ID"}</div>)}
-                </div>
-                <div style={{width:1,background:"#D8E0EC",alignSelf:"stretch"}}/>
-                <div style={{minWidth:90,display:"flex",alignItems:"center"}}>
-                  <div style={{fontSize:11,color:"#8A96A8"}}>{bm?.mStatus||"No status set"}</div>
-                </div>
-              </div>
-              <div style={{marginLeft:14}}>
-              {!isHR&&<AdjustBalanceWidget personId={`BM_${bm?.managerId||b}`} balance={rewardBalances?.[`BM_${bm?.managerId||b}`]?.balance||0} adjustBalance={adjustBalance}/>}
-              </div>
-              {bm?.manager&&<button className="btn" onClick={()=>setUpdatePerson({kind:"bm",branch:b,name:bm.manager,status:bm.mStatus})} disabled={hrLocked} style={{fontSize:11,padding:"6px 12px",marginLeft:8,opacity:hrLocked?.5:1,background:"#EFF6FF",color:"#1E6FDB",border:"1px solid #BFDBFE",borderRadius:8}}>Update</button>}
-              {setShowStatusHistoryModal&&<button className="btn btn-ghost" onClick={()=>{setStatusModalPerson(`BM_${b}`);setShowStatusHistoryModal(true);}} style={{fontSize:11,padding:"6px 10px"}}>History</button>}
-            </div>
-
-            {/* Active SR table */}
-            {active.length>0&&<div style={{padding:"0 18px 14px",overflowX:"auto"}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                <thead><tr style={{borderBottom:"2px solid #E4EAF2"}}>
-                  {["Name / ID","Type","Joined","Status","Points",""].map(h=>
-                    <th key={h} style={{textAlign:"left",padding:"10px 8px",fontSize:10,fontWeight:700,color:"#8A96A8",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
-                  )}
-                </tr></thead>
-                <tbody>{active.map((sr,i)=>(
-                  <tr key={sr.id} style={{borderBottom:"1px solid #E4EAF2",background:i%2===0?"#fff":"#FBFCFE"}}>
-                    <td style={{padding:"8px",minWidth:150,background:"#F4F6FB"}}>
-                      {editSR?.id===sr.id
-                        ?<input autoFocus className="input" style={{width:"100%",padding:"3px 7px",fontSize:12,fontWeight:700}} value={editSR.canon} onChange={e=>setEditSR(p=>({...p,canon:e.target.value.toUpperCase()}))} onBlur={async()=>{await updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}} onKeyDown={e=>{if(e.key==="Enter"){updateSR(sr.id,"canon",editSR.canon);setEditSR(null);}if(e.key==="Escape")setEditSR(null);}}/>
-                        :<div style={{display:"flex",alignItems:"center",gap:5,fontWeight:700,fontSize:12,color:"#0A1628",cursor:"pointer"}} onClick={()=>setEditSR({...sr})} title="Click to edit name"><span style={{color:"#8A96A8"}}>{EDIT_PENCIL}</span>{sr.canon}</div>}
-                      {editSRId?.oldId===sr.id
-                        ?<div style={{display:"flex",flexDirection:"column",gap:2,marginTop:3}}>
-                          <input autoFocus className="input" style={{width:90,padding:"2px 6px",fontSize:10}} value={editSRId.value} onChange={e=>{setEditSRId(p=>({...p,value:e.target.value}));setSrIdError(null);}} onKeyDown={e=>{if(e.key==="Enter")trySaveSRId(sr.id,editSRId.value);if(e.key==="Escape"){setEditSRId(null);setSrIdError(null);}}}/>
-                          <div style={{display:"flex",gap:4}}>
-                            <button onClick={()=>trySaveSRId(sr.id,editSRId.value)} style={{fontSize:9,padding:"1px 6px",background:"#1E6FDB",color:"#fff",border:"none",borderRadius:4,cursor:"pointer"}}>Save</button>
-                            <button onClick={()=>{setEditSRId(null);setSrIdError(null);}} style={{fontSize:9,padding:"1px 6px",background:"none",border:"1px solid #E4EAF2",borderRadius:4,cursor:"pointer",color:"#8A96A8"}}>×</button>
-                          </div>
-                          {srIdError&&<div style={{fontSize:9,color:"#DC2626"}}>{srIdError}</div>}
-                        </div>
-                        :<div style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:sr.id?"#8A96A8":"#DC2626",fontWeight:sr.id?400:700,cursor:"pointer",marginTop:1}} onClick={()=>{setEditSRId({oldId:sr.id,value:sr.id||""});setSrIdError(null);}} title="Click to edit ID">{EDIT_PENCIL}{sr.id||"⚠ Set SR ID"}</div>}
-                    </td>
-                    <td style={{padding:"8px"}}><TypeTag type={getType(sr)}/></td>
-                    <td style={{padding:"8px",color:"#4A5568",whiteSpace:"nowrap"}}>{sr.joinDate?sr.joinDate.replace(/(\d{4})-(\d{2})/,(f,y,m)=>["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m-1]+" "+y):"—"}</td>
-                    <td style={{padding:"8px",color:"#0A1628",fontWeight:600,whiteSpace:"nowrap"}}>{sr.status||"—"}</td>
-                    <td style={{padding:"8px"}}>{!isHR&&<AdjustBalanceWidget personId={sr.id} balance={rewardBalances?.[sr.id]?.balance||0} adjustBalance={adjustBalance}/>}</td>
-                    <td style={{padding:"8px",textAlign:"right",whiteSpace:"nowrap"}}>
-                      <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",marginRight:4,opacity:hrLocked?.5:1,background:"#EFF6FF",color:"#1E6FDB",border:"1px solid #BFDBFE",borderRadius:6}}>Update</button>
-                      <button className="btn btn-danger" onClick={()=>removeSR(sr)} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",opacity:hrLocked?.5:1}}>Remove</button>
-                    </td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>}
-
-            {/* Resigned / inactive — always collapsed by default. Chevron
-                made bolder/button-like so the collapse control itself is
-                more discoverable, not just the count next to it. */}
-            {resigned.length>0&&<div style={{borderTop:"1px solid #E4EAF2"}}>
-              <button onClick={()=>setExpandedResigned(p=>({...p,[b]:!p[b]}))} style={{width:"100%",textAlign:"left",padding:"9px 18px",background:"none",border:"none",cursor:"pointer",fontSize:11,fontWeight:700,color:"#4A5568",textTransform:"uppercase",letterSpacing:"0.07em",display:"flex",alignItems:"center",gap:8}}>
-                <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:16,height:16,borderRadius:4,background:"#E4EAF2",color:"#4A5568",fontSize:11,transform:expandedResigned[b]?"rotate(90deg)":"none",transition:"transform .15s"}}>›</span>
-                Resigned / Inactive ({resigned.length})
-              </button>
-              {expandedResigned[b]&&<div style={{padding:"0 18px 14px",overflowX:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                  <thead><tr style={{borderBottom:"2px solid #FECACA"}}>
-                    {["Name / ID","Type","Resigned","Status",""].map(h=>
-                      <th key={h} style={{textAlign:"left",padding:"8px",fontSize:10,fontWeight:700,color:"#B91C1C",textTransform:"uppercase",letterSpacing:"0.05em",whiteSpace:"nowrap"}}>{h}</th>
-                    )}
-                  </tr></thead>
-                  <tbody>{resigned.map(sr=>(
-                    <tr key={sr.id} style={{borderBottom:"1px solid #FECACA"}}>
-                      <td style={{padding:"7px 8px"}}>
-                        <div style={{fontWeight:700,color:"#7F1D1D"}}>{sr.canon}</div>
-                        <div style={{fontSize:10,color:"#B91C1C"}}>{sr.id}</div>
-                      </td>
-                      <td style={{padding:"7px 8px",color:"#B91C1C"}}>{sr.type}</td>
-                      <td style={{padding:"7px 8px",color:"#B91C1C",whiteSpace:"nowrap"}}>{sr.resignDate?sr.resignDate.split("-").reverse().join("/"):"—"}</td>
-                      <td style={{padding:"7px 8px",color:"#B91C1C"}}>{sr.status}</td>
-                      <td style={{padding:"7px 8px",textAlign:"right",whiteSpace:"nowrap"}}>
-                        <button className="btn" onClick={()=>setUpdatePerson({kind:"sr",sr})} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",marginRight:4,opacity:hrLocked?.5:1,background:"#EFF6FF",color:"#1E6FDB",border:"1px solid #BFDBFE",borderRadius:6}}>Update</button>
-                        <button className="btn btn-danger" onClick={()=>removeSR(sr)} disabled={hrLocked} style={{fontSize:10,padding:"4px 9px",opacity:hrLocked?.5:1}}>Remove</button>
-                      </td>
-                    </tr>
-                  ))}</tbody>
-                </table>
-              </div>}
-            </div>}
-
-            {active.length===0&&resigned.length===0&&<div style={{padding:"14px 18px",color:"#8A96A8",fontSize:12}}>No staff in this branch.</div>}
-          </div>;
-        })}
-        {visibleBranches.length===0&&<div style={{padding:"24px",textAlign:"center",color:"#8A96A8",fontSize:13}}>No branches or staff match "{searchQuery}"{filterBranch!=="ALL"?` in ${filterBranch}`:""}.</div>}
+      <div style={wide?{margin:"16px 24px 0",display:"flex",gap:10,background:SM.soft,border:`1px solid ${SM.line}`,borderRadius:8,padding:"10px 13px",fontSize:13,color:SM.mid}:{margin:"10px 16px 0",display:"flex",gap:7,fontSize:12,color:SM.light,lineHeight:1.45}}><SmIco d={SMI.info} c={SM.light} s={14}/><div>{wide?"Changes apply from the effective month you choose. Past monthly reports and the Overview never change.":"Changes apply from the month you choose. Past reports never change."}</div></div>
+      <div style={{padding:wide?"6px 24px 0":"2px 16px 0",borderBottom:`1px solid ${SM.line}`,marginTop:10}}>
+        <Tab t="Active" n={activeAllRows.length}/><Tab t="Resigned" n={resignedAllRows.length}/>
       </div>
+      <div style={{padding:wide?"14px 24px":"12px 16px",display:"flex",flexWrap:"wrap",gap:8,alignItems:"center"}}>
+        <div style={{flex:"1 1 220px",display:"flex",alignItems:"center",gap:8,border:"1px solid #D1D5DB",borderRadius:8,padding:"8px 11px"}}><SmIco d={SMI.search} c={SM.light}/><input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Search by name or ID" style={{flex:1,border:"none",outline:"none",fontSize:13.5,fontFamily:"inherit",minWidth:0,background:"transparent"}}/></div>
+        <select value={filterBranch} onChange={e=>setFilterBranch(e.target.value)} style={wide?selS:{...selS,flex:1}}><option value="ALL">All branches</option>{BRANCH_ORDER.map(b=><option key={b} value={b}>{branchName(b)}</option>)}</select>
+        <select value={posFilter} onChange={e=>setPosFilter(e.target.value)} style={wide?selS:{...selS,flex:1}}><option value="ALL">All positions</option><option value="BM">Branch Manager</option><option value="SR">SR</option></select>
+      </div>
+      {wide
+        ?<table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead><tr>{(tab==="Active"?["Employee","Branch","Status","Points",""]:["Employee","Branch","Resigned","Points",""]).map((h,i)=><th key={i} style={{textAlign:i===3?"right":"left",fontSize:12,fontWeight:600,color:SM.light,padding:i===0?"9px 14px 9px 24px":"9px 14px",background:SM.soft,borderTop:`1px solid ${SM.line}`,borderBottom:`1px solid ${SM.line}`}}>{h}</th>)}</tr></thead>
+          <tbody>{shownRows.map(r=><tr key={r.key} style={{borderBottom:`1px solid ${SM.line}`}}>
+            <td style={{padding:"12px 10px 12px 24px"}}>{person(r)}</td>
+            <td style={{fontSize:13,color:SM.mid,padding:"12px 10px",whiteSpace:"nowrap"}}>{r.branchName}</td>
+            <td style={{padding:"12px 10px"}}>{tab==="Active"?statusEl(r):<span style={{fontSize:13,color:SM.mid}}>{resignedDate(r)}</span>}</td>
+            <td style={{textAlign:"right",padding:"12px 10px"}}><div style={{display:"flex",justifyContent:"flex-end"}}>{ptsEl(r)}</div></td>
+            <td style={{padding:"12px 24px 12px 10px",textAlign:"right"}}><div style={{display:"flex",justifyContent:"flex-end"}}><StaffActionsMenu p={r} wide resignedTab={tab==="Resigned"} onPick={doPick}/></div></td>
+          </tr>)}</tbody>
+        </table>
+        :<div>{shownRows.map(r=><div key={r.key} style={{padding:"14px 16px",borderTop:`1px solid ${SM.line}`,display:"flex",alignItems:"center",gap:10}}>
+          <div style={{flex:1,minWidth:0}}>
+            {person(r)}
+            <div style={{margin:"8px 0 0 45px",display:"flex",flexWrap:"wrap",gap:"3px 12px",alignItems:"center",fontSize:12.5,color:SM.mid}}>
+              <span>{r.branchName}</span>{tab==="Active"?statusEl(r):<span>Resigned {resignedDate(r)}</span>}{ptsEl(r)}
+            </div>
+          </div>
+          <StaffActionsMenu p={r} wide={false} resignedTab={tab==="Resigned"} onPick={doPick}/>
+        </div>)}</div>}
+      {shownRows.length===0&&<div style={{padding:"28px 24px",textAlign:"center",color:SM.light,fontSize:13,borderTop:`1px solid ${SM.line}`}}>{q||filterBranch!=="ALL"||posFilter!=="ALL"?"No staff match these filters.":`No ${tab.toLowerCase()} staff.`}</div>}
+      <div style={{padding:"12px 24px",fontSize:12.5,color:SM.light}}>Showing {shownRows.length} of {(tab==="Active"?activeAllRows:resignedAllRows).length} {tab.toLowerCase()} staff</div>
     </div>
+    {canRecover&&showFixBM&&<CorrectBMModal branchMeta={branchMeta} onClose={()=>setShowFixBM(false)}/>}
+    {canRecover&&showFixBranch&&<CorrectBranchModal srList={localSR} onClose={()=>setShowFixBranch(false)} onSave={async(sid,hist)=>{const updated=localSR.map(x=>x.id===sid?{...x,progressionHistory:hist}:x);setLocalSR(updated);await saveSR(updated);}}/>}
+    {canRecover&&showRecover&&<RecoverStaffModal srList={localSR} onClose={()=>setShowRecover(false)} onRestore={async(list)=>{const updated=[...localSR,...list];setLocalSR(updated);await saveSR(updated);}}/>}
+    {dlg&&<StaffActionDialog kind={dlg.kind} p={dlg.p} branchMeta={branchMeta} month={month} year={year} onClose={()=>setDlg(null)} onConfirm={handleDialog}/>}
     {updatePerson&&<StaffUpdatePanel person={updatePerson} branchMeta={branchMeta} year={year} month={month} isHR={isHR} onClose={()=>setUpdatePerson(null)} onSave={saveStaffUpdate}/>}
   </div>;
 }

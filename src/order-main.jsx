@@ -15,7 +15,7 @@ import { supabase, loadData } from './storage/index.js'
 // login (knockoff.html) that already includes Order Tracking merged in, so
 // allowing her here too would just be a second, redundant way in. Her role
 // definition stays in orderRoles.js untouched, since knockoff.html's
-// permission lookup still depends on it. emaxjcl@gmail.com now has her own
+// permission lookup still depends on it. emaxjcl@gmail.com keeps her own
 // dedicated page (ccm.html) for JCL/Chailease Application instead — she was
 // never in ORDER_USER_ROLES to begin with (only reached this page before
 // via a separate JCL_ONLY_EMAILS allowlist, now removed).
@@ -116,6 +116,8 @@ function OrderOnlyApp(){
   }
 
   const orderPermissions = mergeOrderPermissions(email)
+  // emaxjcl@gmail.com: view-only, Billing Request step only.
+  const isViewOnlyUser = (email||"").toLowerCase() === "emaxjcl@gmail.com"
   const isSuperAdminForPO = !orderPermissions || orderPermissions.adminSteps === "all"
   const isPurchaseRole = orderPermissions && orderPermissions.adminSteps !== "all" && orderPermissions.adminSteps.includes(2)
   const canSeePurchaseOrder = isSuperAdminForPO || isPurchaseRole
@@ -173,7 +175,7 @@ function OrderOnlyApp(){
               <button key={id} onClick={()=>setPageTab(id)} style={{padding:"9px 16px",borderRadius:8,border:`1px solid ${pageTab===id?"#0A1628":"#E4EAF2"}`,background:pageTab===id?"#0A1628":"#fff",color:pageTab===id?"#fff":"#4A5568",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"Inter,sans-serif"}}>{label}</button>
             ))}
           </div>
-          {pageTab==="orders" && <OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} isReadOnly={false} orderPermissions={orderPermissions} email={email} />}
+          {pageTab==="orders" && <OrderTab branchMeta={branchMeta} isAdmin={true} srList={srList} isReadOnly={isViewOnlyUser} orderPermissions={orderPermissions} email={email} />}
           {canSeeDailySales && pageTab==="dailySales" && (()=>{
             const {isSuperAdminOrder,canSubmit,canVerify} = getDailySalesAccess(true, orderPermissions, false)
             return <DailySalesTab branchMeta={branchMeta} isAdmin={isSuperAdminOrder} canSubmit={canSubmit} canVerify={canVerify} email={email} />

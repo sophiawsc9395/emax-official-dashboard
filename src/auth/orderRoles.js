@@ -74,6 +74,14 @@ export const ORDER_ROLE_DEFS = {
     visibleSteps: [3, 4, 5],
     reports: [],
   },
+  // View-only. Sees only orders currently sitting on Billing Request (step 6)
+  // and can't change anything. order-main.jsx also forces isReadOnly for this
+  // role so every edit / bulk action / report button is hidden.
+  billingRequestViewer: {
+    adminSteps: [],
+    visibleSteps: [6],
+    reports: [],
+  },
   // Full super-admin — everything, same as the main dashboard's order admin,
   // just scoped to this Order-page-only entry point.
   superAdmin: {
@@ -90,6 +98,7 @@ export const ORDER_USER_ROLES = {
   "emaxknockoff@gmail.com": ["knockoff"],
   "emaxpurchase@gmail.com": ["purchase"],
   "emaxstock@gmail.com": ["stock"],
+  "emaxjcl@gmail.com": ["billingRequestViewer"],
   "boontheng2004@gmail.com": ["superAdmin", "billing", "knockoff", "purchase", "stock"],
   "sophiawsc9395@gmail.com": ["billing", "knockoff", "purchase", "stock", "superAdmin"],
 };
